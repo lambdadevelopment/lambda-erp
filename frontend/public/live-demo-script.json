@@ -1,0 +1,130 @@
+[
+  {
+    "role": "user",
+    "content": "Can you show me what Lambda ERP can do?"
+  },
+  {
+    "role": "assistant",
+    "content": "I can help create documents, look up records, run reports, and build live analytics. A typical flow is Quotation → Sales Order → Delivery Note → Sales Invoice → Payment Entry, and you can ask for any breakdown or chart in chat."
+  },
+  {
+    "role": "user",
+    "content": "create a new quotation for this riverside customer. 10x bolt pack m8 and 1 engineering consultation."
+  },
+  {
+    "role": "assistant",
+    "content": "Created draft quotation **[{{DEMO_QUOTATION}}](/app/quotation/{{DEMO_QUOTATION}})** for **Riverside Manufacturing**.\n\n**Details**\n- Date: 2026-04-17\n- Company: {{COMPANY}}\n- Items:\n  - 10 × Bolt Pack M8 @ 100 = 1,000\n  - 1 × Engineering Consultation @ 150 = 150\n- **Grand Total: 1,150**\n\nIf you want, I can **submit it** next.",
+    "flash": {
+      "group": "Selling",
+      "item": "Quotation"
+    }
+  },
+  {
+    "role": "user",
+    "content": "change the price of the bolt pack to 125"
+  },
+  {
+    "role": "assistant",
+    "content": "Updated draft quotation **[{{DEMO_QUOTATION}}](/app/quotation/{{DEMO_QUOTATION}})**.\n\n**Revised items**\n- 10 × **Bolt Pack M8** @ **125** = **1,250**\n- 1 × **Engineering Consultation** @ **150** = **150**\n\n**New grand total:** **1,400**\n\nIf you want, I can **submit it**.",
+    "flash": {
+      "group": "Selling",
+      "item": "Quotation"
+    }
+  },
+  {
+    "role": "user",
+    "content": "submit it and give me the pdf"
+  },
+  {
+    "role": "assistant",
+    "content": "Submitted quotation **[{{DEMO_QUOTATION}}](/app/quotation/{{DEMO_QUOTATION}})**.\n\n- Customer: **Riverside Manufacturing**\n- Total: **1,400 USD**\n- Status: **Open**\n\n**Links**\n- View: [{{DEMO_QUOTATION}}](/app/quotation/{{DEMO_QUOTATION}})\n- PDF: [Download PDF](/api/documents/quotation/{{DEMO_QUOTATION}}/pdf)",
+    "flash": {
+      "group": "Selling",
+      "item": "Quotation"
+    }
+  },
+  {
+    "role": "user",
+    "content": "we also need to restock these bolts. make a purchase for 20 from ironclad metals"
+  },
+  {
+    "role": "assistant",
+    "content": "Created draft purchase order **[{{DEMO_PO}}](/app/purchase-order/{{DEMO_PO}})**.\n\n**Details**\n- Supplier: **Ironclad Metals**\n- Company: **{{COMPANY}}**\n- Date: 2026-04-17\n- Item: **20 × Bolt Pack M8** @ **100**\n- **Grand Total: 2,000**\n\nSubmit it?",
+    "flash": {
+      "group": "Buying",
+      "item": "Purchase Order"
+    }
+  },
+  {
+    "role": "user",
+    "content": "yes and give me the pdf"
+  },
+  {
+    "role": "assistant",
+    "content": "Submitted purchase order **[{{DEMO_PO}}](/app/purchase-order/{{DEMO_PO}})**.\n\n- Supplier: **Ironclad Metals**\n- Item: **20 × Bolt Pack M8**\n- Total: **2,000 USD**\n- Status: **Submitted**\n\n**Links**\n- View: [{{DEMO_PO}}](/app/purchase-order/{{DEMO_PO}})\n- PDF: [Download PDF](/api/documents/purchase-order/{{DEMO_PO}}/pdf)",
+    "flash": {
+      "group": "Buying",
+      "item": "Purchase Order"
+    }
+  },
+  {
+    "role": "user",
+    "content": "what is our most important customer by revenue?"
+  },
+  {
+    "role": "assistant",
+    "content": "Your top customer by revenue is **{{DEMO_TOP1_NAME}}** ([{{DEMO_TOP1_ID}}](/masters/customer/{{DEMO_TOP1_ID}})).\n\n- **Revenue:** {{DEMO_TOP1_REVENUE}}\n- **Invoice count:** {{DEMO_TOP1_INVOICES}}\n\nIf you want, I can also show the **top 5 customers by revenue** or break this down by **year/month**."
+  },
+  {
+    "role": "user",
+    "content": "make a nice bar chart over all the top 7 customers and their revenue"
+  },
+  {
+    "role": "assistant",
+    "content": "Done — here's the chart:\n\n[Open bar chart](/reports/analytics?report_id={{DEMO_TOP7_REPORT_ID}})\n\nIt's saved under **Custom Analytics** in the sidebar as **Top 7 Customers by Revenue**. If you want, I can also make a version with:\n- customer IDs hidden\n- monthly trend for those same top customers",
+    "flash": {
+      "group": "Custom Analytics",
+      "item": "{{DEMO_TOP7_REPORT_ID}}"
+    }
+  },
+  {
+    "role": "user",
+    "content": "can you tell me the 2nd and 3rd best customer from that report?"
+  },
+  {
+    "role": "assistant",
+    "content": "I can't read the chart itself, but I re-ran the revenue ranking directly.\n\n- **2nd:** **{{DEMO_TOP2_NAME}}** ([{{DEMO_TOP2_ID}}](/masters/customer/{{DEMO_TOP2_ID}})) — **{{DEMO_TOP2_REVENUE}}**\n- **3rd:** **{{DEMO_TOP3_NAME}}** ([{{DEMO_TOP3_ID}}](/masters/customer/{{DEMO_TOP3_ID}})) — **{{DEMO_TOP3_REVENUE}}**\n\nWant the full **top 7 ranking** in chat?"
+  },
+  {
+    "role": "user",
+    "content": "for all these three, what's the last thing we sold them?"
+  },
+  {
+    "role": "assistant",
+    "content": "For those top 3 customers, the **last thing sold** on their most recent sales invoice was:\n\n1. **{{DEMO_TOP1_NAME}}** ([{{DEMO_TOP1_ID}}](/masters/customer/{{DEMO_TOP1_ID}}))\n   Last invoice: [{{DEMO_TOP1_LAST_INV}}](/app/sales-invoice/{{DEMO_TOP1_LAST_INV}}) on **{{DEMO_TOP1_LAST_INV_DATE}}**\n   Items sold:\n{{DEMO_TOP1_LAST_INV_ITEMS}}\n\n2. **{{DEMO_TOP2_NAME}}** ([{{DEMO_TOP2_ID}}](/masters/customer/{{DEMO_TOP2_ID}}))\n   Last invoice: [{{DEMO_TOP2_LAST_INV}}](/app/sales-invoice/{{DEMO_TOP2_LAST_INV}}) on **{{DEMO_TOP2_LAST_INV_DATE}}**\n   Items sold:\n{{DEMO_TOP2_LAST_INV_ITEMS}}\n\n3. **{{DEMO_TOP3_NAME}}** ([{{DEMO_TOP3_ID}}](/masters/customer/{{DEMO_TOP3_ID}}))\n   Last invoice: [{{DEMO_TOP3_LAST_INV}}](/app/sales-invoice/{{DEMO_TOP3_LAST_INV}}) on **{{DEMO_TOP3_LAST_INV_DATE}}**\n   Items sold:\n{{DEMO_TOP3_LAST_INV_ITEMS}}"
+  },
+  {
+    "role": "user",
+    "content": "we actually need to bill {{DEMO_TOP2_NAME}} another 8 hours of project mgmt"
+  },
+  {
+    "role": "assistant",
+    "content": "Done — I created a draft sales invoice for **{{DEMO_TOP2_NAME}}** ([{{DEMO_TOP2_ID}}](/masters/customer/{{DEMO_TOP2_ID}})).\n\n- **Invoice:** [{{DEMO_REDSTONE_SINV}}](/app/sales-invoice/{{DEMO_REDSTONE_SINV}})\n- **Date:** {{DEMO_REDSTONE_SINV_DATE}}\n- **Item:** Project Management (**SVC-005**)\n- **Qty:** 8 Hour\n- **Rate:** 250\n- **Total:** 2,000.00\n- **Due date:** {{DEMO_REDSTONE_DUE_DATE}}\n\nSubmit it?",
+    "flash": {
+      "group": "Selling",
+      "item": "Sales Invoice"
+    }
+  },
+  {
+    "role": "user",
+    "content": "yup"
+  },
+  {
+    "role": "assistant",
+    "content": "Submitted successfully.\n\n- **Invoice:** [{{DEMO_REDSTONE_SINV}}](/app/sales-invoice/{{DEMO_REDSTONE_SINV}})\n- **Customer:** {{DEMO_TOP2_NAME}} ([{{DEMO_TOP2_ID}}](/masters/customer/{{DEMO_TOP2_ID}}))\n- **Amount:** **2,000.00 USD**\n- **Outstanding:** **2,000.00 USD**\n- **Due date:** **{{DEMO_REDSTONE_DUE_DATE}}**\n- **PDF:** [Download PDF](/api/documents/sales-invoice/{{DEMO_REDSTONE_SINV}}/pdf)\n\nIf you want, I can also record a payment against [{{DEMO_REDSTONE_SINV}}](/app/sales-invoice/{{DEMO_REDSTONE_SINV}}) when they pay.",
+    "flash": {
+      "group": "Selling",
+      "item": "Sales Invoice"
+    }
+  }
+]

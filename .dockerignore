@@ -1,0 +1,48 @@
+# VCS + editor
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+.codex
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist
+build
+.venv
+venv
+.pytest_cache
+.mypy_cache
+
+# Node / Vite (built fresh inside stage 1)
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Local data that must never ship inside the image
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+uploads/*
+!uploads/.gitignore
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Infra — not needed to build the app image
+terraform
+
+# Docs / tests are fine to skip to keep image small
+docs
+tests

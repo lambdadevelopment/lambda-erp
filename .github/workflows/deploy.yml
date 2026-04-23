@@ -1,0 +1,111 @@
+name: Deploy to Azure Container Apps
+
+# Runs on every push to the deploy branch and on manual dispatch.
+# Never uses `pull_request_target` — that trigger runs with base-branch
+# secrets on fork PRs, which would let any forker push arbitrary images
+# into our ACR. Fork PRs go through the normal `pull_request` trigger
+# (no secret access), so it's safe to open the repo publicly.
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".gitignore"
+      - "LICENSE"
+  workflow_dispatch:
+
+# Prevent two deploys from racing and rolling back each other's image tag.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # required for Azure OIDC federated login
+  contents: read
+
+env:
+  ACR_REPO: lambda-erp
+
+jobs:
+  deploy:
+    name: Build & deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- Azure auth via federated OIDC ----------------------------------
+      # The matching trust lives in Azure AD (see
+      # terraform/app/github_actions.tf) and accepts only tokens whose
+      # `sub` claim matches `repo:<org>/<repo>:ref:refs/heads/<branch>`.
+      # AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID are
+      # repo-level Variables (not Secrets) — they aren't sensitive.
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: |
+          REGISTRY_NAME="$(echo '${{ vars.ACR_LOGIN_SERVER }}' | cut -d. -f1)"
+          az acr login --name "$REGISTRY_NAME"
+
+      # --- Build + push ---------------------------------------------------
+      # Tag with the commit SHA (immutable, what gets deployed) AND `latest`
+      # (convenient for local pulls / manual inspection).
+      - name: Compute image tags
+        id: tags
+        run: |
+          REGISTRY='${{ vars.ACR_LOGIN_SERVER }}'
+          SHA='${{ github.sha }}'
+          echo "sha_tag=${REGISTRY}/${ACR_REPO}:${SHA}" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=${REGISTRY}/${ACR_REPO}:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --tag '${{ steps.tags.outputs.sha_tag }}' \
+            --tag '${{ steps.tags.outputs.latest_tag }}' \
+            .
+
+      - name: Push image
+        run: |
+          docker push '${{ steps.tags.outputs.sha_tag }}'
+          docker push '${{ steps.tags.outputs.latest_tag }}'
+
+      # --- Roll out to Container Apps -------------------------------------
+      # `az containerapp update --image` creates a new revision pinned to
+      # the new SHA tag. Traffic switches automatically because the app's
+      # ingress block is configured with latest_revision = true in
+      # terraform/app/container_app.tf.
+      - name: Deploy new revision
+        run: |
+          az containerapp update \
+            --name '${{ vars.AZURE_CONTAINER_APP }}' \
+            --resource-group '${{ vars.AZURE_RESOURCE_GROUP }}' \
+            --image '${{ steps.tags.outputs.sha_tag }}' \
+            --output none
+
+      - name: Show app URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name '${{ vars.AZURE_CONTAINER_APP }}' \
+            --resource-group '${{ vars.AZURE_RESOURCE_GROUP }}' \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          REV=$(az containerapp revision list \
+            --name '${{ vars.AZURE_CONTAINER_APP }}' \
+            --resource-group '${{ vars.AZURE_RESOURCE_GROUP }}' \
+            --query "[?properties.active].name | [0]" -o tsv)
+          {
+            echo "### Deployed"
+            echo
+            echo "**URL:** https://${FQDN}"
+            echo "**Image:** \`${{ steps.tags.outputs.sha_tag }}\`"
+            echo "**Active revision:** \`${REV}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

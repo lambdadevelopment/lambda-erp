@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: {{ page_size }}; margin: 20mm 15mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1a1a1a; line-height: 1.4; }
+
+  .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  .company { font-size: 14pt; font-weight: bold; color: #2563eb; }
+  .doc-title { text-align: right; }
+  .doc-title h1 { font-size: 16pt; color: #1a1a1a; margin: 0; }
+  .doc-title .doc-name { font-size: 10pt; color: #666; }
+  .doc-title .doc-date { font-size: 9pt; color: #888; margin-top: 2px; }
+
+  .parties { display: flex; justify-content: space-between; margin-bottom: 20px; padding: 12px; background: #f8fafc; border-radius: 4px; }
+  .party-block h3 { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; }
+  .party-block .name { font-weight: bold; font-size: 10pt; }
+  .party-block .detail { font-size: 8pt; color: #555; }
+
+  .meta-row { display: flex; gap: 30px; margin-bottom: 15px; font-size: 8.5pt; }
+  .meta-item { }
+  .meta-item .label { color: #888; text-transform: uppercase; letter-spacing: 0.3px; font-size: 7pt; }
+  .meta-item .value { font-weight: 600; }
+
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+  table.items th { background: #f1f5f9; padding: 6px 8px; text-align: left; font-size: 8pt; font-weight: 600; color: #555; border-bottom: 2px solid #e2e8f0; }
+  table.items td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
+  table.items .num { text-align: right; }
+  table.items tfoot td { border-top: 2px solid #e2e8f0; font-weight: bold; }
+
+  .totals { margin-left: auto; width: 250px; margin-bottom: 20px; }
+  .totals table { width: 100%; }
+  .totals td { padding: 4px 0; font-size: 9pt; }
+  .totals td.label { color: #555; }
+  .totals td.amount { text-align: right; font-weight: 600; }
+  .totals .grand { font-size: 11pt; border-top: 2px solid #1a1a1a; padding-top: 6px; }
+
+  .taxes { margin-bottom: 10px; }
+  .taxes h3 { font-size: 8pt; color: #888; text-transform: uppercase; margin-bottom: 4px; }
+
+  .status-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 8pt; font-weight: bold; }
+  .status-submitted { background: #dbeafe; color: #1d4ed8; }
+  .status-cancelled { background: #fee2e2; color: #dc2626; }
+  .status-draft { background: #f3f4f6; color: #6b7280; }
+  .status-return { background: #fef3c7; color: #d97706; }
+
+  .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 7.5pt; color: #999; text-align: center; }
+  .remarks { margin-top: 15px; padding: 8px; background: #fefce8; border-radius: 4px; font-size: 8pt; color: #713f12; }
+</style>
+</head>
+<body>
+
+{# ---- Header ---- #}
+<div class="header">
+  <div>
+    <div class="company">{{ company_name or doc.company or "" }}</div>
+  </div>
+  <div class="doc-title">
+    <h1>{{ title }}{% if doc.is_return %} <span class="status-badge status-return">RETURN</span>{% endif %}</h1>
+    <div class="doc-name">{{ doc.name }}</div>
+    <div class="doc-date">{{ doc.posting_date or doc.transaction_date or "" }}</div>
+  </div>
+</div>
+
+{# ---- Parties ---- #}
+<div class="parties">
+  <div class="party-block">
+    <h3>From</h3>
+    <div class="name">{{ company_name or doc.company or "" }}</div>
+    {% if company_info %}
+    {% if company_info.get("address") %}<div class="detail">{{ company_info.address }}</div>{% endif %}
+    {% if company_info.get("city") or company_info.get("country") %}<div class="detail">{{ company_info.get("city", "") }}{% if company_info.get("country") %}, {{ company_info.country }}{% endif %}</div>{% endif %}
+    {% if company_info.get("email") %}<div class="detail">{{ company_info.email }}</div>{% endif %}
+    {% if company_info.get("phone") %}<div class="detail">{{ company_info.phone }}</div>{% endif %}
+    {% if company_info.get("tax_id") %}<div class="detail">Tax ID: {{ company_info.tax_id }}</div>{% endif %}
+    {% endif %}
+  </div>
+  <div class="party-block" style="text-align: right;">
+    <h3>{{ party_label }}</h3>
+    <div class="name">{{ party_name }}</div>
+    {% if party_info %}
+    {% if party_info.get("address") %}<div class="detail">{{ party_info.address }}</div>{% endif %}
+    {% if party_info.get("city") or party_info.get("country") %}<div class="detail">{{ party_info.get("city", "") }}{% if party_info.get("country") %}, {{ party_info.country }}{% endif %}</div>{% endif %}
+    {% if party_info.get("email") %}<div class="detail">{{ party_info.email }}</div>{% endif %}
+    {% if party_info.get("phone") %}<div class="detail">{{ party_info.phone }}</div>{% endif %}
+    {% if party_info.get("tax_id") %}<div class="detail">Tax ID: {{ party_info.tax_id }}</div>{% endif %}
+    {% endif %}
+  </div>
+</div>
+
+{# ---- Meta fields ---- #}
+{% if meta_fields %}
+<div class="meta-row">
+  {% for m in meta_fields %}
+  <div class="meta-item">
+    <div class="label">{{ m.label }}</div>
+    <div class="value">{{ m.value }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ---- Items table ---- #}
+<table class="items">
+  <thead>
+    <tr>
+      <th style="width: 30px">#</th>
+      <th>Item</th>
+      <th>Description</th>
+      {% if show_warehouse %}<th>Warehouse</th>{% endif %}
+      <th class="num">Qty</th>
+      <th class="num">Rate</th>
+      <th class="num">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td style="font-weight: 600">{{ item.item_code or "" }}</td>
+      <td>{{ item.item_name or item.description or "" }}</td>
+      {% if show_warehouse %}<td>{{ item.warehouse or "" }}</td>{% endif %}
+      <td class="num">{{ item.qty }}</td>
+      <td class="num">{{ "%.2f"|format(item.rate or 0) }}</td>
+      <td class="num">{{ "%.2f"|format(item.amount or item.net_amount or (item.qty or 0) * (item.rate or 0)) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# ---- Taxes ---- #}
+{% if taxes %}
+<div class="taxes">
+  <h3>Taxes & Charges</h3>
+  <table class="items">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th class="num">Rate</th>
+        <th class="num">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tax in taxes %}
+      <tr>
+        <td>{{ tax.description or tax.account_head or "" }}</td>
+        <td class="num">{{ "%.1f"|format(tax.rate or 0) }}%</td>
+        <td class="num">{{ "%.2f"|format(tax.tax_amount or 0) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ---- Totals ---- #}
+<div class="totals">
+  <table>
+    <tr>
+      <td class="label">Net Total</td>
+      <td class="amount">{{ currency }} {{ "%.2f"|format(doc.net_total or 0) }}</td>
+    </tr>
+    {% if doc.total_taxes_and_charges %}
+    <tr>
+      <td class="label">Tax</td>
+      <td class="amount">{{ currency }} {{ "%.2f"|format(doc.total_taxes_and_charges or 0) }}</td>
+    </tr>
+    {% endif %}
+    <tr class="grand">
+      <td class="label">Grand Total</td>
+      <td class="amount">{{ currency }} {{ "%.2f"|format(doc.grand_total or 0) }}</td>
+    </tr>
+    {% if doc.outstanding_amount is defined and doc.outstanding_amount is not none %}
+    <tr>
+      <td class="label">Outstanding</td>
+      <td class="amount">{{ currency }} {{ "%.2f"|format(doc.outstanding_amount or 0) }}</td>
+    </tr>
+    {% endif %}
+  </table>
+</div>
+
+{# ---- Remarks ---- #}
+{% if doc.remarks %}
+<div class="remarks">
+  <strong>Remarks:</strong> {{ doc.remarks }}
+</div>
+{% endif %}
+
+{# ---- Footer ---- #}
+<div class="footer">
+  {{ doc.name }} &middot; Generated from Lambda ERP
+</div>
+
+</body>
+</html>

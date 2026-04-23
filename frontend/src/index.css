@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Sidebar Lambda ERP logo — PNG silhouette used as a mask with an animated
+   multi-colour gradient showing through. */
+.lambda-logo-icon {
+  width: 70px;
+  height: 15px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #cbd5e1, #b0bacb, #c2ccd8, #94a3b8, #cbd5e1);
+  background-size: 300% 300%;
+  animation: lambda-logo-gradient 12s ease infinite;
+  -webkit-mask-image: url('/logo_lad_erp.png');
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-image: url('/logo_lad_erp.png');
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+
+@keyframes lambda-logo-gradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}

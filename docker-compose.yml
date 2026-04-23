@@ -1,0 +1,32 @@
+services:
+  lambda-erp:
+    image: lambda-erp:latest
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # ANTHROPIC_API_KEY is used by the code-specialist sub-agent that
+      # writes the JS transforms for custom analytics reports. Without it,
+      # the chat can still create draft reports but can't generate code
+      # for them. ANTHROPIC_CODE_MODEL overrides the default Claude model.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_CODE_MODEL: ${ANTHROPIC_CODE_MODEL:-claude-opus-4-7}
+      LAMBDA_ERP_AUTO_DEMO: "1"
+      # Default container flow: seed company + 3-year simulator, then hand
+      # off to the login page where the first user registers as admin.
+      # Set LAMBDA_ERP_ENABLE_PUBLIC_DEMO=1 in .env to instead spin up the
+      # shared `public_manager` + "Enter Live Demo" experience.
+      LAMBDA_ERP_ENABLE_PUBLIC_DEMO: ${LAMBDA_ERP_ENABLE_PUBLIC_DEMO:-0}
+      # Optional: pin a specific JWT signing secret. Leave unset for the
+      # normal flow — the backend auto-generates a secret on first boot
+      # and persists it to /data/.jwt_secret so it survives restarts.
+      # Only set this if you're running multiple instances behind a load
+      # balancer and they all need to agree on the secret.
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
+    volumes:
+      - lambda-erp-data:/data
+    restart: unless-stopped
+
+volumes:
+  lambda-erp-data:

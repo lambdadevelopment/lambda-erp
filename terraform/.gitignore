@@ -1,0 +1,34 @@
+# Local .terraform directories (provider plugins, module cache)
+**/.terraform/*
+
+# State files — contain plaintext secrets (API keys, connection strings).
+# Real state lives in Azure blob storage; this is defense-in-depth for
+# `terraform state pull` output, local backups, etc.
+*.tfstate
+*.tfstate.*
+
+# Variable files — often hold subscription_id, API keys, custom domains.
+# Commit *.tfvars.example templates instead.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Local overrides — intended to be machine-specific.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI config
+.terraformrc
+terraform.rc
+
+# Plan output
+*.tfplan
+
+# Note: .terraform.lock.hcl IS committed on purpose so collaborators get
+# the exact same provider versions. Do not add it here.

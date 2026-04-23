@@ -1,0 +1,57 @@
+<svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .body { transform-origin: 60px 60px; animation: breathe 3s ease-in-out infinite; }
+    .claw-left { transform-origin: 10px 55px; animation: pinch-left 2.4s ease-in-out infinite; }
+    .claw-right { transform-origin: 110px 55px; animation: pinch-right 2.4s ease-in-out infinite; }
+    .antenna-left { transform-origin: 45px 15px; animation: wiggle-left 1.8s ease-in-out infinite; }
+    .antenna-right { transform-origin: 75px 15px; animation: wiggle-right 1.8s ease-in-out infinite; }
+
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+    @keyframes pinch-left {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(-8deg); }
+    }
+    @keyframes pinch-right {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(8deg); }
+    }
+    @keyframes wiggle-left {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(-6deg); }
+    }
+    @keyframes wiggle-right {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(6deg); }
+    }
+  </style>
+  <!-- Body (slimmer, taller) -->
+  <path class="body" d="M60 4 C32 4 22 28 22 56 C22 80 34 98 47 104 L47 114 L54 114 L54 104 C54 104 60 106 66 104 L66 114 L73 114 L73 104 C86 98 98 80 98 56 C98 28 88 4 60 4Z" fill="url(#lobster-gradient)"/>
+  <!-- Left Claw -->
+  <path class="claw-left" d="M25 45 C10 40 5 50 10 60 C15 70 25 66 30 56 C33 49 30 45 25 45Z" fill="url(#lobster-gradient)"/>
+  <!-- Right Claw -->
+  <path class="claw-right" d="M95 45 C110 40 115 50 110 60 C105 70 95 66 90 56 C87 49 90 45 95 45Z" fill="url(#lobster-gradient)"/>
+  <!-- Antennae -->
+  <path class="antenna-left" d="M45 15 Q35 5 30 8" stroke="#7fc0ff" stroke-width="2" stroke-linecap="round"/>
+  <path class="antenna-right" d="M75 15 Q85 5 90 8" stroke="#7fc0ff" stroke-width="2" stroke-linecap="round"/>
+  <!-- Eyes -->
+  <circle cx="45" cy="35" r="5" fill="#050810"/>
+  <circle cx="75" cy="35" r="5" fill="#050810"/>
+  <!-- Nerdy glasses -->
+  <circle cx="45" cy="35" r="9" fill="none" stroke="#050810" stroke-width="3"/>
+  <circle cx="75" cy="35" r="9" fill="none" stroke="#050810" stroke-width="3"/>
+  <line x1="54" y1="35" x2="66" y2="35" stroke="#050810" stroke-width="3" stroke-linecap="round"/>
+  <line x1="36" y1="35" x2="30" y2="33" stroke="#050810" stroke-width="3" stroke-linecap="round"/>
+  <line x1="84" y1="35" x2="90" y2="33" stroke="#050810" stroke-width="3" stroke-linecap="round"/>
+  <!-- Lens highlights -->
+  <path d="M40 30 Q42 28 44 30" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <path d="M70 30 Q72 28 74 30" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <defs>
+    <linearGradient id="lobster-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5eb0ff"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+  </defs>
+</svg>
