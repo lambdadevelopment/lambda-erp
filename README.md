@@ -6,7 +6,10 @@ Lambda ERP is a working reference implementation of what we think a ERP should l
 
 https://github.com/user-attachments/assets/1b2749ef-10e7-42f5-9cce-df5628292667
 
-[check out the live demo](https://lambda.dev/erp)
+<p>
+  <a href="https://lambda.dev/erp"><img alt="Live demo" src="https://img.shields.io/badge/demo-lambda--erp-4fc3f7?style=flat"></a>
+  <a href="https://discord.gg/ZwFh9hZJTb"><img alt="Discord" src="https://img.shields.io/discord/1496911123029557359?color=7289DA&label=Discord&logo=discord&logoColor=white"></a>
+</p>
 
 This release is not yet production-ready. It's a complete prototype but not vetted enough to run your payroll on it yet.
 
@@ -14,7 +17,7 @@ This release is not yet production-ready. It's a complete prototype but not vett
 
 ## Why another ERP?
 
-Today, the most expensive part of an ERP rollout isn't paying for the software - it's paying the consultancies that configure it. A 5-person company can buy SAP Business One for roughly **$2,500 a year**, but getting anything actually working costs **$10-20k up front** for a quick-start package and **up to $50k** for a real implementation - roughly **20x the annual license spend on day one alone**. And the meter keeps running: every custom report, country-specific tax rule, or workflow change is another partner ticket at $150-220/hour. Systems like Oracle NetSuite and Microsoft Dynamics follow the same shape, and at the enterprise end (SAP S/4HANA and friends) implementations routinely run into the millions.
+Today, the most expensive part of an ERP rollout isn't paying for the software - it's paying the consultancies that configure it. A company can buy SAP Business One for 5 employees for roughly **$2,500 a year**, but getting anything actually working costs **$10-20k up front** for a quick-start package and **up to $50k** for a real implementation - roughly **20x the annual license spend on day one alone**. And the meter keeps running: every custom report, country-specific tax rule, or workflow change is another partner ticket at $150-220/hour. Systems like Oracle NetSuite and Microsoft Dynamics follow the same shape, and at the enterprise end (SAP S/4HANA and friends) implementations routinely run into the millions.
 
 That entire industry exists because ERPs are generic platforms that have to be bent to each company's shape by humans writing configuration, workflows, and custom reports. It's expensive because it's manual, and it's manual because software couldn't do it - until recently.
 
@@ -98,11 +101,11 @@ A consultant bills $150-220 an hour for that work. The same task via a frontier 
 - Preset reports: Trial Balance, Profit & Loss, Balance Sheet, General Ledger, AR/AP Aging, Stock Balance
 - Custom analytics drafts via chat (persisted, shareable, editable)
 - Server-side aggregation tool for in-chat factual answers across large datasets
-- PDF / image attachment → Purchase Invoice (vision-capable LLMs read the document)
+- PDF / image attachment → add invoices, create quotations, etc. all directly by adding them in the chat
 - Auth with admin/manager/viewer roles plus a public demo mode
 - Full test suite that exercises every cycle against an in-memory SQLite
 
-## What's still aspirational
+## What's still todo (Suggestions welcome)
 
 - MCP integration for supplier/customer communication (quotes, orders, confirmations)
 - Multi-currency beyond the simplified current handling
@@ -111,6 +114,7 @@ A consultant bills $150-220 an hour for that work. The same task via a frontier 
 - Manufacturing (BOM, work orders)
 - HR / Payroll beyond the journal-entry workaround
 - Regional compliance packs (GST, VAT returns, etc.) - see below
+- PDF report creation directly inside the chat
 
 ---
 
@@ -121,7 +125,7 @@ Four things had to be true for this to work, and they all became true in the las
 1. **LLMs can reliably call tools.** A year ago, models would hallucinate tool calls, mangle JSON, or drift after 2–3 steps. Today's frontier models can run an 8-step reasoning loop over a real tool inventory without falling off.
 2. **Costs collapsed.** Generating a custom report via a code-specialist sub-agent costs cents. The same work as a consulting change-request is a 4-figure invoice. That's a three-to-four-order-of-magnitude gap.
 3. **Structured output + function calling are first-class.** We can constrain the LLM's outputs to valid tool-call schemas, safe SQL parameters, and typed JSON - which is what makes an AI-native ERP even conceivable as a safe thing to run.
-4. **Greenfield is finally cheaper than retrofit.** Twenty-year ERP codebases have hundreds of bespoke models and thousands of hand-written forms - teaching an LLM to drive that reliably means curating a custom tool layer over every quirk. Starting from scratch around one Document lifecycle and a metadata-driven UI is now cheaper than retrofitting an existing platform, which is the opposite of what was true five years ago.
+4. **Greenfield is finally cheaper than retrofit.** Twenty-year ERP codebases have hundreds of bespoke models and thousands of hand-written forms - teaching an LLM to drive that reliably means curating a custom tool layer over every quirk. Starting from scratch around one Document lifecycle and a metadata-driven UI is now cheaper than retrofitting an existing platform.
 
 ---
 
@@ -243,7 +247,7 @@ This is early. The project needs:
 - A Postgres storage adapter (the current SQLite layer is fine for local evaluation but will need to be swapped for real multi-user write loads)
 - Better observability around token spend per turn
 
-PRs welcome. File an issue first if it's a big change.
+PRs welcome. File an issue first if it's a big change, or drop by our [Discord](https://discord.gg/ZwFh9hZJTb) to discuss ideas.
 
 ---
 
