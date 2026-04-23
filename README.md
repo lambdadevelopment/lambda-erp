@@ -4,7 +4,7 @@
 
 Lambda ERP is a working reference implementation of what we think a ERP should look like in 2026: chat as the primary interface, LLMs as the configuration layer, and consultant-weeks replaced by token-minutes.
 
-https://github.com/user-attachments/assets/aff3322c-e127-4f5f-b493-6a99165d059f
+https://github.com/user-attachments/assets/1b2749ef-10e7-42f5-9cce-df5628292667
 
 [check out the live demo](https://lambda.dev/erp)
 
