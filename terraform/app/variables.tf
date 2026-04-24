@@ -20,15 +20,22 @@ variable "project_name" {
 # --------------------------------------------------------------------------
 
 variable "acr_repo" {
-  description = "ACR repository (image name) for the FastAPI + frontend container"
+  description = "ACR repository (image name) for the FastAPI + frontend container. The GitHub Actions workflow pushes here as `<repo>:<git-sha>` on every deploy."
   type        = string
   default     = "lambda-erp"
 }
 
-variable "image_tag" {
-  description = "Image tag to deploy. GitHub Actions overrides this on each release."
+# Chicken-and-egg: on the very first `terraform apply`, ACR exists but no
+# image has been pushed yet, so the container app can't start. Use a
+# public Microsoft quickstart image as the bootstrap placeholder. The
+# container_app resource's `ignore_changes = [template.0.container.0.image]`
+# means terraform sets this once at creation and never fights CI after
+# that. GitHub Actions then rolls the real image on the first push to
+# master via `az containerapp update --image <sha>`.
+variable "initial_bootstrap_image" {
+  description = "Image used on first terraform apply, before CI has pushed anything to ACR. Azure's own quickstart image is ~10 MB and pulls from a public registry."
   type        = string
-  default     = "latest"
+  default     = "mcr.microsoft.com/k8se/quickstart:latest"
 }
 
 variable "cpu" {
@@ -64,6 +71,19 @@ variable "openai_api_key" {
   type        = string
   sensitive   = true
   default     = "placeholder-will-be-set-by-github-actions"
+}
+
+variable "anthropic_api_key" {
+  description = "Anthropic API key used by the code-specialist sub-agent (custom analytics JS generation)"
+  type        = string
+  sensitive   = true
+  default     = "placeholder-will-be-set-by-github-actions"
+}
+
+variable "anthropic_code_model" {
+  description = "Anthropic model used for the code-specialist sub-agent. Cheapen to claude-haiku-4-5 or similar if demo analytics spend matters."
+  type        = string
+  default     = "claude-opus-4-7"
 }
 
 variable "jwt_secret_key" {
@@ -130,7 +150,7 @@ variable "custom_domain" {
 variable "github_org" {
   description = "GitHub organization or username that owns the lambda-erp repo"
   type        = string
-  default     = "torusinvestments"
+  default     = "lambdadevelopment"
 }
 
 variable "github_repo" {

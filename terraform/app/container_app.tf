@@ -41,13 +41,23 @@ resource "azurerm_container_app" "app" {
 
     container {
       name   = "api"
-      image  = "${azurerm_container_registry.acr.login_server}/${var.acr_repo}:${var.image_tag}"
+      image  = var.initial_bootstrap_image
       cpu    = var.cpu
       memory = var.memory
 
       env {
         name        = "OPENAI_API_KEY"
         secret_name = "openai-api-key"
+      }
+
+      env {
+        name        = "ANTHROPIC_API_KEY"
+        secret_name = "anthropic-api-key"
+      }
+
+      env {
+        name  = "ANTHROPIC_CODE_MODEL"
+        value = var.anthropic_code_model
       }
 
       env {
@@ -58,6 +68,14 @@ resource "azurerm_container_app" "app" {
       env {
         name  = "PORT"
         value = tostring(var.target_port)
+      }
+
+      # Turn on the hosted-demo experience: shared public_manager account,
+      # "Enter Live Demo" button on the landing page, chat-replay records
+      # seeded into the DB. Admin registration via /login is unaffected.
+      env {
+        name  = "LAMBDA_ERP_ENABLE_PUBLIC_DEMO"
+        value = "1"
       }
 
       # Demo spend guardrails — see variables.tf for rationale.
@@ -111,6 +129,11 @@ resource "azurerm_container_app" "app" {
   secret {
     name  = "openai-api-key"
     value = var.openai_api_key
+  }
+
+  secret {
+    name  = "anthropic-api-key"
+    value = var.anthropic_api_key
   }
 
   secret {
