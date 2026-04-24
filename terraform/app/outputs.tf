@@ -23,9 +23,12 @@ output "aca_pull_identity_client_id" {
   value = azurerm_user_assigned_identity.aca_pull.client_id
 }
 
-# Values the GitHub Actions workflow needs as repo secrets / vars.
+# Values the GitHub Actions workflows need as repository Variables.
+# These are resource coordinates, not credentials — storing them as
+# Variables (not Secrets) keeps them visible in run logs for easier
+# debugging. Both deploy.yml and terraform-apply.yml read them.
 output "github_oidc_secrets" {
-  description = "Set these as GitHub Actions repository secrets for the deploy workflow."
+  description = "Paste these six values into GitHub Actions repository Variables."
   value = {
     AZURE_CLIENT_ID       = azuread_application.github_actions.client_id
     AZURE_TENANT_ID       = data.azurerm_client_config.current.tenant_id
@@ -33,6 +36,5 @@ output "github_oidc_secrets" {
     AZURE_RESOURCE_GROUP  = azurerm_resource_group.rg.name
     AZURE_CONTAINER_APP   = azurerm_container_app.app.name
     ACR_LOGIN_SERVER      = azurerm_container_registry.acr.login_server
-    ACR_REPO              = var.acr_repo
   }
 }

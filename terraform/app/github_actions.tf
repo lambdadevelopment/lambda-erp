@@ -49,3 +49,35 @@ resource "azurerm_role_assignment" "github_acr_push" {
   role_definition_name = "AcrPush"
   principal_id         = azuread_service_principal.github_actions.object_id
 }
+
+# Access to the terraform state storage account, so the terraform-apply
+# workflow can read/write the remote state blob.
+#
+# The SA is provisioned by the sibling `terraformstate` module in a
+# different resource group (lambda-erp-tfstate). We hardcode the fully-
+# qualified resource id rather than using a data source, because a data
+# source would need read permission on that RG *before* this role
+# assignment exists — the classic bootstrap chicken-and-egg.
+#
+# Two roles are needed:
+#   * Storage Account Contributor — grants `listKeys`, which the azurerm
+#     backend uses by default on every `terraform init`.
+#   * Reader — grants `Microsoft.Authorization/roleAssignments/read`, so
+#     terraform can refresh *these same role assignment resources* on
+#     subsequent CI-driven runs. Without this, every CI apply would
+#     fail at the refresh step.
+locals {
+  tfstate_sa_id = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/lambda-erp-tfstate/providers/Microsoft.Storage/storageAccounts/lambdaerptfstate"
+}
+
+resource "azurerm_role_assignment" "github_tfstate_contrib" {
+  scope                = local.tfstate_sa_id
+  role_definition_name = "Storage Account Contributor"
+  principal_id         = azuread_service_principal.github_actions.object_id
+}
+
+resource "azurerm_role_assignment" "github_tfstate_reader" {
+  scope                = local.tfstate_sa_id
+  role_definition_name = "Reader"
+  principal_id         = azuread_service_principal.github_actions.object_id
+}
