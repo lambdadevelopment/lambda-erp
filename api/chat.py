@@ -22,6 +22,14 @@ from fastapi import APIRouter, Depends as _Depends, HTTPException, WebSocket, We
 from openai import OpenAI
 
 from api import services
+from api.demo_limits import (
+    demo_call_reserve_usd,
+    demo_max_completion_tokens,
+    demo_max_message_chars,
+    is_demo_role,
+    limiter as demo_limiter,
+)
+from api.providers import cost_of_anthropic_call, cost_of_openai_call
 from api.routers.masters import create_master_record, update_master_record
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt, now, nowdate
@@ -99,6 +107,14 @@ def get_session(session_id: str) -> dict | None:
     db = get_db()
     rows = db.sql(f"{SESSION_SELECT} WHERE cs.id = ?", [session_id])
     return dict(rows[0]) if rows else None
+
+
+def can_access_session(session: dict | None, user: dict | None) -> bool:
+    if not session or not user:
+        return False
+    if user.get("role") == "admin":
+        return True
+    return session.get("user_id") == user.get("name")
 
 
 def delete_session(session_id: str):
@@ -372,21 +388,27 @@ def api_create_session(user: dict = _Depends(get_current_user)):
 
 
 @router.get("/sessions/{session_id}")
-def api_get_session(session_id: str):
+def api_get_session(session_id: str, user: dict = _Depends(get_current_user)):
     session = get_session(session_id)
-    if not session:
+    if not can_access_session(session, user):
         return {"detail": "Session not found"}
     return session
 
 
 @router.delete("/sessions/{session_id}")
-def api_delete_session(session_id: str):
+def api_delete_session(session_id: str, user: dict = _Depends(get_current_user)):
+    session = get_session(session_id)
+    if not can_access_session(session, user):
+        return {"detail": "Session not found"}
     delete_session(session_id)
     return {"ok": True}
 
 
 @router.put("/sessions/{session_id}/title")
-def api_rename_session(session_id: str, data: dict):
+def api_rename_session(session_id: str, data: dict, user: dict = _Depends(get_current_user)):
+    session = get_session(session_id)
+    if not can_access_session(session, user):
+        return {"detail": "Session not found"}
     title = data.get("title", "").strip()
     if title:
         update_session_title(session_id, title)
@@ -1205,7 +1227,7 @@ def _handle_query_dataset(args):
     return result
 
 
-def _handle_create_custom_analytics_report(args, user_info: dict | None = None, session_id: str | None = None):
+def _handle_create_custom_analytics_report(args, user_info: dict | None = None, session_id: str | None = None, client_ip: str | None = None):
     from api.routers.analytics import create_report_draft_record
 
     # GPT may pass intent + (optionally) a sketch. If the code spec is
@@ -1215,7 +1237,11 @@ def _handle_create_custom_analytics_report(args, user_info: dict | None = None, 
         if not intent:
             return {"error": "Provide either `intent` or a complete spec (data_requests + transform_js)."}
         try:
-            spec = _generate_report_spec_via_anthropic(intent)
+            spec = _generate_report_spec_via_anthropic(
+                intent,
+                client_ip=client_ip,
+                user_role=(user_info or {}).get("role"),
+            )
         except Exception as e:
             return {"error": f"Code specialist failed: {e}"}
         args["data_requests"] = spec["data_requests"]
@@ -1242,7 +1268,7 @@ def _handle_get_custom_analytics_report(args, user_info: dict | None = None):
     return row
 
 
-def _handle_update_custom_analytics_report(args, user_info: dict | None = None):
+def _handle_update_custom_analytics_report(args, user_info: dict | None = None, client_ip: str | None = None):
     from api.routers.analytics import get_report_draft_record, update_report_draft_record
 
     report_id = args.get("report_id")
@@ -1262,6 +1288,8 @@ def _handle_update_custom_analytics_report(args, user_info: dict | None = None):
                 intent=existing.get("description") or existing.get("title") or "",
                 existing_spec=existing,
                 feedback=feedback,
+                client_ip=client_ip,
+                user_role=(user_info or {}).get("role"),
             )
         except Exception as e:
             return {"error": f"Code specialist failed: {e}"}
@@ -1787,6 +1815,8 @@ def _generate_report_spec_via_anthropic(
     intent: str,
     existing_spec: dict | None = None,
     feedback: str | None = None,
+    client_ip: str | None = None,
+    user_role: str | None = None,
 ) -> dict:
     ok, reason = _anthropic_available()
     if not ok:
@@ -1826,12 +1856,47 @@ def _generate_report_spec_via_anthropic(
         flush=True,
     )
     client = anthropic.Anthropic(api_key=api_key, timeout=120.0)
-    response = client.messages.create(
-        model=model,
-        system=_REPORT_CODE_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_msg}],
-        max_tokens=4096,
-    )
+    reservation_id = None
+    if is_demo_role(user_role):
+        _blocked, reservation_id = demo_limiter.reserve(
+            client_ip or "unknown",
+            estimated_usd=demo_call_reserve_usd(),
+            role=user_role,
+        )
+        if _blocked:
+            raise RuntimeError(_blocked)
+
+    # try/finally + `settled` flag guarantees reservation release even if
+    # a CancelledError slips between the SDK call returning and settle()
+    # completing. Without this, a cancelled coroutine could leak the
+    # reservation for the process lifetime (or until TTL sweep).
+    settled = False
+    try:
+        response = client.messages.create(
+            model=model,
+            system=_REPORT_CODE_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_msg}],
+            max_tokens=4096,
+        )
+        # Log every call for the admin dashboard. Only public_manager rows
+        # count against the demo cap — other roles are logged for
+        # visibility but exempt from rate limiting.
+        usage = getattr(response, "usage", None)
+        demo_limiter.settle(
+            reservation_id,
+            actual_cost_usd=cost_of_anthropic_call(model, usage),
+            ip=client_ip or "unknown",
+            role=user_role,
+            provider="anthropic",
+            model=model,
+            prompt_tokens=int(getattr(usage, "input_tokens", 0) or 0) if usage else 0,
+            completion_tokens=int(getattr(usage, "output_tokens", 0) or 0) if usage else 0,
+        )
+        settled = True
+    finally:
+        if not settled:
+            demo_limiter.release(reservation_id)
+
     text = "".join(
         block.text for block in response.content if getattr(block, "type", "") == "text"
     )
@@ -1846,7 +1911,13 @@ def _generate_report_spec_via_anthropic(
 # ---------------------------------------------------------------------------
 
 
-async def generate_title(session_id: str, user_message: str, assistant_message: str):
+async def generate_title(
+    session_id: str,
+    user_message: str,
+    assistant_message: str,
+    client_ip: str | None = None,
+    user_role: str | None = None,
+):
     """Generate a short title for the chat based on the first exchange.
 
     Called after the first assistant reply. Runs in the background so it
@@ -1861,18 +1932,48 @@ async def generate_title(session_id: str, user_message: str, assistant_message: 
             api_key=api_key,
             timeout=httpx.Timeout(30.0, connect=5.0),
         )
-        response = await asyncio.to_thread(
-            client.chat.completions.create,
-            model="gpt-4.1-nano",
-            messages=[
-                {"role": "system", "content": "Generate a very short title (3-6 words, no quotes) for this chat based on the first exchange. Just the title, nothing else."},
-                {"role": "user", "content": f"User: {user_message[:200]}\nAssistant: {assistant_message[:200]}"},
-            ],
-            max_completion_tokens=30,
-        )
-        title = response.choices[0].message.content.strip().strip('"\'')
-        if title:
-            update_session_title(session_id, title)
+        title_model = "gpt-4.1-nano"
+        reservation_id = None
+        if is_demo_role(user_role):
+            _blocked, reservation_id = demo_limiter.reserve(
+                client_ip or "unknown",
+                estimated_usd=demo_call_reserve_usd(),
+                role=user_role,
+            )
+            if _blocked:
+                return
+
+        settled = False
+        try:
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
+                model=title_model,
+                messages=[
+                    {"role": "system", "content": "Generate a very short title (3-6 words, no quotes) for this chat based on the first exchange. Just the title, nothing else."},
+                    {"role": "user", "content": f"User: {user_message[:200]}\nAssistant: {assistant_message[:200]}"},
+                ],
+                max_completion_tokens=30,
+            )
+            usage = getattr(response, "usage", None)
+            demo_limiter.settle(
+                reservation_id,
+                actual_cost_usd=cost_of_openai_call(title_model, usage),
+                ip=client_ip or "unknown",
+                role=user_role,
+                provider="openai",
+                model=title_model,
+                prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0) if usage else 0,
+                completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0) if usage else 0,
+                session_id=session_id,
+            )
+            settled = True
+
+            title = response.choices[0].message.content.strip().strip('"\'')
+            if title:
+                update_session_title(session_id, title)
+        finally:
+            if not settled:
+                demo_limiter.release(reservation_id)
     except Exception:
         pass  # Title generation is best-effort
 
@@ -1888,6 +1989,7 @@ async def run_thinking_loop(
     session_id: str = None,
     max_iterations: int = 8,
     user_info: dict | None = None,
+    client_ip: str | None = None,
 ):
     """Run the agentic reasoning loop.
 
@@ -1909,7 +2011,13 @@ async def run_thinking_loop(
 
     tool_handlers = dict(TOOL_HANDLERS)
 
-    if user_info and user_info.get("role") == "public_manager":
+    user_role = user_info.get("role") if user_info else None
+    demo_mode = is_demo_role(user_role)
+    # Demo visitors get a tighter completion budget to bound worst-case
+    # cost per turn; logged-in managers/admins keep the original cap.
+    max_completion = demo_max_completion_tokens() if demo_mode else 4096
+
+    if demo_mode:
         denied = lambda _args: {"error": "Demo mode cannot create or update master data."}
         tool_handlers["create_master"] = denied
         tool_handlers["update_master"] = denied
@@ -1919,35 +2027,102 @@ async def run_thinking_loop(
         tool_handlers["retrieve_chat_history"] = lambda args: _handle_retrieve_chat_history(args, session_id)
         user_id_for_tools = user_info.get("name") if user_info else None
         tool_handlers["list_chat_attachments"] = lambda args: _handle_list_chat_attachments(args, session_id, user_id_for_tools)
-        tool_handlers["retrieve_chat_attachment"] = lambda args: _handle_retrieve_chat_attachment(args, session_id, user_id_for_tools)
+        _scoped_retrieve_attachment = (
+            lambda args: _handle_retrieve_chat_attachment(args, session_id, user_id_for_tools)
+        )
         tool_handlers["create_custom_analytics_report"] = (
-            lambda args: _handle_create_custom_analytics_report(args, user_info, session_id)
+            lambda args: _handle_create_custom_analytics_report(args, user_info, session_id, client_ip=client_ip)
         )
         tool_handlers["get_custom_analytics_report"] = (
             lambda args: _handle_get_custom_analytics_report(args, user_info)
         )
         tool_handlers["update_custom_analytics_report"] = (
-            lambda args: _handle_update_custom_analytics_report(args, user_info)
+            lambda args: _handle_update_custom_analytics_report(args, user_info, client_ip=client_ip)
         )
 
+        # Demo sessions get a per-turn cap on attachment retrieval: each
+        # retrieval injects ~33k tokens of base64, and the LLM will
+        # happily pull N attachments on one turn if asked. Cap at 1/turn
+        # — visitors who need another retrieval can send a new message.
+        # Counter is scoped per run_thinking_loop invocation, so it
+        # resets naturally between user messages.
+        if demo_mode:
+            demo_retrieval_budget = [1]
+
+            def _demo_capped_retrieve(args, _inner=_scoped_retrieve_attachment, _budget=demo_retrieval_budget):
+                if _budget[0] <= 0:
+                    return {
+                        "error": (
+                            "Demo mode allows at most 1 attachment retrieval per message. "
+                            "Ask about this attachment in a new message to retrieve another."
+                        )
+                    }
+                _budget[0] -= 1
+                return _inner(args)
+
+            tool_handlers["retrieve_chat_attachment"] = _demo_capped_retrieve
+        else:
+            tool_handlers["retrieve_chat_attachment"] = _scoped_retrieve_attachment
+
     for iteration in range(max_iterations):
+        # Pre-flight spend check — catches both the first call and any
+        # overshoot from the previous iteration's tokens.
+        if demo_mode and client_ip:
+            blocked = demo_limiter.check(client_ip)
+            if blocked:
+                await on_event({"type": "error", "content": blocked})
+                return
+
         await on_event({"type": "thinking", "iteration": iteration + 1})
 
+        reservation_id = None
+        if demo_mode:
+            blocked, reservation_id = demo_limiter.reserve(
+                client_ip or "unknown",
+                estimated_usd=demo_call_reserve_usd(),
+                role=user_role,
+            )
+            if blocked:
+                await on_event({"type": "error", "content": blocked})
+                return
+
+        # try/finally + settled flag guarantees the reservation is released
+        # on ANY exit path — including asyncio.CancelledError raised after
+        # the SDK call has already returned but before settle() ran.
+        settled = False
+        model_name = "gpt-5.4"
         try:
-            model_name = "gpt-5.4"
             print(f"[chat_llm] provider=openai model={model_name} session_id={session_id or '-'} iter={iteration + 1}", flush=True)
             await on_event({"type": "llm_provider", "provider": "openai", "model": model_name})
-            response = await asyncio.to_thread(
-                openai_client.chat.completions.create,
+            try:
+                response = await asyncio.to_thread(
+                    openai_client.chat.completions.create,
+                    model=model_name,
+                    messages=messages,
+                    tools=TOOLS,
+                    tool_choice="auto",
+                    max_completion_tokens=max_completion,
+                )
+            except Exception as e:
+                await on_event({"type": "error", "content": f"Error calling LLM: {e}"})
+                return
+
+            usage = getattr(response, "usage", None)
+            demo_limiter.settle(
+                reservation_id,
+                actual_cost_usd=cost_of_openai_call(model_name, usage),
+                ip=client_ip or "unknown",
+                role=user_role,
+                provider="openai",
                 model=model_name,
-                messages=messages,
-                tools=TOOLS,
-                tool_choice="auto",
-                max_completion_tokens=4096,
+                prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0) if usage else 0,
+                completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0) if usage else 0,
+                session_id=session_id,
             )
-        except Exception as e:
-            await on_event({"type": "error", "content": f"Error calling LLM: {e}"})
-            return
+            settled = True
+        finally:
+            if not settled:
+                demo_limiter.release(reservation_id)
 
         choice = response.choices[0]
         message = choice.message
@@ -2066,7 +2241,11 @@ async def run_thinking_loop(
 # ---------------------------------------------------------------------------
 
 
-async def chat_websocket(websocket: WebSocket, user_info: dict | None = None):
+async def chat_websocket(
+    websocket: WebSocket,
+    user_info: dict | None = None,
+    client_ip: str | None = None,
+):
     """Handle a shared WebSocket chat connection across sessions."""
     await websocket.accept()
     ws_user_id = user_info.get("name") if user_info else None
@@ -2198,6 +2377,7 @@ async def chat_websocket(websocket: WebSocket, user_info: dict | None = None):
                 messages, on_event,
                 session_id=target_session_id,
                 user_info=user_info,
+                client_ip=client_ip,
             )
 
             assistant_content = None
@@ -2210,7 +2390,13 @@ async def chat_websocket(websocket: WebSocket, user_info: dict | None = None):
 
             if is_first_reply and assistant_content:
                 async def _gen_and_notify():
-                    await generate_title(target_session_id, user_content, assistant_content)
+                    await generate_title(
+                        target_session_id,
+                        user_content,
+                        assistant_content,
+                        client_ip=client_ip,
+                        user_role=ws_user_role,
+                    )
                     session = get_session(target_session_id)
                     if session:
                         await send_event(
@@ -2257,7 +2443,7 @@ async def chat_websocket(websocket: WebSocket, user_info: dict | None = None):
                     continue
 
                 session = get_session(session_id)
-                if not session:
+                if not can_access_session(session, user_info):
                     await send_error(f"Session {session_id} not found", request_id=request_id, session_id=session_id)
                     continue
 
@@ -2283,6 +2469,10 @@ async def chat_websocket(websocket: WebSocket, user_info: dict | None = None):
                 if not session_id:
                     await send_error("No session_id provided", request_id=request_id)
                     continue
+                session = get_session(session_id)
+                if not can_access_session(session, user_info):
+                    await send_error("Session not found", request_id=request_id, session_id=session_id)
+                    continue
 
                 active_task = session_tasks.get(session_id)
                 if active_task and not active_task.done():
@@ -2301,6 +2491,10 @@ async def chat_websocket(websocket: WebSocket, user_info: dict | None = None):
                 session_id = data.get("session_id")
                 if not session_id:
                     await send_error("No session_id provided", request_id=request_id)
+                    continue
+                session = get_session(session_id)
+                if not can_access_session(session, user_info):
+                    await send_error("Session not found", request_id=request_id, session_id=session_id)
                     continue
 
                 active_task = session_tasks.get(session_id)
@@ -2401,7 +2595,7 @@ async def chat_websocket(websocket: WebSocket, user_info: dict | None = None):
                 continue
 
             session = get_session(session_id)
-            if not session:
+            if not can_access_session(session, user_info):
                 await send_error(f"Session {session_id} not found", request_id=request_id, session_id=session_id)
                 continue
 
@@ -2420,10 +2614,43 @@ async def chat_websocket(websocket: WebSocket, user_info: dict | None = None):
                 attachment_ids = []
             # Cap attachments at 5 per message
             attachment_ids = [str(a) for a in attachment_ids[:5]]
+            if is_demo_role(ws_user_role) and len(attachment_ids) > 1:
+                await send_error(
+                    "Demo mode allows at most 1 attachment per message.",
+                    request_id=request_id,
+                    session_id=session_id,
+                )
+                continue
 
             if not user_content and not attachment_ids:
                 await send_error("Message content cannot be empty.", request_id=request_id, session_id=session_id)
                 continue
+
+            # Demo-only: cap raw message length BEFORE the LLM sees it.
+            # The per-call `max_completion_tokens` already bounds output
+            # cost, but input tokens are uncapped — a pasted 100k-char
+            # wall would otherwise burn the global hourly budget in a
+            # single turn. Reject rather than truncate so the visitor
+            # knows what happened.
+            if is_demo_role(ws_user_role):
+                max_chars = demo_max_message_chars()
+                if len(user_content) > max_chars:
+                    await send_error(
+                        f"Demo messages are limited to {max_chars} characters "
+                        f"(your message is {len(user_content):,}). Please shorten it and try again.",
+                        request_id=request_id,
+                        session_id=session_id,
+                    )
+                    continue
+
+            # Short-circuit rate-limited demo visitors before we persist
+            # the user message and kick off the LLM task. `run_thinking_loop`
+            # re-checks on every iteration — this is just the friendly UX path.
+            if is_demo_role(ws_user_role) and client_ip:
+                blocked = demo_limiter.check(client_ip)
+                if blocked:
+                    await send_error(blocked, request_id=request_id, session_id=session_id)
+                    continue
 
             # Resolve attachment metadata for persistence + display
             from api.attachments import list_session_attachments

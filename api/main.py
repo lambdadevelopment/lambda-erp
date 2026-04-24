@@ -17,7 +17,7 @@ from api.errors import register_exception_handlers
 from api.auth import router as auth_router, COOKIE_NAME, decode_token
 from api.attachments import router as attachments_router
 from api.chat import chat_websocket, router as chat_router
-from api.routers import documents, masters, reports, setup as setup_router, bank_reconciliation, analytics
+from api.routers import admin, documents, masters, reports, setup as setup_router, bank_reconciliation, analytics
 
 
 @asynccontextmanager
@@ -25,6 +25,10 @@ async def lifespan(app: FastAPI):
     # Startup: initialize database
     db_path = os.environ.get("LAMBDA_ERP_DB", "lambda_erp.db")
     setup(db_path)
+
+    # Ensure the demo spend log table exists before any LLM call happens.
+    from api.demo_limits import init_schema as init_demo_spend_schema
+    init_demo_spend_schema()
 
     # When packaged as a demo container, land visitors straight in demo mode.
     if os.environ.get("LAMBDA_ERP_AUTO_DEMO") == "1":
@@ -63,6 +67,7 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(setup_router.router, prefix="/api")
 app.include_router(bank_reconciliation.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 
 
@@ -96,7 +101,17 @@ async def ws_chat(websocket: WebSocket):
         await websocket.close(code=4001, reason="Not authenticated")
         return
 
-    await chat_websocket(websocket, user_info=dict(user))
+    # Client IP for demo-spend rate limiting. Azure Container Apps ingress
+    # (and any sane reverse proxy) sets X-Forwarded-For with the original
+    # client as the leftmost entry; fall back to the socket peer for local
+    # dev where no proxy is in front.
+    xff = websocket.headers.get("x-forwarded-for", "")
+    if xff:
+        client_ip = xff.split(",")[0].strip()
+    else:
+        client_ip = websocket.client.host if websocket.client else "unknown"
+
+    await chat_websocket(websocket, user_info=dict(user), client_ip=client_ip)
 
 
 # Serve frontend build in production (if dist/ exists).

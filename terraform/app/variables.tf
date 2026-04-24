@@ -74,6 +74,46 @@ variable "jwt_secret_key" {
 }
 
 # --------------------------------------------------------------------------
+# Demo spend guardrails
+#
+# The public demo is backed by our OpenAI + Anthropic keys, so visitor
+# traffic costs us real money. Two sliding 1-hour windows inside the app
+# cap spend: a global bucket across all visitors, and a per-IP bucket.
+# Defaults target ~$50/day ($50 / 24h ≈ $2.08/hr global, with per-IP set
+# to 25% of global so one actor can't monopolize the budget).
+# --------------------------------------------------------------------------
+
+variable "demo_global_hourly_usd" {
+  description = "Global demo spend cap per hour in USD (sliding window). Default = $50/day ÷ 24h."
+  type        = number
+  default     = 2.0833
+}
+
+variable "demo_per_ip_hourly_usd" {
+  description = "Per-IP demo spend cap per hour in USD (sliding window)."
+  type        = number
+  default     = 0.5208
+}
+
+variable "demo_max_completion_tokens" {
+  description = "Cap on `max_completion_tokens` for each LLM call made by a public_manager (demo) session. Lower = tighter upper bound on per-turn cost."
+  type        = number
+  default     = 1024
+}
+
+variable "demo_max_message_chars" {
+  description = "Reject chat messages from public_manager sessions longer than this many characters. Guards against a pasted wall of text exhausting the hourly budget in a single call."
+  type        = number
+  default     = 300
+}
+
+variable "demo_max_attachment_bytes" {
+  description = "Reject chat-attachment uploads from public_manager sessions larger than this many bytes. Defaults to 100 KiB; attachments are base64-expanded into prompt tokens, so even a few MB can blow the hourly budget on a single message."
+  type        = number
+  default     = 102400
+}
+
+# --------------------------------------------------------------------------
 # Custom domain (optional — set to null to skip)
 # --------------------------------------------------------------------------
 

@@ -18,6 +18,14 @@ services:
       # Set LAMBDA_ERP_ENABLE_PUBLIC_DEMO=1 in .env to instead spin up the
       # shared `public_manager` + "Enter Live Demo" experience.
       LAMBDA_ERP_ENABLE_PUBLIC_DEMO: ${LAMBDA_ERP_ENABLE_PUBLIC_DEMO:-0}
+      # Demo spend guardrails — only enforced for public_manager traffic.
+      # Defaults (below) approximate $50/day total. See .env.example for
+      # details.
+      LAMBDA_ERP_DEMO_GLOBAL_HOURLY_USD: ${LAMBDA_ERP_DEMO_GLOBAL_HOURLY_USD:-2.0833}
+      LAMBDA_ERP_DEMO_PER_IP_HOURLY_USD: ${LAMBDA_ERP_DEMO_PER_IP_HOURLY_USD:-0.5208}
+      LAMBDA_ERP_DEMO_MAX_COMPLETION_TOKENS: ${LAMBDA_ERP_DEMO_MAX_COMPLETION_TOKENS:-1024}
+      LAMBDA_ERP_DEMO_MAX_MESSAGE_CHARS: ${LAMBDA_ERP_DEMO_MAX_MESSAGE_CHARS:-300}
+      LAMBDA_ERP_DEMO_MAX_ATTACHMENT_BYTES: ${LAMBDA_ERP_DEMO_MAX_ATTACHMENT_BYTES:-102400}
       # Optional: pin a specific JWT signing secret. Leave unset for the
       # normal flow — the backend auto-generates a secret on first boot
       # and persists it to /data/.jwt_secret so it survives restarts.

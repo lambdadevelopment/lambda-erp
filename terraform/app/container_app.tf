@@ -60,6 +60,32 @@ resource "azurerm_container_app" "app" {
         value = tostring(var.target_port)
       }
 
+      # Demo spend guardrails — see variables.tf for rationale.
+      env {
+        name  = "LAMBDA_ERP_DEMO_GLOBAL_HOURLY_USD"
+        value = tostring(var.demo_global_hourly_usd)
+      }
+
+      env {
+        name  = "LAMBDA_ERP_DEMO_PER_IP_HOURLY_USD"
+        value = tostring(var.demo_per_ip_hourly_usd)
+      }
+
+      env {
+        name  = "LAMBDA_ERP_DEMO_MAX_COMPLETION_TOKENS"
+        value = tostring(var.demo_max_completion_tokens)
+      }
+
+      env {
+        name  = "LAMBDA_ERP_DEMO_MAX_MESSAGE_CHARS"
+        value = tostring(var.demo_max_message_chars)
+      }
+
+      env {
+        name  = "LAMBDA_ERP_DEMO_MAX_ATTACHMENT_BYTES"
+        value = tostring(var.demo_max_attachment_bytes)
+      }
+
       startup_probe {
         transport               = "HTTP"
         path                    = var.health_probe_path

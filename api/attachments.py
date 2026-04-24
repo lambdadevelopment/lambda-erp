@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from lambda_erp.database import get_db
 from lambda_erp.utils import now
 from api.auth import require_role, get_current_user
+from api.demo_limits import demo_max_attachment_bytes, is_demo_role
 
 router = APIRouter(prefix="/chat", tags=["chat-attachments"])
 
@@ -28,6 +29,15 @@ def _ensure_upload_dir(user_id: str) -> str:
     path = os.path.join(UPLOAD_ROOT, user_id or "anonymous")
     os.makedirs(path, exist_ok=True)
     return path
+
+
+def _format_bytes(n: int) -> str:
+    """Human-friendly byte count for user-facing error messages."""
+    if n >= 1024 * 1024:
+        return f"{n / (1024 * 1024):.1f} MB"
+    if n >= 1024:
+        return f"{n / 1024:.0f} KB"
+    return f"{n} B"
 
 
 def _safe_ext(filename: str, mime: str) -> str:
@@ -62,6 +72,22 @@ async def upload_attachment(
         raise HTTPException(status_code=413, detail=f"File too large. Maximum {MAX_ATTACHMENT_SIZE // (1024 * 1024)} MB.")
     if not data:
         raise HTTPException(status_code=400, detail="Empty file.")
+
+    # Tighter cap for public demo visitors: base64-encoded attachments get
+    # streamed to the LLM as prompt tokens, so a 10 MB image alone would
+    # blow the hourly budget in one call. Reject with a message the
+    # frontend surfaces as-is so the visitor can shrink and retry.
+    if is_demo_role(user.get("role")):
+        demo_cap = demo_max_attachment_bytes()
+        if len(data) > demo_cap:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"Demo attachments are limited to {_format_bytes(demo_cap)} "
+                    f"(your file is {_format_bytes(len(data))}). "
+                    "Please upload a smaller image or PDF."
+                ),
+            )
 
     db = get_db()
     # Sanity-cap the number of attachments per session

@@ -391,9 +391,14 @@ export default function ChatPage() {
             );
           })
           .catch((err) => {
+            const msg = err?.message || "Upload failed";
+            // Surface the server's detail (e.g. demo size cap) in the banner
+            // so the user actually sees *why* — the pending tile only has
+            // room for "Failed".
+            setAttachmentError(`"${file.name}": ${msg}`);
             setAttachments((current) =>
               current.map((a) =>
-                a.localId === localId ? { ...a, uploading: false, error: err.message || "Upload failed" } : a,
+                a.localId === localId ? { ...a, uploading: false, error: msg } : a,
               ),
             );
           });

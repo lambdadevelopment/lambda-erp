@@ -246,6 +246,7 @@ This is early. The project needs:
 - More preset reports
 - A Postgres storage adapter (the current SQLite layer is fine for local evaluation but will need to be swapped for real multi-user write loads)
 - Better observability around token spend per turn
+- Native messenger integration, for WhatsApp, Telegram, etc.
 
 PRs welcome. File an issue first if it's a big change, or drop by our [Discord](https://discord.gg/ZwFh9hZJTb) to discuss ideas.
 

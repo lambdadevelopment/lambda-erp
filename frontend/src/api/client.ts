@@ -351,4 +351,35 @@ export const api = {
   getSettings: () => request<Record<string, string>>("/auth/settings"),
   updateSettings: (data: Record<string, string>) =>
     request<Record<string, string>>("/auth/settings", { method: "PUT", body: JSON.stringify(data) }),
+
+  getDemoSpend: () =>
+    request<{
+      caps: { global_hourly_usd: number; per_ip_hourly_usd: number };
+      windows: Record<
+        string,
+        {
+          total_usd: number;
+          demo_usd: number;
+          prompt_tokens: number;
+          completion_tokens: number;
+          call_count: number;
+          unique_ips: number;
+          by_provider: Record<
+            string,
+            {
+              cost_usd: number;
+              call_count: number;
+              prompt_tokens: number;
+              completion_tokens: number;
+            }
+          >;
+        }
+      >;
+      top_ips_24h: Array<{
+        ip: string;
+        role: string | null;
+        cost_usd: number;
+        call_count: number;
+      }>;
+    }>("/admin/demo-spend"),
 };
