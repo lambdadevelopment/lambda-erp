@@ -1,8 +1,8 @@
 # Lambda ERP
 
-**An AI-native ERP - because consulting shouldn't cost more than the software.**
+**Open-source ERP you can run through chat - without hiring a consultant**
 
-Lambda ERP is a working reference implementation of what we think a ERP should look like in 2026: chat as the primary interface, LLMs as the configuration layer, and consultant-weeks replaced by token-minutes.
+Lambda ERP is a working prototype of a simpler ERP: create invoices, check inventory, answer accounting questions, and change reports by asking for what you need in plain language.
 
 https://github.com/user-attachments/assets/1b2749ef-10e7-42f5-9cce-df5628292667
 
@@ -12,7 +12,7 @@ https://github.com/user-attachments/assets/1b2749ef-10e7-42f5-9cce-df5628292667
   </a>
 </p>
 
-> 3 years of simulated business data pre-loaded. Click **Enter Live Demo** for a 40-second scripted walkthrough, or register an admin account and prompt freely. Rate-limited to ~$50/day of LLM spend across all visitors.
+> Click **Enter Live Demo** for a 40-second scripted walkthrough and prompt freely after (rate-limited to ~$50/day of LLM spend across all visitors).
 
 **Join the discussion** on Discord — report bugs, share prompts that broke (or surprised) the agent, or just see what other early users are building:
 
