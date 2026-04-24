@@ -6,9 +6,18 @@ Lambda ERP is a working reference implementation of what we think a ERP should l
 
 https://github.com/user-attachments/assets/1b2749ef-10e7-42f5-9cce-df5628292667
 
+<p align="center">
+  <a href="https://lambda-erp-demo.grayocean-53ec71ac.northeurope.azurecontainerapps.io/demo">
+    <img alt="Try the Live Demo" src="https://img.shields.io/badge/%E2%96%B6%20Try%20the%20Live%20Demo-4fc3f7?style=for-the-badge&labelColor=000000">
+  </a>
+</p>
+
+> 3 years of simulated business data pre-loaded. Click **Enter Live Demo** for a 40-second scripted walkthrough, or register an admin account and prompt freely. Rate-limited to ~$50/day of LLM spend across all visitors.
+
+**Join the discussion** on Discord — report bugs, share prompts that broke (or surprised) the agent, or just see what other early users are building:
+
 <p>
-  <a href="https://lambda-erp-demo.grayocean-53ec71ac.northeurope.azurecontainerapps.io/demo"><img alt="Live demo" src="https://img.shields.io/badge/demo-lambda--erp-4fc3f7?style=flat"></a>
-  <a href="https://discord.gg/ZwFh9hZJTb"><img alt="Discord" src="https://img.shields.io/discord/1496911123029557359?color=7289DA&label=Discord&logo=discord&logoColor=white"></a>
+  <a href="https://discord.gg/ZwFh9hZJTb"><img alt="Join the Lambda ERP Discord" src="https://img.shields.io/discord/1496911123029557359?color=7289DA&label=Join%20on%20Discord&logo=discord&logoColor=white&style=for-the-badge"></a>
 </p>
 
 This release is not yet production-ready. It's a complete prototype but not vetted enough to run your payroll on it yet.
