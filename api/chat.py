@@ -40,7 +40,26 @@ from api.auth import require_role, get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[_Depends(require_role("viewer"))])
 logger = logging.getLogger("chat")
-DEMO_SCRIPT_PATH = os.path.join(os.path.dirname(__file__), "..", "frontend", "public", "live-demo-script.json")
+def _resolve_demo_script_path() -> str:
+    """Locate live-demo-script.json in both dev and prod layouts.
+
+    In local dev the source of truth is `frontend/public/` (Vite serves
+    it from there). The Docker build only copies `frontend/dist/` into
+    the image, and Vite inlines everything from `public/` into `dist/`
+    at build time — so in the container the file lives under `dist/`.
+    Prefer whichever exists so the same code runs in both places.
+    """
+    here = os.path.dirname(__file__)
+    for subdir in ("public", "dist"):
+        candidate = os.path.join(here, "..", "frontend", subdir, "live-demo-script.json")
+        if os.path.isfile(candidate):
+            return candidate
+    # Fall back to the dev path — makes the FileNotFoundError message
+    # useful when neither exists (e.g. frontend wasn't built).
+    return os.path.join(here, "..", "frontend", "public", "live-demo-script.json")
+
+
+DEMO_SCRIPT_PATH = _resolve_demo_script_path()
 DEMO_TYPE_MS_PER_CHAR = 14
 DEMO_TYPE_INITIAL_MS = 90
 DEMO_AFTER_TYPED_USER_MS = 180
