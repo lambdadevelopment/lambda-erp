@@ -7,7 +7,7 @@ Lambda ERP is a working reference implementation of what we think a ERP should l
 https://github.com/user-attachments/assets/1b2749ef-10e7-42f5-9cce-df5628292667
 
 <p>
-  <a href="https://lambda.dev/erp"><img alt="Live demo" src="https://img.shields.io/badge/demo-lambda--erp-4fc3f7?style=flat"></a>
+  <a href="https://lambda-erp-demo.grayocean-53ec71ac.northeurope.azurecontainerapps.io/demo"><img alt="Live demo" src="https://img.shields.io/badge/demo-lambda--erp-4fc3f7?style=flat"></a>
   <a href="https://discord.gg/ZwFh9hZJTb"><img alt="Discord" src="https://img.shields.io/discord/1496911123029557359?color=7289DA&label=Discord&logo=discord&logoColor=white"></a>
 </p>
 
