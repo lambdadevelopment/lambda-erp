@@ -392,26 +392,50 @@ def list_invites(user: dict = Depends(require_admin)):
 
 @router.post("/public-manager")
 def create_public_manager(user: dict = Depends(require_admin)):
-    """Create (or re-enable) the public manager account for demo mode."""
+    """Create (or re-enable) the public manager account for demo mode.
+
+    Also seeds the chat-replay artefacts the "Enter Live Demo" script
+    narrates (quotation, purchase order, custom analytics draft, the
+    Redstone sales invoice, top-customer snapshots). Without this the
+    admin-UI toggle would produce a public_manager account but a blank
+    replay session, while booting with LAMBDA_ERP_ENABLE_PUBLIC_DEMO=1
+    would produce both — same end state no matter how demo mode gets
+    turned on.
+    """
     db = get_db()
     existing = db.sql('SELECT name, enabled FROM "User" WHERE role = "public_manager"')
     if existing:
         if not existing[0]["enabled"]:
             db.set_value("User", existing[0]["name"], {"enabled": 1, "modified": now()})
-        return {"ok": True, "name": existing[0]["name"], "status": "enabled"}
+        user_name = existing[0]["name"]
+        status = "enabled"
+    else:
+        user_name = f"USR-{uuid.uuid4().hex[:8]}"
+        db.insert("User", {
+            "name": user_name,
+            "email": "demo@lambda-erp.local",
+            "full_name": "Demo User",
+            "hashed_password": hash_password(secrets.token_hex(32)),
+            "role": "public_manager",
+            "enabled": 1,
+            "creation": now(),
+            "modified": now(),
+        })
+        status = "created"
 
-    user_name = f"USR-{uuid.uuid4().hex[:8]}"
-    db.insert("User", {
-        "name": user_name,
-        "email": "demo@lambda-erp.local",
-        "full_name": "Demo User",
-        "hashed_password": hash_password(secrets.token_hex(32)),
-        "role": "public_manager",
-        "enabled": 1,
-        "creation": now(),
-        "modified": now(),
-    })
-    return {"ok": True, "name": user_name, "status": "created"}
+    # Seed replay records idempotently. The helper is safe to call on
+    # every invocation — it checks existing settings before inserting.
+    # Wrapped so a seed edge case (e.g. simulator hasn't run yet in an
+    # unusual deploy) never blocks the public_manager toggle.
+    try:
+        companies = db.get_all("Company", fields=["name"])
+        if companies:
+            from api.bootstrap import ensure_demo_chat_records
+            ensure_demo_chat_records(companies[0]["name"])
+    except Exception:
+        pass
+
+    return {"ok": True, "name": user_name, "status": status}
 
 
 @router.delete("/public-manager")

@@ -70,12 +70,17 @@ resource "azurerm_container_app" "app" {
         value = tostring(var.target_port)
       }
 
-      # Turn on the hosted-demo experience: shared public_manager account,
-      # "Enter Live Demo" button on the landing page, chat-replay records
-      # seeded into the DB. Admin registration via /login is unaffected.
+      # Public demo is opt-in via the admin UI (`/admin/settings` →
+      # "Enable Public Access") *after* registering as admin. That
+      # keeps the first visitor to a fresh deploy on the
+      # register-as-admin path; only once an admin clicks the toggle
+      # does the shared public_manager + "Enter Live Demo" button
+      # appear. The admin endpoint handles both the user creation and
+      # the chat-replay record seeding — same end state as setting
+      # this env var to "1" at boot.
       env {
         name  = "LAMBDA_ERP_ENABLE_PUBLIC_DEMO"
-        value = "1"
+        value = "0"
       }
 
       # Demo spend guardrails — see variables.tf for rationale.
