@@ -1,0 +1,114 @@
+name: Terraform apply
+
+# Runs `terraform apply` in terraform/app/ against Azure. Secrets
+# (OPENAI_API_KEY, ANTHROPIC_API_KEY, JWT_SECRET_KEY) flow in as
+# TF_VAR_* env vars from GitHub Secrets — they never touch anyone's
+# laptop. This is the authoritative way to update Container App env
+# vars, demo caps, and the container image on first deploy.
+#
+# Triggers:
+#   - manual `workflow_dispatch` (default, safer — you decide when)
+#   - push to master under terraform/** (optional; commented out below)
+#
+# This workflow does NOT build or push the Docker image — that's
+# deploy.yml. Run this one when you've changed terraform/ files or
+# rotated a GitHub Secret.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to run"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+  # push:
+  #   branches: [master]
+  #   paths:
+  #     - "terraform/app/**"
+  #     - ".github/workflows/terraform-apply.yml"
+
+# Never race two applies — terraform state is serialized by the remote
+# backend lease, but lease contention is slow and ugly. Let later runs
+# wait.
+concurrency:
+  group: terraform-apply
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # OIDC federated login
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: terraform/app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.9"
+          terraform_wrapper: false
+
+      # azurerm provider reads ARM_* env vars in preference to explicit
+      # `provider "azurerm" { ... }` credentials. This is how terraform
+      # picks up the federated OIDC token `azure/login` just minted.
+      - name: Terraform init
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: terraform init
+
+      - name: Terraform plan
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_subscription_id:   ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_openai_api_key:    ${{ secrets.OPENAI_API_KEY }}
+          TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          TF_VAR_jwt_secret_key:    ${{ secrets.JWT_SECRET_KEY }}
+        run: terraform plan -input=false -no-color
+
+      - name: Terraform apply
+        if: inputs.action == 'apply'
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_subscription_id:   ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_openai_api_key:    ${{ secrets.OPENAI_API_KEY }}
+          TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          TF_VAR_jwt_secret_key:    ${{ secrets.JWT_SECRET_KEY }}
+        run: terraform apply -auto-approve -input=false
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Terraform ${{ inputs.action }}"
+            echo
+            echo "Ran against Azure subscription \`${{ vars.AZURE_SUBSCRIPTION_ID }}\`."
+            echo "State lives in the \`lambdaerptfstate\` storage account."
+          } >> "$GITHUB_STEP_SUMMARY"

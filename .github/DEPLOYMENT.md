@@ -1,9 +1,16 @@
 # GitHub Actions deploy pipeline
 
-`.github/workflows/deploy.yml` builds the Docker image on every push to
-`master`, pushes it to Azure Container Registry, and rolls a new revision
-onto Azure Container Apps. This README covers what the workflow does,
-how it authenticates, and what you need to configure in GitHub.
+Two workflows deploy lambda-erp:
+
+- **`.github/workflows/deploy.yml`** — builds the Docker image on every
+  push to `master`, pushes it to Azure Container Registry, and rolls a
+  new revision onto Azure Container Apps. Fires automatically; the
+  hot path for app code changes.
+- **`.github/workflows/terraform-apply.yml`** — runs `terraform plan`
+  or `terraform apply` in `terraform/app/` against Azure. Manual
+  dispatch only. This is where Container App env vars, demo caps,
+  and secret rotations happen. Secrets live in GitHub Secrets and
+  flow in as `TF_VAR_*` env — nothing on anyone's laptop.
 
 **Setting up the Azure infra itself is covered in
 [`terraform/README.md`](../terraform/README.md).** Come back here once
@@ -85,10 +92,21 @@ debugging is easier.
 
 ### Actions Secrets
 
-**None required.** Container App env vars (`OPENAI_API_KEY`,
-`ANTHROPIC_API_KEY`, `JWT_SECRET_KEY`) are managed by terraform from
-your local `terraform.tfvars`; the workflow only swaps images and never
-touches secrets.
+Add three secrets (Secrets tab, same page). These are read by
+`terraform-apply.yml` as `TF_VAR_*` env vars on every CI-driven apply
+and written into the Container App's own secret store. `deploy.yml`
+itself doesn't touch them — it just swaps images.
+
+| Secret              | Source                                                   |
+|---------------------|----------------------------------------------------------|
+| `OPENAI_API_KEY`    | OpenAI dashboard                                         |
+| `ANTHROPIC_API_KEY` | Anthropic console                                        |
+| `JWT_SECRET_KEY`    | `python -c "import secrets; print(secrets.token_hex(32))"` |
+
+**Do not put these in a local `terraform.tfvars`** once the bootstrap
+apply is done — `terraform/README.md` step 5 covers the handoff.
+Rotating a key is one GitHub UI edit + a `terraform-apply` run, no
+laptop involved.
 
 ## First deploy
 
@@ -140,7 +158,9 @@ repo / org".
 
 ## Files
 
-- `.github/workflows/deploy.yml` — the actual workflow
+- `.github/workflows/deploy.yml` — app-image build + roll workflow
+- `.github/workflows/terraform-apply.yml` — CI-driven terraform apply
+  (plan/apply dropdown on manual dispatch)
 - `terraform/app/github_actions.tf` — Entra app + federated credential
   + role assignments
 - `terraform/app/variables.tf` — `github_org` / `github_repo` /

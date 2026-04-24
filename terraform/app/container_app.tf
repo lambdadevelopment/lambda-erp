@@ -142,10 +142,14 @@ resource "azurerm_container_app" "app" {
   }
 
   lifecycle {
-    # Secrets and image tag are rewritten by GitHub Actions on every deploy.
-    # Ignoring them here prevents `terraform apply` from fighting the pipeline.
+    # terraform owns the `secret` blocks (values come from TF_VAR_* env
+    # populated by GitHub Secrets in the terraform-apply workflow); a
+    # fresh apply is the supported path for rotation.
+    #
+    # The container image is managed separately by deploy.yml via
+    # `az containerapp update --image <sha>`, so ignore drift there to
+    # avoid fighting CI.
     ignore_changes = [
-      secret,
       template[0].container[0].image,
       workload_profile_name,
     ]
