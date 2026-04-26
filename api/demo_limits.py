@@ -4,9 +4,10 @@ Two sliding 1-hour windows guard the demo budget:
   * global — caps total USD spend across all visitors per hour
   * per-IP — caps a single client IP per hour
 
-Default thresholds target ~$50/day total ($50 / 24h ≈ $2.08/hr). The
-per-IP cap defaults to 25% of the global hourly budget so one actor
-cannot monopolize it.
+Default thresholds: $10/hr global ($240/day). The per-IP cap defaults
+to ~$0.52/hr (the previous absolute cap, i.e. 25% of the old $50/day
+budget) and is also clamped to at most 25% of the global cap so one
+actor cannot monopolize it.
 
 Only `public_manager` traffic counts against the global cap (that's
 demo traffic); admin/manager sessions are still logged but exempt.
@@ -321,11 +322,14 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
-# $50/day ÷ 24h ≈ $2.083/hr.
-_GLOBAL_HOURLY_USD = _env_float("LAMBDA_ERP_DEMO_GLOBAL_HOURLY_USD", 50.0 / 24.0)
+# $10/hr → $240/day cap.
+_GLOBAL_HOURLY_USD = _env_float("LAMBDA_ERP_DEMO_GLOBAL_HOURLY_USD", 10.0)
+# Pinned to the previous absolute default (25% of the old $50/day
+# global ≈ $0.521/hr) so raising the global cap does not also raise
+# what a single IP can spend.
 _PER_IP_HOURLY_USD = _env_float(
     "LAMBDA_ERP_DEMO_PER_IP_HOURLY_USD",
-    _GLOBAL_HOURLY_USD * 0.25,
+    (50.0 / 24.0) * 0.25,
 )
 _PER_IP_HOURLY_USD = min(_PER_IP_HOURLY_USD, _GLOBAL_HOURLY_USD * 0.25)
 
