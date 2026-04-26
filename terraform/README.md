@@ -236,12 +236,12 @@ before applying.
 ## Demo spend guardrails
 
 `LAMBDA_ERP_DEMO_*` env vars are wired onto the Container App with
-conservative defaults targeting ~$50/day total LLM spend. Tune via
+defaults targeting ~$240/day total LLM spend ($10/hr global). Tune via
 `terraform.tfvars`:
 
 ```hcl
-demo_global_hourly_usd     = 2.0833   # $50 / 24h
-demo_per_ip_hourly_usd     = 0.5208   # 25% of global — hard-clamped
+demo_global_hourly_usd     = 10.0     # $240/day cap
+demo_per_ip_hourly_usd     = 0.5208   # legacy absolute cap; hard-clamped to ≤25% of global
 demo_max_completion_tokens = 1024
 demo_max_message_chars     = 300
 demo_max_attachment_bytes  = 102400   # 100 KiB

@@ -120,12 +120,23 @@ def decode_token(token: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def set_auth_cookie(response: Response, token: str):
+def _is_https_request(request: Request) -> bool:
+    """True if the request reached us over HTTPS, including via a TLS-
+    terminating proxy (Azure Container Apps, Cloudflare, etc.) that sets
+    X-Forwarded-Proto."""
+    if request.url.scheme == "https":
+        return True
+    return request.headers.get("x-forwarded-proto", "").lower() == "https"
+
+
+def set_auth_cookie(request: Request, response: Response, token: str):
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=False,  # Set True for production HTTPS
+        # Only mark Secure when the request actually came in over HTTPS,
+        # so local http://localhost dev still gets the cookie.
+        secure=_is_https_request(request),
         samesite="lax",
         max_age=TOKEN_EXPIRE_DAYS * 24 * 3600,
         path="/",
@@ -240,7 +251,7 @@ def auth_setup_status():
 
 
 @router.post("/register")
-def register(data: RegisterRequest, response: Response):
+def register(data: RegisterRequest, request: Request, response: Response):
     db = get_db()
 
     # Check if email already taken
@@ -283,13 +294,13 @@ def register(data: RegisterRequest, response: Response):
     })
 
     token = create_access_token(user_name)
-    set_auth_cookie(response, token)
+    set_auth_cookie(request, response, token)
 
     return {"name": user_name, "email": data.email.lower(), "full_name": data.full_name, "role": role}
 
 
 @router.post("/login")
-def login(data: LoginRequest, response: Response):
+def login(data: LoginRequest, request: Request, response: Response):
     db = get_db()
     rows = db.sql(
         'SELECT name, email, full_name, hashed_password, role, enabled FROM "User" WHERE email = ?',
@@ -307,7 +318,7 @@ def login(data: LoginRequest, response: Response):
         raise HTTPException(status_code=403, detail="Demo mode account cannot sign in directly")
 
     token = create_access_token(user["name"])
-    set_auth_cookie(response, token)
+    set_auth_cookie(request, response, token)
 
     return {"name": user["name"], "email": user["email"], "full_name": user["full_name"], "role": user["role"]}
 

@@ -99,18 +99,19 @@ variable "jwt_secret_key" {
 # The public demo is backed by our OpenAI + Anthropic keys, so visitor
 # traffic costs us real money. Two sliding 1-hour windows inside the app
 # cap spend: a global bucket across all visitors, and a per-IP bucket.
-# Defaults target ~$50/day ($50 / 24h ≈ $2.08/hr global, with per-IP set
-# to 25% of global so one actor can't monopolize the budget).
+# Defaults: $10/hr global ($240/day cap), with per-IP pinned at the
+# previous absolute cap (~$0.52/hr) so a single actor can't monopolize
+# the larger global budget.
 # --------------------------------------------------------------------------
 
 variable "demo_global_hourly_usd" {
-  description = "Global demo spend cap per hour in USD (sliding window). Default = $50/day ÷ 24h."
+  description = "Global demo spend cap per hour in USD (sliding window). Default = $10/hr ($240/day)."
   type        = number
-  default     = 2.0833
+  default     = 10.0
 }
 
 variable "demo_per_ip_hourly_usd" {
-  description = "Per-IP demo spend cap per hour in USD (sliding window)."
+  description = "Per-IP demo spend cap per hour in USD (sliding window). Default = ~$0.52/hr (the previous absolute cap)."
   type        = number
   default     = 0.5208
 }
