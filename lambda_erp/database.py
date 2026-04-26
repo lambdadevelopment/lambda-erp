@@ -15,15 +15,83 @@ from contextlib import contextmanager
 from lambda_erp.utils import _dict
 
 
+class _NullLock:
+    """No-op context manager used when SQLite-level locking is sufficient."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
 class Database:
     def __init__(self, db_path=":memory:"):
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA foreign_keys=ON")
-        self._lock = threading.Lock()
-        self._in_transaction = False  # When True, write methods skip auto-commit
+        # Concurrency model:
+        # - File DBs: one sqlite3 connection per thread (thread-local), so the
+        #   process can serve many WebSocket users without serializing every
+        #   read behind a single Python lock. WAL allows concurrent readers
+        #   plus one writer; busy_timeout makes the writer wait briefly
+        #   instead of erroring with SQLITE_BUSY.
+        # - :memory: DBs (tests): each fresh sqlite connection to ":memory:"
+        #   is a separate empty database, so we keep one shared connection
+        #   guarded by a Python lock.
+        self.db_path = db_path
+        self._is_memory = (db_path == ":memory:")
+        self._local = threading.local()
+        if self._is_memory:
+            self._lock = threading.Lock()
+            self._shared_conn = self._open_conn()
+            self._shared_in_transaction = False
+        else:
+            self._lock = _NullLock()
+            self._shared_conn = None
+            # Open the init-thread connection now so _setup_schema can use it
+            # via the self.conn property.
+            self._open_conn()
         self._setup_schema()
+
+    def _open_conn(self):
+        """Open a new sqlite connection with the same per-conn settings.
+
+        For file DBs the connection is stored on thread-local state so the
+        same thread reuses it; for :memory: it is returned and held as the
+        shared connection.
+        """
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        # Wait up to 5s for the file lock instead of raising SQLITE_BUSY when
+        # another thread is mid-write. Generous for our workload (LLM calls
+        # dwarf any DB write).
+        conn.execute("PRAGMA busy_timeout=5000")
+        if not self._is_memory:
+            self._local.conn = conn
+            self._local.in_transaction = False
+        return conn
+
+    @property
+    def conn(self):
+        if self._is_memory:
+            return self._shared_conn
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = self._open_conn()
+        return conn
+
+    @property
+    def _in_transaction(self):
+        if self._is_memory:
+            return self._shared_in_transaction
+        return getattr(self._local, "in_transaction", False)
+
+    @_in_transaction.setter
+    def _in_transaction(self, value):
+        if self._is_memory:
+            self._shared_in_transaction = value
+        else:
+            self._local.in_transaction = value
 
     def _setup_schema(self):
         """Create all core ERP tables.
@@ -1051,11 +1119,11 @@ class Database:
     def sql(self, query, values=None, as_dict=True):
         """Execute raw SQL. Mirrors framework.db.sql().
 
-        The lock is required even for read queries because SQLite does not
-        allow concurrent execute() calls on the same connection, even when
-        opened with check_same_thread=False. Without this, a read running in
-        one request thread while another thread is writing produces
-        "sqlite3.InterfaceError: bad parameter or other API misuse".
+        For file DBs the lock is a no-op: each thread has its own connection,
+        and SQLite's own file-level locking + WAL is enough. For :memory:
+        the Python lock prevents concurrent execute() calls on the single
+        shared connection (which otherwise raises "bad parameter or other
+        API misuse").
         """
         with self._lock:
             cursor = self.conn.execute(query, values or [])
