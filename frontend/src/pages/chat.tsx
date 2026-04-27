@@ -575,7 +575,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-200 bg-white px-4 py-3">
+      <div className="border-t border-gray-200 bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-3xl">
           {/* Attachment preview strip */}
           {attachments.length > 0 && (
@@ -639,12 +639,12 @@ export default function ChatPage() {
                   isDemoReplaying
                     ? "Running live demo..."
                     : isConnected
-                    ? "Type a message... (Enter to send, Shift+Enter for new line)"
+                    ? "Type a message..."
                     : "Connecting..."
                 }
                 disabled={!isConnected || !sessionId || isThinking || isDemoReplaying}
                 rows={2}
-                className="block w-full resize-none rounded-lg border border-gray-300 px-4 py-2.5 pr-12 text-sm shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                className="block w-full resize-none rounded-lg border border-gray-300 px-4 py-2.5 text-sm shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
                 style={{ minHeight: "3.75rem", maxHeight: "120px" }}
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement;
@@ -656,7 +656,7 @@ export default function ChatPage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={!isConnected || !sessionId || isThinking || isDemoReplaying || attachments.length >= MAX_ATTACHMENTS}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-10 md:w-10"
               title="Attach file (PDF or image, max 10 MB)"
             >
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -666,7 +666,7 @@ export default function ChatPage() {
             <button
               onClick={sendCurrentMessage}
               disabled={(!input.trim() && readyAttachmentIds.length === 0) || !isConnected || !sessionId || isThinking || isDemoReplaying || hasUnfinishedUploads || hasFailedUploads}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-400 text-white shadow-sm hover:bg-blue-500 disabled:bg-gray-300"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-400 text-white shadow-sm hover:bg-blue-500 disabled:bg-gray-300 md:h-10 md:w-10"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -725,7 +725,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-2xl rounded-br-md bg-blue-400 px-4 py-2.5 text-sm text-white">
+        <div className="max-w-[80%] break-words rounded-2xl rounded-br-md bg-blue-400 px-4 py-2.5 text-sm text-white">
           {message.content}
           <AttachmentThumbs attachments={message.attachments} />
           {message.timestamp && (
@@ -739,7 +739,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "assistant") {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-gray-100 px-4 py-2.5 text-sm text-gray-900">
+        <div className="max-w-[80%] break-words rounded-2xl rounded-bl-md bg-gray-100 px-4 py-2.5 text-sm text-gray-900">
           <MarkdownContent content={message.content} />
           {message.timestamp && (
             <div className="mt-1 text-right text-[10px] text-gray-400" title={formatFullTimestamp(message.timestamp)}>{formatTime(message.timestamp)}</div>

@@ -464,7 +464,7 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-out",
+        "fixed left-0 top-0 z-40 flex h-dvh w-64 flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-out",
         "md:translate-x-0",
         isMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
       )}

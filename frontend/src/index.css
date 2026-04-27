@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* iOS Safari auto-zooms when a focused input/textarea has font-size
+   below 16px and doesn't zoom back out, making the whole page feel
+   broken after the keyboard closes. 16px is the minimum that
+   suppresses it. !important is needed because most of our inputs
+   use Tailwind's `text-sm` (14px), which is a class selector and
+   beats a plain element selector on specificity. Mobile-only — desktop
+   keeps its 14px. */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* Sidebar Lambda ERP logo — PNG silhouette used as a mask with an animated
    multi-colour gradient showing through. */
 .lambda-logo-icon {
