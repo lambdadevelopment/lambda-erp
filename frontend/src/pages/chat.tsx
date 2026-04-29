@@ -483,7 +483,7 @@ export default function ChatPage() {
 
   if (!sessionId) {
     return (
-      <div className="flex h-full items-center justify-center text-gray-400">
+      <div className="flex h-full items-center justify-center text-fg-muted">
         Creating chat...
       </div>
     );
@@ -497,16 +497,16 @@ export default function ChatPage() {
       onDrop={handleDrop}
     >
       {isDragOver && (
-        <div className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-lg border-2 border-dashed border-blue-400 bg-blue-50/80 text-sm font-medium text-blue-700">
+        <div className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-lg border-2 border-dashed border-brand bg-brand/5 text-sm font-medium text-brand">
           Drop file to attach (images or PDF, max 10 MB each)
         </div>
       )}
       {/* Header with clear button */}
       {messages.length > 0 && (
-        <div className="flex justify-end border-b border-gray-100 px-4 py-1">
+        <div className="flex justify-end border-b border-line px-4 py-1">
           <button
             onClick={clearCurrentHistory}
-            className="text-xs text-gray-400 hover:text-red-500"
+            className="text-xs text-fg-muted transition-colors hover:text-red-500"
             disabled={isDemoReplaying}
           >
             Clear chat
@@ -525,24 +525,24 @@ export default function ChatPage() {
               <button
                 onClick={handleLoadOlder}
                 disabled={loadingOlder || !canLoadOlder}
-                className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-500 shadow-sm hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-surface px-3 py-1 text-xs text-fg-muted ring-1 ring-line transition-colors hover:bg-surface-subtle hover:text-fg disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loadingOlder ? "Loading..." : "Load older messages"}
               </button>
             </div>
           )}
           {demoError && (
-            <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">
               {demoError}
             </div>
           )}
 
           {messages.length === 0 && demoStatus !== "running" && !demoRequested && (
             <div className="py-20 text-center">
-              <h3 className="text-lg font-semibold text-gray-400">
+              <h3 className="text-lg font-semibold text-fg-muted">
                 Lambda ERP Chat
               </h3>
-              <p className="mt-2 text-sm text-gray-400">
+              <p className="mt-2 text-sm text-fg-muted">
                 Ask me to create documents, look up data, or run reports.
               </p>
               <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -558,7 +558,7 @@ export default function ChatPage() {
                       setInput(suggestion);
                       inputRef.current?.focus();
                     }}
-                    className="rounded-full border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:border-blue-300 hover:text-blue-600"
+                    className="rounded-full bg-surface px-3 py-1.5 text-xs text-fg-muted ring-1 ring-line transition-all hover:bg-surface-subtle hover:text-fg hover:ring-brand/30"
                   >
                     {suggestion}
                   </button>
@@ -575,7 +575,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-200 bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-3xl">
           {/* Attachment preview strip */}
           {attachments.length > 0 && (
@@ -583,24 +583,24 @@ export default function ChatPage() {
               {attachments.map((att) => (
                 <div
                   key={att.localId}
-                  className="relative flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs"
+                  className="relative flex items-center gap-2 rounded-lg bg-surface-subtle px-2 py-1.5 text-xs ring-1 ring-line"
                 >
                   {att.previewUrl ? (
                     <img src={att.previewUrl} alt="" className="h-10 w-10 rounded object-cover" />
                   ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded bg-red-100 text-[10px] font-bold text-red-700">
+                    <div className="flex h-10 w-10 items-center justify-center rounded bg-rose-100 text-[10px] font-bold text-rose-700">
                       PDF
                     </div>
                   )}
                   <div className="flex min-w-0 flex-col">
-                    <span className="max-w-[160px] truncate text-gray-800">{att.file.name}</span>
-                    <span className="text-[10px] text-gray-400">
+                    <span className="max-w-[160px] truncate text-fg">{att.file.name}</span>
+                    <span className="text-[10px] text-fg-muted">
                       {att.uploading ? "Uploading..." : att.error ? "Failed" : `${Math.round(att.file.size / 1024)} KB`}
                     </span>
                   </div>
                   <button
                     onClick={() => removeAttachment(att.localId)}
-                    className="ml-1 text-gray-400 hover:text-red-500"
+                    className="ml-1 text-fg-muted transition-colors hover:text-red-500"
                     title="Remove"
                   >
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
@@ -612,7 +612,7 @@ export default function ChatPage() {
             </div>
           )}
           {attachmentError && (
-            <div className="mb-2 text-xs text-red-600">{attachmentError}</div>
+            <div className="mb-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700 ring-1 ring-rose-200">{attachmentError}</div>
           )}
           <div className="flex items-end gap-2">
             <input
@@ -644,7 +644,7 @@ export default function ChatPage() {
                 }
                 disabled={!isConnected || !sessionId || isThinking || isDemoReplaying}
                 rows={2}
-                className="block w-full resize-none rounded-lg border border-gray-300 px-4 py-2.5 text-sm shadow-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                className="block w-full resize-none rounded-lg bg-surface px-4 py-2.5 text-sm text-fg ring-1 ring-line transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface-subtle disabled:text-fg-muted"
                 style={{ minHeight: "3.75rem", maxHeight: "120px" }}
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement;
@@ -656,7 +656,7 @@ export default function ChatPage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={!isConnected || !sessionId || isThinking || isDemoReplaying || attachments.length >= MAX_ATTACHMENTS}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 md:h-10 md:w-10"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-fg-muted transition-all hover:bg-surface-subtle hover:text-fg disabled:cursor-not-allowed disabled:opacity-40 md:h-10 md:w-10"
               title="Attach file (PDF or image, max 10 MB)"
             >
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -666,7 +666,7 @@ export default function ChatPage() {
             <button
               onClick={sendCurrentMessage}
               disabled={(!input.trim() && readyAttachmentIds.length === 0) || !isConnected || !sessionId || isThinking || isDemoReplaying || hasUnfinishedUploads || hasFailedUploads}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-400 text-white shadow-sm hover:bg-blue-500 disabled:bg-gray-300 md:h-10 md:w-10"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-fg shadow-button-highlight transition-all hover:bg-brand/90 active:translate-y-px disabled:bg-surface-subtle disabled:text-fg-muted disabled:active:translate-y-0 md:h-10 md:w-10"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -678,11 +678,11 @@ export default function ChatPage() {
               </svg>
             </button>
           </div>
-          <div className="mt-1">
+          <div className="mt-1.5 flex items-center gap-1.5">
             <span
-              className={`inline-block h-2 w-2 rounded-full ${isConnected ? "bg-green-400" : "bg-red-400"}`}
+              className={`inline-block h-1.5 w-1.5 rounded-full ${isConnected ? "bg-emerald-500" : "bg-rose-500"} ${isConnected ? "" : "animate-pulse"}`}
             />
-            <span className="ml-1 text-xs text-gray-400">
+            <span className="text-[11px] text-fg-muted">
               {isConnected ? "Connected" : connectionStatus === "connecting" ? "Connecting..." : "Disconnected"}
             </span>
           </div>
@@ -725,11 +725,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] break-words rounded-2xl rounded-br-md bg-blue-400 px-4 py-2.5 text-sm text-white">
+        <div className="max-w-[80%] break-words rounded-2xl rounded-br-md bg-brand px-4 py-2.5 text-sm text-brand-fg shadow-button-highlight">
           {message.content}
           <AttachmentThumbs attachments={message.attachments} />
           {message.timestamp && (
-            <div className="mt-1 text-right text-[10px] text-blue-200" title={formatFullTimestamp(message.timestamp)}>{formatTime(message.timestamp)}</div>
+            <div className="mt-1 text-right text-[10px] text-brand-fg/70" title={formatFullTimestamp(message.timestamp)}>{formatTime(message.timestamp)}</div>
           )}
         </div>
       </div>
@@ -739,10 +739,10 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "assistant") {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%] break-words rounded-2xl rounded-bl-md bg-gray-100 px-4 py-2.5 text-sm text-gray-900">
+        <div className="max-w-[80%] break-words rounded-2xl rounded-bl-md bg-surface-subtle px-4 py-2.5 text-sm text-fg ring-1 ring-line">
           <MarkdownContent content={message.content} />
           {message.timestamp && (
-            <div className="mt-1 text-right text-[10px] text-gray-400" title={formatFullTimestamp(message.timestamp)}>{formatTime(message.timestamp)}</div>
+            <div className="mt-1 text-right text-[10px] text-fg-muted" title={formatFullTimestamp(message.timestamp)}>{formatTime(message.timestamp)}</div>
           )}
         </div>
       </div>
@@ -752,11 +752,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "thinking") {
     return (
       <div className="flex justify-start">
-        <div className="flex items-center gap-2 rounded-full bg-gray-50 px-3 py-1.5 text-xs text-gray-400">
-          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
+        <div className="flex items-center gap-2 rounded-full bg-surface-subtle px-3 py-1.5 text-xs text-fg-muted ring-1 ring-line">
+          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
           {message.content}
           {message.provider && (
-            <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-500 ring-1 ring-gray-200">
+            <span className="rounded bg-surface px-1.5 py-0.5 text-[10px] font-medium text-fg-muted ring-1 ring-line">
               {message.provider}
               {message.model ? ` · ${message.model}` : ""}
             </span>
@@ -769,8 +769,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "tool_call") {
     return (
       <div className="flex justify-start">
-        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs">
-          <div className="flex items-center gap-1.5 font-medium text-gray-500">
+        <div className="rounded-lg bg-surface px-3 py-2 text-xs ring-1 ring-line">
+          <div className="flex items-center gap-1.5 font-medium text-fg-muted">
             <svg
               viewBox="0 0 24 24"
               width="12"
@@ -781,10 +781,10 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             >
               <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
             </svg>
-            {message.tool}
+            <span className="font-mono">{message.tool}</span>
           </div>
           {message.args && (
-            <pre className="mt-1 max-h-20 overflow-auto whitespace-pre-wrap text-gray-400">
+            <pre className="mt-1 max-h-20 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-fg-muted/80">
               {JSON.stringify(message.args, null, 2)}
             </pre>
           )}
@@ -797,13 +797,15 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     return (
       <div className="flex justify-start">
         <div
-          className={`rounded-lg border px-3 py-2 text-xs ${message.success ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}
+          className={`rounded-lg px-3 py-2 text-xs ring-1 ring-inset ${message.success ? "bg-emerald-50 ring-emerald-200" : "bg-rose-50 ring-rose-200"}`}
         >
           <div className="flex items-center gap-1.5">
-            <span>{message.success ? "\u2713" : "\u2717"}</span>
-            <span className="font-medium text-gray-600">{message.tool}</span>
+            <span className={message.success ? "text-emerald-600" : "text-rose-600"}>
+              {message.success ? "\u2713" : "\u2717"}
+            </span>
+            <span className="font-mono font-medium text-fg">{message.tool}</span>
           </div>
-          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap text-gray-500">
+          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-fg-muted">
             {message.content}
           </pre>
         </div>
@@ -814,7 +816,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "error") {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-red-50 px-4 py-2.5 text-sm text-red-700">
+        <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-rose-50 px-4 py-2.5 text-sm text-rose-700 ring-1 ring-rose-200">
           {message.content}
         </div>
       </div>
@@ -869,7 +871,7 @@ function MarkdownContent({ content }: { content: string }) {
       const content = line.replace(/^\s*[-*•]\s?/, "");
       elements.push(
         <div key={i} className="ml-3 flex gap-1">
-          <span className="text-gray-400">&bull;</span>
+          <span className="text-fg-muted">&bull;</span>
           <span>{formatInline(content)}</span>
         </div>,
       );
@@ -891,7 +893,7 @@ function renderLink(href: string, label: React.ReactNode, key: number | string):
   // `/api/*` is a backend endpoint (PDFs, file downloads, attachments) —
   // not a React Router route. Route client-side only for real SPA paths.
   const isSpaRoute = href.startsWith("/") && !href.startsWith("/api/");
-  const baseClass = "font-medium text-blue-600 underline hover:text-blue-800";
+  const baseClass = "font-medium text-brand underline decoration-brand/40 underline-offset-2 transition-colors hover:decoration-brand";
   if (isSpaRoute) {
     return (
       <Link key={key} to={href} className={baseClass}>

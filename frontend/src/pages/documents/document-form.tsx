@@ -44,7 +44,7 @@ export function linkRefHref(linkDoctype: string | undefined | null, value: strin
 
 function FieldLabel({ label, hint }: { label: string; hint?: string }) {
   return (
-    <label className="mb-1 block text-sm font-medium text-gray-700">
+    <label className="mb-1.5 block text-sm font-medium text-fg">
       {label}
       {hint && <HintTooltip text={hint} />}
     </label>
@@ -84,8 +84,8 @@ function LinkField({
   if (disabled) {
     return (
       <div>
-        {!hideLabel && <label className="mb-1 block text-sm font-medium text-gray-700">{field.label}</label>}
-        <p className="py-2 text-sm text-gray-700">{value || "-"}</p>
+        {!hideLabel && <label className="mb-1.5 block text-sm font-medium text-fg">{field.label}</label>}
+        <p className="py-2 text-sm text-fg">{value || "-"}</p>
       </div>
     );
   }
@@ -103,11 +103,11 @@ function LinkField({
         onBlur={() => setTimeout(() => setOpen(false), 200)}
       />
       {open && options && options.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+        <ul className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-lg bg-surface ring-1 ring-line shadow-card-hover">
           {options.map((opt: any) => (
             <li
               key={opt.name}
-              className="cursor-pointer px-3 py-2 text-sm hover:bg-blue-50"
+              className="cursor-pointer px-3 py-2 text-sm text-fg transition-colors hover:bg-surface-subtle"
               onMouseDown={() => {
                 onChange(opt.name);
                 setQuery(opt.name);
@@ -177,7 +177,7 @@ function FieldRenderer({
     return (
       <div>
         <FieldLabel label={field.label} hint={field.hint} />
-        <p className="py-2 text-sm text-gray-700">{display}</p>
+        <p className="py-2 text-sm text-fg">{display}</p>
       </div>
     );
   }
@@ -218,7 +218,7 @@ function FieldRenderer({
       <div>
         <FieldLabel label={field.label} hint={field.hint} />
         <textarea
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="block w-full rounded-lg bg-surface px-3 py-2 text-sm text-fg ring-1 ring-line transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30"
           rows={3}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
@@ -288,29 +288,29 @@ function ChildTableEditor({
   return (
     <Card title={tableDef.label}>
       <div>
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <table className="min-w-full divide-y divide-line text-sm">
           <thead>
             <tr>
-              <th className="px-2 py-2 text-left font-medium text-gray-500">
+              <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wide text-fg-muted">
                 #
               </th>
               {tableDef.fields.map((f) => (
                 <th
                   key={f.name}
-                  className="px-2 py-2 text-left font-medium text-gray-500"
+                  className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wide text-fg-muted"
                 >
                   {f.label}
                 </th>
               ))}
               {!readOnly && (
-                <th className="px-2 py-2 text-left font-medium text-gray-500" />
+                <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wide text-fg-muted" />
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-line">
             {rows.map((row, idx) => (
               <tr key={idx}>
-                <td className="px-2 py-1 text-gray-400">{idx + 1}</td>
+                <td className="px-2 py-1 text-fg-muted">{idx + 1}</td>
                 {tableDef.fields.map((f) => (
                   <td key={f.name} className="px-2 py-1">
                     <FieldRenderer
@@ -595,14 +595,14 @@ export default function DocumentFormPage() {
 
   if (!config) {
     return (
-      <p className="text-gray-500">
+      <p className="text-fg-muted">
         Unknown document type: {doctype}
       </p>
     );
   }
 
   if (!isNew && isLoading) {
-    return <p className="text-gray-500">Loading...</p>;
+    return <p className="text-fg-muted">Loading...</p>;
   }
 
   const docstatus: number = formData.docstatus ?? 0;
@@ -637,7 +637,7 @@ export default function DocumentFormPage() {
 
       {/* Error display */}
       {(createMut.error || updateMut.error || submitMut.error || cancelMut.error) && (
-        <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">
+        <div className="rounded-lg bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
           {(createMut.error ?? updateMut.error ?? submitMut.error ?? cancelMut.error)
             ?.message ?? "An error occurred"}
         </div>

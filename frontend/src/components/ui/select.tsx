@@ -26,7 +26,7 @@ export function Select({ label, options, value, onChange, className, required, d
       {label && (
         <label
           htmlFor={selectId}
-          className="mb-1 block text-sm font-medium text-gray-700"
+          className="mb-1.5 block text-sm font-medium text-fg"
         >
           {label}
         </label>
@@ -38,7 +38,12 @@ export function Select({ label, options, value, onChange, className, required, d
         required={required}
         disabled={disabled}
         className={cn(
-          "block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50",
+          // Same shape as the Input primitive: h-10, surface bg, line ring,
+          // brand-tinted halo on focus.
+          "block h-10 w-full rounded-lg bg-surface px-3 text-sm text-fg",
+          "ring-1 ring-line transition-all",
+          "focus:outline-none focus:ring-2 focus:ring-brand/30",
+          "disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted",
           className,
         )}
       >

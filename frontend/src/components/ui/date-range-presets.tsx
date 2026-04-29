@@ -112,7 +112,7 @@ export function DateRangePresets({ onSelect }: DateRangePresetsProps) {
             const [from, to] = p.range();
             onSelect(from, to);
           }}
-          className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 hover:border-blue-300 hover:text-blue-600"
+          className="rounded-full bg-surface px-3 py-1 text-xs text-fg-muted ring-1 ring-line transition-all hover:bg-surface-subtle hover:text-fg hover:ring-brand/30"
         >
           {p.label}
         </button>
@@ -145,7 +145,7 @@ export function SingleDatePresets({ onSelect }: SingleDatePresetsProps) {
           key={p.label}
           type="button"
           onClick={() => onSelect(p.value())}
-          className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 hover:border-blue-300 hover:text-blue-600"
+          className="rounded-full bg-surface px-3 py-1 text-xs text-fg-muted ring-1 ring-line transition-all hover:bg-surface-subtle hover:text-fg hover:ring-brand/30"
         >
           {p.label}
         </button>

@@ -2,6 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ───────────────────────────────────────────────────────────────────
+   Design tokens. Values are space-separated HSL components so they
+   plug into Tailwind via `hsl(var(--token) / <alpha-value>)` and
+   support opacity modifiers like `bg-brand/90`.
+
+   Anchored to the Lambda logo gradient: brand sits between the cyan
+   (#66D4FF) and pink (#ff6eb4) gradient stops.
+   ─────────────────────────────────────────────────────────────────── */
+:root {
+  /* Brand */
+  --brand: 264 76% 56%;          /* #7c4dff */
+  --brand-fg: 0 0% 100%;
+
+  /* Surfaces */
+  --surface: 0 0% 100%;          /* primary card / panel */
+  --surface-muted: 220 14% 98%;  /* page background — slightly cooler than white */
+  --surface-subtle: 220 14% 96%; /* hovered rows, secondary cards, sidebar active */
+
+  /* Lines & text */
+  --border: 220 13% 91%;
+  --text: 222 47% 11%;
+  --text-muted: 220 9% 46%;
+}
+
+@layer base {
+  body {
+    /* `bg-surface-muted` and `text-fg` are the new defaults but applying
+       them at the body level avoids touching every page component on
+       day 1. Tailwind's `bg-gray-50` on <body> is replaced here. */
+    @apply bg-surface-muted text-fg antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* Inter polish */
+  }
+
+  /* Fluid easing app-wide. Hover/transition properties feel less
+     mechanical with this curve. */
+  * {
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
 /* iOS Safari auto-zooms when a focused input/textarea has font-size
    below 16px and doesn't zoom back out, making the whole page feel
    broken after the keyboard closes. 16px is the minimum that

@@ -30,20 +30,23 @@ export default function DemoPage() {
   }, [navigate]);
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-gray-50 px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-surface-muted px-4">
       <div className="text-center">
         {error ? (
           <>
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-rose-600">{error}</p>
             <button
               onClick={() => navigate("/login", { replace: true })}
-              className="mt-4 text-sm text-blue-600 hover:text-blue-800"
+              className="mt-4 text-sm text-brand transition-colors hover:text-brand/80"
             >
               Back to login
             </button>
           </>
         ) : (
-          <p className="text-sm text-gray-400">Starting live demo...</p>
+          <div className="space-y-3">
+            <div className="mx-auto h-2 w-2 animate-pulse rounded-full bg-brand" />
+            <p className="text-sm text-fg-muted">Starting live demo...</p>
+          </div>
         )}
       </div>
     </div>

@@ -7,9 +7,20 @@
          IE / legacy systems fall back to the ICO. Keep both. -->
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="any" />
+    <!-- Inter via Google Fonts. preconnect to start the TLS handshake
+         in parallel with the rest of the page; display=swap so text
+         renders in the system fallback first if the font is slow. For
+         production self-hosting later, npm i @fontsource-variable/inter
+         and replace these two links with an import in main.tsx. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
     <title>Lambda ERP</title>
   </head>
-  <body class="bg-gray-50 text-gray-900 antialiased">
+  <body class="bg-surface-muted text-fg antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

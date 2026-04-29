@@ -70,18 +70,18 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-gray-50">
-        <div className="text-gray-400">Loading...</div>
+      <div className="flex h-dvh items-center justify-center bg-surface-muted">
+        <div className="text-fg-muted">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-gray-50 px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-surface-muted px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-blue-600">Lambda ERP</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-brand">Lambda ERP</h1>
+          <p className="mt-1 text-sm text-fg-muted">
             {registrationOpen
               ? "Create your admin account to get started"
               : mode === "register"
@@ -96,7 +96,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">
             {error}
           </div>
         )}
@@ -144,8 +144,8 @@ export default function LoginPage() {
           <Card>
             <div className="space-y-3">
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Just browsing?</h2>
-                <p className="mt-1 text-sm text-gray-500">
+                <h2 className="text-sm font-semibold text-fg">Just browsing?</h2>
+                <p className="mt-1 text-sm text-fg-muted">
                   Start a fresh chat session and watch the live demo.
                 </p>
               </div>
@@ -161,18 +161,18 @@ export default function LoginPage() {
         )}
 
         {!registrationOpen && !inviteToken && (
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-fg-muted">
             {mode === "login" ? (
               <>
                 Have an invite?{" "}
-                <button onClick={() => setMode("register")} className="font-medium text-blue-600 hover:text-blue-800">
+                <button onClick={() => setMode("register")} className="font-medium text-brand transition-colors hover:text-brand/80">
                   Register
                 </button>
               </>
             ) : (
               <>
                 Already have an account?{" "}
-                <button onClick={() => setMode("login")} className="font-medium text-blue-600 hover:text-blue-800">
+                <button onClick={() => setMode("login")} className="font-medium text-brand transition-colors hover:text-brand/80">
                   Sign in
                 </button>
               </>

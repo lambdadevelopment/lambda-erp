@@ -164,7 +164,7 @@ export default function MasterFormPage() {
   };
 
   if (!isNew && isLoading) {
-    return <p className="text-gray-500">Loading...</p>;
+    return <p className="text-fg-muted">Loading...</p>;
   }
 
   const saving = createMut.isPending || updateMut.isPending;
@@ -197,18 +197,18 @@ export default function MasterFormPage() {
 
       {/* Error display */}
       {(createMut.error || updateMut.error || deleteMut.error) && (
-        <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">
+        <div className="rounded-lg bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
           {(createMut.error ?? updateMut.error ?? deleteMut.error)?.message ??
             "An error occurred"}
         </div>
       )}
       {missingRequiredFields.length > 0 && (
-        <div className="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
           Required: {missingRequiredFields.map((field) => field.label).join(", ")}
         </div>
       )}
       {formData.disabled === 1 && (
-        <div className="rounded-md bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
           This {label.toLowerCase()} is disabled. It remains in the system because other records still reference it.
         </div>
       )}
@@ -240,11 +240,11 @@ export default function MasterFormPage() {
             if (field.type === "textarea") {
               return (
                 <div key={field.name} className="sm:col-span-2">
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                  <label className="mb-1.5 block text-sm font-medium text-fg">
                     {field.label}
                   </label>
                   <textarea
-                    className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="block w-full rounded-lg bg-surface px-3 py-2 text-sm text-fg ring-1 ring-line transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface-subtle disabled:text-fg-muted"
                     rows={3}
                     value={formData[field.name] ?? ""}
                     required={isRequired}

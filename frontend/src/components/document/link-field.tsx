@@ -109,11 +109,11 @@ export function LinkField({
     return (
       <div>
         {label && (
-          <span className="mb-1 block text-sm font-medium text-gray-700">
+          <span className="mb-1.5 block text-sm font-medium text-fg">
             {label}
           </span>
         )}
-        <span className="text-sm text-gray-900">{value || "\u2014"}</span>
+        <span className="text-sm text-fg">{value || "\u2014"}</span>
       </div>
     );
   }
@@ -121,7 +121,7 @@ export function LinkField({
   return (
     <div ref={containerRef} className="relative">
       {label && (
-        <label className="mb-1 block text-sm font-medium text-gray-700">
+        <label className="mb-1.5 block text-sm font-medium text-fg">
           {label}
         </label>
       )}
@@ -137,12 +137,12 @@ export function LinkField({
         onBlur={handleBlur}
         placeholder={`Search ${linkDoctype}...`}
         className={cn(
-          "w-full rounded border border-gray-200 px-2 py-1 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400",
-          loading && "bg-gray-50",
+          "block h-9 w-full rounded-lg bg-surface px-3 text-sm text-fg ring-1 ring-line transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30",
+          loading && "bg-surface-subtle",
         )}
       />
       {open && results.length > 0 && createPortal(
-        <div ref={dropdownRef} style={dropdownStyle} className="max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">
+        <div ref={dropdownRef} style={dropdownStyle} className="max-h-48 overflow-y-auto rounded-lg bg-surface ring-1 ring-line shadow-card-hover">
           {results.map((item, i) => {
             const name = item.name ?? item.id ?? String(item);
             return (
@@ -151,7 +151,7 @@ export function LinkField({
                 type="button"
                 onMouseDown={() => { selectingRef.current = true; }}
                 onClick={() => handleSelect(item)}
-                className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                className="block w-full px-3 py-1.5 text-left text-sm text-fg transition-colors hover:bg-surface-subtle"
               >
                 {name}
               </button>

@@ -60,31 +60,31 @@ export function ChildTableEditor({
   );
 
   return (
-    <div className="w-full overflow-x-auto rounded-md border border-gray-200">
-      <table className="w-full divide-y divide-gray-200 text-sm">
-        <thead className="bg-gray-50">
+    <div className="w-full overflow-x-auto rounded-lg ring-1 ring-line">
+      <table className="w-full divide-y divide-line text-sm">
+        <thead className="bg-surface-subtle">
           <tr>
-            <th className="w-10 px-2 py-2 text-center text-xs font-medium text-gray-500">
+            <th className="w-10 px-2 py-2 text-center text-xs font-medium text-fg-muted">
               #
             </th>
             {fields.map((field) => (
               <th
                 key={field.name}
-                className="px-3 py-2 text-left text-xs font-medium text-gray-500"
+                className="px-3 py-2 text-left text-xs font-medium text-fg-muted"
               >
                 {field.label}
-                {field.required && <span className="text-red-500"> *</span>}
+                {field.required && <span className="text-rose-500"> *</span>}
               </th>
             ))}
             {!readOnly && (
-              <th className="w-10 px-2 py-2 text-center text-xs font-medium text-gray-500" />
+              <th className="w-10 px-2 py-2 text-center text-xs font-medium text-fg-muted" />
             )}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 bg-white">
+        <tbody className="divide-y divide-line bg-surface">
           {rows.map((row, rowIndex) => (
-            <tr key={rowIndex} className="hover:bg-gray-50">
-              <td className="px-2 py-1.5 text-center text-xs text-gray-400">
+            <tr key={rowIndex} className="transition-colors hover:bg-surface-subtle">
+              <td className="px-2 py-1.5 text-center text-xs text-fg-muted">
                 {rowIndex + 1}
               </td>
               {fields.map((field) => (
@@ -102,7 +102,7 @@ export function ChildTableEditor({
                   <button
                     type="button"
                     onClick={() => removeRow(rowIndex)}
-                    className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                    className="rounded-md p-1 text-fg-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
                     title="Remove row"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -115,7 +115,7 @@ export function ChildTableEditor({
             <tr>
               <td
                 colSpan={fields.length + (readOnly ? 1 : 2)}
-                className="px-4 py-6 text-center text-sm text-gray-400"
+                className="px-4 py-6 text-center text-sm text-fg-muted"
               >
                 No rows. {!readOnly && "Click the button below to add one."}
               </td>
@@ -124,11 +124,11 @@ export function ChildTableEditor({
         </tbody>
       </table>
       {!readOnly && (
-        <div className="border-t border-gray-200 bg-gray-50 px-3 py-2">
+        <div className="border-t border-line bg-surface-subtle px-3 py-2">
           <button
             type="button"
             onClick={addRow}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand transition-colors hover:bg-brand/5"
           >
             <Plus className="h-3.5 w-3.5" />
             Add Row
@@ -151,8 +151,8 @@ function CellEditor({
   readOnly: boolean;
 }) {
   const baseInputClass =
-    "w-full rounded border border-gray-200 bg-transparent px-2 py-1 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400";
-  const readOnlyClass = "w-full px-2 py-1 text-sm text-gray-700";
+    "w-full rounded-md bg-transparent px-2 py-1 text-sm ring-1 ring-transparent outline-none transition-all focus:bg-surface focus:ring-brand/30 focus:ring-2";
+  const readOnlyClass = "w-full px-2 py-1 text-sm text-fg";
 
   if (readOnly) {
     const display =

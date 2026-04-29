@@ -115,7 +115,7 @@ export default function DocumentListPage() {
           cell: (info) => (
             <Link
               to={`/app/${config.slug}/${info.getValue()}`}
-              className="font-medium text-blue-600 hover:text-blue-800"
+              className="font-medium text-brand transition-colors hover:text-brand/80"
             >
               {info.getValue()}
             </Link>
@@ -153,7 +153,7 @@ export default function DocumentListPage() {
               <Link
                 to={href}
                 onClick={(e) => e.stopPropagation()}
-                className="text-sky-600 hover:text-sky-800 hover:underline"
+                className="text-brand transition-colors hover:text-brand/80 hover:underline"
               >
                 {value}
               </Link>
@@ -178,7 +178,7 @@ export default function DocumentListPage() {
               <Link
                 to={href}
                 onClick={(e) => e.stopPropagation()}
-                className="text-sky-600 hover:text-sky-800 hover:underline"
+                className="text-brand transition-colors hover:text-brand/80 hover:underline"
               >
                 {value}
               </Link>
@@ -214,7 +214,7 @@ export default function DocumentListPage() {
 
   if (!config) {
     return (
-      <p className="text-gray-500">
+      <p className="text-fg-muted">
         Unknown document type: {doctype}
       </p>
     );
@@ -251,20 +251,20 @@ export default function DocumentListPage() {
       <DateRangePresets onSelect={(from, to) => patchUrl({ from, to, page: null })} />
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-fg-muted">Loading...</p>
       ) : rows.length === 0 ? (
-        <p className="py-8 text-center text-gray-400">No documents found</p>
+        <p className="py-8 text-center text-fg-muted">No documents found</p>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto rounded-xl bg-surface ring-1 ring-line shadow-card">
+            <table className="min-w-full divide-y divide-line text-sm">
+              <thead className="bg-surface-subtle">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
                       <th
                         key={header.id}
-                        className="px-4 py-3 text-left font-medium text-gray-500"
+                        className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted"
                       >
                         {header.isPlaceholder
                           ? null
@@ -277,11 +277,11 @@ export default function DocumentListPage() {
                   </tr>
                 ))}
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line">
                 {table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-gray-50">
+                  <tr key={row.id} className="transition-colors hover:bg-surface-subtle">
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-4 py-2">
+                      <td key={cell.id} className="px-4 py-2.5 text-fg">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -294,18 +294,18 @@ export default function DocumentListPage() {
             </table>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-fg-muted">
             <div>
-              Showing <span className="font-medium text-gray-900">{rangeStart}–{rangeEnd}</span>{" "}
-              of <span className="font-medium text-gray-900">{total}</span>
+              Showing <span className="font-medium text-fg">{rangeStart}–{rangeEnd}</span>{" "}
+              of <span className="font-medium text-fg">{total}</span>
             </div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-500">Per page</span>
+                <span className="text-xs text-fg-muted">Per page</span>
                 <select
                   value={pageSize}
                   onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                  className="h-8 rounded-md bg-surface px-2 text-sm text-fg ring-1 ring-line transition-all focus:outline-none focus:ring-2 focus:ring-brand/30"
                 >
                   {PAGE_SIZE_OPTIONS.map((n) => (
                     <option key={n} value={n}>{n}</option>
@@ -315,18 +315,18 @@ export default function DocumentListPage() {
               <button
                 onClick={() => setPage(Math.max(0, page - 1))}
                 disabled={page === 0}
-                className="rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md bg-surface px-3 py-1 text-sm text-fg ring-1 ring-line transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Prev
               </button>
               <span className="text-xs">
-                Page <span className="font-medium text-gray-900">{page + 1}</span> of{" "}
-                <span className="font-medium text-gray-900">{totalPages}</span>
+                Page <span className="font-medium text-fg">{page + 1}</span> of{" "}
+                <span className="font-medium text-fg">{totalPages}</span>
               </span>
               <button
                 onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
                 disabled={page >= totalPages - 1}
-                className="rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md bg-surface px-3 py-1 text-sm text-fg ring-1 ring-line transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>

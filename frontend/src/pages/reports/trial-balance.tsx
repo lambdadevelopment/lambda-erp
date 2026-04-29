@@ -70,55 +70,55 @@ export default function TrialBalancePage() {
       }} />
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-fg-muted">Loading...</p>
       ) : !data || !data.rows || data.rows.length === 0 ? (
-        <p className="py-8 text-center text-gray-400">No data found</p>
+        <p className="py-8 text-center text-fg-muted">No data found</p>
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-line text-sm">
+              <thead className="bg-surface-subtle">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted">
                     Account
                   </th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-fg-muted">
                     Debit
                   </th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-fg-muted">
                     Credit
                   </th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-fg-muted">
                     Balance
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line">
                 {data.rows.map((row: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-gray-900">{row.account}</td>
-                    <td className="px-4 py-2 text-right">
+                  <tr key={idx} className="transition-colors hover:bg-surface-subtle">
+                    <td className="px-4 py-2 text-fg">{row.account}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-fg">
                       {formatCurrency(row.debit)}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 text-right tabular-nums text-fg">
                       {formatCurrency(row.credit)}
                     </td>
-                    <td className="px-4 py-2 text-right font-medium">
+                    <td className="px-4 py-2 text-right font-medium tabular-nums text-fg">
                       {formatCurrency(row.balance)}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
+              <tfoot className="border-t border-line bg-surface-subtle font-semibold">
                 <tr>
-                  <td className="px-4 py-3 text-gray-900">Total</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-fg">Total</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-fg">
                     {formatCurrency(data.total_debit)}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right tabular-nums text-fg">
                     {formatCurrency(data.total_credit)}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right tabular-nums text-fg">
                     {formatCurrency(data.difference)}
                   </td>
                 </tr>
@@ -128,11 +128,13 @@ export default function TrialBalancePage() {
 
           <div className="mt-4 text-center">
             {isBalanced ? (
-              <span className="inline-flex items-center rounded-full bg-green-100 px-4 py-1.5 text-sm font-semibold text-green-800">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 BALANCED
               </span>
             ) : (
-              <span className="inline-flex items-center rounded-full bg-red-100 px-4 py-1.5 text-sm font-semibold text-red-800">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-4 py-1.5 text-sm font-semibold text-rose-700 ring-1 ring-rose-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
                 IMBALANCED
               </span>
             )}

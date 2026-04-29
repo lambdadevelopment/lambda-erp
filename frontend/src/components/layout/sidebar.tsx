@@ -205,7 +205,7 @@ function ChatGroup() {
       <button
         type="button"
         onClick={toggle}
-        className="flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-700"
+        className="flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-fg-muted transition-colors hover:text-fg"
       >
         <MessageCircle className="h-4 w-4" />
         <span className="flex-1 text-left">Chats</span>
@@ -221,36 +221,54 @@ function ChatGroup() {
           <li>
             <button
               onClick={handleNewChat}
-              className="flex w-full items-center gap-2 px-4 py-1.5 pl-10 text-sm text-blue-600 hover:bg-blue-50"
+              className="flex w-full items-center gap-2 px-4 py-1.5 pl-10 text-sm text-brand transition-colors hover:bg-brand/5"
             >
               <Plus className="h-3.5 w-3.5" />
               New Chat
             </button>
           </li>
           {/* Existing sessions */}
-          {sessions.map((session) => (
-            <li key={session.id} className="group relative">
-              <NavLink
-                to={`/chat/${session.id}`}
-                className={cn(
-                  "block truncate px-4 py-1.5 pl-10 pr-8 text-sm text-gray-700 hover:bg-gray-100",
-                  location.pathname === `/chat/${session.id}` && "bg-blue-50 font-medium text-blue-700",
-                )}
-              >
-                {session.title}
-              </NavLink>
-              <button
-                onClick={(e) => handleDelete(e, session.id)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 opacity-0 hover:text-red-500 group-hover:opacity-100"
-                title="Delete chat"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </li>
-          ))}
+          {sessions.map((session) => {
+            const active = location.pathname === `/chat/${session.id}`;
+            return (
+              <li key={session.id} className="group relative">
+                <NavLink
+                  to={`/chat/${session.id}`}
+                  className={cn(
+                    "relative block truncate px-4 py-1.5 pl-10 pr-8 text-sm transition-colors",
+                    active
+                      ? "bg-surface-subtle font-medium text-fg"
+                      : "text-fg-muted hover:bg-surface-subtle hover:text-fg",
+                  )}
+                >
+                  {session.title}
+                </NavLink>
+                {active && <ActiveAccent />}
+                <button
+                  onClick={(e) => handleDelete(e, session.id)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+                  title="Delete chat"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
+  );
+}
+
+/** 2px brand-colored accent strip on the left edge — Linear-style
+ *  active indicator. Pulled out so all three nav patterns (chats,
+ *  custom analytics, generic groups) reuse one definition. */
+function ActiveAccent() {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r bg-brand"
+    />
   );
 }
 
@@ -316,7 +334,7 @@ function CustomAnalyticsGroup() {
         type="button"
         onClick={toggle}
         className={cn(
-          "flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-all duration-300 hover:text-gray-700",
+          "flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-fg-muted transition-all duration-300 hover:text-fg",
           isGroupFlashing && flashStyle,
         )}
       >
@@ -333,7 +351,7 @@ function CustomAnalyticsGroup() {
           <li>
             <button
               onClick={handleNew}
-              className="flex w-full items-center gap-2 px-4 py-1.5 pl-10 text-sm text-blue-600 hover:bg-blue-50"
+              className="flex w-full items-center gap-2 px-4 py-1.5 pl-10 text-sm text-brand transition-colors hover:bg-brand/5"
             >
               <Plus className="h-3.5 w-3.5" />
               New Analytics
@@ -350,17 +368,19 @@ function CustomAnalyticsGroup() {
                 <NavLink
                   to={path}
                   className={cn(
-                    "block truncate px-4 py-1.5 pl-10 pr-8 text-sm text-gray-700 transition-all duration-300 hover:bg-gray-100",
+                    "relative block truncate px-4 py-1.5 pl-10 pr-8 text-sm transition-all duration-300",
+                    !active && "text-fg-muted hover:bg-surface-subtle hover:text-fg",
+                    active && "bg-surface-subtle font-medium text-fg",
                     isItemFlashing && flashStyle,
-                    active && "bg-blue-50 font-medium text-blue-700",
                   )}
                   title={draft.title}
                 >
                   {draft.title}
                 </NavLink>
+                {active && <ActiveAccent />}
                 <button
                   onClick={(e) => handleDelete(e, draft.id)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 opacity-0 hover:text-red-500 group-hover:opacity-100"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
                   title="Delete report"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -386,7 +406,7 @@ function SidebarGroup({ group }: { group: NavGroup }) {
         type="button"
         onClick={toggle}
         className={cn(
-          "flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-all duration-300 hover:text-gray-700",
+          "flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-fg-muted transition-all duration-300 hover:text-fg",
           isGroupFlashing && flashStyle,
         )}
       >
@@ -401,19 +421,25 @@ function SidebarGroup({ group }: { group: NavGroup }) {
       {open && (
         <ul className="mb-1">
           {group.items.map((item) => (
-            <li key={item.path}>
+            <li key={item.path} className="relative">
               <NavLink
                 to={item.path}
                 className={({ isActive }) =>
                   cn(
-                    "block px-4 py-1.5 pl-10 text-sm text-gray-700 transition-all duration-300 hover:bg-gray-100",
+                    "relative block px-4 py-1.5 pl-10 text-sm transition-all duration-300",
+                    !isActive && "text-fg-muted hover:bg-surface-subtle hover:text-fg",
+                    isActive && "bg-surface-subtle font-medium text-fg",
                     navigationFlash?.group === group.label && navigationFlash?.item === item.label &&
                       flashStyle,
-                    isActive && "bg-blue-50 font-medium text-blue-700",
                   )
                 }
               >
-                {item.label}
+                {({ isActive }) => (
+                  <>
+                    {isActive && <ActiveAccent />}
+                    {item.label}
+                  </>
+                )}
               </NavLink>
             </li>
           ))}
@@ -464,19 +490,19 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-dvh w-64 flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-out",
+        "fixed left-0 top-0 z-40 flex h-dvh w-64 flex-col border-r border-line bg-surface transition-transform duration-300 ease-out",
         "md:translate-x-0",
         isMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
       )}
     >
-      <div className="relative flex h-10 items-center justify-center gap-3 border-b border-gray-200 px-4">
+      <div className="relative flex h-10 items-center justify-center gap-3 border-b border-line px-4">
         <p
-          className="min-w-0 truncate text-base font-semibold text-gray-500"
+          className="min-w-0 truncate text-base font-semibold text-fg-muted"
           title={companyName}
         >
           {companyName}
         </p>
-        <div className="h-4 w-px shrink-0 bg-gray-200" aria-hidden="true" />
+        <div className="h-4 w-px shrink-0 bg-line" aria-hidden="true" />
         <a
           href="https://lambda.dev/erp"
           target="_blank"
@@ -490,7 +516,7 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
         {/* Close button — mobile only. Absolute so it doesn't offset centering. */}
         <button
           onClick={onClose}
-          className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 md:hidden"
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg md:hidden"
           aria-label="Close menu"
         >
           <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor">

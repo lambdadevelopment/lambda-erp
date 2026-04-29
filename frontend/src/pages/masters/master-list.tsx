@@ -71,7 +71,7 @@ export default function MasterListPage() {
             return (
               <Link
                 to={`/masters/${type}/${val}`}
-                className={isDisabled ? "font-medium text-gray-500" : "font-medium text-blue-600 hover:text-blue-800"}
+                className={isDisabled ? "font-medium text-fg-muted" : "font-medium text-brand transition-colors hover:text-brand/80"}
               >
                 {val}
               </Link>
@@ -106,20 +106,20 @@ export default function MasterListPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-fg-muted">Loading...</p>
       ) : rows.length === 0 ? (
-        <p className="py-8 text-center text-gray-400">No records found</p>
+        <p className="py-8 text-center text-fg-muted">No records found</p>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto rounded-xl bg-surface ring-1 ring-line shadow-card">
+            <table className="min-w-full divide-y divide-line text-sm">
+              <thead className="bg-surface-subtle">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
                       <th
                         key={header.id}
-                        className="px-4 py-3 text-left font-medium text-gray-500"
+                        className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted"
                       >
                         {header.isPlaceholder
                           ? null
@@ -132,17 +132,21 @@ export default function MasterListPage() {
                   </tr>
                 ))}
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line">
                 {table.getRowModel().rows.map((row) => (
                   <tr
                     key={row.id}
-                    className={row.original.disabled === 1 ? "cursor-pointer bg-gray-50 text-gray-500 hover:bg-gray-100" : "cursor-pointer hover:bg-gray-50"}
+                    className={
+                      row.original.disabled === 1
+                        ? "cursor-pointer bg-surface-subtle text-fg-muted transition-colors hover:bg-surface-subtle/80"
+                        : "cursor-pointer text-fg transition-colors hover:bg-surface-subtle"
+                    }
                     onClick={() =>
                       navigate(`/masters/${type}/${row.original.name}`)
                     }
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-4 py-2">
+                      <td key={cell.id} className="px-4 py-2.5">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -155,18 +159,18 @@ export default function MasterListPage() {
             </table>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-fg-muted">
             <div>
-              Showing <span className="font-medium text-gray-900">{rangeStart}–{rangeEnd}</span>{" "}
-              of <span className="font-medium text-gray-900">{total}</span>
+              Showing <span className="font-medium text-fg">{rangeStart}–{rangeEnd}</span>{" "}
+              of <span className="font-medium text-fg">{total}</span>
             </div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-500">Per page</span>
+                <span className="text-xs text-fg-muted">Per page</span>
                 <select
                   value={pageSize}
                   onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                  className="h-8 rounded-md bg-surface px-2 text-sm text-fg ring-1 ring-line transition-all focus:outline-none focus:ring-2 focus:ring-brand/30"
                 >
                   {PAGE_SIZE_OPTIONS.map((n) => (
                     <option key={n} value={n}>{n}</option>
@@ -176,18 +180,18 @@ export default function MasterListPage() {
               <button
                 onClick={() => setPage(Math.max(0, page - 1))}
                 disabled={page === 0}
-                className="rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md bg-surface px-3 py-1 text-sm text-fg ring-1 ring-line transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Prev
               </button>
               <span className="text-xs">
-                Page <span className="font-medium text-gray-900">{page + 1}</span> of{" "}
-                <span className="font-medium text-gray-900">{totalPages}</span>
+                Page <span className="font-medium text-fg">{page + 1}</span> of{" "}
+                <span className="font-medium text-fg">{totalPages}</span>
               </span>
               <button
                 onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
                 disabled={page >= totalPages - 1}
-                className="rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md bg-surface px-3 py-1 text-sm text-fg ring-1 ring-line transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>
