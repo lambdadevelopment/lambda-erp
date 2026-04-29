@@ -45,6 +45,19 @@ export default {
         // Subtle inset highlight for primary buttons — gives the
         // top edge a 1px lift that's almost invisible but reads as depth.
         "button-highlight": "inset 0 1px 0 rgba(255,255,255,0.16)",
+        // Saturated colored surfaces (user chat bubble, brand CTAs) need
+        // a different shadow recipe than neutral cards: a black drop
+        // shadow alone barely registers on a vivid purple. Combining
+        //   1) a 1px inset top highlight   — reads as polished glass,
+        //   2) a tight dark drop           — defines the bubble edge,
+        //   3) a soft brand-tinted glow    — makes the bubble feel like
+        //      it's casting its own colour onto the page (kept subtle),
+        // gives the bubble physical presence without looking gimmicky.
+        "bubble-user": [
+          "inset 0 1px 0 rgba(255,255,255,0.22)",
+          "0 1px 2px rgba(0,0,0,0.05)",
+          "0 3px 8px -2px hsl(var(--brand) / 0.18)",
+        ].join(", "),
       },
     },
   },

@@ -574,8 +574,10 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Input */}
-      <div className="border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      {/* Input — bg-surface-muted matches the page so the textarea reads as
+           a floating card rather than a strip of UI chrome bolted to the
+           bottom. The thin top divider stays as a subtle separator. */}
+      <div className="border-t border-line/60 bg-surface-muted px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-3xl">
           {/* Attachment preview strip */}
           {attachments.length > 0 && (
@@ -583,7 +585,7 @@ export default function ChatPage() {
               {attachments.map((att) => (
                 <div
                   key={att.localId}
-                  className="relative flex items-center gap-2 rounded-lg bg-surface-subtle px-2 py-1.5 text-xs ring-1 ring-line"
+                  className="relative flex items-center gap-2 rounded-lg bg-surface px-2 py-1.5 text-xs ring-1 ring-line shadow-card"
                 >
                   {att.previewUrl ? (
                     <img src={att.previewUrl} alt="" className="h-10 w-10 rounded object-cover" />
@@ -612,7 +614,7 @@ export default function ChatPage() {
             </div>
           )}
           {attachmentError && (
-            <div className="mb-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700 ring-1 ring-rose-200">{attachmentError}</div>
+            <div className="mb-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700 ring-1 ring-rose-200 shadow-card">{attachmentError}</div>
           )}
           <div className="flex items-end gap-2">
             <input
@@ -644,7 +646,7 @@ export default function ChatPage() {
                 }
                 disabled={!isConnected || !sessionId || isThinking || isDemoReplaying}
                 rows={2}
-                className="block w-full resize-none rounded-lg bg-surface px-4 py-2.5 text-sm text-fg ring-1 ring-line transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface-subtle disabled:text-fg-muted"
+                className="block w-full resize-none rounded-xl bg-surface px-4 py-2.5 text-sm text-fg ring-1 ring-line shadow-card transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface-subtle disabled:text-fg-muted"
                 style={{ minHeight: "3.75rem", maxHeight: "120px" }}
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement;
@@ -725,7 +727,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] break-words rounded-2xl rounded-br-md bg-brand px-4 py-2.5 text-sm text-brand-fg shadow-button-highlight">
+        <div className="max-w-[80%] break-words rounded-2xl rounded-br-md bg-gradient-to-b from-brand to-brand/90 px-4 py-2.5 text-sm text-brand-fg ring-1 ring-black/10 shadow-bubble-user">
           {message.content}
           <AttachmentThumbs attachments={message.attachments} />
           {message.timestamp && (
@@ -739,7 +741,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "assistant") {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%] break-words rounded-2xl rounded-bl-md bg-surface-subtle px-4 py-2.5 text-sm text-fg ring-1 ring-line">
+        <div className="max-w-[80%] break-words rounded-2xl rounded-bl-md bg-surface px-4 py-2.5 text-sm text-fg ring-1 ring-line shadow-card">
           <MarkdownContent content={message.content} />
           {message.timestamp && (
             <div className="mt-1 text-right text-[10px] text-fg-muted" title={formatFullTimestamp(message.timestamp)}>{formatTime(message.timestamp)}</div>
@@ -752,11 +754,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "thinking") {
     return (
       <div className="flex justify-start">
-        <div className="flex items-center gap-2 rounded-full bg-surface-subtle px-3 py-1.5 text-xs text-fg-muted ring-1 ring-line">
+        <div className="flex items-center gap-2 rounded-full bg-surface px-3 py-1.5 text-xs text-fg-muted ring-1 ring-line shadow-card">
           <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
           {message.content}
           {message.provider && (
-            <span className="rounded bg-surface px-1.5 py-0.5 text-[10px] font-medium text-fg-muted ring-1 ring-line">
+            <span className="rounded bg-surface-subtle px-1.5 py-0.5 text-[10px] font-medium text-fg-muted ring-1 ring-line">
               {message.provider}
               {message.model ? ` · ${message.model}` : ""}
             </span>
@@ -769,7 +771,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "tool_call") {
     return (
       <div className="flex justify-start">
-        <div className="rounded-lg bg-surface px-3 py-2 text-xs ring-1 ring-line">
+        <div className="rounded-lg bg-surface px-3 py-2 text-xs ring-1 ring-line shadow-card">
           <div className="flex items-center gap-1.5 font-medium text-fg-muted">
             <svg
               viewBox="0 0 24 24"
@@ -797,7 +799,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     return (
       <div className="flex justify-start">
         <div
-          className={`rounded-lg px-3 py-2 text-xs ring-1 ring-inset ${message.success ? "bg-emerald-50 ring-emerald-200" : "bg-rose-50 ring-rose-200"}`}
+          className={`rounded-lg px-3 py-2 text-xs shadow-card ring-1 ring-inset ${message.success ? "bg-emerald-50 ring-emerald-200" : "bg-rose-50 ring-rose-200"}`}
         >
           <div className="flex items-center gap-1.5">
             <span className={message.success ? "text-emerald-600" : "text-rose-600"}>
@@ -816,7 +818,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "error") {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-rose-50 px-4 py-2.5 text-sm text-rose-700 ring-1 ring-rose-200">
+        <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-rose-50 px-4 py-2.5 text-sm text-rose-700 ring-1 ring-rose-200 shadow-card">
           {message.content}
         </div>
       </div>
