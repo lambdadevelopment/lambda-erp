@@ -503,14 +503,14 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
         >
           {companyName}
         </NavLink>
-        <div className="h-4 w-px shrink-0 bg-line" aria-hidden="true" />
+        <div className="hidden h-4 w-px shrink-0 bg-line md:block" aria-hidden="true" />
         <a
           href="https://lambda.dev/erp"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Lambda ERP"
           title="Lambda ERP"
-          className="shrink-0"
+          className="hidden shrink-0 md:block"
         >
           <span className="lambda-logo-icon block" role="img" aria-label="Lambda ERP" />
         </a>
