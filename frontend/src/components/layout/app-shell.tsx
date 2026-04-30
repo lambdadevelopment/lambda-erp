@@ -82,7 +82,7 @@ function AppShellContent() {
   const flashStyle = navigationFlash ? FLASH_STYLES[navigationFlash.group] : null;
 
   return (
-    <div className="flex h-dvh bg-gray-50">
+    <div className="flex h-dvh bg-surface-muted">
       <Sidebar isMobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
       {/* Mobile backdrop — only shown when sidebar is open on small screens */}
       {mobileOpen && (

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import {
   TrendingUp,
   ArrowDownRight,
@@ -84,9 +85,16 @@ function RecentDocumentRow({ doc }: { doc: RecentDoc }) {
   const doctype = doc.doctype ?? doc.type ?? "Document";
   const date = doc.creation ?? doc.date;
   const Icon = DOCTYPE_ICON[doctype] ?? FileText;
+  // Doctype slug — e.g. "Sales Invoice" → "sales-invoice", matching the
+  // routes defined in routes.tsx and used by the sidebar.
+  const slug = doctype.toLowerCase().replace(/\s+/g, "-");
+  const href = `/app/${slug}/${encodeURIComponent(doc.name)}`;
 
   return (
-    <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-subtle">
+    <Link
+      to={href}
+      className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-subtle"
+    >
       <div className="rounded-md bg-surface-subtle p-1.5 text-fg-muted">
         <Icon className="h-4 w-4" strokeWidth={2} />
       </div>
@@ -98,7 +106,7 @@ function RecentDocumentRow({ doc }: { doc: RecentDoc }) {
       <div className="hidden text-xs tabular-nums text-fg-muted sm:block">
         {date ? formatDate(date) : "—"}
       </div>
-    </div>
+    </Link>
   );
 }
 

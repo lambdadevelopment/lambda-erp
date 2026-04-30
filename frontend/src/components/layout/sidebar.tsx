@@ -496,12 +496,13 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
       )}
     >
       <div className="relative flex h-10 items-center justify-center gap-3 border-b border-line px-4">
-        <p
-          className="min-w-0 truncate text-base font-semibold text-fg-muted"
-          title={companyName}
+        <NavLink
+          to="/"
+          className="min-w-0 truncate text-base font-semibold text-fg-muted transition-colors hover:text-brand"
+          title={`${companyName} — Dashboard`}
         >
           {companyName}
-        </p>
+        </NavLink>
         <div className="h-4 w-px shrink-0 bg-line" aria-hidden="true" />
         <a
           href="https://lambda.dev/erp"

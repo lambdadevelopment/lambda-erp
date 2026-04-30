@@ -76,7 +76,6 @@ export default function ChatPage() {
     completeDemoTyping,
     loadHistory,
     loadMoreHistory,
-    clearHistory,
     sendMessage,
     getMessages,
     hasMoreHistory,
@@ -275,13 +274,6 @@ export default function ChatPage() {
     }
     previousThinkingRef.current = isThinking;
   }, [isThinking, isConnected]);
-
-  function clearCurrentHistory() {
-    if (!sessionId) return;
-    void clearHistory(sessionId).catch(() => {
-      // ignore
-    });
-  }
 
   function handleMessagesScroll(e: React.UIEvent<HTMLDivElement>) {
     // Ignore scroll events fired by our own programmatic scrolls —
@@ -491,7 +483,7 @@ export default function ChatPage() {
 
   return (
     <div
-      className="relative -m-4 flex h-[calc(100%+2rem)] flex-col overflow-hidden md:-m-6 md:h-[calc(100%+3rem)]"
+      className="relative -m-4 h-[calc(100%+2rem)] overflow-hidden md:-m-6 md:h-[calc(100%+3rem)]"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -501,25 +493,15 @@ export default function ChatPage() {
           Drop file to attach (images or PDF, max 10 MB each)
         </div>
       )}
-      {/* Header with clear button */}
-      {messages.length > 0 && (
-        <div className="flex justify-end border-b border-line px-4 py-1">
-          <button
-            onClick={clearCurrentHistory}
-            className="text-xs text-fg-muted transition-colors hover:text-red-500"
-            disabled={isDemoReplaying}
-          >
-            Clear chat
-          </button>
-        </div>
-      )}
-      {/* Messages */}
+      {/* Messages — full-height scroll area so the scrollbar reaches the
+          bottom edge of the viewport. Inner content has pb-40 so the last
+          message clears the floating input area beneath. */}
       <div
         ref={scrollContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto px-4 py-6"
+        className="absolute inset-0 overflow-y-auto px-4 py-6"
         onScroll={handleMessagesScroll}
       >
-        <div className="mx-auto max-w-3xl space-y-4">
+        <div className="mx-auto max-w-3xl space-y-4 pb-20">
           {(canLoadOlder || loadingOlder) && messages.length > 0 && (
             <div className="flex justify-center">
               <button
@@ -574,10 +556,10 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Input — bg-surface-muted matches the page so the textarea reads as
-           a floating card rather than a strip of UI chrome bolted to the
-           bottom. The thin top divider stays as a subtle separator. */}
-      <div className="border-t border-line/60 bg-surface-muted px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      {/* Input — absolutely positioned over the message scroll area so the
+           scrollbar can reach the bottom edge. bg-surface-muted matches the
+           page bg so the textarea card visually floats. */}
+      <div className="absolute bottom-0 left-0 right-0 bg-surface-muted px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-3xl">
           {/* Attachment preview strip */}
           {attachments.length > 0 && (
@@ -616,45 +598,50 @@ export default function ChatPage() {
           {attachmentError && (
             <div className="mb-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700 ring-1 ring-rose-200 shadow-card">{attachmentError}</div>
           )}
-          <div className="flex items-end gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/gif,image/webp,application/pdf"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                  addFiles(e.target.files);
-                  e.target.value = "";
-                }
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                addFiles(e.target.files);
+                e.target.value = "";
+              }
+            }}
+          />
+          {/* Single "input card" that contains the textarea and both action
+              buttons. The card carries the surface bg + ring + shadow that
+              the textarea used to carry on its own; focus-within promotes
+              the ring to the brand-tinted halo when the textarea is
+              focused. Send button no longer has a filled bg — both action
+              buttons are ghost-style with semantic colors (text-fg-muted
+              for attach, text-brand for send). */}
+          <div className="flex items-end gap-1 rounded-xl bg-surface p-1.5 ring-1 ring-line shadow-card transition-all focus-within:ring-2 focus-within:ring-brand/30">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={
+                isDemoReplaying
+                  ? "Running live demo..."
+                  : isConnected
+                  ? "Type a message..."
+                  : "Connecting..."
+              }
+              disabled={!isConnected || !sessionId || isThinking || isDemoReplaying}
+              rows={2}
+              className="block flex-1 resize-none bg-transparent px-2.5 py-1.5 text-sm text-fg outline-none placeholder:text-fg-muted/70 disabled:text-fg-muted"
+              style={{ minHeight: "3rem", maxHeight: "120px" }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = "auto";
+                target.style.height = Math.min(Math.max(target.scrollHeight, 48), 120) + "px";
               }}
             />
-            <div className="relative flex-1">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder={
-                  isDemoReplaying
-                    ? "Running live demo..."
-                    : isConnected
-                    ? "Type a message..."
-                    : "Connecting..."
-                }
-                disabled={!isConnected || !sessionId || isThinking || isDemoReplaying}
-                rows={2}
-                className="block w-full resize-none rounded-xl bg-surface px-4 py-2.5 text-sm text-fg ring-1 ring-line shadow-card transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface-subtle disabled:text-fg-muted"
-                style={{ minHeight: "3.75rem", maxHeight: "120px" }}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  target.style.height = "auto";
-                  target.style.height = Math.min(Math.max(target.scrollHeight, 60), 120) + "px";
-                }}
-              />
-            </div>
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={!isConnected || !sessionId || isThinking || isDemoReplaying || attachments.length >= MAX_ATTACHMENTS}
@@ -668,7 +655,7 @@ export default function ChatPage() {
             <button
               onClick={sendCurrentMessage}
               disabled={(!input.trim() && readyAttachmentIds.length === 0) || !isConnected || !sessionId || isThinking || isDemoReplaying || hasUnfinishedUploads || hasFailedUploads}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-fg shadow-button-highlight transition-all hover:bg-brand/90 active:translate-y-px disabled:bg-surface-subtle disabled:text-fg-muted disabled:active:translate-y-0 md:h-10 md:w-10"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-brand transition-all hover:bg-brand/10 active:translate-y-px disabled:cursor-not-allowed disabled:text-fg-muted disabled:active:translate-y-0 md:h-10 md:w-10"
             >
               <svg
                 viewBox="0 0 24 24"
