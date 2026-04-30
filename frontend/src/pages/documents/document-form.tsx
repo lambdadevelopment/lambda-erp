@@ -133,14 +133,21 @@ function FieldRenderer({
   onChange,
   readOnly,
   rowData,
+  hideLabel,
 }: {
   field: FieldDef;
   value: any;
   onChange: (v: any) => void;
   readOnly: boolean;
   rowData?: Record<string, any>;
+  /** Suppress the in-cell field label. Used by ChildTableEditor where the
+   *  table column header already shows the label — repeating it inside
+   *  every row makes mobile cells taller and wider than they need to be. */
+  hideLabel?: boolean;
 }) {
   const isDisabled = readOnly || !!field.readOnly;
+  const Label = () =>
+    hideLabel ? null : <FieldLabel label={field.label} hint={field.hint} />;
 
   if (isDisabled) {
     // Link fields render as a clickable link in read-only mode when there's a
@@ -156,8 +163,8 @@ function FieldRenderer({
       if (href) {
         return (
           <div>
-            <FieldLabel label={field.label} hint={field.hint} />
-            <p className="py-2 text-sm">
+            <Label />
+            <p className={hideLabel ? "text-sm" : "py-2 text-sm"}>
               <Link
                 to={href}
                 className="text-sky-600 hover:text-sky-800 hover:underline"
@@ -176,8 +183,8 @@ function FieldRenderer({
     }
     return (
       <div>
-        <FieldLabel label={field.label} hint={field.hint} />
-        <p className="py-2 text-sm text-fg">{display}</p>
+        <Label />
+        <p className={hideLabel ? "text-sm text-fg" : "py-2 text-sm text-fg"}>{display}</p>
       </div>
     );
   }
@@ -188,7 +195,7 @@ function FieldRenderer({
       : field;
     return (
       <div>
-        <FieldLabel label={field.label} hint={field.hint} />
+        <Label />
         <LinkField
           field={resolvedField}
           value={value ?? ""}
@@ -203,7 +210,7 @@ function FieldRenderer({
   if (field.type === "select" && field.options) {
     return (
       <div>
-        <FieldLabel label={field.label} hint={field.hint} />
+        <Label />
         <Select
           options={field.options}
           value={value ?? ""}
@@ -216,7 +223,7 @@ function FieldRenderer({
   if (field.type === "textarea") {
     return (
       <div>
-        <FieldLabel label={field.label} hint={field.hint} />
+        <Label />
         <textarea
           className="block w-full rounded-lg bg-surface px-3 py-2 text-sm text-fg ring-1 ring-line transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30"
           rows={3}
@@ -236,7 +243,7 @@ function FieldRenderer({
 
   return (
     <div>
-      <FieldLabel label={field.label} hint={field.hint} />
+      <Label />
       <Input
         type={inputType}
         step={field.type === "currency" ? "0.01" : undefined}
@@ -287,7 +294,7 @@ function ChildTableEditor({
 
   return (
     <Card title={tableDef.label}>
-      <div>
+      <div className="-mx-6 overflow-x-auto px-6">
         <table className="min-w-full divide-y divide-line text-sm">
           <thead>
             <tr>
@@ -312,13 +319,14 @@ function ChildTableEditor({
               <tr key={idx}>
                 <td className="px-2 py-1 text-fg-muted">{idx + 1}</td>
                 {tableDef.fields.map((f) => (
-                  <td key={f.name} className="px-2 py-1">
+                  <td key={f.name} className="px-2 py-1 align-top">
                     <FieldRenderer
                       field={f}
                       value={row[f.name]}
                       onChange={(v) => updateRow(idx, f.name, v)}
                       readOnly={readOnly}
                       rowData={row}
+                      hideLabel
                     />
                   </td>
                 ))}
@@ -614,8 +622,12 @@ export default function DocumentFormPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header — stacks on mobile (status pill on top, action buttons
+          below) since on a narrow screen the action buttons wrap to multiple
+          lines and items-center vertically centers the pill against the
+          tall buttons column, leaving it floating in dead space. From sm:
+          up, side-by-side again. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           {!isNew && formData.status && (
             <StatusBadge status={formData.status} />
