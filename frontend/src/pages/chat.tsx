@@ -558,11 +558,12 @@ export default function ChatPage() {
 
       {/* Input — absolutely positioned over the message scroll area so the
            scrollbar can reach the bottom edge. bg-surface-muted matches the
-           page bg so the textarea card visually floats. `right-6` leaves
-           ~24px on the right so the messages-area scrollbar isn't covered
-           by the wrapper bg — Firefox scrollbars in particular run wider
-           than Chrome's (~17–18px), so 16px gave overlap on FF. */}
-      <div className="absolute bottom-0 left-0 right-6 bg-surface-muted pl-6 pr-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+           page bg so the textarea card visually floats. The right-side gap
+           (md:right-6 / md:pl-6 / md:pr-0) only applies on desktop, where
+           scrollbars are always visible and ~17–18px wide. On mobile the
+           overlay scrollbar auto-hides, so we extend the wrapper edge-to-
+           edge (right-0, px-4) to avoid an empty gap on the right. */}
+      <div className="absolute bottom-0 left-0 right-0 bg-surface-muted px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:right-6 md:pl-6 md:pr-0">
         <div className="mx-auto max-w-3xl">
           {/* Attachment preview strip */}
           {attachments.length > 0 && (
