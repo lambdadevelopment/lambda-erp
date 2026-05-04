@@ -82,24 +82,24 @@
   100% { background-position: 0% 50%; }
 }
 
-/* Thin, Claude.ai-style scrollbar. Firefox uses `scrollbar-width` /
-   `scrollbar-color`; Chromium/Safari need the `::-webkit-scrollbar-*`
-   pseudo-elements to match. */
-.scrollbar-thin {
+/* Thin, Claude.ai-style scrollbar applied app-wide. Firefox honours
+   `scrollbar-width` / `scrollbar-color`; Chromium/Safari need the
+   `::-webkit-scrollbar-*` pseudo-elements to match. */
+* {
   scrollbar-width: thin;
   scrollbar-color: rgba(31, 31, 30, 0.35) transparent;
 }
-.scrollbar-thin::-webkit-scrollbar {
+*::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-.scrollbar-thin::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
-.scrollbar-thin::-webkit-scrollbar-thumb {
+*::-webkit-scrollbar-thumb {
   background-color: rgba(31, 31, 30, 0.35);
   border-radius: 4px;
 }
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+*::-webkit-scrollbar-thumb:hover {
   background-color: rgba(31, 31, 30, 0.5);
 }

@@ -525,7 +525,7 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
           </svg>
         </button>
       </div>
-      <nav className="scrollbar-thin flex-1 overflow-y-auto py-3">
+      <nav className="flex-1 overflow-y-auto py-3">
         <ChatGroup />
         <CustomAnalyticsGroup />
         {groups.map((group) => (
