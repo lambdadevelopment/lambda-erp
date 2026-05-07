@@ -216,8 +216,12 @@ export default function ChatPage() {
     });
   }, [sessionId, loadingOlder, canLoadOlder, loadMoreHistory]);
 
+  // Tracks the location.state object we've already consumed so the
+  // StrictMode synthetic remount (and any later re-render with the same
+  // state) doesn't double-apply or clobber the prefill.
+  const consumedNavStateRef = useRef<unknown>(null);
+
   useEffect(() => {
-    setInput("");
     setDemoError("");
     demoRunStartedRef.current = null;
     demoTypingRunIdRef.current += 1;
@@ -225,15 +229,17 @@ export default function ChatPage() {
     // keeps showing it even when the server-side filter hides demo-only
     // sessions for the shared public_manager account.
     if (sessionId) rememberSessionId(sessionId);
-  }, [sessionId, demoRequested]);
 
-  useEffect(() => {
-    const state = location.state as { prefillMessage?: string } | null;
-    if (!state?.prefillMessage) return;
-    setInput(state.prefillMessage);
-    window.setTimeout(() => inputRef.current?.focus(), 50);
-    navigate(location.pathname + location.search, { replace: true, state: null });
-  }, [location.pathname, location.search, location.state, navigate]);
+    const navState = location.state as { prefillMessage?: string } | null;
+    if (navState?.prefillMessage && consumedNavStateRef.current !== navState) {
+      consumedNavStateRef.current = navState;
+      setInput(navState.prefillMessage);
+      window.setTimeout(() => inputRef.current?.focus(), 50);
+    } else if (!navState?.prefillMessage) {
+      consumedNavStateRef.current = null;
+      setInput("");
+    }
+  }, [sessionId, demoRequested, location.state]);
 
   // If no sessionId, create one and redirect
   useEffect(() => {
