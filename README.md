@@ -1,6 +1,6 @@
 # Lambda ERP
 
-**Open-source ERP you can run through chat - without hiring a consultant**
+**Open-source ERP you can run through chat — configurable in plain language**
 
 Lambda ERP is a working prototype of a simpler ERP: create invoices, check inventory, answer accounting questions, and change reports by asking for what you need in plain language.
 
@@ -26,11 +26,11 @@ This release is not yet production-ready. It's a complete prototype but not vett
 
 ## Why another ERP?
 
-Today, the most expensive part of an ERP rollout isn't paying for the software - it's paying the consultancies that configure it. A company can buy SAP Business One for 5 employees for roughly **$2,500 a year**, but getting anything actually working costs **$10-20k up front** for a quick-start package and **up to $50k** for a real implementation - roughly **20x the annual license spend on day one alone**. And the meter keeps running: every custom report, country-specific tax rule, or workflow change is another partner ticket at $150-220/hour. Systems like Oracle NetSuite and Microsoft Dynamics follow the same shape, and at the enterprise end (SAP S/4HANA and friends) implementations routinely run into the millions.
+Today, the bulk of an ERP rollout isn't the software license — it's everything that has to happen on top of it before the system actually fits the company. For a small or mid-sized company, the license is typically a few thousand a year, while getting it set up routinely runs **$10-50k** — many times the annual license spend before anyone has logged in. The system also keeps evolving after go-live — each custom report, country-specific tax rule, or workflow change is its own round of work. Larger systems like Oracle NetSuite and Microsoft Dynamics follow the same shape, and S/4HANA-class projects run into the millions.
 
-That entire industry exists because ERPs are generic platforms that have to be bent to each company's shape by humans writing configuration, workflows, and custom reports. It's expensive because it's manual, and it's manual because software couldn't do it - until recently.
+ERPs cost what they cost because they're generic platforms that have to be bent into the shape of each company. The work is configuration, workflow design, custom reports, data migration, integrations — language and structure work. It's been slow and manual because software couldn't do it. Until recently.
 
-We think that's about to flip. Most of what an ERP consultant actually bills for is text-transformation and configuration work that LLMs are now genuinely good at:
+We think that's about to flip. The bulk of an ERP implementation is text-transformation and configuration that LLMs are now genuinely good at:
 
 - **Reading documents.** A supplier PDF becomes a Purchase Invoice. A bank statement becomes reconciled journal entries. An onboarding form becomes a Customer record.
 - **Chart of Accounts design and mapping.** Taking a client's legacy accounts, translating to local GAAP, producing the mapping table - pure language-plus-structure work.
@@ -38,7 +38,7 @@ We think that's about to flip. Most of what an ERP consultant actually bills for
 - **Custom reports and print formats.** The bespoke chart, the specific invoice layout, the cash-flow view nobody else has - unbounded client taste, infinite long tail.
 - **End-user training and ongoing questions.** "How do I issue a credit note?" "Why is this balance off?" "What was last quarter's margin by product line?" - natural-language lookups that used to need a help-desk hour.
 
-A consultant bills $150-220 an hour for that work. The same task via a frontier LLM is cents and seconds. The money that used to go to consultants should go to compute. The software should tailor itself to you, not the other way around. And because Lambda ERP is open source and self-hosted, the configuration doesn't stop at go-live - the system can keep evolving. A consultant's role shrinks from writing each change to reviewing AI-drafted ones: a few dollars in tokens plus a sliver of review time, instead of days at $200/hour.
+Each of those is hours of skilled work today. With a capable LLM in the loop, the same task takes seconds of compute and a review pass from someone who knows the business. The software starts tailoring itself to you, instead of the other way around. And because Lambda ERP is open source and self-hosted, the configuration doesn't stop at go-live — the system can keep evolving alongside the company. For implementation partners, the shape of the work shifts: less time spent hand-writing every change, more time spent on the judgment calls — chart-of-accounts design, compliance, change management — that actually need a human.
 
 
 ---
@@ -132,7 +132,7 @@ A consultant bills $150-220 an hour for that work. The same task via a frontier 
 Four things had to be true for this to work, and they all became true in the last ~18 months:
 
 1. **LLMs can reliably call tools.** A year ago, models would hallucinate tool calls, mangle JSON, or drift after 2–3 steps. Today's frontier models can run an 8-step reasoning loop over a real tool inventory without falling off.
-2. **Costs collapsed.** Generating a custom report via a code-specialist sub-agent costs cents. The same work as a consulting change-request is a 4-figure invoice. That's a three-to-four-order-of-magnitude gap.
+2. **Costs collapsed.** Generating a custom report via a code-specialist sub-agent is cents of compute. Even keeping a human reviewer fully in the loop, the marginal cost of "one more report" or "one more dashboard" drops by orders of magnitude — which means companies actually ask for them, instead of living with the defaults.
 3. **Structured output + function calling are first-class.** We can constrain the LLM's outputs to valid tool-call schemas, safe SQL parameters, and typed JSON - which is what makes an AI-native ERP even conceivable as a safe thing to run.
 4. **Greenfield is finally cheaper than retrofit.** Twenty-year ERP codebases have hundreds of bespoke models and thousands of hand-written forms - teaching an LLM to drive that reliably means curating a custom tool layer over every quirk. Starting from scratch around one Document lifecycle and a metadata-driven UI is now cheaper than retrofitting an existing platform.
 
@@ -140,7 +140,7 @@ Four things had to be true for this to work, and they all became true in the las
 
 ## Why open source
 
-Every company configuring an ERP runs into the same problems: local tax rules, common workflow patterns, industry-specific accounting quirks. Most of that knowledge isn't a competitive advantage - it's just work that 10,000 consultants have done 10,000 times in slightly different ways.
+Every company configuring an ERP runs into the same problems: local tax rules, common workflow patterns, industry-specific accounting quirks. Most of that knowledge isn't a competitive advantage — it's the same ground being re-covered separately at every implementation, by every team, in slightly different ways.
 
 We want Lambda ERP to be where that knowledge lives in public. The base system is MIT-licensed, and we're organizing the repo so that community contributions - a German VAT pack, a U.S. sales-tax-by-state module, an industry template for professional services - can slot in under `docs/` and be picked up by the LLM as reference material. The goal is a true community where running an ERP gets cheaper, faster, and more flexible for everyone, not just the implementer.
 
