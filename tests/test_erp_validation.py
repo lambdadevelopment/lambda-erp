@@ -21,7 +21,7 @@ Run with: python tests/test_erp_validation.py
 """
 
 from lambda_erp.database import setup
-from lambda_erp.utils import _dict, flt, fmt_money, nowdate
+from lambda_erp.utils import _dict, flt, fmt_money, nowdate, add_days
 from lambda_erp.accounting.chart_of_accounts import setup_chart_of_accounts, setup_cost_center
 from lambda_erp.accounting.general_ledger import get_gl_balance
 from lambda_erp.stock.stock_ledger import get_stock_balance
@@ -114,7 +114,7 @@ def main():
         customer="CUST-001",
         company="Lambda Corp",
         transaction_date=nowdate(),
-        valid_till="2026-05-12",
+        valid_till=add_days(nowdate(), 21).isoformat(),
         items=[
             _dict(item_code="ITEM-001", qty=10, rate=100),
             _dict(item_code="ITEM-002", qty=5, rate=250),
@@ -148,7 +148,7 @@ def main():
     from lambda_erp.selling.sales_order import SalesOrder, make_sales_invoice
 
     sales_order = make_sales_order(quotation.name)
-    sales_order.delivery_date = "2026-04-25"
+    sales_order.delivery_date = add_days(nowdate(), 14).isoformat()
     sales_order.save()
     sales_order.submit()
 
