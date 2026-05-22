@@ -2023,6 +2023,27 @@ def main():
         "item_code must be recognized as a valid alias, not reported as ignored"
     print(f"  Chat layer treats item_code as a valid field (no spurious warning)")
 
+    # A company creates from company_name alone — its id defaults to the name
+    # (mirrors /setup/company) instead of the old hard "Name is required" 422.
+    co = create_master_record("company", {"company_name": "Draftwerk GmbH", "default_currency": "CHF"})
+    assert co["name"] == "Draftwerk GmbH", \
+        f"Company id should default to company_name, got {co['name']!r}"
+    print(f"  Company id defaults to company_name: {co['name']}")
+
+    # Account / Cost Center have no auto-id, so an explicit `name` stays required
+    # — but the failure must be the clear 422, not a silent miscreate.
+    for mtype, payload in (
+        ("account", {"account_name": "Draft Account", "company": "Lambda Corp"}),
+        ("cost-center", {"cost_center_name": "Draft CC", "company": "Lambda Corp"}),
+    ):
+        try:
+            create_master_record(mtype, dict(payload))
+            raise AssertionError(f"{mtype} without name should have been rejected")
+        except HTTPException as err:
+            assert err.status_code == 422 and "Name is required" in str(err.detail), \
+                f"Unexpected error for {mtype}: {err.detail}"
+    print(f"  Account / Cost Center still require an explicit name (clear 422)")
+
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================

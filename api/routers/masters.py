@@ -211,9 +211,13 @@ def create_master_record(master_type: str, data: dict) -> dict:
 
     if not doc.get("name"):
         prefix = MASTER_NAME_PREFIXES.get(master_type)
-        if not prefix:
+        if prefix:
+            doc["name"] = _generate_master_name(db, doctype, prefix)
+        elif master_type == "company" and doc.get("company_name"):
+            # A company's id is conventionally its name (mirrors /setup/company).
+            doc["name"] = doc["company_name"]
+        else:
             raise HTTPException(status_code=422, detail="Name is required")
-        doc["name"] = _generate_master_name(db, doctype, prefix)
 
     if db.exists(doctype, doc["name"]):
         raise HTTPException(status_code=409, detail=f"{doctype} {doc['name']} already exists")
