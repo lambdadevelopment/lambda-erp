@@ -30,7 +30,7 @@ from api.demo_limits import (
     limiter as demo_limiter,
 )
 from api.providers import cost_of_anthropic_call, cost_of_openai_call
-from api.routers.masters import create_master_record, update_master_record
+from api.routers.masters import create_master_record, update_master_record, MASTER_IDENTITY_ALIAS
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt, now, nowdate
 
@@ -580,11 +580,12 @@ TOOLS = [
                 "Create a new master record. You MUST include the full `data` object using the EXACT field names listed below — unknown fields are silently dropped.\n\n"
                 "**Customer fields:** customer_name (required), customer_group, territory, default_currency, credit_limit, email, phone, address, city, zip_code, country, tax_id.\n"
                 "**Supplier fields:** supplier_name (required), supplier_group, default_currency, email, phone, address, city, zip_code, country, tax_id.\n"
-                "**Item fields:** item_name (required), item_group, stock_uom, standard_rate, is_stock_item, default_warehouse, description.\n"
+                "**Item fields:** item_code (the unique item code/ID, e.g. \"SVC-SPARK\" — optional, may use ANY prefix, not just ITEM; auto-generated as ITEM-NNN if omitted), item_name (required, the human-readable name), item_group, stock_uom, standard_rate, is_stock_item, default_warehouse, description.\n"
                 "**Warehouse fields:** warehouse_name (required), company, parent_warehouse (omit or null when not needed), address, city, zip_code, country.\n"
                 "**Company fields:** company_name (required), default_currency, email, phone, address, city, zip_code, country, tax_id.\n\n"
                 "zip_code is free text (e.g. \"8400\", \"ZH 8400\", \"59123\"), never numeric.\n"
-                "Example: {\"master_type\":\"supplier\",\"data\":{\"supplier_name\":\"Schlafteq\",\"email\":\"jacob@schlafteq.ch\",\"phone\":\"+1 555-0104\",\"address\":\"145 Harbor Rd\",\"city\":\"Seattle\",\"zip_code\":\"98101\",\"country\":\"US\",\"tax_id\":\"98-7654321\"}}"
+                "Supplier example: {\"master_type\":\"supplier\",\"data\":{\"supplier_name\":\"Schlafteq\",\"email\":\"jacob@schlafteq.ch\",\"phone\":\"+1 555-0104\",\"address\":\"145 Harbor Rd\",\"city\":\"Seattle\",\"zip_code\":\"98101\",\"country\":\"US\",\"tax_id\":\"98-7654321\"}}\n"
+                "Item example (custom code): {\"master_type\":\"item\",\"data\":{\"item_code\":\"SVC-SPARK\",\"item_name\":\"Spark\",\"item_group\":\"Services\",\"is_stock_item\":0,\"standard_rate\":310}}"
             ),
             "parameters": {
                 "type": "object",
@@ -1059,7 +1060,12 @@ def _ignored_master_fields(master_type: str, data: dict) -> list[str]:
         return []
     doctype, _ = entry
     from lambda_erp.database import get_db
-    valid = get_db()._get_table_columns(doctype)
+    valid = set(get_db()._get_table_columns(doctype))
+    # item_code is a recognized alias for the Item's `name` PK, not an unknown
+    # field — don't warn that it was ignored when it was actually honored.
+    alias = MASTER_IDENTITY_ALIAS.get(master_type)
+    if alias:
+        valid.add(alias)
     return [k for k in data.keys() if k not in valid]
 
 

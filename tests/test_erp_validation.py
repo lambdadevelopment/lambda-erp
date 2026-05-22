@@ -1970,6 +1970,59 @@ def main():
         f"Stacked row[1] VAT expected 110.00, got {si_b.get('taxes')[1]['tax_amount']}"
     print(f"  Stacked Actual + OnPrevRowTotal: grand_total = {si_b.grand_total} (1000 + 100 freight + 110 VAT)")
 
+    # ---------------------------------------------------------------------
+    # The item code lives in the Item PK column `name`, but callers (LLM tools,
+    # REST clients) naturally refer to it as `item_code`. The master API accepts
+    # that alias so a custom code like "SVC-SPARK" is honored instead of being
+    # silently dropped and replaced with an auto-generated ITEM-NNN.
+    # ---------------------------------------------------------------------
+    print_header("34. REGRESSION - create_master honors a custom item_code alias")
+
+    from api.routers.masters import create_master_record, update_master_record
+    from fastapi import HTTPException
+
+    created = create_master_record("item", {"item_code": "SVC-SPARK", "item_name": "Spark", "is_stock_item": 0})
+    assert created["name"] == "SVC-SPARK", \
+        f"Custom item_code should become the code, got {created['name']!r}"
+    assert created.get("item_code") == "SVC-SPARK", \
+        f"Result should echo item_code, got {created.get('item_code')!r}"
+    assert db.exists("Item", "SVC-SPARK"), "Item SVC-SPARK should exist in the DB"
+    print(f"  item_code alias honored: code = {created['name']}, item_name = {created['item_name']}")
+
+    # An explicit `name` still wins over the alias.
+    explicit = create_master_record("item", {"name": "SVC-FLOW", "item_code": "IGNORED", "item_name": "Flow"})
+    assert explicit["name"] == "SVC-FLOW", \
+        f"Explicit name should win, got {explicit['name']!r}"
+    print(f"  Explicit name wins over alias: code = {explicit['name']}")
+
+    # Omitting the code still auto-generates the ITEM-NNN fallback.
+    auto = create_master_record("item", {"item_name": "Auto Numbered"})
+    assert auto["name"].startswith("ITEM-"), \
+        f"Missing code should auto-generate ITEM-NNN, got {auto['name']!r}"
+    print(f"  Auto-numbered fallback intact: code = {auto['name']}")
+
+    # Renaming the code via update must be rejected, not silently crash.
+    try:
+        update_master_record("item", "SVC-SPARK", {"item_code": "SVC-RENAMED"})
+        raise AssertionError("Renaming an item_code should have been rejected")
+    except HTTPException as err:
+        assert err.status_code == 422 and "identity" in str(err.detail), \
+            f"Unexpected error: {err.detail}"
+    print(f"  Code rename correctly rejected (422)")
+
+    # A matching item_code on update is a harmless no-op.
+    updated = update_master_record("item", "SVC-SPARK", {"item_code": "SVC-SPARK", "standard_rate": 310})
+    assert flt(updated["standard_rate"]) == 310.0, \
+        f"Matching item_code should be a no-op and let other fields update, got {updated['standard_rate']}"
+    print(f"  Matching item_code no-op; other fields updated: standard_rate = {updated['standard_rate']}")
+
+    # The chat layer must NOT flag item_code as an ignored/unknown field — it
+    # was honored, so a misleading "ignored" warning would just confuse the LLM.
+    from api.chat import _ignored_master_fields
+    assert _ignored_master_fields("item", {"item_code": "SVC-NEXUS", "item_name": "Nexus"}) == [], \
+        "item_code must be recognized as a valid alias, not reported as ignored"
+    print(f"  Chat layer treats item_code as a valid field (no spurious warning)")
+
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================

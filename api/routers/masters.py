@@ -1,5 +1,7 @@
 """Master data CRUD: Customer, Supplier, Item, Warehouse, Account, Company."""
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from lambda_erp.database import get_db
 from lambda_erp.utils import _dict
@@ -18,6 +20,23 @@ MASTER_NAME_PREFIXES = {
     "item": "ITEM",
     "warehouse": "WH",
 }
+
+# An Item's code is stored in the primary-key column `name`, but every
+# transaction line and report references it as
+# `item_code`. Accept that intuitive alias on the master API so callers
+# (LLM tools, REST clients) can set and read the code under the name they
+# already use everywhere else, instead of silently falling back to ITEM-NNN.
+MASTER_IDENTITY_ALIAS = {
+    "item": "item_code",
+}
+
+
+def _echo_identity_alias(master_type: str, row):
+    """Mirror the master's `name` back under its intuitive alias (item_code)."""
+    alias = MASTER_IDENTITY_ALIAS.get(master_type)
+    if alias and isinstance(row, dict) and row.get("name") is not None:
+        row[alias] = row["name"]
+    return row
 
 DELETE_REFERENCE_CHECKS = {
     "company": [
@@ -143,19 +162,26 @@ def _find_reference(master_type: str, name: str) -> str | None:
 
 
 def _generate_master_name(db, doctype: str, prefix: str) -> str:
+    # Take the highest numeric suffix among strict "PREFIX-<digits>" names.
+    # Names with a non-numeric tail (e.g. a custom "ITEM-COST-TEST") are ignored
+    # rather than parsed — string-sorting them to the top used to reset the
+    # counter to 001 and collide with an existing record.
     rows = db.sql(
-        f'SELECT name FROM "{doctype}" WHERE name LIKE ? ORDER BY name DESC LIMIT 1',
+        f'SELECT name FROM "{doctype}" WHERE name LIKE ?',
         [f"{prefix}-%"],
     )
-    if not rows:
-        return f"{prefix}-001"
+    pattern = re.compile(rf"^{re.escape(prefix)}-(\d+)$")
+    max_number = 0
+    for row in rows:
+        match = pattern.match(row["name"] or "")
+        if match:
+            max_number = max(max_number, int(match.group(1)))
 
-    last_name = rows[0]["name"] or ""
-    try:
-        next_number = int(last_name.split("-")[-1]) + 1
-    except (ValueError, IndexError):
-        next_number = 1
-    return f"{prefix}-{next_number:03d}"
+    # Skip any number already taken by a non-standard name so we never collide.
+    number = max_number + 1
+    while db.exists(doctype, f"{prefix}-{number:03d}"):
+        number += 1
+    return f"{prefix}-{number:03d}"
 
 
 def _normalize_master_data(data: dict) -> dict:
@@ -173,6 +199,16 @@ def create_master_record(master_type: str, data: dict) -> dict:
 
     db = get_db()
     doc = _normalize_master_data(data)
+
+    # Let callers set the code under its intuitive alias (item_code -> name).
+    # An explicit `name` still wins; the alias key is consumed either way so it
+    # isn't reported as an ignored field.
+    alias = MASTER_IDENTITY_ALIAS.get(master_type)
+    if alias:
+        alias_val = doc.pop(alias, None)
+        if alias_val and not doc.get("name"):
+            doc["name"] = alias_val
+
     if not doc.get("name"):
         prefix = MASTER_NAME_PREFIXES.get(master_type)
         if not prefix:
@@ -183,7 +219,8 @@ def create_master_record(master_type: str, data: dict) -> dict:
         raise HTTPException(status_code=409, detail=f"{doctype} {doc['name']} already exists")
 
     db.insert(doctype, doc)
-    return db.get_all(doctype, filters={"name": doc["name"]}, fields=["*"])[0]
+    row = db.get_all(doctype, filters={"name": doc["name"]}, fields=["*"])[0]
+    return _echo_identity_alias(master_type, row)
 
 
 def update_master_record(master_type: str, name: str, data: dict) -> dict:
@@ -193,6 +230,22 @@ def update_master_record(master_type: str, name: str, data: dict) -> dict:
 
     db = get_db()
     normalized = _normalize_master_data(data)
+
+    # The alias (item_code) is the identity, not a mutable column. Allow it as a
+    # no-op when it matches the record being updated, but reject a rename — the
+    # code is a primary key referenced across every transaction.
+    alias = MASTER_IDENTITY_ALIAS.get(master_type)
+    if alias and alias in normalized:
+        alias_val = normalized.pop(alias)
+        if alias_val and alias_val != name:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Cannot change a {master_type}'s {alias} ('{name}' -> '{alias_val}') — "
+                    f"it is the record's identity. Create a new {master_type} with the desired code instead."
+                ),
+            )
+
     update_fields = {k: v for k, v in normalized.items() if k != "name"}
     if update_fields:
         db.set_value(doctype, name, update_fields)
@@ -200,7 +253,7 @@ def update_master_record(master_type: str, name: str, data: dict) -> dict:
     rows = db.get_all(doctype, filters={"name": name}, fields=["*"])
     if not rows:
         raise HTTPException(status_code=404, detail=f"{doctype} {name} not found")
-    return rows[0]
+    return _echo_identity_alias(master_type, rows[0])
 
 
 @router.get("/{master_type}")
