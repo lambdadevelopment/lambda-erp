@@ -111,6 +111,7 @@ class Database:
                 phone TEXT,
                 address TEXT,
                 city TEXT,
+                zip_code TEXT,
                 country TEXT,
                 tax_id TEXT,
                 default_cost_center TEXT,
@@ -169,6 +170,7 @@ class Database:
                 phone TEXT,
                 address TEXT,
                 city TEXT,
+                zip_code TEXT,
                 country TEXT,
                 tax_id TEXT
             )""",
@@ -183,6 +185,7 @@ class Database:
                 phone TEXT,
                 address TEXT,
                 city TEXT,
+                zip_code TEXT,
                 country TEXT,
                 tax_id TEXT
             )""",
@@ -209,6 +212,10 @@ class Database:
                 is_group INTEGER DEFAULT 0,
                 disabled INTEGER DEFAULT 0,
                 account TEXT,
+                address TEXT,
+                city TEXT,
+                zip_code TEXT,
+                country TEXT,
                 FOREIGN KEY (company) REFERENCES "Company"(name)
             )""",
 
@@ -1396,6 +1403,18 @@ def _m009_company_charge_accounts(db: "Database") -> None:
         )
 
 
+def _m010_master_zip_code(db: "Database") -> None:
+    # Postal code is free text — values like "8400", "ZH 8400" and "59123" are
+    # all valid — so it's TEXT, never numeric.
+    for table in ("Company", "Customer", "Supplier", "Warehouse"):
+        db._add_column_if_missing(table, "zip_code", "TEXT")
+    # Warehouse never had an address block in the schema even though the form
+    # exposes an Address field; add it so warehouse address/city/country/zip
+    # actually persist (set_value would otherwise error on the missing columns).
+    for col in ("address", "city", "country"):
+        db._add_column_if_missing("Warehouse", col, "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -1406,6 +1425,7 @@ Database.MIGRATIONS = [
     (7, "pos_invoice_return_fields", _m007_pos_invoice_return_fields),
     (8, "report_draft_source_chat_session_id", _m008_report_draft_source_chat_session_id),
     (9, "company_charge_accounts", _m009_company_charge_accounts),
+    (10, "master_zip_code", _m010_master_zip_code),
 ]
 
 

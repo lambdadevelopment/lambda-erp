@@ -578,12 +578,13 @@ TOOLS = [
             "name": "create_master",
             "description": (
                 "Create a new master record. You MUST include the full `data` object using the EXACT field names listed below — unknown fields are silently dropped.\n\n"
-                "**Customer fields:** customer_name (required), customer_group, territory, default_currency, credit_limit, email, phone, address, city, country, tax_id.\n"
-                "**Supplier fields:** supplier_name (required), supplier_group, default_currency, email, phone, address, city, country, tax_id.\n"
+                "**Customer fields:** customer_name (required), customer_group, territory, default_currency, credit_limit, email, phone, address, city, zip_code, country, tax_id.\n"
+                "**Supplier fields:** supplier_name (required), supplier_group, default_currency, email, phone, address, city, zip_code, country, tax_id.\n"
                 "**Item fields:** item_name (required), item_group, stock_uom, standard_rate, is_stock_item, default_warehouse, description.\n"
-                "**Warehouse fields:** warehouse_name (required), company, parent_warehouse (omit or null when not needed).\n"
-                "**Company fields:** company_name (required), default_currency, email, phone, address, city, country, tax_id.\n\n"
-                "Example: {\"master_type\":\"supplier\",\"data\":{\"supplier_name\":\"Schlafteq\",\"email\":\"jacob@schlafteq.ch\",\"phone\":\"+1 555-0104\",\"address\":\"145 Harbor Rd\",\"city\":\"Seattle\",\"country\":\"US\",\"tax_id\":\"98-7654321\"}}"
+                "**Warehouse fields:** warehouse_name (required), company, parent_warehouse (omit or null when not needed), address, city, zip_code, country.\n"
+                "**Company fields:** company_name (required), default_currency, email, phone, address, city, zip_code, country, tax_id.\n\n"
+                "zip_code is free text (e.g. \"8400\", \"ZH 8400\", \"59123\"), never numeric.\n"
+                "Example: {\"master_type\":\"supplier\",\"data\":{\"supplier_name\":\"Schlafteq\",\"email\":\"jacob@schlafteq.ch\",\"phone\":\"+1 555-0104\",\"address\":\"145 Harbor Rd\",\"city\":\"Seattle\",\"zip_code\":\"98101\",\"country\":\"US\",\"tax_id\":\"98-7654321\"}}"
             ),
             "parameters": {
                 "type": "object",
@@ -600,7 +601,7 @@ TOOLS = [
         "function": {
             "name": "update_master",
             "description": (
-                "Update an existing master record. You MUST include the `name` of the existing record and a `data` object with the fields to change. Use the same field names listed in create_master (customer: customer_name, email, phone, address, city, country, tax_id, etc.). Example: {\"master_type\":\"customer\",\"name\":\"CUST-001\",\"data\":{\"address\":\"123 New Street\",\"city\":\"Boston\"}}"
+                "Update an existing master record. You MUST include the `name` of the existing record and a `data` object with the fields to change. Use the same field names listed in create_master (customer: customer_name, email, phone, address, city, zip_code, country, tax_id, etc.). Example: {\"master_type\":\"customer\",\"name\":\"CUST-001\",\"data\":{\"address\":\"123 New Street\",\"city\":\"Boston\",\"zip_code\":\"02110\"}}"
             ),
             "parameters": {
                 "type": "object",

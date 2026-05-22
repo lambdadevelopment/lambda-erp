@@ -219,7 +219,10 @@ export default function SetupPage() {
 }
 
 function CompanyRow({ company }: { company: Record<string, any> }) {
-  const cityCountry = [company.city, company.country].filter(Boolean).join(", ");
+  const cityCountry = [
+    [company.city, company.zip_code].filter(Boolean).join(" "),
+    company.country,
+  ].filter(Boolean).join(", ");
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0 space-y-1">

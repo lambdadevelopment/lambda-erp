@@ -87,6 +87,8 @@ export default function ChatPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputAreaRef = useRef<HTMLDivElement>(null);
+  const [inputAreaHeight, setInputAreaHeight] = useState(0);
   const previousThinkingRef = useRef(false);
   const demoRunStartedRef = useRef<string | null>(null);
   const demoTypingRunIdRef = useRef(0);
@@ -204,6 +206,20 @@ export default function ChatPage() {
       cancelAnimationFrame(raf);
     };
   }, [isDemoReplaying, isThinking, markProgrammaticScroll]);
+
+  // Reserve bottom space in the scroll content equal to the floating input's
+  // actual height so the tail of a long message never hides behind it. The
+  // input height is variable (textarea auto-grows, attachment strip appears),
+  // so measure it live instead of hardcoding the padding.
+  useLayoutEffect(() => {
+    const el = inputAreaRef.current;
+    if (!el) return;
+    setInputAreaHeight(el.offsetHeight);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setInputAreaHeight(el.offsetHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const handleLoadOlder = useCallback(() => {
     if (!sessionId) return;
@@ -500,14 +516,18 @@ export default function ChatPage() {
         </div>
       )}
       {/* Messages — full-height scroll area so the scrollbar reaches the
-          bottom edge of the viewport. Inner content has pb-40 so the last
-          message clears the floating input area beneath. */}
+          bottom edge of the viewport. Inner content reserves bottom padding
+          equal to the floating input's measured height (inputAreaHeight) so
+          the last message always clears it, even as the input grows. */}
       <div
         ref={scrollContainerRef}
         className="absolute inset-0 overflow-y-auto px-4 py-6"
         onScroll={handleMessagesScroll}
       >
-        <div className="mx-auto max-w-3xl space-y-4 pb-20">
+        <div
+          className="mx-auto max-w-3xl space-y-4"
+          style={{ paddingBottom: (inputAreaHeight || 96) + 16 }}
+        >
           {(canLoadOlder || loadingOlder) && messages.length > 0 && (
             <div className="flex justify-center">
               <button
@@ -569,7 +589,10 @@ export default function ChatPage() {
            scrollbars are always visible and ~17–18px wide. On mobile the
            overlay scrollbar auto-hides, so we extend the wrapper edge-to-
            edge (right-0, px-4) to avoid an empty gap on the right. */}
-      <div className="absolute bottom-0 left-0 right-0 bg-surface-muted px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:right-6 md:pl-6 md:pr-0">
+      <div
+        ref={inputAreaRef}
+        className="absolute bottom-0 left-0 right-0 bg-surface-muted px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:right-6 md:pl-6 md:pr-0"
+      >
         <div className="mx-auto max-w-3xl">
           {/* Attachment preview strip */}
           {attachments.length > 0 && (

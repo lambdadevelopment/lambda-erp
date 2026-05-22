@@ -29,7 +29,7 @@ def _random_address_for(company_name: str) -> dict:
     """Deterministic pseudo-random address derived from the company name."""
     digest = hashlib.md5(company_name.encode()).hexdigest()
     rng = random.Random(int(digest[:8], 16))
-    street, city, _state, _zip, country = rng.choice(_DEMO_ADDRESSES)
+    street, city, _state, zip_code, country = rng.choice(_DEMO_ADDRESSES)
     tax_id = f"US-{rng.randint(10, 99)}-{rng.randint(1000000, 9999999)}"
     phone = f"+1-555-{rng.randint(100, 999)}-{rng.randint(1000, 9999)}"
     local = "".join(c for c in company_name.lower() if c.isalnum())[:20] or "contact"
@@ -39,6 +39,7 @@ def _random_address_for(company_name: str) -> dict:
         "phone": phone,
         "address": street,
         "city": city,
+        "zip_code": zip_code,
         "country": country,
         "tax_id": tax_id,
     }
@@ -54,7 +55,7 @@ def setup_status():
         "Company",
         fields=[
             "name", "company_name", "default_currency",
-            "email", "phone", "address", "city", "country", "tax_id",
+            "email", "phone", "address", "city", "zip_code", "country", "tax_id",
         ],
     )
     return {
@@ -87,6 +88,7 @@ def create_company(data: dict, _user: dict = Depends(require_role("admin"))):
         phone=data.get("phone") or auto["phone"],
         address=data.get("address") or auto["address"],
         city=data.get("city") or auto["city"],
+        zip_code=data.get("zip_code") or auto["zip_code"],
         country=data.get("country") or auto["country"],
         tax_id=data.get("tax_id") or auto["tax_id"],
     ))

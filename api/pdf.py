@@ -66,7 +66,7 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     party_info = {}
     if party_field and party_doctype and doc.get(party_field):
         row = db.get_value(party_doctype, doc[party_field],
-                           ["email", "phone", "address", "city", "country", "tax_id"])
+                           ["email", "phone", "address", "city", "zip_code", "country", "tax_id"])
         if row:
             party_info = _get_dict(row)
 
@@ -75,7 +75,7 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     company_info = {}
     if company_name:
         row = db.get_value("Company", company_name,
-                           ["email", "phone", "address", "city", "country", "tax_id"])
+                           ["email", "phone", "address", "city", "zip_code", "country", "tax_id"])
         if row:
             company_info = _get_dict(row)
 

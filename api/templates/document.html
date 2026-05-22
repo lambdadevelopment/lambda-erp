@@ -71,7 +71,7 @@
     <div class="name">{{ company_name or doc.company or "" }}</div>
     {% if company_info %}
     {% if company_info.get("address") %}<div class="detail">{{ company_info.address }}</div>{% endif %}
-    {% if company_info.get("city") or company_info.get("country") %}<div class="detail">{{ company_info.get("city", "") }}{% if company_info.get("country") %}, {{ company_info.country }}{% endif %}</div>{% endif %}
+    {% if company_info.get("city") or company_info.get("zip_code") or company_info.get("country") %}<div class="detail">{{ company_info.get("city", "") }}{% if company_info.get("zip_code") %} {{ company_info.zip_code }}{% endif %}{% if company_info.get("country") %}, {{ company_info.country }}{% endif %}</div>{% endif %}
     {% if company_info.get("email") %}<div class="detail">{{ company_info.email }}</div>{% endif %}
     {% if company_info.get("phone") %}<div class="detail">{{ company_info.phone }}</div>{% endif %}
     {% if company_info.get("tax_id") %}<div class="detail">Tax ID: {{ company_info.tax_id }}</div>{% endif %}
@@ -82,7 +82,7 @@
     <div class="name">{{ party_name }}</div>
     {% if party_info %}
     {% if party_info.get("address") %}<div class="detail">{{ party_info.address }}</div>{% endif %}
-    {% if party_info.get("city") or party_info.get("country") %}<div class="detail">{{ party_info.get("city", "") }}{% if party_info.get("country") %}, {{ party_info.country }}{% endif %}</div>{% endif %}
+    {% if party_info.get("city") or party_info.get("zip_code") or party_info.get("country") %}<div class="detail">{{ party_info.get("city", "") }}{% if party_info.get("zip_code") %} {{ party_info.zip_code }}{% endif %}{% if party_info.get("country") %}, {{ party_info.country }}{% endif %}</div>{% endif %}
     {% if party_info.get("email") %}<div class="detail">{{ party_info.email }}</div>{% endif %}
     {% if party_info.get("phone") %}<div class="detail">{{ party_info.phone }}</div>{% endif %}
     {% if party_info.get("tax_id") %}<div class="detail">Tax ID: {{ party_info.tax_id }}</div>{% endif %}
