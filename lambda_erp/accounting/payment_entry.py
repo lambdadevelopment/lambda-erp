@@ -19,7 +19,11 @@ GL entries on submit:
 from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
-from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
+from lambda_erp.accounting.general_ledger import (
+    make_gl_entries,
+    make_reverse_gl_entries,
+    get_account_balances,
+)
 from lambda_erp.controllers.defaults import set_default_currency
 from lambda_erp.exceptions import ValidationError
 
@@ -266,6 +270,29 @@ class PaymentEntry(Document):
         on_account = max(flt(self.paid_amount) - allocated_total, 0.0)
         return allocated_total, flt(allocated_base + on_account * rate, 2)
 
+    def _bank_amounts(self, bank_account, amount_in_pe_ccy):
+        """Resolve a bank/cash leg's (base, account_currency_amount, currency).
+
+        The bank either holds the company's base currency (the money is
+        converted on receipt) or holds the payment currency itself (a
+        foreign-currency account that accumulates that currency). Base value is
+        always amount * payment-rate; the account-currency amount is the base
+        amount for a base account, or the raw foreign amount for a foreign one.
+        """
+        db = get_db()
+        rate = flt(self.conversion_rate) or 1.0
+        base_ccy = db.get_value("Company", self.company, "default_currency") or "USD"
+        bank_ccy = db.get_value("Account", bank_account, "account_currency") or base_ccy
+        base = flt(amount_in_pe_ccy * rate, 2)
+        if bank_ccy == base_ccy:
+            return base, base, base_ccy
+        if bank_ccy == (self.currency or base_ccy):
+            return base, flt(amount_in_pe_ccy, 2), bank_ccy
+        raise ValidationError(
+            f"Bank account {bank_account} is in {bank_ccy}; a {self.currency} payment "
+            f"must settle through a {base_ccy} or {self.currency} account."
+        )
+
     def _fx_gl_entry(self, *, is_loss, amount):
         """Realized FX gain/loss leg. Loss debits, gain credits the company's
         Exchange Gain/Loss account."""
@@ -293,18 +320,18 @@ class PaymentEntry(Document):
 
     def _get_gl_entries(self):
         gl_entries = []
-        rate = flt(self.conversion_rate) or 1.0
 
         if self.payment_type == "Receive":
             _, ar_base = self._party_ledger_base()
-            bank_base = flt(flt(self.received_amount) * rate, 2)
+            bank_base, bank_acct_amt, bank_ccy = self._bank_amounts(self.paid_to, self.received_amount)
             fx = flt(ar_base - bank_base, 2)
             # Debit: Bank/Cash (paid_to) — actual base cash at the payment rate.
             gl_entries.append(
                 _dict(
                     account=self.paid_to,
                     debit=bank_base,
-                    debit_in_account_currency=flt(self.received_amount, 2),
+                    debit_in_account_currency=bank_acct_amt,
+                    account_currency=bank_ccy,
                     credit=0,
                     credit_in_account_currency=0,
                     cost_center=self.cost_center,
@@ -342,7 +369,7 @@ class PaymentEntry(Document):
 
         elif self.payment_type == "Pay":
             _, ap_base = self._party_ledger_base()
-            bank_base = flt(flt(self.paid_amount) * rate, 2)
+            bank_base, bank_acct_amt, bank_ccy = self._bank_amounts(self.paid_from, self.paid_amount)
             fx = flt(ap_base - bank_base, 2)
             # Debit: party ledger (paid_to) at the invoice's booked base value.
             # Uses self.party_type so "Pay + Customer" (customer refund) posts
@@ -370,7 +397,8 @@ class PaymentEntry(Document):
                 _dict(
                     account=self.paid_from,
                     credit=bank_base,
-                    credit_in_account_currency=flt(self.paid_amount, 2),
+                    credit_in_account_currency=bank_acct_amt,
+                    account_currency=bank_ccy,
                     debit=0,
                     debit_in_account_currency=0,
                     cost_center=self.cost_center,
@@ -386,12 +414,43 @@ class PaymentEntry(Document):
                 gl_entries.append(self._fx_gl_entry(is_loss=fx < 0, amount=abs(fx)))
 
         elif self.payment_type == "Internal Transfer":
-            # Debit: paid_to, Credit: paid_from
+            # Also handles currency conversion between a foreign-currency account
+            # and the base currency: the source is relieved at its average
+            # carrying value, the destination takes the actual proceeds (base
+            # side) or carries the purchase at cost (foreign side), and the
+            # difference is realized FX gain/loss. A same-base transfer is the
+            # original behaviour (no FX).
+            db = get_db()
+            base_ccy = db.get_value("Company", self.company, "default_currency") or "USD"
+            from_ccy = db.get_value("Account", self.paid_from, "account_currency") or base_ccy
+            to_ccy = db.get_value("Account", self.paid_to, "account_currency") or base_ccy
+            from_is_base = from_ccy == base_ccy
+            to_is_base = to_ccy == base_ccy
+            if not from_is_base and not to_is_base:
+                raise ValidationError(
+                    "A currency conversion must have the base currency on one side "
+                    f"({base_ccy}); converting {from_ccy} directly to {to_ccy} is not supported."
+                )
+
+            if from_is_base:
+                base_out = flt(self.paid_amount, 2)
+            else:
+                src_base, src_ccy = get_account_balances(self.paid_from, self.company)
+                carry_rate = (src_base / src_ccy) if src_ccy else 1.0
+                base_out = flt(flt(self.paid_amount) * carry_rate, 2)
+
+            # Base side receives the actual proceeds; a foreign destination is
+            # carried at the base cost we gave up (acquire FX at cost, no gain).
+            base_in = flt(self.received_amount, 2) if to_is_base else base_out
+            fx = flt(base_in - base_out, 2)
+
+            # Debit: paid_to
             gl_entries.append(
                 _dict(
                     account=self.paid_to,
-                    debit=flt(self.received_amount, 2),
+                    debit=base_in,
                     debit_in_account_currency=flt(self.received_amount, 2),
+                    account_currency=to_ccy,
                     credit=0,
                     credit_in_account_currency=0,
                     voucher_type=self.DOCTYPE,
@@ -401,11 +460,13 @@ class PaymentEntry(Document):
                     remarks=self.remarks or "Internal Transfer",
                 )
             )
+            # Credit: paid_from (relieved at its carrying value)
             gl_entries.append(
                 _dict(
                     account=self.paid_from,
-                    credit=flt(self.paid_amount, 2),
+                    credit=base_out,
                     credit_in_account_currency=flt(self.paid_amount, 2),
+                    account_currency=from_ccy,
                     debit=0,
                     debit_in_account_currency=0,
                     voucher_type=self.DOCTYPE,
@@ -415,6 +476,10 @@ class PaymentEntry(Document):
                     remarks=self.remarks or "Internal Transfer",
                 )
             )
+            # Sold the foreign balance for more base than its carrying value ->
+            # gain; less -> loss. (Zero for a same-currency transfer.)
+            if fx:
+                gl_entries.append(self._fx_gl_entry(is_loss=fx < 0, amount=abs(fx)))
 
         return gl_entries
 

@@ -2304,6 +2304,80 @@ def main():
     assert flt(db.get_value("Sales Invoice", inv_usd.name, "outstanding_amount")) == 0.0
     print("  Base-currency (USD) payment settles with no FX leg")
 
+    # ---------------------------------------------------------------------
+    # Hold a foreign cash balance and convert it later at a broker rate. The
+    # EUR bank accumulates EUR (with a base carrying value); converting relieves
+    # it at its average carrying rate and realizes FX vs. the broker proceeds.
+    # ---------------------------------------------------------------------
+    print_header("38. MULTI-CURRENCY CASH - hold a foreign balance, convert via broker")
+
+    from lambda_erp.accounting.general_ledger import get_account_balances
+
+    primary_bank = "Primary Bank - LAMB"
+    bank_parent = db.get_value("Account", primary_bank, "parent_account")
+    db.insert("Account", _dict(
+        name="EUR Bank - LAMB", account_name="EUR Bank", parent_account=bank_parent,
+        company="Lambda Corp", root_type="Asset", report_type="Balance Sheet",
+        account_type="Bank", account_currency="EUR", is_group=0,
+    ))
+
+    def _collect_eur(rate_pay):
+        inv = _SI(customer="CUST-001", company="Lambda Corp", posting_date=nowdate(),
+                  currency="EUR", conversion_rate=1.10,
+                  items=[_dict(item_code="ITEM-001", qty=1, rate=100)])
+        inv.save()
+        inv.submit()
+        pe = _PE(payment_type="Receive", party_type="Customer", party="CUST-001",
+                 company="Lambda Corp", posting_date=nowdate(), paid_amount=100,
+                 currency="EUR", conversion_rate=rate_pay, paid_to="EUR Bank - LAMB",
+                 references=[_dict(reference_doctype="Sales Invoice", reference_name=inv.name, allocated_amount=100)])
+        pe.save()
+        pe.submit()
+
+    _collect_eur(1.05)   # 100 EUR carried at 105 USD
+    _collect_eur(1.08)   # 100 EUR carried at 108 USD
+
+    eur_base, eur_ccy = get_account_balances("EUR Bank - LAMB", "Lambda Corp")
+    assert flt(eur_ccy, 2) == 200.0, f"EUR bank should hold 200 EUR, got {eur_ccy}"
+    assert flt(eur_base, 2) == 213.0, f"EUR bank carrying value should be 105+108=213 USD, got {eur_base}"
+    print(f"  EUR bank holds {eur_ccy:.0f} EUR carried at {eur_base:.2f} USD (avg {flt(eur_base/eur_ccy,4)})")
+
+    # Convert 150 EUR via broker @1.10 -> 165 USD into the USD bank.
+    conv = _PE(payment_type="Internal Transfer", company="Lambda Corp", posting_date=nowdate(),
+               paid_from="EUR Bank - LAMB", paid_amount=150,
+               paid_to=primary_bank, received_amount=165)
+    conv.save()
+    conv.submit()
+    gl = _legs(conv.name)
+    usd_in = next(flt(e["debit"]) for e in gl if e["account"] == primary_bank)
+    eur_out = next(flt(e["credit"]) for e in gl if e["account"] == "EUR Bank - LAMB")
+    fx_leg = next(e for e in gl if e["account"] == fx_acct)
+    assert usd_in == 165.0, f"USD bank should receive 165, got {usd_in}"
+    assert eur_out == 159.75, f"EUR relieved at avg 1.065 (150*1.065=159.75), got {eur_out}"
+    assert flt(fx_leg["credit"], 2) == 5.25 and flt(fx_leg["debit"]) == 0.0, \
+        f"conversion FX gain expected 5.25 (165-159.75), got {dict(fx_leg)}"
+
+    eur_base2, eur_ccy2 = get_account_balances("EUR Bank - LAMB", "Lambda Corp")
+    assert flt(eur_ccy2, 2) == 50.0, f"EUR bank should hold 50 EUR after converting 150, got {eur_ccy2}"
+    assert flt(eur_base2, 2) == 53.25, f"EUR bank carrying value should be 53.25 USD, got {eur_base2}"
+    print("  Converted 150 EUR @broker 1.10 -> 165 USD; relieved EUR at avg 159.75; FX GAIN 5.25; EUR bank now 50 EUR / 53.25 USD")
+
+    # A direct foreign->foreign conversion (no base side) is rejected.
+    db.insert("Account", _dict(
+        name="GBP Bank - LAMB", account_name="GBP Bank", parent_account=bank_parent,
+        company="Lambda Corp", root_type="Asset", report_type="Balance Sheet",
+        account_type="Bank", account_currency="GBP", is_group=0,
+    ))
+    try:
+        bad = _PE(payment_type="Internal Transfer", company="Lambda Corp", posting_date=nowdate(),
+                  paid_from="EUR Bank - LAMB", paid_amount=10, paid_to="GBP Bank - LAMB", received_amount=8)
+        bad.save()
+        bad.submit()
+        raise AssertionError("foreign->foreign conversion should have been rejected")
+    except _VErr as err:
+        assert "base currency on one side" in str(err), f"Unexpected error: {err}"
+    print("  Direct EUR->GBP conversion rejected (needs the base currency on one side)")
+
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================

@@ -309,6 +309,30 @@ def make_reverse_gl_entries(gl_entries=None, voucher_type=None, voucher_no=None)
 
     db.commit()
 
+def get_account_balances(account, company=None):
+    """Return (base_balance, account_currency_balance) for an account.
+
+    base_balance sums debit−credit (company currency); account_currency_balance
+    sums the *_in_account_currency columns. For a foreign-currency bank account
+    their ratio is the average carrying rate, used when converting the balance.
+    """
+    db = get_db()
+    query = (
+        'SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS base, '
+        'COALESCE(SUM(debit_in_account_currency), 0) - '
+        'COALESCE(SUM(credit_in_account_currency), 0) AS ccy '
+        'FROM "GL Entry" WHERE account = ? AND is_cancelled = 0'
+    )
+    params = [account]
+    if company:
+        query += " AND company = ?"
+        params.append(company)
+    rows = db.sql(query, params)
+    if not rows:
+        return 0.0, 0.0
+    return flt(rows[0]["base"]), flt(rows[0]["ccy"])
+
+
 def get_gl_balance(account, company=None, posting_date=None):
     """Get the balance of an account (debit - credit).
 
