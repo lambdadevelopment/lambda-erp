@@ -57,6 +57,28 @@ def make_gl_entries(gl_map, cancel=False, merge_entries=True):
             "You might have selected a wrong Account in the transaction."
         )
 
+def to_base_currency(gl_entries, conversion_rate):
+    """Scale document-currency GL amounts to the company's base currency.
+
+    Financial GL entries are built in document currency (debit ==
+    debit_in_account_currency). The ledger's debit/credit columns must be in
+    the company's base/functional currency, so multiply them by conversion_rate
+    while leaving the *_in_account_currency amounts in document currency.
+
+    Only pass financial entries (AR/AP, income/expense, tax, payments) through
+    this. Cost-of-goods / stock entries are already valued in base currency and
+    must NOT be re-scaled. A rate of 1.0 (single-currency, the default) is a
+    no-op, so existing single-currency books are untouched.
+    """
+    rate = flt(conversion_rate) or 1.0
+    if rate == 1.0:
+        return gl_entries
+    for entry in gl_entries:
+        entry["debit"] = flt(flt(entry.get("debit", 0)) * rate, 2)
+        entry["credit"] = flt(flt(entry.get("credit", 0)) * rate, 2)
+    return gl_entries
+
+
 def process_gl_map(gl_map, merge_entries=True):
     """Process the GL entry map: merge similar entries, fix negative values."""
     if not gl_map:

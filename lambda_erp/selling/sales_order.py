@@ -15,6 +15,7 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, getdate, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
+from lambda_erp.controllers.defaults import set_default_currency
 from lambda_erp.exceptions import ValidationError
 
 class SalesOrder(Document):
@@ -59,6 +60,8 @@ class SalesOrder(Document):
 
         from lambda_erp.controllers.pricing_rule import apply_pricing_rules
         apply_pricing_rules(self)
+
+        set_default_currency(self, "Customer", "customer")
 
         # Calculate taxes and totals
         calculate_taxes_and_totals(self)

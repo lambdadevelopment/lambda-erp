@@ -18,7 +18,8 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, getdate, nowdate, add_days
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
+from lambda_erp.controllers.defaults import set_default_currency
+from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 from lambda_erp.stock.stock_ledger import (
     make_sl_entries,
     build_sell_side_sles,
@@ -88,6 +89,8 @@ class SalesInvoice(Document):
 
         from lambda_erp.controllers.pricing_rule import apply_pricing_rules
         apply_pricing_rules(self)
+
+        set_default_currency(self, "Customer", "customer")
 
         calculate_taxes_and_totals(self)
 
@@ -302,6 +305,10 @@ class SalesInvoice(Document):
           - Posts Dr COGS / Cr Stock In Hand on top of the revenue entries
         """
         gl_entries = self._get_gl_entries()
+        # Revenue side (AR/income/tax) is built in document currency; convert to
+        # base before posting. Cost-of-goods entries below are already in base
+        # (moving-average cost), so they're appended after the conversion.
+        to_base_currency(gl_entries, self.get("conversion_rate"))
 
         if flt(self.get("update_stock")):
             sl_entries = self._get_stock_sl_entries()

@@ -14,6 +14,7 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
+from lambda_erp.controllers.defaults import set_default_currency
 from lambda_erp.exceptions import ValidationError
 from lambda_erp.stock.stock_ledger import (
     make_sl_entries,
@@ -60,6 +61,7 @@ class DeliveryNote(Document):
         if self.is_return:
             self._validate_return()
 
+        set_default_currency(self, "Customer", "customer")
         calculate_taxes_and_totals(self)
         self._set_status()
 

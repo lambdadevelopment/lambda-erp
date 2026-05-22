@@ -14,7 +14,8 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate, add_days
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
+from lambda_erp.controllers.defaults import set_default_currency
+from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 from lambda_erp.stock.stock_ledger import (
     make_sl_entries,
     build_buy_side_sles,
@@ -73,6 +74,8 @@ class PurchaseInvoice(Document):
 
         from lambda_erp.controllers.pricing_rule import apply_pricing_rules
         apply_pricing_rules(self)
+
+        set_default_currency(self, "Supplier", "supplier")
 
         calculate_taxes_and_totals(self)
 
@@ -318,6 +321,11 @@ class PurchaseInvoice(Document):
                 make_sl_entries(sl_entries)
 
         gl_entries = self._get_gl_entries()
+        # AP/expense/tax (and the SIH leg for direct-receive stock items) are
+        # built in document currency; convert to base. The buy-side SLEs above
+        # are valued in base too (build_buy_side_sles applies conversion_rate),
+        # so the Stock-In-Hand GL matches the stock-ledger value.
+        to_base_currency(gl_entries, self.get("conversion_rate"))
         make_gl_entries(gl_entries)
         self._update_purchase_order_billing()
 

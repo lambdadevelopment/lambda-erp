@@ -14,9 +14,10 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
+from lambda_erp.controllers.defaults import set_default_currency
 from lambda_erp.exceptions import ValidationError
 from lambda_erp.stock.stock_ledger import make_sl_entries
-from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
+from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 
 class PurchaseReceipt(Document):
     DOCTYPE = "Purchase Receipt"
@@ -55,6 +56,7 @@ class PurchaseReceipt(Document):
         if self.is_return:
             self._validate_return()
 
+        set_default_currency(self, "Supplier", "supplier")
         calculate_taxes_and_totals(self)
         self._set_status()
 
@@ -118,6 +120,10 @@ class PurchaseReceipt(Document):
 
         gl_entries = self._get_gl_entries()
         if gl_entries:
+            # Dr Stock-In-Hand / Cr SRBNB are built in document currency; convert
+            # to base. _get_sl_entries already values the stock in base, so the
+            # SIH GL matches the stock-ledger value.
+            to_base_currency(gl_entries, self.get("conversion_rate"))
             make_gl_entries(gl_entries)
 
         self._update_purchase_order_received()
@@ -177,13 +183,16 @@ class PurchaseReceipt(Document):
             )
 
     def _get_sl_entries(self):
+        # Inventory is valued in the company's base currency; the line rate is
+        # in document currency, so scale it by conversion_rate.
+        conversion_rate = flt(self.get("conversion_rate")) or 1.0
         sl_entries = []
         for item in self.get("items"):
             warehouse = item.get("warehouse")
             if not warehouse:
                 continue
             actual_qty = flt(item["qty"])  # Normal: positive (in). Return: negative (out).
-            rate = flt(item.get("rate", 0))
+            rate = flt(item.get("rate", 0)) * conversion_rate
             sl_entries.append(_dict(
                 item_code=item["item_code"],
                 warehouse=warehouse,

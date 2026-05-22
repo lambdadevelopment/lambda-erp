@@ -2044,6 +2044,109 @@ def main():
                 f"Unexpected error for {mtype}: {err.detail}"
     print(f"  Account / Cost Center still require an explicit name (clear 422)")
 
+    # ---------------------------------------------------------------------
+    # Multi-currency: documents carry a currency + conversion_rate. The GL's
+    # debit/credit must be in the company's base currency (doc amount * rate)
+    # while *_in_account_currency stays in document currency. Stock valuation
+    # is likewise in base currency so Stock-In-Hand GL matches the ledger.
+    # ---------------------------------------------------------------------
+    print_header("35. MULTI-CURRENCY - base-currency GL + currency defaulting")
+
+    from lambda_erp.selling.quotation import Quotation as _Quotation
+    from lambda_erp.accounting.sales_invoice import SalesInvoice as _SI
+    from lambda_erp.accounting.purchase_invoice import PurchaseInvoice as _PI
+
+    base_ccy = db.get_value("Company", "Lambda Corp", "default_currency")
+    fx_rate = 1.1
+
+    # --- (a) Foreign-currency Sales Invoice posts base AR + income ----------
+    si_fx = _SI(
+        customer="CUST-001", company="Lambda Corp", posting_date=nowdate(),
+        currency="EUR", conversion_rate=fx_rate,
+        items=[_dict(item_code="ITEM-001", qty=1, rate=100)],
+    )
+    si_fx.save()
+    si_fx.submit()
+    assert flt(si_fx.grand_total) == 100.0, f"doc-currency grand_total should be 100, got {si_fx.grand_total}"
+    gl = db.get_all("GL Entry", filters={"voucher_no": si_fx.name, "is_cancelled": 0}, fields=["*"])
+    ar = next(e for e in gl if flt(e["debit"]) > 0)
+    inc = next(e for e in gl if flt(e["credit"]) > 0)
+    assert flt(ar["debit"]) == 110.0, f"AR base debit should be 100*1.1=110, got {ar['debit']}"
+    assert flt(ar["debit_in_account_currency"]) == 100.0, \
+        f"AR document-currency amount should stay 100, got {ar['debit_in_account_currency']}"
+    assert flt(inc["credit"]) == 110.0, f"Income base credit should be 110, got {inc['credit']}"
+    print(f"  EUR Sales Invoice @1.1: AR/income posted at base 110.00, doc-currency 100.00")
+
+    # --- (b) Foreign-currency Purchase Invoice (service) posts base AP/expense
+    pi_fx = _PI(
+        supplier="SUPP-001", company="Lambda Corp", posting_date=nowdate(),
+        currency="EUR", conversion_rate=fx_rate,
+        items=[_dict(item_code="SVC-001", qty=1, rate=100)],
+    )
+    pi_fx.save()
+    pi_fx.submit()
+    gl = db.get_all("GL Entry", filters={"voucher_no": pi_fx.name, "is_cancelled": 0}, fields=["*"])
+    ap = next(e for e in gl if flt(e["credit"]) > 0)
+    exp = next(e for e in gl if flt(e["debit"]) > 0)
+    assert flt(ap["credit"]) == 110.0, f"AP base credit should be 110, got {ap['credit']}"
+    assert flt(ap["credit_in_account_currency"]) == 100.0, \
+        f"AP document-currency amount should stay 100, got {ap['credit_in_account_currency']}"
+    assert flt(exp["debit"]) == 110.0, f"Expense base debit should be 110, got {exp['debit']}"
+    print(f"  EUR Purchase Invoice @1.1: AP/expense posted at base 110.00")
+
+    # --- (c) Foreign-currency PI update_stock values inventory in base ------
+    sih_acct = db.get_value("Company", "Lambda Corp", "stock_in_hand_account")
+    pi_stk = _PI(
+        supplier="SUPP-001", company="Lambda Corp", posting_date=nowdate(),
+        currency="EUR", conversion_rate=fx_rate, update_stock=1,
+        items=[_dict(item_code="ITEM-001", qty=2, rate=50, warehouse="Main Warehouse - LAMB")],
+    )
+    pi_stk.save()
+    pi_stk.submit()
+    sle_val = db.sql(
+        'SELECT COALESCE(SUM(stock_value_difference), 0) AS d FROM "Stock Ledger Entry" '
+        'WHERE voucher_no = ? AND is_cancelled = 0', [pi_stk.name],
+    )[0]["d"]
+    assert flt(sle_val, 2) == 110.0, f"Stock value should be 2*50*1.1=110 (base), got {sle_val}"
+    gl = db.get_all("GL Entry", filters={"voucher_no": pi_stk.name, "is_cancelled": 0}, fields=["*"])
+    sih_gl = next(e for e in gl if e["account"] == sih_acct and flt(e["debit"]) > 0)
+    assert flt(sih_gl["debit"]) == 110.0, \
+        f"Stock-In-Hand GL ({sih_gl['debit']}) must match base stock value (110)"
+    print(f"  EUR stock receipt @1.1: inventory + Stock-In-Hand GL both at base 110.00")
+
+    # --- (d) Currency defaulting from the party / base ----------------------
+    db.set_value("Customer", "CUST-002", "default_currency", "EUR")
+    q_def = _Quotation(
+        customer="CUST-002", company="Lambda Corp", transaction_date=nowdate(),
+        items=[_dict(item_code="ITEM-001", qty=1, rate=100)],
+    )
+    q_def.save()
+    assert q_def.currency == "EUR", f"currency should default from the customer, got {q_def.currency!r}"
+    assert flt(q_def.conversion_rate) == 1.0, "no FX source yet -> conversion_rate defaults to 1.0"
+    print(f"  New quotation inherited customer currency: {q_def.currency} (rate {q_def.conversion_rate})")
+
+    # A base-currency document forces conversion_rate to 1.0 regardless of input.
+    si_base = _SI(
+        customer="CUST-001", company="Lambda Corp", posting_date=nowdate(),
+        currency=base_ccy, conversion_rate=5.0,
+        items=[_dict(item_code="ITEM-001", qty=1, rate=100)],
+    )
+    si_base.save()
+    assert flt(si_base.conversion_rate) == 1.0, \
+        f"base-currency doc must force rate 1.0, got {si_base.conversion_rate}"
+    print(f"  Base-currency ({base_ccy}) doc forced conversion_rate to 1.0")
+
+    # --- (e) The chat create_document path carries currency + conversion_rate
+    from api.services import create_document as _svc_create_document
+    draft = _svc_create_document("sales-invoice", {
+        "customer": "CUST-001", "company": "Lambda Corp", "posting_date": nowdate(),
+        "currency": "EUR", "conversion_rate": 1.2,
+        "items": [{"item_code": "ITEM-001", "qty": 1, "rate": 100}],
+    })
+    assert draft["currency"] == "EUR" and flt(draft["conversion_rate"]) == 1.2, \
+        f"chat create_document should honor currency/rate, got {draft.get('currency')}/{draft.get('conversion_rate')}"
+    print(f"  chat create_document honored {draft['currency']} @ {draft['conversion_rate']}")
+
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================

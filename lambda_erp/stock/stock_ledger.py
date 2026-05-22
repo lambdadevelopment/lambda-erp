@@ -240,13 +240,16 @@ def build_buy_side_sles(doc, items):
     moving-average over prior stock. Negative actual_qty (return-to-supplier)
     falls back to moving-average via outgoing_rate=0.
     """
+    # Inventory is valued in the company's base currency; line rates are in
+    # document currency, so scale by the doc's conversion_rate (1.0 = no-op).
+    conversion_rate = flt(doc.get("conversion_rate")) or 1.0
     sl_entries = []
     for item in items:
         warehouse = item.get("warehouse")
         if not warehouse or not item.get("item_code"):
             continue
         actual_qty = flt(item["qty"])
-        rate = flt(item.get("net_rate") or item.get("rate", 0))
+        rate = flt(item.get("net_rate") or item.get("rate", 0)) * conversion_rate
         sl_entries.append(_dict(
             item_code=item["item_code"],
             warehouse=warehouse,

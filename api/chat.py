@@ -484,12 +484,15 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "create_document",
-            "description": "Create a new draft document (docstatus=0). The document is saved but NOT submitted. IMPORTANT: you MUST pass the 'data' object with ALL document fields — doctype alone is not enough. Example: {\"doctype\": \"purchase-order\", \"data\": {\"supplier\": \"SUPP-001\", \"company\": \"My Co\", \"transaction_date\": \"2026-04-14\", \"items\": [{\"item_code\": \"ITEM-001\", \"qty\": 10, \"rate\": 100}]}}",
+            "description": (
+                "Create a new draft document (docstatus=0). The document is saved but NOT submitted. IMPORTANT: you MUST pass the 'data' object with ALL document fields — doctype alone is not enough. Example: {\"doctype\": \"purchase-order\", \"data\": {\"supplier\": \"SUPP-001\", \"company\": \"My Co\", \"transaction_date\": \"2026-04-14\", \"items\": [{\"item_code\": \"ITEM-001\", \"qty\": 10, \"rate\": 100}]}}\n"
+                "Currency: `currency` is optional — it defaults to the customer/supplier's currency, else the company's base currency. To bill in a foreign currency, also pass `conversion_rate` = how many units of the company's base currency equal 1 unit of the document currency (no automatic FX lookup yet, so you MUST supply it for a foreign currency). Item rates stay in the document currency. Example (base USD, invoicing in EUR at 1 EUR = 1.10 USD): {\"doctype\": \"sales-invoice\", \"data\": {\"customer\": \"CUST-001\", \"company\": \"My Co\", \"posting_date\": \"2026-05-22\", \"currency\": \"EUR\", \"conversion_rate\": 1.10, \"items\": [{\"item_code\": \"ITEM-001\", \"qty\": 1, \"rate\": 100}]}}"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "doctype": {"type": "string", "enum": DOCUMENT_SLUGS},
-                    "data": {"type": "object", "description": "REQUIRED. All document fields. Must include: supplier/customer, company, date, and items array. Without this the call will fail."},
+                    "data": {"type": "object", "description": "REQUIRED. All document fields. Must include: supplier/customer, company, date, and items array. Optional: currency + conversion_rate (see description) for foreign-currency documents. Without this the call will fail."},
                 },
                 "required": ["doctype", "data"],
             },
@@ -499,7 +502,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "update_document",
-            "description": "Update fields on an existing draft document (docstatus=0). Only drafts can be edited. You MUST include the `data` object with the fields to change. For parent fields: {\"data\": {\"company\": \"X\"}}. For child table fields (like setting warehouse on items): first call get_document to see the current items, then pass the full items array back with your changes: {\"data\": {\"items\": [{\"item_code\": \"ITEM-001\", \"qty\": 10, \"rate\": 100, \"warehouse\": \"WH-001\"}]}}.",
+            "description": "Update fields on an existing draft document (docstatus=0). Only drafts can be edited. You MUST include the `data` object with the fields to change. For parent fields: {\"data\": {\"company\": \"X\"}}. For child table fields (like setting warehouse on items): first call get_document to see the current items, then pass the full items array back with your changes: {\"data\": {\"items\": [{\"item_code\": \"ITEM-001\", \"qty\": 10, \"rate\": 100, \"warehouse\": \"WH-001\"}]}}. To change the document's currency, pass `currency` (and `conversion_rate` for a foreign currency, as in create_document).",
             "parameters": {
                 "type": "object",
                 "properties": {

@@ -13,6 +13,7 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
+from lambda_erp.controllers.defaults import set_default_currency
 from lambda_erp.exceptions import ValidationError
 from lambda_erp.stock.stock_ledger import (
     make_sl_entries,
@@ -20,7 +21,7 @@ from lambda_erp.stock.stock_ledger import (
     build_cost_basis_gl,
     reverse_stock_sles,
 )
-from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
+from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 
 class POSInvoice(Document):
     DOCTYPE = "POS Invoice"
@@ -68,6 +69,7 @@ class POSInvoice(Document):
         self._set_item_defaults()
         if self.is_return:
             self._validate_return()
+        set_default_currency(self, "Customer", "customer")
         calculate_taxes_and_totals(self)
         self._calculate_payments()
         self._set_status()
@@ -155,6 +157,10 @@ class POSInvoice(Document):
             raise ValidationError("At least one payment is required for POS Invoice")
 
         gl_entries = self._get_gl_entries()
+        # Financial side (AR/income/tax/payments) is in document currency;
+        # convert to base before posting. Cost-of-goods entries below are
+        # already in base currency.
+        to_base_currency(gl_entries, self.get("conversion_rate"))
 
         # When update_stock=1, post SLEs first so stock_value_difference is
         # available on the persisted rows, then append the matching stock-side
