@@ -2,6 +2,7 @@
 
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt
+from lambda_erp.controllers.currency import get_exchange_rate
 
 
 def set_default_company(doc):
@@ -23,8 +24,9 @@ def set_default_currency(doc, party_type=None, party_field=None):
 
     conversion_rate is forced to 1.0 whenever the document currency equals the
     company's base currency. For a foreign currency the caller-supplied rate is
-    kept (defaulting to 1.0 until an exchange-rate source exists), so the GL's
-    base amounts equal document amounts only when the rate is genuinely 1.0.
+    kept; if none was supplied it is looked up from the Currency Exchange table
+    for the document's date. A foreign currency with no rate on file raises
+    (via get_exchange_rate) rather than silently booking at 1.0.
     """
     db = get_db()
     company = doc._data.get("company")
@@ -43,5 +45,7 @@ def set_default_currency(doc, party_type=None, party_field=None):
     if base_currency and currency == base_currency:
         rate = 1.0
     elif rate <= 0:
-        rate = 1.0
+        # No rate supplied — look one up (carry-forward) for the doc's date.
+        doc_date = doc._data.get("posting_date") or doc._data.get("transaction_date")
+        rate = get_exchange_rate(currency, base_currency or "USD", doc_date)
     doc._data["conversion_rate"] = rate

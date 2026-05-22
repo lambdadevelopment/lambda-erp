@@ -313,6 +313,17 @@ class HistoricalSimulator:
                 company=self.company,
             ))
 
+        # Demo exchange rates (base USD) so foreign-currency documents resolve a
+        # conversion_rate automatically. Dated far in the past so the lookup
+        # carries forward to any transaction date.
+        for frm, rate in (("EUR", 1.10), ("CHF", 1.12), ("GBP", 1.27)):
+            xname = f"{frm}-USD-2020-01-01"
+            if not db.exists("Currency Exchange", xname):
+                db.insert("Currency Exchange", _dict(
+                    name=xname, date="2020-01-01",
+                    from_currency=frm, to_currency="USD", exchange_rate=rate,
+                ))
+
         supplier_names = [s["name"] for s in SUPPLIERS]
         for code, _n, _u, price, cost_factor, reorder_level, reorder_qty in STOCK_ITEMS:
             self.reorder_info[code] = {

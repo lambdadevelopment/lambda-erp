@@ -2114,7 +2114,11 @@ def main():
         f"Stock-In-Hand GL ({sih_gl['debit']}) must match base stock value (110)"
     print(f"  EUR stock receipt @1.1: inventory + Stock-In-Hand GL both at base 110.00")
 
-    # --- (d) Currency defaulting from the party / base ----------------------
+    # --- (d) Currency defaulting + auto-filled rate from Currency Exchange ---
+    db.insert("Currency Exchange", _dict(
+        name="EUR-USD-2020-01-01", date="2020-01-01",
+        from_currency="EUR", to_currency="USD", exchange_rate=1.15,
+    ))
     db.set_value("Customer", "CUST-002", "default_currency", "EUR")
     q_def = _Quotation(
         customer="CUST-002", company="Lambda Corp", transaction_date=nowdate(),
@@ -2122,8 +2126,9 @@ def main():
     )
     q_def.save()
     assert q_def.currency == "EUR", f"currency should default from the customer, got {q_def.currency!r}"
-    assert flt(q_def.conversion_rate) == 1.0, "no FX source yet -> conversion_rate defaults to 1.0"
-    print(f"  New quotation inherited customer currency: {q_def.currency} (rate {q_def.conversion_rate})")
+    assert flt(q_def.conversion_rate) == 1.15, \
+        f"conversion_rate should be auto-looked-up from the table (1.15), got {q_def.conversion_rate}"
+    print(f"  New quotation inherited customer currency + auto rate: {q_def.currency} @ {q_def.conversion_rate}")
 
     # A base-currency document forces conversion_rate to 1.0 regardless of input.
     si_base = _SI(
@@ -2146,6 +2151,68 @@ def main():
     assert draft["currency"] == "EUR" and flt(draft["conversion_rate"]) == 1.2, \
         f"chat create_document should honor currency/rate, got {draft.get('currency')}/{draft.get('conversion_rate')}"
     print(f"  chat create_document honored {draft['currency']} @ {draft['conversion_rate']}")
+
+    # ---------------------------------------------------------------------
+    # Exchange-rate lookup carries forward the latest rate on/before a date.
+    # Posting snapshots the rate onto the document, so editing the rate table
+    # never changes an already-posted book — that snapshot, not table
+    # immutability, is what guarantees historical reproducibility.
+    # ---------------------------------------------------------------------
+    print_header("36. EXCHANGE RATE - lookup, guard, snapshot immutability")
+
+    from lambda_erp.controllers.currency import get_exchange_rate
+    from lambda_erp.exceptions import ValidationError as _VErr
+
+    # Carry-forward: newest rate on/before the date wins.
+    db.insert("Currency Exchange", _dict(name="GBP-USD-2026-01-01", date="2026-01-01",
+                                         from_currency="GBP", to_currency="USD", exchange_rate=1.05))
+    db.insert("Currency Exchange", _dict(name="GBP-USD-2026-04-01", date="2026-04-01",
+                                         from_currency="GBP", to_currency="USD", exchange_rate=1.20))
+    assert flt(get_exchange_rate("GBP", "USD", "2026-03-15"), 2) == 1.05, "carry-forward should pick the Jan rate"
+    assert flt(get_exchange_rate("GBP", "USD", "2026-05-01"), 2) == 1.20, "carry-forward should pick the Apr rate"
+    print("  Carry-forward picks the latest rate on/before the date (1.05 then 1.20)")
+
+    # Same currency is always 1.0; inverse pair derives from 1/rate.
+    assert get_exchange_rate("USD", "USD", nowdate()) == 1.0
+    db.insert("Currency Exchange", _dict(name="USD-SEK-2026-01-01", date="2026-01-01",
+                                         from_currency="USD", to_currency="SEK", exchange_rate=10.0))
+    assert flt(get_exchange_rate("SEK", "USD", nowdate()), 2) == 0.10, "inverse pair should derive 1/10"
+    print("  Same-currency -> 1.0; inverse pair derived (USD->SEK 10 => SEK->USD 0.10)")
+
+    # Missing rate raises rather than silently assuming 1.0.
+    try:
+        get_exchange_rate("JPY", "USD", nowdate())
+        raise AssertionError("Missing rate should have raised")
+    except _VErr as err:
+        assert "No exchange rate" in str(err), f"Unexpected error: {err}"
+    print("  Missing rate raises (no silent 1.0)")
+
+    # Snapshot immutability: post a NOK invoice (auto rate 1.10), then change the
+    # table — the posted invoice stays at 1.10 while a new one uses the new rate.
+    db.insert("Currency Exchange", _dict(name="NOK-USD-2020-01-01", date="2020-01-01",
+                                         from_currency="NOK", to_currency="USD", exchange_rate=1.10))
+    si_old = _SI(customer="CUST-001", company="Lambda Corp", posting_date=nowdate(),
+                 currency="NOK", items=[_dict(item_code="ITEM-001", qty=1, rate=100)])
+    si_old.save()
+    si_old.submit()
+    assert flt(si_old.conversion_rate) == 1.10, f"NOK invoice should auto-fill 1.10, got {si_old.conversion_rate}"
+
+    def _ar_debit(voucher):
+        rows = db.get_all("GL Entry", filters={"voucher_no": voucher, "is_cancelled": 0}, fields=["*"])
+        return next(flt(e["debit"]) for e in rows if flt(e["debit"]) > 0)
+
+    assert _ar_debit(si_old.name) == 110.0, f"NOK invoice base AR should be 110, got {_ar_debit(si_old.name)}"
+
+    db.insert("Currency Exchange", _dict(name="NOK-USD-2026-05-22", date=nowdate(),
+                                         from_currency="NOK", to_currency="USD", exchange_rate=9.0))
+    si_new = _SI(customer="CUST-001", company="Lambda Corp", posting_date=nowdate(),
+                 currency="NOK", items=[_dict(item_code="ITEM-001", qty=1, rate=100)])
+    si_new.save()
+    si_new.submit()
+    assert flt(si_new.conversion_rate) == 9.0, f"new NOK invoice should use the new rate 9.0, got {si_new.conversion_rate}"
+    assert _ar_debit(si_old.name) == 110.0, \
+        f"posted invoice must not change when the rate table changes, got {_ar_debit(si_old.name)}"
+    print("  Posted NOK invoice frozen at base 110.00; later invoice uses new rate 9.0 (snapshot holds)")
 
     # =====================================================================
     # FINAL SUMMARY

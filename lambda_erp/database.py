@@ -1062,6 +1062,21 @@ class Database:
                 key TEXT PRIMARY KEY,
                 value TEXT
             )""",
+
+            # Exchange rates for multi-currency. A lookup carries forward the
+            # most recent rate on/before a transaction's date; the rate is then
+            # snapshotted onto the document, so editing this table never changes
+            # already-posted books. exchange_rate = units of to_currency per 1
+            # unit of from_currency (e.g. EUR->USD 1.10 means 1 EUR = 1.10 USD).
+            """CREATE TABLE IF NOT EXISTS "Currency Exchange" (
+                name TEXT PRIMARY KEY,
+                date TEXT,
+                from_currency TEXT,
+                to_currency TEXT,
+                exchange_rate REAL,
+                creation TEXT,
+                modified TEXT
+            )""",
         ]
 
         for stmt in stmts:
