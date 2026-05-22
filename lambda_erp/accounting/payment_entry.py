@@ -20,6 +20,7 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
+from lambda_erp.controllers.defaults import set_default_currency
 from lambda_erp.exceptions import ValidationError
 
 class PaymentEntry(Document):
@@ -70,7 +71,22 @@ class PaymentEntry(Document):
                 raise ValidationError("Party is required for Receive and Pay entries")
 
         self._set_missing_values()
+        self._set_currency()
         self._validate_references()
+
+    def _set_currency(self):
+        """Settle in the currency of the invoices being paid; fall back to the
+        party/company default. conversion_rate is the payment-date rate, looked
+        up automatically (or supplied) — see set_default_currency."""
+        db = get_db()
+        if not self._data.get("currency"):
+            for ref in self.get("references") or []:
+                inv_ccy = db.get_value(ref.get("reference_doctype"), ref.get("reference_name"), "currency")
+                if inv_ccy:
+                    self._data["currency"] = inv_ccy
+                    break
+        party_type = self.party_type if self.party else None
+        set_default_currency(self, party_type, "party")
 
     def _set_missing_values(self):
         db = get_db()
@@ -165,10 +181,17 @@ class PaymentEntry(Document):
             invoice = db.get_value(
                 doctype,
                 docname,
-                ["customer", "supplier", "docstatus", "outstanding_amount", "is_return"],
+                ["customer", "supplier", "docstatus", "outstanding_amount", "is_return", "currency"],
             )
             if not invoice:
                 raise ValidationError(f"{doctype} {docname} does not exist")
+
+            inv_ccy = invoice.get("currency") or "USD"
+            if inv_ccy != (self.currency or "USD"):
+                raise ValidationError(
+                    f"{doctype} {docname} is in {inv_ccy}, but this Payment Entry is in "
+                    f"{self.currency}. Settle a foreign invoice with a payment in the same currency."
+                )
             if flt(invoice.get("docstatus")) != 1:
                 raise ValidationError(
                     f"{doctype} {docname} is not submitted (docstatus="
@@ -219,15 +242,68 @@ class PaymentEntry(Document):
         )
         self._update_outstanding(cancel=True)
 
+    def _party_ledger_base(self):
+        """Base value of the party ledger (AR/AP) this payment clears.
+
+        Each allocation clears at the *invoice's* booked rate (so the AR/AP for
+        that invoice zeroes out in base currency); any unallocated on-account
+        amount is booked at the payment rate. Returns (allocated_total_in_ccy,
+        party_clear_base).
+        """
+        db = get_db()
+        rate = flt(self.conversion_rate) or 1.0
+        allocated_total = 0.0
+        allocated_base = 0.0
+        for ref in self.get("references") or []:
+            allocated = flt(ref.get("allocated_amount"))
+            if allocated <= 0:
+                continue
+            inv_rate = flt(db.get_value(
+                ref.get("reference_doctype"), ref.get("reference_name"), "conversion_rate"
+            )) or 1.0
+            allocated_total += allocated
+            allocated_base += allocated * inv_rate
+        on_account = max(flt(self.paid_amount) - allocated_total, 0.0)
+        return allocated_total, flt(allocated_base + on_account * rate, 2)
+
+    def _fx_gl_entry(self, *, is_loss, amount):
+        """Realized FX gain/loss leg. Loss debits, gain credits the company's
+        Exchange Gain/Loss account."""
+        db = get_db()
+        fx_account = db.get_value("Company", self.company, "default_exchange_gain_loss_account")
+        if not fx_account:
+            raise ValidationError(
+                "No Exchange Gain/Loss account is configured on the company, so the "
+                "realized FX difference on this payment cannot be posted."
+            )
+        amt = flt(amount, 2)
+        return _dict(
+            account=fx_account,
+            debit=amt if is_loss else 0,
+            credit=0 if is_loss else amt,
+            debit_in_account_currency=amt if is_loss else 0,
+            credit_in_account_currency=0 if is_loss else amt,
+            cost_center=self.cost_center,
+            voucher_type=self.DOCTYPE,
+            voucher_no=self.name,
+            posting_date=self.posting_date,
+            company=self.company,
+            remarks=f"Realized FX {'loss' if is_loss else 'gain'} on {self.name}",
+        )
+
     def _get_gl_entries(self):
         gl_entries = []
+        rate = flt(self.conversion_rate) or 1.0
 
         if self.payment_type == "Receive":
-            # Debit: Bank/Cash (paid_to)
+            _, ar_base = self._party_ledger_base()
+            bank_base = flt(flt(self.received_amount) * rate, 2)
+            fx = flt(ar_base - bank_base, 2)
+            # Debit: Bank/Cash (paid_to) — actual base cash at the payment rate.
             gl_entries.append(
                 _dict(
                     account=self.paid_to,
-                    debit=flt(self.received_amount, 2),
+                    debit=bank_base,
                     debit_in_account_currency=flt(self.received_amount, 2),
                     credit=0,
                     credit_in_account_currency=0,
@@ -239,15 +315,15 @@ class PaymentEntry(Document):
                     remarks=self.remarks or f"Payment received from {self.party_name}",
                 )
             )
-            # Credit: party ledger (paid_from). Uses self.party_type so that
-            # "Receive + Supplier" (supplier refund) posts against AP with the
-            # supplier tagged, rather than forcing a Customer tag.
+            # Credit: party ledger (paid_from) at the invoice's booked base
+            # value. Uses self.party_type so "Receive + Supplier" (supplier
+            # refund) posts against AP with the supplier tagged.
             gl_entries.append(
                 _dict(
                     account=self.paid_from,
                     party_type=self.party_type,
                     party=self.party,
-                    credit=flt(self.paid_amount, 2),
+                    credit=ar_base,
                     credit_in_account_currency=flt(self.paid_amount, 2),
                     debit=0,
                     debit_in_account_currency=0,
@@ -260,17 +336,23 @@ class PaymentEntry(Document):
                     remarks=self.remarks or f"Payment received from {self.party_name}",
                 )
             )
+            # Cleared more receivable base than cash received -> loss; less -> gain.
+            if fx:
+                gl_entries.append(self._fx_gl_entry(is_loss=fx > 0, amount=abs(fx)))
 
         elif self.payment_type == "Pay":
-            # Debit: party ledger (paid_to). Uses self.party_type so that
-            # "Pay + Customer" (customer refund) posts against AR with the
-            # customer tagged, rather than forcing a Supplier tag.
+            _, ap_base = self._party_ledger_base()
+            bank_base = flt(flt(self.paid_amount) * rate, 2)
+            fx = flt(ap_base - bank_base, 2)
+            # Debit: party ledger (paid_to) at the invoice's booked base value.
+            # Uses self.party_type so "Pay + Customer" (customer refund) posts
+            # against AR with the customer tagged.
             gl_entries.append(
                 _dict(
                     account=self.paid_to,
                     party_type=self.party_type,
                     party=self.party,
-                    debit=flt(self.paid_amount, 2),
+                    debit=ap_base,
                     debit_in_account_currency=flt(self.paid_amount, 2),
                     credit=0,
                     credit_in_account_currency=0,
@@ -283,11 +365,11 @@ class PaymentEntry(Document):
                     remarks=self.remarks or f"Payment to {self.party_name}",
                 )
             )
-            # Credit: Bank/Cash (paid_from)
+            # Credit: Bank/Cash (paid_from) — actual base cash at the payment rate.
             gl_entries.append(
                 _dict(
                     account=self.paid_from,
-                    credit=flt(self.paid_amount, 2),
+                    credit=bank_base,
                     credit_in_account_currency=flt(self.paid_amount, 2),
                     debit=0,
                     debit_in_account_currency=0,
@@ -299,6 +381,9 @@ class PaymentEntry(Document):
                     remarks=self.remarks or f"Payment to {self.party_name}",
                 )
             )
+            # Cleared more payable base than cash paid -> gain; less -> loss.
+            if fx:
+                gl_entries.append(self._fx_gl_entry(is_loss=fx < 0, amount=abs(fx)))
 
         elif self.payment_type == "Internal Transfer":
             # Debit: paid_to, Credit: paid_from

@@ -128,7 +128,8 @@ class Database:
                 accumulated_depreciation_account TEXT,
                 depreciation_expense_account TEXT,
                 default_freight_in_account TEXT,
-                default_customs_account TEXT
+                default_customs_account TEXT,
+                default_exchange_gain_loss_account TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Account" (
@@ -614,6 +615,8 @@ class Database:
                 paid_to TEXT,    -- account
                 paid_amount REAL DEFAULT 0,
                 received_amount REAL DEFAULT 0,
+                currency TEXT DEFAULT 'USD',
+                conversion_rate REAL DEFAULT 1.0,
                 reference_no TEXT,
                 reference_date TEXT,
                 cost_center TEXT,
@@ -1430,6 +1433,48 @@ def _m010_master_zip_code(db: "Database") -> None:
         db._add_column_if_missing("Warehouse", col, "TEXT")
 
 
+def _m011_payment_entry_currency(db: "Database") -> None:
+    # Payment Entry gains a currency + conversion_rate so it can settle a
+    # foreign-currency invoice and post realized FX gain/loss.
+    db._add_column_if_missing("Payment Entry", "currency", "TEXT DEFAULT 'USD'")
+    db._add_column_if_missing("Payment Entry", "conversion_rate", "REAL DEFAULT 1.0")
+
+
+def _m012_exchange_gain_loss_account(db: "Database") -> None:
+    """Add the Exchange Gain/Loss account to every existing company and wire it
+    onto Company.default_exchange_gain_loss_account. Mirrors the charge-account
+    backfill (_m009); fresh companies get it via setup_chart_of_accounts.
+    """
+    db._add_column_if_missing("Company", "default_exchange_gain_loss_account", "TEXT")
+
+    companies = db.conn.execute('SELECT name FROM "Company"').fetchall()
+    for row in companies:
+        company = row[0]
+        abbr = company[:4].upper()
+        op_ex = f"Operating Expenses - {abbr}"
+        if not db.conn.execute('SELECT 1 FROM "Account" WHERE name = ?', [op_ex]).fetchone():
+            continue
+
+        acct_name = f"Exchange Gain/Loss - {abbr}"
+        if not db.conn.execute('SELECT 1 FROM "Account" WHERE name = ?', [acct_name]).fetchone():
+            currency = db.conn.execute(
+                'SELECT default_currency FROM "Company" WHERE name = ?', [company]
+            ).fetchone()[0] or "USD"
+            db.conn.execute(
+                'INSERT INTO "Account" (name, account_name, parent_account, company, '
+                'root_type, report_type, account_type, account_currency, is_group) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)',
+                [acct_name, "Exchange Gain/Loss", op_ex, company, "Expense",
+                 "Profit and Loss", "", currency],
+            )
+
+        db.conn.execute(
+            'UPDATE "Company" SET default_exchange_gain_loss_account = '
+            'COALESCE(default_exchange_gain_loss_account, ?) WHERE name = ?',
+            [acct_name, company],
+        )
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -1441,6 +1486,8 @@ Database.MIGRATIONS = [
     (8, "report_draft_source_chat_session_id", _m008_report_draft_source_chat_session_id),
     (9, "company_charge_accounts", _m009_company_charge_accounts),
     (10, "master_zip_code", _m010_master_zip_code),
+    (11, "payment_entry_currency", _m011_payment_entry_currency),
+    (12, "exchange_gain_loss_account", _m012_exchange_gain_loss_account),
 ]
 
 

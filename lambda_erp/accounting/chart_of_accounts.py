@@ -93,6 +93,10 @@ STANDARD_CHART = {
                     # a supplier bill with those charges on it.
                     "Freight In": {"account_type": "Chargeable"},
                     "Customs & Duties": {"account_type": "Chargeable"},
+                    # Realized FX gain/loss on settling foreign-currency
+                    # invoices (Payment Entry). Net of debits (losses) and
+                    # credits (gains); sits in P&L.
+                    "Exchange Gain/Loss": {},
                 }
             },
             "Depreciation Expense": {"account_type": "Depreciation"},
@@ -151,6 +155,7 @@ def setup_chart_of_accounts(company_name, currency="USD"):
         "default_opening_balance_equity": f"Opening Balance Equity - {abbr}",
         "default_freight_in_account": f"Freight In - {abbr}",
         "default_customs_account": f"Customs & Duties - {abbr}",
+        "default_exchange_gain_loss_account": f"Exchange Gain/Loss - {abbr}",
     })
 
     db.commit()

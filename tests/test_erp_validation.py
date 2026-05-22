@@ -2214,6 +2214,96 @@ def main():
         f"posted invoice must not change when the rate table changes, got {_ar_debit(si_old.name)}"
     print("  Posted NOK invoice frozen at base 110.00; later invoice uses new rate 9.0 (snapshot holds)")
 
+    # ---------------------------------------------------------------------
+    # Realized FX gain/loss: settling a foreign invoice at a different rate
+    # than it was booked. The party ledger (AR/AP) clears at the invoice's
+    # booked base value, the bank reflects the payment-rate base, and the
+    # difference posts to the Exchange Gain/Loss account.
+    # ---------------------------------------------------------------------
+    print_header("37. REALIZED FX - Payment Entry settling a foreign invoice")
+
+    from lambda_erp.accounting.payment_entry import PaymentEntry as _PE
+
+    fx_acct = db.get_value("Company", "Lambda Corp", "default_exchange_gain_loss_account")
+    assert fx_acct, "company should have an Exchange Gain/Loss account"
+
+    def _legs(voucher):
+        return db.get_all("GL Entry", filters={"voucher_no": voucher, "is_cancelled": 0}, fields=["*"])
+
+    # (a) Customer EUR invoice booked @1.10 (AR 110 base), paid 100 EUR @1.05.
+    inv = _SI(customer="CUST-001", company="Lambda Corp", posting_date=nowdate(),
+              currency="EUR", conversion_rate=1.10,
+              items=[_dict(item_code="ITEM-001", qty=1, rate=100)])
+    inv.save()
+    inv.submit()
+    assert flt(inv.outstanding_amount) == 100.0, "outstanding is in document currency (100 EUR)"
+
+    pe = _PE(payment_type="Receive", party_type="Customer", party="CUST-001",
+             company="Lambda Corp", posting_date=nowdate(),
+             paid_amount=100, currency="EUR", conversion_rate=1.05,
+             references=[_dict(reference_doctype="Sales Invoice", reference_name=inv.name, allocated_amount=100)])
+    pe.save()
+    pe.submit()
+    assert flt(db.get_value("Sales Invoice", inv.name, "outstanding_amount")) == 0.0, "invoice should be fully settled"
+    gl = _legs(pe.name)
+    ar_credit = next(flt(e["credit"]) for e in gl if e.get("party") == "CUST-001")
+    bank_debit = next(flt(e["debit"]) for e in gl if flt(e["debit"]) > 0 and e["account"] != fx_acct)
+    fx_leg = next(e for e in gl if e["account"] == fx_acct)
+    assert ar_credit == 110.0, f"AR should clear at invoice base 110, got {ar_credit}"
+    assert bank_debit == 105.0, f"Bank should reflect payment base 105, got {bank_debit}"
+    assert flt(fx_leg["debit"]) == 5.0 and flt(fx_leg["credit"]) == 0.0, f"FX loss 5 expected, got {dict(fx_leg)}"
+    print("  Customer EUR invoice @1.10 paid @1.05: AR cleared 110, bank 105, FX LOSS 5.00")
+
+    # (b) Same invoice setup, paid at a better rate (1.15) -> FX gain.
+    inv2 = _SI(customer="CUST-001", company="Lambda Corp", posting_date=nowdate(),
+               currency="EUR", conversion_rate=1.10,
+               items=[_dict(item_code="ITEM-001", qty=1, rate=100)])
+    inv2.save()
+    inv2.submit()
+    pe2 = _PE(payment_type="Receive", party_type="Customer", party="CUST-001",
+              company="Lambda Corp", posting_date=nowdate(),
+              paid_amount=100, currency="EUR", conversion_rate=1.15,
+              references=[_dict(reference_doctype="Sales Invoice", reference_name=inv2.name, allocated_amount=100)])
+    pe2.save()
+    pe2.submit()
+    fx_leg2 = next(e for e in _legs(pe2.name) if e["account"] == fx_acct)
+    assert flt(fx_leg2["credit"]) == 5.0 and flt(fx_leg2["debit"]) == 0.0, f"FX gain 5 expected, got {dict(fx_leg2)}"
+    print("  Customer EUR invoice @1.10 paid @1.15: FX GAIN 5.00")
+
+    # (c) Supplier EUR invoice booked @1.10 (AP 110), paid 100 EUR @1.05 -> gain.
+    pinv = _PI(supplier="SUPP-001", company="Lambda Corp", posting_date=nowdate(),
+               currency="EUR", conversion_rate=1.10,
+               items=[_dict(item_code="SVC-001", qty=1, rate=100)])
+    pinv.save()
+    pinv.submit()
+    pe3 = _PE(payment_type="Pay", party_type="Supplier", party="SUPP-001",
+              company="Lambda Corp", posting_date=nowdate(),
+              paid_amount=100, currency="EUR", conversion_rate=1.05,
+              references=[_dict(reference_doctype="Purchase Invoice", reference_name=pinv.name, allocated_amount=100)])
+    pe3.save()
+    pe3.submit()
+    assert flt(db.get_value("Purchase Invoice", pinv.name, "outstanding_amount")) == 0.0, "supplier invoice should be fully settled"
+    gl3 = _legs(pe3.name)
+    ap_debit = next(flt(e["debit"]) for e in gl3 if e.get("party") == "SUPP-001")
+    fx_leg3 = next(e for e in gl3 if e["account"] == fx_acct)
+    assert ap_debit == 110.0, f"AP should clear at invoice base 110, got {ap_debit}"
+    assert flt(fx_leg3["credit"]) == 5.0 and flt(fx_leg3["debit"]) == 0.0, f"FX gain 5 expected, got {dict(fx_leg3)}"
+    print("  Supplier EUR invoice @1.10 paid @1.05: AP cleared 110, FX GAIN 5.00")
+
+    # (d) Base-currency settlement posts no FX leg.
+    inv_usd = _SI(customer="CUST-001", company="Lambda Corp", posting_date=nowdate(),
+                  items=[_dict(item_code="ITEM-001", qty=1, rate=100)])
+    inv_usd.save()
+    inv_usd.submit()
+    pe_usd = _PE(payment_type="Receive", party_type="Customer", party="CUST-001",
+                 company="Lambda Corp", posting_date=nowdate(), paid_amount=100,
+                 references=[_dict(reference_doctype="Sales Invoice", reference_name=inv_usd.name, allocated_amount=100)])
+    pe_usd.save()
+    pe_usd.submit()
+    assert all(e["account"] != fx_acct for e in _legs(pe_usd.name)), "base-currency PE must not post an FX leg"
+    assert flt(db.get_value("Sales Invoice", inv_usd.name, "outstanding_amount")) == 0.0
+    print("  Base-currency (USD) payment settles with no FX leg")
+
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================
