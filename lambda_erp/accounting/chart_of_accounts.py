@@ -97,6 +97,10 @@ STANDARD_CHART = {
                     # invoices (Payment Entry). Net of debits (losses) and
                     # credits (gains); sits in P&L.
                     "Exchange Gain/Loss": {},
+                    # Unrealized FX from period-end revaluation of open foreign
+                    # monetary balances. Posted at period end and reversed the
+                    # next period (kept separate from realized for reporting).
+                    "Unrealized Exchange Gain/Loss": {},
                 }
             },
             "Depreciation Expense": {"account_type": "Depreciation"},
@@ -156,6 +160,7 @@ def setup_chart_of_accounts(company_name, currency="USD"):
         "default_freight_in_account": f"Freight In - {abbr}",
         "default_customs_account": f"Customs & Duties - {abbr}",
         "default_exchange_gain_loss_account": f"Exchange Gain/Loss - {abbr}",
+        "default_unrealized_exchange_account": f"Unrealized Exchange Gain/Loss - {abbr}",
     })
 
     db.commit()

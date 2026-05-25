@@ -630,9 +630,24 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
-                    "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse", "default": {}},
+                    "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
                 },
                 "required": ["report_type"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "revalue_currencies",
+            "description": "Preview or post period-end FX revaluation of open foreign-currency balances (foreign receivables, payables, and bank/cash accounts). Restates them to the closing rate and books the unrealized gain/loss, plus a next-day auto-reversal. Use post=false (default) to preview the exposure without posting; post=true to commit. Returns a per-balance breakdown and the net unrealized P&L impact.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "company": {"type": "string", "description": "Company name. Defaults to the only/first company."},
+                    "date": {"type": "string", "description": "Period-end date (YYYY-MM-DD). Defaults to today. The closing rate is looked up for this date."},
+                    "post": {"type": "boolean", "description": "false = preview only (no GL); true = post the revaluation + next-day reversal.", "default": False},
+                },
             },
         },
     },
@@ -1180,8 +1195,9 @@ def _handle_get_report(args):
     db = get_db()
 
     if report_type == "trial-balance":
-        from api.routers.reports import _trial_balance
-        return _trial_balance(db, filters.get("company"), filters.get("from_date"), filters.get("to_date"))
+        from api.routers.reports import _trial_balance, _present
+        rep = _trial_balance(db, filters.get("company"), filters.get("from_date"), filters.get("to_date"))
+        return _present(db, rep, filters.get("company"), filters.get("presentation_currency"), filters.get("to_date"))
     elif report_type == "general-ledger":
         from api.routers.reports import _general_ledger
         return _general_ledger(db, filters)
@@ -1192,11 +1208,13 @@ def _handle_get_report(args):
         from api.routers.reports import _dashboard_summary
         return _dashboard_summary(db, filters.get("company"))
     elif report_type == "profit-and-loss":
-        from api.routers.reports import _profit_and_loss
-        return _profit_and_loss(db, filters.get("company"), filters.get("from_date"), filters.get("to_date"))
+        from api.routers.reports import _profit_and_loss, _present
+        rep = _profit_and_loss(db, filters.get("company"), filters.get("from_date"), filters.get("to_date"))
+        return _present(db, rep, filters.get("company"), filters.get("presentation_currency"), filters.get("to_date"))
     elif report_type == "balance-sheet":
-        from api.routers.reports import _balance_sheet
-        return _balance_sheet(db, filters.get("company"), filters.get("as_of_date"))
+        from api.routers.reports import _balance_sheet, _present
+        rep = _balance_sheet(db, filters.get("company"), filters.get("as_of_date"))
+        return _present(db, rep, filters.get("company"), filters.get("presentation_currency"), filters.get("as_of_date"))
     elif report_type == "ar-aging":
         from api.routers.reports import _ar_aging
         return _ar_aging(db, filters.get("company"), filters.get("as_of_date"))
@@ -1204,6 +1222,21 @@ def _handle_get_report(args):
         from api.routers.reports import _ap_aging
         return _ap_aging(db, filters.get("company"), filters.get("as_of_date"))
     return {"error": f"Unknown report type: {report_type}"}
+
+
+def _handle_revalue_currencies(args):
+    db = get_db()
+    company = args.get("company")
+    if not company:
+        companies = db.get_all("Company", fields=["name"], limit=1)
+        company = companies[0]["name"] if companies else None
+    if not company:
+        return {"error": "No company found; create one first."}
+    from lambda_erp.accounting.revaluation import run_period_revaluation
+    try:
+        return run_period_revaluation(company, args.get("date"), post=bool(args.get("post", False)))
+    except Exception as exc:
+        return {"error": getattr(exc, "detail", None) or str(exc)}
 
 
 def _handle_list_chat_attachments(_args, session_id: str | None = None, user_id: str | None = None):
@@ -1353,6 +1386,7 @@ TOOL_HANDLERS = {
     "create_master": _handle_create_master,
     "update_master": _handle_update_master,
     "get_report": _handle_get_report,
+    "revalue_currencies": _handle_revalue_currencies,
     "get_current_time": _handle_get_current_time,
     "retrieve_chat_history": lambda args: _handle_retrieve_chat_history(args),
     "list_chat_attachments": _handle_list_chat_attachments,

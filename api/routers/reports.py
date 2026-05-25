@@ -4,10 +4,44 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from lambda_erp.database import get_db
-from lambda_erp.utils import flt
+from lambda_erp.utils import flt, nowdate
+from lambda_erp.controllers.currency import get_exchange_rate
 from api.auth import require_role
 
 router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_role("viewer"))])
+
+
+def _scale_amounts(obj, rate):
+    """Recursively multiply every numeric amount by `rate` (booleans/strings
+    left alone). Safe for the financial statements, where every number is money."""
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, (int, float)):
+        return flt(obj * rate, 2)
+    if isinstance(obj, dict):
+        return {k: _scale_amounts(v, rate) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_scale_amounts(v, rate) for v in obj]
+    return obj
+
+
+def _present(db, report, company, presentation_currency, rate_date):
+    """Re-express a base-currency report in a presentation currency for display
+    only (a convenience translation at a single closing rate). The stored ledger
+    is never changed. A trial balance still balances since every line scales by
+    the same rate."""
+    base_ccy = (db.get_value("Company", company, "default_currency") if company else None) or "USD"
+    if not presentation_currency or presentation_currency == base_ccy:
+        report["base_currency"] = base_ccy
+        report["presentation_currency"] = base_ccy
+        report["presentation_rate"] = 1.0
+        return report
+    rate = get_exchange_rate(base_ccy, presentation_currency, rate_date or nowdate())
+    presented = _scale_amounts(report, rate)
+    presented["base_currency"] = base_ccy
+    presented["presentation_currency"] = presentation_currency
+    presented["presentation_rate"] = flt(rate, 6)
+    return presented
 
 
 def _trial_balance(db, company=None, from_date=None, to_date=None):
@@ -80,8 +114,11 @@ def trial_balance(
     company: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
+    presentation_currency: str | None = None,
 ):
-    return _trial_balance(get_db(), company, from_date, to_date)
+    db = get_db()
+    return _present(db, _trial_balance(db, company, from_date, to_date),
+                    company, presentation_currency, to_date)
 
 
 def _general_ledger(db, filters=None):
@@ -360,8 +397,11 @@ def profit_and_loss(
     company: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
+    presentation_currency: str | None = None,
 ):
-    return _profit_and_loss(get_db(), company, from_date, to_date)
+    db = get_db()
+    return _present(db, _profit_and_loss(db, company, from_date, to_date),
+                    company, presentation_currency, to_date)
 
 
 # --- Balance Sheet ---
@@ -463,8 +503,11 @@ def _balance_sheet(db, company=None, as_of_date=None):
 def balance_sheet(
     company: str | None = None,
     as_of_date: str | None = None,
+    presentation_currency: str | None = None,
 ):
-    return _balance_sheet(get_db(), company, as_of_date)
+    db = get_db()
+    return _present(db, _balance_sheet(db, company, as_of_date),
+                    company, presentation_currency, as_of_date)
 
 
 # --- Accounts Receivable Aging ---

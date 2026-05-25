@@ -2378,6 +2378,84 @@ def main():
         assert "base currency on one side" in str(err), f"Unexpected error: {err}"
     print("  Direct EUR->GBP conversion rejected (needs the base currency on one side)")
 
+    # ---------------------------------------------------------------------
+    # Period-end revaluation: open foreign monetary balances are restated to
+    # the closing rate, booking *unrealized* FX. The originals are never
+    # touched, and a next-day auto-reversal backs the estimate out so it
+    # doesn't double-count once the balance settles.
+    # ---------------------------------------------------------------------
+    print_header("39. PERIOD-END REVALUATION - unrealized FX on open foreign balances")
+
+    from lambda_erp.accounting.revaluation import run_period_revaluation
+    from lambda_erp.accounting.general_ledger import get_gl_balance as _gl_balance
+
+    period_end = nowdate()
+    db.insert("Currency Exchange", _dict(name=f"EUR-USD-{period_end}", date=period_end,
+                                         from_currency="EUR", to_currency="USD", exchange_rate=1.20))
+
+    unreal_acct = db.get_value("Company", "Lambda Corp", "default_unrealized_exchange_account")
+    assert unreal_acct, "company should have an Unrealized Exchange Gain/Loss account"
+
+    # si_fx (section 35a) is an open EUR receivable booked @1.10; remember its AR leg.
+    def _ar_of(voucher):
+        return next(flt(e["debit"]) for e in _legs(voucher) if e.get("party") == "CUST-001" and flt(e["debit"]) > 0)
+    si_fx_ar_before = _ar_of(si_fx.name)
+
+    result = run_period_revaluation("Lambda Corp", period_end)
+    assert result["posted"] and result["voucher_no"] and result["reversal_voucher_no"], \
+        "revaluation should report the posted vouchers"
+    by = {(ln["kind"], ln["currency"]): ln for ln in result["lines"]}
+
+    # EUR receivable: 100 EUR open @1.10 -> closing @1.20 = unrealized gain 10.
+    assert flt(by[("receivable", "EUR")]["unrealized"], 2) == 10.0, \
+        f"EUR AR unrealized should be 10, got {by[('receivable','EUR')]['unrealized']}"
+    # EUR cash: 50 EUR carried at 53.25 -> 50*1.20 = 60 = unrealized gain 6.75.
+    assert flt(by[("cash", "EUR")]["unrealized"], 2) == 6.75, \
+        f"EUR cash unrealized should be 6.75, got {by[('cash','EUR')]['unrealized']}"
+    print(f"  Breakdown: EUR AR +{by[('receivable','EUR')]['unrealized']:.2f}, "
+          f"EUR cash +{by[('cash','EUR')]['unrealized']:.2f} (closing 1.20)")
+
+    # Original invoice GL is untouched — revaluation posts a separate voucher.
+    assert _ar_of(si_fx.name) == si_fx_ar_before, "original invoice GL must not change on revaluation"
+
+    # Unrealized FX is recognized at period end and reverses the next day.
+    at_period_end = _gl_balance(unreal_acct, "Lambda Corp", posting_date=period_end)
+    after_reversal = _gl_balance(unreal_acct, "Lambda Corp", posting_date=add_days(period_end, 1).isoformat())
+    assert abs(at_period_end) > 0.01, f"unrealized FX should be recognized at period end, got {at_period_end}"
+    assert abs(after_reversal) < 0.01, f"unrealized FX should net to zero after the next-day reversal, got {after_reversal}"
+    print(f"  Unrealized FX at period end = {at_period_end:.2f}; nets to 0.00 after next-day reversal")
+
+    # ---------------------------------------------------------------------
+    # Presentation currency (read-only translation) + the revaluation wrapper
+    # the endpoint / chat tool call.
+    # ---------------------------------------------------------------------
+    print_header("40. PRESENTATION CURRENCY + revaluation preview")
+
+    from api.routers.reports import _trial_balance, _present
+    from api.chat import _handle_revalue_currencies
+
+    base_tb = _trial_balance(db, "Lambda Corp")
+    eur_tb = _present(db, _trial_balance(db, "Lambda Corp"), "Lambda Corp", "EUR", period_end)
+    rate = eur_tb["presentation_rate"]
+    assert eur_tb["presentation_currency"] == "EUR" and rate < 1.0, \
+        f"USD->EUR rate should be ~0.83 (inverse of 1.20), got {rate}"
+    assert flt(eur_tb["difference"], 2) == 0.0, "a translated trial balance must still balance"
+    assert flt(eur_tb["total_debit"], 2) == flt(base_tb["total_debit"] * rate, 2), \
+        "totals should scale by the presentation rate"
+    # Presenting in the base currency is a 1.0 no-op (identity).
+    usd_tb = _present(db, _trial_balance(db, "Lambda Corp"), "Lambda Corp", "USD", period_end)
+    assert usd_tb["presentation_rate"] == 1.0 and flt(usd_tb["total_debit"], 2) == flt(base_tb["total_debit"], 2), \
+        "presenting in the base currency must be an identity translation"
+    print(f"  Trial balance presented in EUR @ {rate}: total debit {base_tb['total_debit']:.2f} USD -> {eur_tb['total_debit']:.2f} EUR (still balances)")
+
+    # The chat/endpoint wrapper: preview (post=false) returns the breakdown, no posting.
+    preview = _handle_revalue_currencies({"company": "Lambda Corp", "date": period_end, "post": False})
+    assert preview["posted"] is False, "preview must not post"
+    assert ("receivable", "EUR") in {(ln["kind"], ln["currency"]) for ln in preview["lines"]}, \
+        "preview should list the open EUR receivable"
+    assert "net_unrealized_pl" in preview
+    print(f"  revalue_currencies preview: net unrealized P&L {preview['net_unrealized_pl']:.2f} (nothing posted)")
+
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================

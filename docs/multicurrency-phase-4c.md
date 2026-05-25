@@ -1,7 +1,16 @@
 # Multi-currency — Phase 4c: period-end revaluation (unrealized FX)
 
-Status: **not started**. Phases 1–4b are shipped (see
-`tests/test_erp_validation.py` sections 35–38). 4c is the last planned piece.
+Status: **implemented** (2026-05-25). Engine: `lambda_erp/accounting/revaluation.py`
+(`run_period_revaluation(company, date)`); unrealized account added in
+`chart_of_accounts.py` + migration `_m013`; tested in
+`tests/test_erp_validation.py` section 39. The whole multi-currency roadmap
+(Phases 1–4c) is now complete.
+
+Decisions taken: a **separate** `Unrealized Exchange Gain/Loss` account (kept
+apart from realized); **auto-reversal** dated the next day; a callable function
+returning a per-balance breakdown (not yet wired to an API/chat tool); closing
+rates from the Currency Exchange table. The original design notes below are kept
+for reference.
 
 ## What 4c is
 

@@ -17,7 +17,7 @@ from api.errors import register_exception_handlers
 from api.auth import router as auth_router, COOKIE_NAME, decode_token
 from api.attachments import router as attachments_router
 from api.chat import chat_websocket, router as chat_router
-from api.routers import admin, documents, masters, reports, setup as setup_router, bank_reconciliation, analytics
+from api.routers import admin, documents, masters, reports, setup as setup_router, bank_reconciliation, analytics, accounting
 
 
 @asynccontextmanager
@@ -67,6 +67,7 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(setup_router.router, prefix="/api")
 app.include_router(bank_reconciliation.router, prefix="/api")
+app.include_router(accounting.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 

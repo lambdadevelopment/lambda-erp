@@ -129,7 +129,8 @@ class Database:
                 depreciation_expense_account TEXT,
                 default_freight_in_account TEXT,
                 default_customs_account TEXT,
-                default_exchange_gain_loss_account TEXT
+                default_exchange_gain_loss_account TEXT,
+                default_unrealized_exchange_account TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Account" (
@@ -1475,6 +1476,39 @@ def _m012_exchange_gain_loss_account(db: "Database") -> None:
         )
 
 
+def _m013_unrealized_exchange_account(db: "Database") -> None:
+    """Add the Unrealized Exchange Gain/Loss account to every existing company
+    and wire Company.default_unrealized_exchange_account. Mirrors _m012."""
+    db._add_column_if_missing("Company", "default_unrealized_exchange_account", "TEXT")
+
+    companies = db.conn.execute('SELECT name FROM "Company"').fetchall()
+    for row in companies:
+        company = row[0]
+        abbr = company[:4].upper()
+        op_ex = f"Operating Expenses - {abbr}"
+        if not db.conn.execute('SELECT 1 FROM "Account" WHERE name = ?', [op_ex]).fetchone():
+            continue
+
+        acct_name = f"Unrealized Exchange Gain/Loss - {abbr}"
+        if not db.conn.execute('SELECT 1 FROM "Account" WHERE name = ?', [acct_name]).fetchone():
+            currency = db.conn.execute(
+                'SELECT default_currency FROM "Company" WHERE name = ?', [company]
+            ).fetchone()[0] or "USD"
+            db.conn.execute(
+                'INSERT INTO "Account" (name, account_name, parent_account, company, '
+                'root_type, report_type, account_type, account_currency, is_group) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)',
+                [acct_name, "Unrealized Exchange Gain/Loss", op_ex, company, "Expense",
+                 "Profit and Loss", "", currency],
+            )
+
+        db.conn.execute(
+            'UPDATE "Company" SET default_unrealized_exchange_account = '
+            'COALESCE(default_unrealized_exchange_account, ?) WHERE name = ?',
+            [acct_name, company],
+        )
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -1488,6 +1522,7 @@ Database.MIGRATIONS = [
     (10, "master_zip_code", _m010_master_zip_code),
     (11, "payment_entry_currency", _m011_payment_entry_currency),
     (12, "exchange_gain_loss_account", _m012_exchange_gain_loss_account),
+    (13, "unrealized_exchange_account", _m013_unrealized_exchange_account),
 ]
 
 
