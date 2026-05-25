@@ -78,11 +78,12 @@ def bootstrap_demo() -> None:
     # 1. Company (only if no company yet)
     companies = db.get_all("Company", fields=["name"])
     if not companies:
-        print(f"[bootstrap] creating company: {DEMO_COMPANY}", flush=True)
+        demo_currency = os.environ.get("LAMBDA_ERP_DEMO_CURRENCY", "USD")
+        print(f"[bootstrap] creating company: {DEMO_COMPANY} (base currency {demo_currency})", flush=True)
         from api.routers.setup import create_company
 
         create_company(
-            {"name": DEMO_COMPANY, "currency": "USD"},
+            {"name": DEMO_COMPANY, "currency": demo_currency},
             _user=None,
         )
     else:
@@ -110,6 +111,13 @@ def bootstrap_demo() -> None:
         sim.run(simulate_activity=True)
     else:
         print(f"[bootstrap] simulation data present ({qtn_count} quotations), skipping", flush=True)
+
+    # 2b. A small EUR-denominated thread so the demo actually exercises the
+    #     multi-currency engine (foreign invoice + realized FX + an open
+    #     foreign bill). Additive and idempotent — it stays well below the
+    #     top customers so the deterministic chat-replay snapshots are intact.
+    base_currency = db.get_value("Company", company, "default_currency") or "USD"
+    ensure_demo_foreign_currency_activity(db, company, base_currency)
 
     # 3. Public-demo extras — opt-in. Without this, the container hands
     #    off to the normal login page where the first registered user
@@ -139,6 +147,81 @@ def bootstrap_demo() -> None:
         print(f"  First user to register on the login page becomes the admin.", flush=True)
     print(f"  (requests sent before this line were queued at the TCP layer)", flush=True)
     print(bar, flush=True)
+
+
+DEMO_FOREIGN_CURRENCY = "EUR"
+
+
+def ensure_demo_foreign_currency_activity(db, company: str, base_currency: str) -> None:
+    """Seed a small EUR thread so the demo exercises the multi-currency paths:
+    a foreign-currency customer + sales invoice, a settlement at a different
+    rate (realized FX gain/loss), and an open foreign-currency bill.
+
+    Idempotent (keyed on the EUR customer), and additive — the amounts stay far
+    below the simulated top customers, so the deterministic chat-replay
+    snapshots don't move. Skipped when the base currency is already EUR.
+    """
+    foreign = DEMO_FOREIGN_CURRENCY
+    if base_currency == foreign:
+        print(f"[bootstrap] base currency is {foreign}; skipping foreign-currency demo thread", flush=True)
+        return
+
+    cust = "CUST-EUR-01"
+    if db.exists("Customer", cust):
+        return  # already seeded on a previous boot
+
+    print(f"[bootstrap] seeding {foreign} multi-currency demo activity", flush=True)
+
+    # A EUR->base rate (carried forward) so any further EUR document or a
+    # period-end revaluation resolves a rate without manual entry.
+    rate_name = f"{foreign}-{base_currency}-2024-01-01"
+    if not db.exists("Currency Exchange", rate_name):
+        db.insert("Currency Exchange", _dict(
+            name=rate_name, date="2024-01-01",
+            from_currency=foreign, to_currency=base_currency, exchange_rate=1.10,
+        ))
+
+    db.insert("Customer", _dict(
+        name=cust, customer_name="Lumiere Audio SARL", customer_group="Commercial",
+        default_currency=foreign, email="compta@lumiere-audio.fr", country="FR",
+    ))
+    supp = "SUPP-EUR-01"
+    db.insert("Supplier", _dict(
+        name=supp, supplier_name="Metaux Lyon SAS", supplier_group="Raw Materials",
+        default_currency=foreign, email="ventes@metaux-lyon.fr", country="FR",
+    ))
+
+    from lambda_erp.accounting.sales_invoice import SalesInvoice
+    from lambda_erp.accounting.purchase_invoice import PurchaseInvoice
+    from lambda_erp.accounting.payment_entry import PaymentEntry
+
+    # EUR sale booked @1.10, then collected @1.05 -> realized FX loss in base.
+    inv = SalesInvoice(
+        customer=cust, company=company, posting_date="2026-03-15",
+        currency=foreign, conversion_rate=1.10,
+        items=[_dict(item_code="ITEM-001", qty=12, rate=125)],
+    )
+    inv.save()
+    inv.submit()
+    pe = PaymentEntry(
+        payment_type="Receive", party_type="Customer", party=cust, company=company,
+        posting_date="2026-04-05", paid_amount=inv.grand_total,
+        currency=foreign, conversion_rate=1.05,
+        references=[_dict(reference_doctype="Sales Invoice", reference_name=inv.name,
+                          allocated_amount=inv.grand_total)],
+    )
+    pe.save()
+    pe.submit()
+
+    # An open EUR bill (foreign payable) — exercises foreign purchasing and
+    # leaves something for a period-end revaluation to restate.
+    bill = PurchaseInvoice(
+        supplier=supp, company=company, posting_date="2026-03-20",
+        currency=foreign, conversion_rate=1.10,
+        items=[_dict(item_code="SVC-001", qty=1, rate=800)],
+    )
+    bill.save()
+    bill.submit()
 
 
 def ensure_demo_chat_records(company: str) -> None:

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
-const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "INR"];
+const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY", "INR"];
 
 type SeedMode = "quick" | "history";
 
