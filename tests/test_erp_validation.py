@@ -2473,6 +2473,46 @@ def main():
     print(f"  Dashboard outstanding receivable (base): {dash['outstanding_receivable']:.2f}")
 
     # =====================================================================
+    print_header("41. STOCK MOVEMENTS dataset - most-moved item by volume")
+    # =====================================================================
+    # The chat answers "what stock item is moved around the most" by running
+    # query_dataset over the stock_movements semantic dataset. Verify the
+    # dataset's GROUP BY aggregation matches an independent ledger query.
+    from api.routers.analytics import aggregate_semantic_dataset
+
+    agg = aggregate_semantic_dataset(
+        dataset="stock_movements",
+        group_by=["item_code"],
+        measures={"qty_moved": ["sum", "abs_qty"], "moves": ["count"]},
+        order_by=[{"field": "qty_moved", "direction": "desc"}],
+    )
+    assert agg["rows"], "stock_movements aggregation returned no rows"
+
+    # Independent truth: sum of |actual_qty| per item over non-cancelled SLEs.
+    expected = db.sql(
+        'SELECT item_code, SUM(ABS(actual_qty)) AS qty_moved, COUNT(*) AS moves '
+        'FROM "Stock Ledger Entry" WHERE is_cancelled = 0 '
+        'GROUP BY item_code ORDER BY qty_moved DESC, item_code ASC'
+    )
+    top = agg["rows"][0]
+    exp_top = expected[0]
+    assert top["item_code"] == exp_top["item_code"], (
+        f"most-moved item should be {exp_top['item_code']}, got {top['item_code']}"
+    )
+    assert flt(top["qty_moved"], 2) == flt(exp_top["qty_moved"], 2), (
+        f"top item volume mismatch: dataset {top['qty_moved']} vs ledger {exp_top['qty_moved']}"
+    )
+    assert int(top["moves"]) == int(exp_top["moves"]), "movement count mismatch on top item"
+
+    # abs_qty is volume (never negative); the default_where must drop cancelled
+    # legs, so the dataset's total can't exceed the raw ledger's gross volume.
+    assert all(flt(r["qty_moved"]) >= 0 for r in agg["rows"]), "abs_qty volume must be non-negative"
+    print(
+        f"  Most-moved item: {top['item_code']} "
+        f"({flt(top['qty_moved'], 2)} units across {int(top['moves'])} movements)"
+    )
+
+    # =====================================================================
     # FINAL SUMMARY
     # =====================================================================
     print_header("TRIAL BALANCE")

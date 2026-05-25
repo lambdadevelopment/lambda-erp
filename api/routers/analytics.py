@@ -601,6 +601,45 @@ SEMANTIC_DATASETS: dict[str, dict[str, Any]] = {
         "max_limit": 10000,
         "default_order_by": "b.stock_value DESC, b.item_code ASC",
     },
+    "stock_movements": {
+        "label": "Stock Movements",
+        "description": (
+            "Stock ledger entries — one row per inflow/outflow/transfer leg per "
+            "item × warehouse. Use `abs_qty` for volume moved (units regardless "
+            "of direction) and `actual_qty` for net flow (+ in, − out). A "
+            "warehouse-to-warehouse transfer records two legs (out + in)."
+        ),
+        "sql_from": 'FROM "Stock Ledger Entry" sle',
+        "fields": {
+            "item_code": "string",
+            "warehouse": "string",
+            "company": "string",
+            "posting_date": "date",
+            "voucher_type": "string",
+            "voucher_no": "string",
+            "actual_qty": "number",
+            "abs_qty": "number",
+            "stock_value_difference": "number",
+        },
+        "field_sql": {
+            "item_code": "sle.item_code",
+            "warehouse": "sle.warehouse",
+            "company": "sle.company",
+            "posting_date": "sle.posting_date",
+            "voucher_type": "sle.voucher_type",
+            "voucher_no": "sle.voucher_no",
+            "actual_qty": "sle.actual_qty",
+            # Volume moved: units regardless of direction. Derived so a measure
+            # can SUM it (measures only wrap a field, they can't apply ABS()).
+            "abs_qty": "ABS(sle.actual_qty)",
+            "stock_value_difference": "sle.stock_value_difference",
+        },
+        "default_where": ["sle.is_cancelled = 0"],
+        "filter_fields": {"company", "warehouse", "item_code", "voucher_type", "posting_date"},
+        "default_limit": 1000,
+        "max_limit": 10000,
+        "default_order_by": "sle.posting_date DESC, sle.name DESC",
+    },
 }
 
 

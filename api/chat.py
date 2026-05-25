@@ -715,7 +715,9 @@ TOOLS = [
                 "- `payments` — submitted payment entries\n"
                 "- `ar_open_items` — outstanding sales invoice amounts\n"
                 "- `ap_open_items` — outstanding purchase invoice amounts\n"
-                "- `stock_balances` — current stock on hand by item × warehouse\n\n"
+                "- `stock_balances` — current stock on hand by item × warehouse\n"
+                "- `stock_movements` — stock ledger entries (movement history); "
+                "`abs_qty` = units moved (use `sum`), `actual_qty` = net flow\n\n"
                 "Shape your call like: `{dataset, group_by, measures, filters?, "
                 "order_by?, limit?}`. `group_by` is a list of field names. "
                 "`measures` is an object of `{alias: [op, field]}` where `op` "
@@ -802,7 +804,8 @@ TOOLS = [
                 "explicitly want to bypass the code specialist.\n\n"
                 "Available semantic datasets include: sales_invoices, "
                 "sales_invoice_lines, purchase_invoices, purchase_invoice_lines, "
-                "payments, ar_open_items, ap_open_items, stock_balances.\n\n"
+                "payments, ar_open_items, ap_open_items, stock_balances, "
+                "stock_movements.\n\n"
                 "Each data_request may include: name, dataset, fields, filters, "
                 "limit. The JS runs client-side over the fetched datasets only; "
                 "it does NOT have SQL, network, or DOM access. The transform "
@@ -1794,6 +1797,7 @@ Use only these datasets. Exposed fields will be listed in the user message; do n
 - `ar_open_items`
 - `ap_open_items`
 - `stock_balances`
+- `stock_movements`
 
 These datasets already scope to submitted/open records, so do not add `docstatus = 1` filters.
 
