@@ -81,13 +81,16 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
                 party_name = live_name
 
     # Company info
-    company_name = doc.get("company", "")
+    company_id = doc.get("company", "")
+    company_name = company_id  # fallback to the id if the master is gone
     company_info = {}
-    if company_name:
-        row = db.get_value("Company", company_name,
-                           ["email", "phone", "address", "city", "zip_code", "country", "tax_id"])
+    if company_id:
+        row = db.get_value("Company", company_id,
+                           ["company_name", "email", "phone", "address", "city", "zip_code", "country", "tax_id"])
         if row:
             company_info = _get_dict(row)
+            # Show the company's CURRENT display name from the master.
+            company_name = company_info.get("company_name") or company_id
 
     # Currency
     currency = doc.get("currency", "USD") or "USD"
@@ -109,8 +112,18 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     if doc.get("status"):
         meta_fields.append({"label": "Status", "value": doc["status"]})
 
-    # Items
+    # Items — refresh each line's item_name from the Item master so a later
+    # correction to an item's name appears on the PDF, consistent with the
+    # party/company names. Quantities, rates, and amounts stay as transacted.
+    # Falls back to the name stored on the line if the master is gone.
     items = doc.get("items", [])
+    for item in items:
+        code = item.get("item_code")
+        if code:
+            live_item_name = db.get_value("Item", code, "item_name")
+            if live_item_name:
+                item["item_name"] = live_item_name
+
     taxes = doc.get("taxes", [])
 
     # Page size setting
