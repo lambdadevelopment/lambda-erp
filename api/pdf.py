@@ -65,10 +65,20 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     party_name = doc.get(party_name_field or "", "") or doc.get(party_field or "", "")
     party_info = {}
     if party_field and party_doctype and doc.get(party_field):
-        row = db.get_value(party_doctype, doc[party_field],
-                           ["email", "phone", "address", "city", "zip_code", "country", "tax_id"])
+        fields = ["email", "phone", "address", "city", "zip_code", "country", "tax_id"]
+        if party_name_field:
+            fields = [party_name_field, *fields]
+        row = db.get_value(party_doctype, doc[party_field], fields)
         if row:
             party_info = _get_dict(row)
+            # Show the party's CURRENT name from the master, so a later
+            # correction (e.g. fixing a typo) appears on the PDF — consistent
+            # with the address fields, which are already looked up live. The
+            # name stored on the document is only a fallback for when the
+            # master record no longer exists.
+            live_name = party_info.get(party_name_field) if party_name_field else None
+            if live_name:
+                party_name = live_name
 
     # Company info
     company_name = doc.get("company", "")
