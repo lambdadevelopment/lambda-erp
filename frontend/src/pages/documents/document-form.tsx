@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatCurrency, flt } from "@/lib/utils";
 import { HintTooltip } from "@/components/ui/hint-tooltip";
+import { useCurrencies } from "@/hooks/use-currencies";
+import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 // ---------------------------------------------------------------------------
 // Link resolution — where does clicking "customer" / "account" / etc. lead?
@@ -153,6 +155,12 @@ function FieldRenderer({
   const Label = () =>
     hideLabel ? null : <FieldLabel label={field.label} hint={field.hint} />;
 
+  // Currency pickers get their options from the available-currencies endpoint
+  // rather than a static list. The fetch is skipped for every other field.
+  const needsCurrencyOptions =
+    field.type === "select" && field.optionsSource === "currency";
+  const currencyOptions = useCurrencies(undefined, needsCurrencyOptions);
+
   if (isDisabled) {
     // Link fields render as a clickable link in read-only mode when there's a
     // real destination. Matches the sky-600 treatment in document lists.
@@ -211,12 +219,19 @@ function FieldRenderer({
     );
   }
 
-  if (field.type === "select" && field.options) {
+  if (field.type === "select" && (field.options || needsCurrencyOptions)) {
+    // Keep the doc's own currency selectable even if it's not in the fetched
+    // list (e.g. an older currency no longer on any rate/default).
+    const options = needsCurrencyOptions
+      ? value && !currencyOptions.includes(value)
+        ? [value, ...currencyOptions]
+        : currencyOptions
+      : field.options!;
     return (
       <div>
         <Label />
         <Select
-          options={field.options}
+          options={options}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -493,6 +508,8 @@ export default function DocumentFormPage() {
   const isNew = !name;
 
   const [formData, setFormData] = useState<any>({});
+  // True once the user picks a currency by hand, so auto-defaulting backs off.
+  const [currencyTouched, setCurrencyTouched] = useState(false);
 
   // Fetch existing document
   const { data: existingDoc, isLoading } = useQuery({
@@ -500,6 +517,42 @@ export default function DocumentFormPage() {
     queryFn: () => api.getDocument(doctype!, name!),
     enabled: !!doctype && !!name && !isNew,
   });
+
+  // --- Currency defaulting (new documents only) ----------------------------
+  // Pre-fill the transaction currency from the selected party's default
+  // currency, falling back to the company base — mirroring the backend's
+  // precedence — until the user picks one. Only sales/purchase docs have it.
+  const hasCurrencyField = useMemo(
+    () => !!config?.fields.some((f) => f.name === "currency"),
+    [config],
+  );
+  const partyType = config?.partyField;
+  const partyName = partyType ? formData[partyType] : undefined;
+  const companyCurrency = useBaseCurrency(formData.company);
+
+  const { data: partyMaster } = useQuery({
+    queryKey: ["master", partyType, partyName],
+    queryFn: () => api.getMaster(partyType!, partyName!),
+    enabled: isNew && hasCurrencyField && !!partyType && !!partyName,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!isNew || !hasCurrencyField || currencyTouched) return;
+    let suggested: string | undefined;
+    if (partyName) {
+      if (!partyMaster) return; // wait for the party's currency before defaulting
+      suggested = partyMaster.default_currency || companyCurrency;
+    } else {
+      suggested = companyCurrency;
+    }
+    if (suggested && suggested !== formData.currency) {
+      setFormData((prev: any) => ({ ...prev, currency: suggested }));
+    }
+  }, [
+    isNew, hasCurrencyField, currencyTouched,
+    partyName, partyMaster, companyCurrency, formData.currency,
+  ]);
 
   // Initialize formData
   useEffect(() => {
@@ -570,8 +623,12 @@ export default function DocumentFormPage() {
   // Field change handler with recalculation
   const setField = useCallback(
     (fieldName: string, value: any) => {
+      if (fieldName === "currency") setCurrencyTouched(true);
       setFormData((prev: any) => {
         const next = { ...prev, [fieldName]: value };
+        // A new currency invalidates any prior rate; clear it so the backend
+        // re-resolves the exchange rate for the chosen currency.
+        if (fieldName === "currency") next.conversion_rate = 0;
         return recalculate(next, config);
       });
     },

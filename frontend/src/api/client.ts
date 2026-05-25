@@ -152,6 +152,11 @@ export const api = {
   getMaster: (type: string, name: string) =>
     request<any>(`/masters/${type}/${encodeURIComponent(name)}`),
 
+  currencies: (company?: string) =>
+    request<{ base_currency: string; currencies: string[] }>(
+      `/accounting/currencies${qs({ company })}`,
+    ),
+
   createMaster: (type: string, data: any) =>
     request<any>(`/masters/${type}`, { method: "POST", body: JSON.stringify(data) }),
 

@@ -18,6 +18,9 @@ export interface FieldDef {
   // pairs when the stored value is machine-friendly (e.g. "1"/"0") but the
   // user-visible label should read differently ("Yes"/"No").
   options?: Array<string | { value: string; label: string }>;
+  // For type=select with a runtime-populated option list. "currency" fills the
+  // dropdown from the available-currencies endpoint instead of static options.
+  optionsSource?: "currency";
   default?: any;
   hint?: string; // tooltip text shown via a help icon next to the label
 }
@@ -58,6 +61,14 @@ const ITEM_FIELDS: FieldDef[] = [
   { name: "amount", label: "Amount", type: "currency", readOnly: true },
 ];
 
+// Transaction currency picker, shared by all sales/purchase documents. The
+// dropdown is populated at runtime (base + convertible currencies) and the
+// form pre-selects the party's (or company's) default currency on new docs.
+const CURRENCY_FIELD: FieldDef = {
+  name: "currency", label: "Currency", type: "select", optionsSource: "currency",
+  hint: "The currency this document is transacted in. Defaults from the party's (or the company's) default currency. The ledger still posts in the company base currency, translated at this document's exchange rate.",
+};
+
 const TAX_FIELDS: FieldDef[] = [
   {
     name: "charge_type", label: "Type", type: "select",
@@ -85,6 +96,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "transaction_date", label: "Date", type: "date", required: true },
       { name: "valid_till", label: "Valid Till", type: "date" },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
+      CURRENCY_FIELD,
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "total_taxes_and_charges", label: "Tax", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
@@ -116,6 +128,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "transaction_date", label: "Date", type: "date", required: true },
       { name: "delivery_date", label: "Delivery Date", type: "date" },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
+      CURRENCY_FIELD,
       { name: "per_delivered", label: "% Delivered", type: "number", readOnly: true },
       { name: "per_billed", label: "% Billed", type: "number", readOnly: true },
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
@@ -147,6 +160,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
       { name: "due_date", label: "Due Date", type: "date" },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
+      CURRENCY_FIELD,
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "total_taxes_and_charges", label: "Tax", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
@@ -176,6 +190,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "supplier", label: "Supplier", type: "link", linkDoctype: "supplier", required: true },
       { name: "transaction_date", label: "Date", type: "date", required: true },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
+      CURRENCY_FIELD,
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
       { name: "remarks", label: "Notes / Terms", type: "textarea" },
@@ -205,6 +220,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
       { name: "due_date", label: "Due Date", type: "date" },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
+      CURRENCY_FIELD,
       { name: "update_stock", label: "Update Stock", type: "select",
         options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0",
         hint: "If Yes, submitting this invoice also receives stock into the item warehouses.",
@@ -368,6 +384,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", required: true },
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
+      CURRENCY_FIELD,
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "total_taxes_and_charges", label: "Tax", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
@@ -401,6 +418,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "supplier", label: "Supplier", type: "link", linkDoctype: "supplier", required: true },
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
+      CURRENCY_FIELD,
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "total_taxes_and_charges", label: "Tax", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
@@ -434,6 +452,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", required: true },
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
+      CURRENCY_FIELD,
       { name: "update_stock", label: "Update Stock", type: "select",
         options: [{ value: "1", label: "Yes" }, { value: "0", label: "No" }], default: "1",
         hint: "If Yes, submitting this invoice also reduces stock from the item warehouses.",
