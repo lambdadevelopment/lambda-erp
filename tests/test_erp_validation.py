@@ -2496,10 +2496,12 @@ def main():
     print(f"  {'-'*40} {'-'*12} {'-'*12} {'-'*12}")
     print(f"  {'TOTAL':<40} {fmt_money(total_debit):>12} {fmt_money(total_credit):>12} {fmt_money(total_debit - total_credit):>12}")
 
-    if abs(total_debit - total_credit) < 0.01:
-        print(f"\n  BALANCED - Double-entry bookkeeping integrity verified!")
-    else:
-        print(f"\n  WARNING: Trial balance is off by {fmt_money(total_debit - total_credit)}")
+    # Hard gate: after every flow above (incl. foreign-currency sales, bills,
+    # settlement FX, conversions, and revaluation) the whole ledger must still
+    # net to zero. A failure here means the books don't add up.
+    assert abs(total_debit - total_credit) < 0.01, \
+        f"Trial balance does not balance — off by {fmt_money(total_debit - total_credit)}"
+    print(f"\n  BALANCED - Double-entry bookkeeping integrity verified!")
 
     print(f"\n{'='*60}")
     print(f"  Demo complete! All core ERP flows exercised.")
