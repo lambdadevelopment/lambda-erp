@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LinkField } from "@/components/document/link-field";
 import { DateRangePresets } from "@/components/ui/date-range-presets";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency as fmtCurrency, formatDate } from "@/lib/utils";
+import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 /** Convert a voucher type like "Sales Invoice" to a URL slug "sales-invoice". */
 function toSlug(voucherType: string): string {
@@ -38,6 +39,8 @@ export default function GeneralLedgerPage() {
   const [party, setParty] = useState(urlParty);
   const [fromDate, setFromDate] = useState(urlFromDate);
   const [toDate, setToDate] = useState(urlToDate);
+  const baseCurrency = useBaseCurrency();
+  const formatCurrency = (v: number | null | undefined) => fmtCurrency(v, baseCurrency);
 
   const filters = useMemo(() => {
     const f: Record<string, string> = {};

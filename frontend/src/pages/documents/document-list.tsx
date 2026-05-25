@@ -136,7 +136,7 @@ export default function DocumentListPage() {
             .split("_")
             .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
             .join(" "),
-          cell: (info) => formatCurrency(info.getValue()),
+          cell: (info) => formatCurrency(info.getValue(), (info.row.original as any)?.currency || "USD"),
         });
       }
 

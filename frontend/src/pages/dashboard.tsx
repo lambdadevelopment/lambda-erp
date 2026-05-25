@@ -14,7 +14,8 @@ import {
 import { api } from "@/api/client";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/document/status-badge";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency as fmtCurrency, formatDate } from "@/lib/utils";
+import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 // ─── Metric cards ──────────────────────────────────────────────────
 
@@ -29,6 +30,8 @@ interface MetricCardProps {
 
 function MetricCard({ title, value, icon: Icon, tone }: MetricCardProps) {
   const toneClass = tone ?? "text-brand bg-brand/10";
+  const baseCurrency = useBaseCurrency();
+  const formatCurrency = (v: number | null | undefined) => fmtCurrency(v, baseCurrency);
   return (
     <Card>
       <div className="flex items-start justify-between gap-4">

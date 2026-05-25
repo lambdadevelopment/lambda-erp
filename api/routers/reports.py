@@ -263,21 +263,28 @@ def _dashboard_summary(db, company=None):
         company_filter = " AND company = ?"
         params.append(company)
 
+    # Amounts are summed in base currency: each invoice's document-currency
+    # figure is scaled by its own (historical) conversion_rate, so foreign
+    # invoices aren't added in as if they were base-currency amounts.
+
     # Total revenue (submitted sales invoices)
     revenue = db.sql(
-        f'SELECT COALESCE(SUM(grand_total), 0) as total FROM "Sales Invoice" WHERE docstatus = 1{company_filter}',
+        f'SELECT COALESCE(SUM(grand_total * COALESCE(conversion_rate, 1)), 0) as total '
+        f'FROM "Sales Invoice" WHERE docstatus = 1{company_filter}',
         params,
     )
 
     # Outstanding receivable
     receivable = db.sql(
-        f'SELECT COALESCE(SUM(outstanding_amount), 0) as total FROM "Sales Invoice" WHERE docstatus = 1 AND outstanding_amount > 0{company_filter}',
+        f'SELECT COALESCE(SUM(outstanding_amount * COALESCE(conversion_rate, 1)), 0) as total '
+        f'FROM "Sales Invoice" WHERE docstatus = 1 AND outstanding_amount > 0{company_filter}',
         params,
     )
 
     # Outstanding payable
     payable = db.sql(
-        f'SELECT COALESCE(SUM(outstanding_amount), 0) as total FROM "Purchase Invoice" WHERE docstatus = 1 AND outstanding_amount > 0{company_filter}',
+        f'SELECT COALESCE(SUM(outstanding_amount * COALESCE(conversion_rate, 1)), 0) as total '
+        f'FROM "Purchase Invoice" WHERE docstatus = 1 AND outstanding_amount > 0{company_filter}',
         params,
     )
 
@@ -541,7 +548,7 @@ def _ar_aging(db, company=None, as_of_date=None):
     # filtered to documents that existed on as_of_date.
     invoices = db.sql(
         f"""SELECT si.name, si.customer, si.posting_date, si.due_date,
-                   si.grand_total,
+                   si.grand_total, COALESCE(si.conversion_rate, 1) AS conversion_rate,
                    si.grand_total
                      - COALESCE((
                          SELECT SUM(per.allocated_amount)
@@ -570,7 +577,9 @@ def _ar_aging(db, company=None, as_of_date=None):
     totals = {"outstanding": 0, "current": 0, "b1_30": 0, "b31_60": 0, "b61_90": 0, "b90_plus": 0}
 
     for inv in invoices:
-        outstanding = flt(inv["outstanding_at_date"], 2)
+        # outstanding_at_date is in the invoice's document currency; scale by its
+        # own historical rate so the report aggregates in base currency.
+        outstanding = flt(flt(inv["outstanding_at_date"], 2) * flt(inv["conversion_rate"] or 1), 2)
         if outstanding <= 0:
             continue
 
@@ -644,7 +653,7 @@ def _ap_aging(db, company=None, as_of_date=None):
 
     invoices = db.sql(
         f"""SELECT pi.name, pi.supplier, pi.posting_date, pi.due_date,
-                   pi.grand_total,
+                   pi.grand_total, COALESCE(pi.conversion_rate, 1) AS conversion_rate,
                    pi.grand_total
                      - COALESCE((
                          SELECT SUM(per.allocated_amount)
@@ -673,7 +682,9 @@ def _ap_aging(db, company=None, as_of_date=None):
     totals = {"outstanding": 0, "current": 0, "b1_30": 0, "b31_60": 0, "b61_90": 0, "b90_plus": 0}
 
     for inv in invoices:
-        outstanding = flt(inv["outstanding_at_date"], 2)
+        # outstanding_at_date is in the invoice's document currency; scale by its
+        # own historical rate so the report aggregates in base currency.
+        outstanding = flt(flt(inv["outstanding_at_date"], 2) * flt(inv["conversion_rate"] or 1), 2)
         if outstanding <= 0:
             continue
 

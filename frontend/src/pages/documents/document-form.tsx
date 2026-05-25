@@ -134,6 +134,7 @@ function FieldRenderer({
   readOnly,
   rowData,
   hideLabel,
+  currency = "USD",
 }: {
   field: FieldDef;
   value: any;
@@ -144,6 +145,9 @@ function FieldRenderer({
    *  table column header already shows the label — repeating it inside
    *  every row makes mobile cells taller and wider than they need to be. */
   hideLabel?: boolean;
+  /** The document's currency, so amounts render with the right symbol
+   *  (€/£/¥…) instead of always $. */
+  currency?: string;
 }) {
   const isDisabled = readOnly || !!field.readOnly;
   const Label = () =>
@@ -179,7 +183,7 @@ function FieldRenderer({
 
     let display = value ?? "-";
     if ((field.type === "currency") && typeof value === "number") {
-      display = formatCurrency(value);
+      display = formatCurrency(value, currency);
     }
     return (
       <div>
@@ -267,11 +271,13 @@ function ChildTableEditor({
   rows,
   onChange,
   readOnly,
+  currency = "USD",
 }: {
   tableDef: ChildTableDef;
   rows: any[];
   onChange: (rows: any[]) => void;
   readOnly: boolean;
+  currency?: string;
 }) {
   const updateRow = (idx: number, fieldName: string, value: any) => {
     const updated = rows.map((row, i) =>
@@ -327,6 +333,7 @@ function ChildTableEditor({
                       readOnly={readOnly}
                       rowData={row}
                       hideLabel
+                      currency={currency}
                     />
                   </td>
                 ))}
@@ -616,6 +623,10 @@ export default function DocumentFormPage() {
   const docstatus: number = formData.docstatus ?? 0;
   const readOnly = docstatus >= 1;
 
+  // The document's currency drives how amounts are formatted (€/£/¥ vs $).
+  const docCurrency: string = formData.currency || "USD";
+  const docRate: number = flt(formData.conversion_rate ?? 1);
+
   // Separate editable parent fields from computed/totals fields
   const editableFields = config.fields.filter((f) => !f.readOnly);
   const totalsFields = config.fields.filter((f) => f.readOnly);
@@ -631,6 +642,15 @@ export default function DocumentFormPage() {
         <div className="flex items-center gap-3">
           {!isNew && formData.status && (
             <StatusBadge status={formData.status} />
+          )}
+          {!isNew && formData.currency && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-surface-subtle px-2.5 py-0.5 text-xs font-medium text-fg-muted ring-1 ring-line"
+              title={docRate !== 1 ? `1 ${docCurrency} = ${docRate} base currency` : undefined}
+            >
+              {docCurrency}
+              {docRate !== 1 && <span className="text-fg-muted/70">@ {docRate}</span>}
+            </span>
           )}
         </div>
         <DocumentActions
@@ -666,6 +686,7 @@ export default function DocumentFormPage() {
               onChange={(v) => setField(field.name, v)}
               readOnly={readOnly}
               rowData={formData}
+              currency={docCurrency}
             />
           ))}
         </div>
@@ -679,6 +700,7 @@ export default function DocumentFormPage() {
           rows={formData[ct.key] ?? []}
           onChange={(rows) => setChildTable(ct.key, rows)}
           readOnly={readOnly}
+          currency={docCurrency}
         />
       ))}
 
@@ -693,6 +715,7 @@ export default function DocumentFormPage() {
                 value={formData[field.name]}
                 onChange={() => {}}
                 readOnly={true}
+                currency={docCurrency}
               />
             ))}
           </div>

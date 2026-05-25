@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LinkField } from "@/components/document/link-field";
 import { DateRangePresets } from "@/components/ui/date-range-presets";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency as fmtCurrency } from "@/lib/utils";
+import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 export default function ProfitLossPage() {
   const [urlCompany] = useUrlState<string>("company", "");
@@ -15,6 +16,8 @@ export default function ProfitLossPage() {
   const patchUrl = useUrlPatch();
 
   const [company, setCompany] = useState(urlCompany);
+  const baseCurrency = useBaseCurrency(company);
+  const formatCurrency = (v: number | null | undefined) => fmtCurrency(v, baseCurrency);
   const [fromDate, setFromDate] = useState(urlFromDate);
   const [toDate, setToDate] = useState(urlToDate);
 

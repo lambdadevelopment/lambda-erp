@@ -2456,6 +2456,22 @@ def main():
     assert "net_unrealized_pl" in preview
     print(f"  revalue_currencies preview: net unrealized P&L {preview['net_unrealized_pl']:.2f} (nothing posted)")
 
+    # AR aging aggregates in base currency: the open EUR invoice (si_fx, 100 EUR
+    # booked @1.10) ages at its base value 110, not its document-currency 100.
+    from api.routers.reports import _ar_aging
+    aging = _ar_aging(db, "Lambda Corp")
+    fx_row = next((r for r in aging["rows"] if r["invoice"] == si_fx.name), None)
+    assert fx_row is not None, "open EUR invoice should appear in AR aging"
+    assert flt(fx_row["outstanding"], 2) == 110.0, \
+        f"EUR invoice should age at its base value 110 (100 EUR x 1.10), got {fx_row['outstanding']}"
+    print(f"  AR aging shows the EUR invoice at base value {fx_row['outstanding']:.2f} (not doc-currency 100)")
+
+    # Dashboard summary runs and aggregates receivables in base currency.
+    from api.routers.reports import _dashboard_summary
+    dash = _dashboard_summary(db, "Lambda Corp")
+    assert flt(dash["outstanding_receivable"], 2) > 0, "dashboard receivable should be positive"
+    print(f"  Dashboard outstanding receivable (base): {dash['outstanding_receivable']:.2f}")
+
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================

@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LinkField } from "@/components/document/link-field";
 import { SingleDatePresets } from "@/components/ui/date-range-presets";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency as fmtCurrency } from "@/lib/utils";
+import { useBaseCurrency } from "@/hooks/use-base-currency";
 
-function SectionTable({ title, rows, total, totalLabel }: { title: string; rows: any[]; total: number; totalLabel: string }) {
+function SectionTable({ title, rows, total, totalLabel, currency }: { title: string; rows: any[]; total: number; totalLabel: string; currency: string }) {
+  const formatCurrency = (v: number | null | undefined) => fmtCurrency(v, currency);
   return (
     <Card>
       <h3 className="mb-3 text-base font-semibold text-gray-800">{title}</h3>
@@ -45,6 +47,8 @@ export default function BalanceSheetPage() {
 
   const [company, setCompany] = useState(urlCompany);
   const [asOfDate, setAsOfDate] = useState(urlAsOfDate);
+  const baseCurrency = useBaseCurrency(company);
+  const formatCurrency = (v: number | null | undefined) => fmtCurrency(v, baseCurrency);
 
   const filters = useMemo(() => {
     const f: Record<string, string> = {};
@@ -81,9 +85,9 @@ export default function BalanceSheetPage() {
         <p className="py-8 text-center text-gray-400">No data found</p>
       ) : (
         <div className="space-y-4">
-          <SectionTable title="Assets" rows={data.assets || []} total={data.total_assets} totalLabel="Total Assets" />
-          <SectionTable title="Liabilities" rows={data.liabilities || []} total={data.total_liabilities} totalLabel="Total Liabilities" />
-          <SectionTable title="Equity" rows={data.equity || []} total={data.total_equity} totalLabel="Total Equity" />
+          <SectionTable title="Assets" rows={data.assets || []} total={data.total_assets} totalLabel="Total Assets" currency={baseCurrency} />
+          <SectionTable title="Liabilities" rows={data.liabilities || []} total={data.total_liabilities} totalLabel="Total Liabilities" currency={baseCurrency} />
+          <SectionTable title="Equity" rows={data.equity || []} total={data.total_equity} totalLabel="Total Equity" currency={baseCurrency} />
 
           <Card>
             <div className="flex items-center justify-between">

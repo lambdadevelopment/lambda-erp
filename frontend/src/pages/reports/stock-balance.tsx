@@ -4,7 +4,8 @@ import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LinkField } from "@/components/document/link-field";
-import { formatCurrency, formatNumber } from "@/lib/utils";
+import { formatCurrency as fmtCurrency, formatNumber } from "@/lib/utils";
+import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 export default function StockBalancePage() {
   const [urlItemCode] = useUrlState<string>("item_code", "");
@@ -13,6 +14,8 @@ export default function StockBalancePage() {
 
   const [itemCode, setItemCode] = useState(urlItemCode);
   const [warehouse, setWarehouse] = useState(urlWarehouse);
+  const baseCurrency = useBaseCurrency();
+  const formatCurrency = (v: number | null | undefined) => fmtCurrency(v, baseCurrency);
 
   const filters = useMemo(() => {
     const f: Record<string, string> = {};

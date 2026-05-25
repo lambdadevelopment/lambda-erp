@@ -156,6 +156,18 @@ const STEPS: Step[] = [
       { to: "/reports/stock-balance", label: "Stock Balance" },
     ],
   },
+  {
+    number: 15,
+    title: "Working in Foreign Currencies",
+    description:
+      "Your books are kept in a single base currency (chosen at company setup), but you can transact in any currency. Set a currency on an invoice or bill — or give a customer or supplier a default currency — and the exchange rate for that date is looked up automatically and stored on the document. The document keeps its amounts in its own currency, while the General Ledger always posts in your base currency. When you later collect or pay at a different rate, the realized exchange gain or loss is booked automatically to an Exchange Gain/Loss account. You can even hold a foreign-currency bank balance and convert it later at your bank’s rate — the difference versus its carried value is realized then. At month end you can revalue open foreign balances to the closing rate (an unrealized gain/loss that reverses next period), and you can view any financial statement translated into another currency for display.",
+    tip: "This is easiest through the AI chat — try “Create a sales invoice for Lumiere Audio in EUR,” “Show me the balance sheet in EUR,” or “What’s our unrealized FX exposure at month end?” The seeded demo already includes a EUR customer (Lumiere Audio SARL) whose invoice was collected at a different rate, plus an open EUR supplier bill — open the General Ledger to see the realized FX postings.",
+    links: [
+      { to: "/chat", label: "Open AI Chat" },
+      { to: "/app/sales-invoice", label: "Sales Invoices" },
+      { to: "/reports/general-ledger", label: "General Ledger" },
+    ],
+  },
 ];
 
 function CustomAnalyticsHighlight() {
