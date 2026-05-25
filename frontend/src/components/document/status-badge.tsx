@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 
 type BadgeVariant = "default" | "success" | "warning" | "danger" | "secondary";
@@ -21,7 +22,9 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
+  const { t } = useTranslation();
+  // Variant keys off the backend's English status; only the label is localized.
   const variant = STATUS_VARIANT_MAP[status] ?? "secondary";
 
-  return <Badge variant={variant}>{status}</Badge>;
+  return <Badge variant={variant}>{t(`status.${status}`, { defaultValue: status })}</Badge>;
 }

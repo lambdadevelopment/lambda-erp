@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 
 // --- Persist collapsed sidebar groups in localStorage ---
@@ -175,6 +176,7 @@ function ChatGroup() {
   const [open, toggle] = useSidebarToggle("chats");
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { sessions, createSession, deleteSession } = useChat();
 
   const handleNewChat = async () => {
@@ -208,7 +210,7 @@ function ChatGroup() {
         className="flex w-full items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-fg-muted transition-colors hover:text-fg"
       >
         <MessageCircle className="h-4 w-4" />
-        <span className="flex-1 text-left">Chats</span>
+        <span className="flex-1 text-left">{t("nav.chats")}</span>
         {open ? (
           <ChevronDown className="h-3.5 w-3.5" />
         ) : (
@@ -224,7 +226,7 @@ function ChatGroup() {
               className="flex w-full items-center gap-2 px-4 py-1.5 pl-10 text-sm text-brand transition-colors hover:bg-brand/5"
             >
               <Plus className="h-3.5 w-3.5" />
-              New Chat
+              {t("nav.newChat")}
             </button>
           </li>
           {/* Existing sessions */}
@@ -247,7 +249,7 @@ function ChatGroup() {
                 <button
                   onClick={(e) => handleDelete(e, session.id)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-                  title="Delete chat"
+                  title={t("nav.deleteChat")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -277,6 +279,7 @@ function CustomAnalyticsGroup() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const { navigationFlash, sessions, createSession } = useChat();
   const isGroupFlashing = navigationFlash?.group === "Custom Analytics";
   const flashStyle = FLASH_STYLES["Custom Analytics"];
@@ -339,7 +342,7 @@ function CustomAnalyticsGroup() {
         )}
       >
         <LineChart className="h-4 w-4" />
-        <span className="flex-1 text-left">Custom Analytics</span>
+        <span className="flex-1 text-left">{t("nav.customAnalytics")}</span>
         {open ? (
           <ChevronDown className="h-3.5 w-3.5" />
         ) : (
@@ -354,7 +357,7 @@ function CustomAnalyticsGroup() {
               className="flex w-full items-center gap-2 px-4 py-1.5 pl-10 text-sm text-brand transition-colors hover:bg-brand/5"
             >
               <Plus className="h-3.5 w-3.5" />
-              New Analytics
+              {t("nav.newAnalytics")}
             </button>
           </li>
           {drafts.map((draft) => {
@@ -381,7 +384,7 @@ function CustomAnalyticsGroup() {
                 <button
                   onClick={(e) => handleDelete(e, draft.id)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-                  title="Delete report"
+                  title={t("nav.deleteReport")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -396,6 +399,7 @@ function CustomAnalyticsGroup() {
 
 function SidebarGroup({ group }: { group: NavGroup }) {
   const [open, toggle] = useSidebarToggle(group.label);
+  const { t } = useTranslation();
   const { navigationFlash } = useChat();
   const isGroupFlashing = navigationFlash?.group === group.label;
   const flashStyle = FLASH_STYLES[group.label] ?? "bg-blue-300 text-blue-950 ring-2 ring-inset ring-blue-100";
@@ -411,7 +415,7 @@ function SidebarGroup({ group }: { group: NavGroup }) {
         )}
       >
         {group.icon}
-        <span className="flex-1 text-left">{group.label}</span>
+        <span className="flex-1 text-left">{t(`nav.groups.${group.label}`, { defaultValue: group.label })}</span>
         {open ? (
           <ChevronDown className="h-3.5 w-3.5" />
         ) : (
@@ -437,7 +441,7 @@ function SidebarGroup({ group }: { group: NavGroup }) {
                 {({ isActive }) => (
                   <>
                     {isActive && <ActiveAccent />}
-                    {item.label}
+                    {t(`nav.items.${item.label}`, { defaultValue: item.label })}
                   </>
                 )}
               </NavLink>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/auth-context";
 import { api, ApiError } from "@/api/client";
 import { Card } from "@/components/ui/card";
@@ -10,6 +11,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, login, register } = useAuth();
+  const { t } = useTranslation();
   const inviteToken = searchParams.get("invite") || "";
 
   const [mode, setMode] = useState<"login" | "register">(inviteToken ? "register" : "login");
@@ -45,25 +47,25 @@ export default function LoginPage() {
 
     if (mode === "register") {
       if (password !== confirmPassword) {
-        setError("Passwords do not match");
+        setError(t("login.passwordsNoMatch"));
         return;
       }
       if (password.length < 6) {
-        setError("Password must be at least 6 characters");
+        setError(t("login.passwordTooShort"));
         return;
       }
       try {
         await register(email, fullName, password, inviteToken || undefined);
         navigate("/", { replace: true });
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Registration failed");
+        setError(err instanceof ApiError ? err.message : t("login.registrationFailed"));
       }
     } else {
       try {
         await login(email, password);
         navigate("/", { replace: true });
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Login failed");
+        setError(err instanceof ApiError ? err.message : t("login.loginFailed"));
       }
     }
   };
@@ -71,7 +73,7 @@ export default function LoginPage() {
   if (loading) {
     return (
       <div className="flex h-dvh items-center justify-center bg-surface-muted">
-        <div className="text-fg-muted">Loading...</div>
+        <div className="text-fg-muted">{t("common.loading")}</div>
       </div>
     );
   }
@@ -83,14 +85,14 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-brand">Lambda ERP</h1>
           <p className="mt-1 text-sm text-fg-muted">
             {registrationOpen
-              ? "Create your admin account to get started"
+              ? t("login.taglineFirstRun")
               : mode === "register"
-                ? "Create your account"
-                : "Sign in to your account"}
+                ? t("login.taglineRegister")
+                : t("login.taglineSignIn")}
           </p>
           {user?.role === "public_manager" && (
             <p className="mt-2 text-xs text-amber-700">
-              Demo mode is active. Sign in with an admin account to manage settings or disable public access.
+              {t("login.demoBanner")}
             </p>
           )}
         </div>
@@ -105,21 +107,21 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "register" && (
               <Input
-                label="Full Name"
+                label={t("login.fullName")}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
               />
             )}
             <Input
-              label="Email"
+              label={t("login.email")}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
             <Input
-              label="Password"
+              label={t("login.password")}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -127,7 +129,7 @@ export default function LoginPage() {
             />
             {mode === "register" && (
               <Input
-                label="Confirm Password"
+                label={t("login.confirmPassword")}
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -135,7 +137,7 @@ export default function LoginPage() {
               />
             )}
             <Button type="submit" className="w-full">
-              {mode === "register" ? (registrationOpen ? "Create Admin Account" : "Register") : "Sign In"}
+              {mode === "register" ? (registrationOpen ? t("login.createAdmin") : t("login.register")) : t("login.signIn")}
             </Button>
           </form>
         </Card>
@@ -144,9 +146,9 @@ export default function LoginPage() {
           <Card>
             <div className="space-y-3">
               <div>
-                <h2 className="text-sm font-semibold text-fg">Just browsing?</h2>
+                <h2 className="text-sm font-semibold text-fg">{t("login.browsingTitle")}</h2>
                 <p className="mt-1 text-sm text-fg-muted">
-                  Start a fresh chat session and watch the live demo.
+                  {t("login.browsingBody")}
                 </p>
               </div>
               <Button
@@ -154,7 +156,7 @@ export default function LoginPage() {
                 className="w-full"
                 onClick={() => navigate("/demo", { replace: true })}
               >
-                Enter Live Demo
+                {t("login.enterDemo")}
               </Button>
             </div>
           </Card>
@@ -164,16 +166,16 @@ export default function LoginPage() {
           <p className="text-center text-sm text-fg-muted">
             {mode === "login" ? (
               <>
-                Have an invite?{" "}
+                {t("login.haveInvite")}{" "}
                 <button onClick={() => setMode("register")} className="font-medium text-brand transition-colors hover:text-brand/80">
-                  Register
+                  {t("login.registerLink")}
                 </button>
               </>
             ) : (
               <>
-                Already have an account?{" "}
+                {t("login.alreadyHaveAccount")}{" "}
                 <button onClick={() => setMode("login")} className="font-medium text-brand transition-colors hover:text-brand/80">
-                  Sign in
+                  {t("login.signInLink")}
                 </button>
               </>
             )}

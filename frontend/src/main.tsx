@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { AuthProvider } from "./contexts/auth-context";
 import { routes } from "./routes";
+import "./i18n"; // initialize i18next (reads saved language from localStorage)
 import "./index.css";
 
 const queryClient = new QueryClient({

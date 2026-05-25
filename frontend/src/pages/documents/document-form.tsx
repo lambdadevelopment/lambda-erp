@@ -12,6 +12,7 @@ import { formatCurrency, flt } from "@/lib/utils";
 import { HintTooltip } from "@/components/ui/hint-tooltip";
 import { useCurrencies } from "@/hooks/use-currencies";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
+import { useTranslation } from "react-i18next";
 
 // ---------------------------------------------------------------------------
 // Link resolution — where does clicking "customer" / "account" / etc. lead?
@@ -294,6 +295,7 @@ function ChildTableEditor({
   readOnly: boolean;
   currency?: string;
 }) {
+  const { t } = useTranslation();
   const updateRow = (idx: number, fieldName: string, value: any) => {
     const updated = rows.map((row, i) =>
       i === idx ? { ...row, [fieldName]: value } : row,
@@ -371,7 +373,7 @@ function ChildTableEditor({
       {!readOnly && (
         <div className="mt-2">
           <Button variant="secondary" size="sm" onClick={addRow}>
-            Add Row
+            {t("common.addRow")}
           </Button>
         </div>
       )}
@@ -406,6 +408,7 @@ function DocumentActions({
   onCancel: () => void;
   onConvert: (targetDoctype: string) => void;
 }) {
+  const { t } = useTranslation();
   if (!config) return null;
 
   const pdfUrl = !isNew && doctype && name
@@ -416,22 +419,22 @@ function DocumentActions({
     <div className="flex flex-wrap gap-2">
       {pdfUrl && (
         <Button variant="secondary" onClick={() => window.open(pdfUrl, "_blank")}>
-          PDF
+          {t("common.pdf")}
         </Button>
       )}
       {docstatus < 1 && (
         <Button onClick={onSave} disabled={saving}>
-          {saving ? "Saving..." : "Save"}
+          {saving ? t("common.saving") : t("common.save")}
         </Button>
       )}
       {!isNew && config.canSubmit && docstatus === 0 && (
         <Button variant="secondary" onClick={onSubmit}>
-          Submit
+          {t("common.submit")}
         </Button>
       )}
       {!isNew && config.canCancel && docstatus === 1 && (
         <Button variant="danger" onClick={onCancel}>
-          Cancel
+          {t("common.cancelDoc")}
         </Button>
       )}
       {!isNew &&
@@ -504,6 +507,7 @@ export default function DocumentFormPage() {
   const { doctype, name } = useParams<{ doctype: string; name: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const config = getDoctypeConfig(doctype ?? "");
   const isNew = !name;
 
@@ -674,7 +678,7 @@ export default function DocumentFormPage() {
   }
 
   if (!isNew && isLoading) {
-    return <p className="text-fg-muted">Loading...</p>;
+    return <p className="text-fg-muted">{t("common.loading")}</p>;
   }
 
   const docstatus: number = formData.docstatus ?? 0;

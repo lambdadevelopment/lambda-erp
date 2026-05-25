@@ -1,60 +1,49 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { ChatProvider, useChat } from "@/components/chat/chat-provider";
 import { Sidebar, FLASH_STYLES } from "@/components/layout/sidebar";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 
-const TITLE_MAP: Record<string, string> = {
-  "trial-balance": "Trial Balance",
-  "general-ledger": "General Ledger",
-  "stock-balance": "Stock Balance",
-  "profit-and-loss": "Profit & Loss",
-  "balance-sheet": "Balance Sheet",
-  "ar-aging": "Accounts Receivable Aging",
-  "ap-aging": "Accounts Payable Aging",
-  "sales-order": "Sales Order",
-  "sales-invoice": "Sales Invoice",
-  "purchase-order": "Purchase Order",
-  "purchase-invoice": "Purchase Invoice",
-  "payment-entry": "Payment Entry",
-  "journal-entry": "Journal Entry",
-  "stock-entry": "Stock Entry",
-  "delivery-note": "Delivery Note",
-  "purchase-receipt": "Purchase Receipt",
-  "pos-invoice": "POS Invoice",
-  "pricing-rule": "Pricing Rule",
-  "bank-transaction": "Bank Transaction",
-};
+const titleCase = (slug: string) =>
+  slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-function deriveTitle(pathname: string): string {
+// The page title shown in the header. Looks up a translated label by route;
+// any slug without a translation falls back to a title-cased version of itself
+// (so newly-added doctypes still get a sensible English title).
+function deriveTitle(pathname: string, t: TFunction): string {
   const parts = pathname.split("/").filter(Boolean);
 
-  if (parts[0] === "setup") return "Company Setup";
-  if (parts[0] === "tutorial") return "Getting Started";
-  if (parts[0] === "chat") return "Chat";
+  if (parts[0] === "setup") return t("titles.setup");
+  if (parts[0] === "tutorial") return t("titles.tutorial");
+  if (parts[0] === "chat") return t("titles.chat");
 
   if (parts[0] === "reports") {
-    return TITLE_MAP[parts[1]] || parts[1]?.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || "Reports";
+    const slug = parts[1] || "";
+    return t(`titles.${slug}`, { defaultValue: slug ? titleCase(slug) : t("titles.reports") });
   }
 
   if (parts[0] === "masters") {
     const type = parts[1] || "";
-    const label = type.charAt(0).toUpperCase() + type.slice(1);
-    if (parts[2] === "new") return `New ${label}`;
-    if (parts[2]) return `${label}: ${decodeURIComponent(parts[2])}`;
-    return `${label}s`;
+    const cap = type.charAt(0).toUpperCase() + type.slice(1);
+    const one = t(`masters.${type}.one`, { defaultValue: cap });
+    if (parts[2] === "new") return t("header.new", { label: one });
+    if (parts[2]) return `${one}: ${decodeURIComponent(parts[2])}`;
+    return t(`masters.${type}.other`, { defaultValue: `${cap}s` });
   }
 
   if (parts[0] === "app") {
     const slug = parts[1] || "";
-    const label = TITLE_MAP[slug] || slug.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-    if (parts[2] === "new") return `New ${label}`;
-    if (parts[2]) return `${label}: ${decodeURIComponent(parts[2])}`;
-    return `${label}s`;
+    const cap = titleCase(slug);
+    const one = t(`doctypes.${slug}.one`, { defaultValue: cap });
+    if (parts[2] === "new") return t("header.new", { label: one });
+    if (parts[2]) return `${one}: ${decodeURIComponent(parts[2])}`;
+    return t(`doctypes.${slug}.other`, { defaultValue: `${cap}s` });
   }
 
-  return "Dashboard";
+  return t("titles.dashboard");
 }
 
 export function AppShell() {
@@ -69,7 +58,8 @@ function AppShellContent() {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
   const { navigationFlash } = useChat();
-  const pageTitle = deriveTitle(pathname);
+  const { t } = useTranslation();
+  const pageTitle = deriveTitle(pathname, t);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Auto-close the mobile sidebar on navigation
@@ -101,7 +91,7 @@ function AppShellContent() {
                 "rounded p-1 text-gray-500 transition-all duration-300 hover:bg-gray-100 hover:text-gray-900 md:hidden",
                 flashStyle,
               )}
-              aria-label="Open menu"
+              aria-label={t("header.openMenu")}
             >
               <svg viewBox="0 0 20 20" fill="currentColor" width="22" height="22">
                 <path d="M6.835 4c-.451.004-.82.012-1.137.038-.386.032-.659.085-.876.162l-.2.086c-.44.224-.807.564-1.063.982l-.103.184c-.126.247-.206.562-.248 1.076-.043.523-.043 1.19-.043 2.135v2.664c0 .944 0 1.612.043 2.135.042.515.122.829.248 1.076l.103.184c.256.418.624.758 1.063.982l.2.086c.217.077.49.13.876.162.316.026.685.034 1.136.038zm11.33 7.327c0 .922 0 1.654-.048 2.243-.043.522-.125.977-.305 1.395l-.082.177a4 4 0 0 1-1.473 1.593l-.276.155c-.465.237-.974.338-1.57.387-.59.048-1.322.048-2.244.048H7.833c-.922 0-1.654 0-2.243-.048-.522-.042-.977-.126-1.395-.305l-.176-.082a4 4 0 0 1-1.594-1.473l-.154-.275c-.238-.466-.34-.975-.388-1.572-.048-.589-.048-1.32-.048-2.243V8.663c0-.922 0-1.654.048-2.243.049-.597.15-1.106.388-1.571l.154-.276a4 4 0 0 1 1.594-1.472l.176-.083c.418-.18.873-.263 1.395-.305.589-.048 1.32-.048 2.243-.048h4.334c.922 0 1.654 0 2.243.048.597.049 1.106.15 1.571.388l.276.154a4 4 0 0 1 1.473 1.594l.082.176c.18.418.262.873.305 1.395.048.589.048 1.32.048 2.243zm-10 4.668h4.002c.944 0 1.612 0 2.135-.043.514-.042.829-.122 1.076-.248l.184-.103c.418-.256.758-.624.982-1.063l.086-.2c.077-.217.13-.49.162-.876.043-.523.043-1.19.043-2.135V8.663c0-.944 0-1.612-.043-2.135-.032-.386-.085-.659-.162-.876l-.086-.2a2.67 2.67 0 0 0-.982-1.063l-.184-.103c-.247-.126-.562-.206-1.076-.248-.523-.043-1.19-.043-2.135-.043H8.164L8.165 4z"/>
@@ -120,7 +110,7 @@ function AppShellContent() {
               onClick={logout}
               className="text-sm text-gray-500 hover:text-gray-700"
             >
-              Logout
+              {t("header.logout")}
             </button>
           </div>
         </header>
