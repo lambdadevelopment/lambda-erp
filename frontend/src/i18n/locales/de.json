@@ -356,5 +356,184 @@
     "Create Credit Note": "Gutschrift erstellen",
     "Create Debit Note": "Lastschrift erstellen",
     "Create Return": "Retoure erstellen"
+  },
+  "dashboard": {
+    "totalRevenue": "Gesamtumsatz",
+    "outstandingReceivable": "Offene Forderungen",
+    "outstandingPayable": "Offene Verbindlichkeiten",
+    "totalStockValue": "Gesamter Lagerwert",
+    "recentDocuments": "Letzte Dokumente",
+    "noRecentDocuments": "Keine aktuellen Dokumente"
+  },
+  "chat": {
+    "title": "Lambda ERP Chat",
+    "subtitle": "Bitten Sie mich, Dokumente zu erstellen, Daten abzurufen oder Berichte auszuführen.",
+    "s1": "Welche Kunden haben wir?",
+    "s2": "Zeig mir die Rohbilanz",
+    "s3": "Erstelle ein Angebot für 10 Bolt Pack M8",
+    "s4": "Liste alle unbezahlten Rechnungen auf",
+    "loadOlder": "Ältere Nachrichten laden",
+    "uploading": "Wird hochgeladen...",
+    "failed": "Fehlgeschlagen",
+    "remove": "Entfernen",
+    "placeholderDemo": "Live-Demo läuft...",
+    "placeholderType": "Nachricht eingeben...",
+    "placeholderConnecting": "Verbindung wird hergestellt...",
+    "attachTitle": "Datei anhängen (PDF oder Bild, max. 10 MB)",
+    "creating": "Chat wird erstellt...",
+    "dropToAttach": "Datei zum Anhängen ablegen (Bilder oder PDF, je max. 10 MB)",
+    "demoError": "Demo konnte nicht gestartet werden"
+  },
+  "tutorial": {
+    "pageTitle": "Erste Schritte mit Lambda ERP",
+    "intro": "Lambda ERP ist ein KI-natives ERP-System, bei dem die gesamte Funktionalität – etwa das Erstellen von Aufträgen, das Prüfen von Beständen und das Erfassen von Zahlungen – über eine Chat-Oberfläche zugänglich ist. Es leitet an, denkt mit und prüft alle Ihre täglichen Geschäftsaufgaben.",
+    "openChat": "KI-Chat öffnen",
+    "tipLabel": "Tipp:",
+    "topTip": "Der KI-Chat kann Ihnen auch direkte Links zu Dokumenten und herunterladbaren PDFs geben. Bitten Sie ihn einfach, ein Dokument zu erstellen oder nachzuschlagen, und er fügt anklickbare Links in seine Antwort ein.",
+    "manualIntro": "Wenn Sie genau verstehen möchten, wie die Dinge unter der Haube funktionieren, oder Dinge lieber manuell erledigen, finden Sie hier einen vollständigen Geschäftszyklus Schritt für Schritt.",
+    "caTitle": "Dynamische Analysen – Chatten Sie sich zu jedem Diagramm",
+    "caBadge": "Kernfunktion",
+    "caBody": "Brauchen Sie einen Bericht, den die Vorlagen nicht liefern? Beschreiben Sie ihn einfach im Chat. Der Assistent ruft ein Code-Spezialmodell auf, das den Bericht für Sie schreibt, ihn live über Ihre ERP-Daten ausführt und einen teilbaren Link zurückgibt. Das Diagramm oder die Tabelle wird in Sekunden gerendert und als Entwurf unter „Eigene Analysen“ in der Seitenleiste gespeichert – Sie können ihn erneut öffnen, die URL mit Kollegen teilen oder den Assistenten bitten, ihn zu verfeinern.",
+    "caTryAsking": "Versuchen Sie zu fragen (zum Vorausfüllen im Chat klicken):",
+    "caPrompt1": "Zeig mir die Top 10 Kunden nach Umsatz dieses Jahr als Balkendiagramm",
+    "caPrompt2": "Monatlicher Einkaufstrend nach Lieferant über alle Monate, x-Achse mit Lieferantennamen beschriften",
+    "caPrompt3": "Bestseller-Artikel nach Menge, mit Tabelle und Diagramm",
+    "caPrompt4": "Welche Kunden schulden mir gerade am meisten?",
+    "caTryInChat": "Im Chat ausprobieren",
+    "caOpenWorkspace": "Analyse-Arbeitsbereich öffnen",
+    "flowTitle": "Überblick Dokumentenfluss",
+    "salesCycle": "Verkaufszyklus",
+    "purchaseCycle": "Einkaufszyklus",
+    "returns": "Retouren",
+    "flowShortcut": "Abkürzung: Das Angebot kann den Kundenauftrag überspringen und direkt zur Ausgangsrechnung oder zum Lieferschein führen",
+    "legendStock": "Lagerwirkung",
+    "legendGl": "Buchungswirkung",
+    "legendCash": "Geldwirkung",
+    "legendReversal": "Stornierung",
+    "lifecycleTitle": "Dokumenten-Lebenszyklus",
+    "lcDraftLabel": "Entwurf:",
+    "lcDraftDesc": "Bearbeitbar. Keine finanzielle oder Bestandswirkung.",
+    "lcSubmittedLabel": "Gebucht:",
+    "lcSubmittedDesc": "Gesperrt. Buchungen und Lagerbuchungen werden erzeugt.",
+    "lcCancelledLabel": "Storniert:",
+    "lcCancelledDesc": "Alle Buchungen storniert. Das Dokument wird dauerhaft archiviert.",
+    "lcNoDelete": "Es gibt kein Löschen. Um einen Entwurf zu verwerfen: buchen und dann stornieren.",
+    "lcCorrect": "Um ein gebuchtes Dokument zu korrigieren: stornieren und ein neues erstellen.",
+    "readyTitle": "Sie sind startklar",
+    "readyBody1": "Sie verstehen jetzt den vollständigen Zyklus. Ein typisches Praxisszenario sieht so aus: Sie erhalten einen Kundenauftrag (Angebot → Kundenauftrag), prüfen den Bestand, kaufen, was Sie brauchen (Bestellung → Wareneingang → Eingangsrechnung → Zahlung), liefern an den Kunden (Lieferschein), stellen ihm die Rechnung (Ausgangsrechnung) und ziehen die Zahlung ein (Zahlung). Kommt etwas zurück, erstellen Sie eine Gutschrift und eine Lieferschein-Retoure, um Finanzen und Bestand umzukehren. Die Rohbilanz bestätigt, dass alles ausgeglichen ist.",
+    "readyBody2": "Sie können all dies auch über den KI-Chat per natürlicher Konversation erledigen – beschreiben Sie einfach, was Sie brauchen, und er erstellt die richtigen Dokumente für Sie.",
+    "chips": {
+      "Quotation": "Angebot",
+      "Sales Order": "Kundenauftrag",
+      "Delivery Note": "Lieferschein",
+      "Sales Invoice": "Ausgangsrechnung",
+      "Payment Entry": "Zahlung",
+      "Purchase Order": "Bestellung",
+      "Purchase Receipt": "Wareneingang",
+      "Purchase Invoice": "Eingangsrechnung",
+      "Credit Note": "Gutschrift",
+      "DN Return": "Lieferschein-Retoure",
+      "Debit Note": "Lastschrift",
+      "Draft": "Entwurf",
+      "Submitted": "Gebucht",
+      "Cancelled": "Storniert"
+    },
+    "links": {
+      "Go to Setup": "Zur Einrichtung",
+      "Customers": "Kunden",
+      "Suppliers": "Lieferanten",
+      "Items": "Artikel",
+      "Warehouses": "Lager",
+      "New Quotation": "Neues Angebot",
+      "View Quotations": "Angebote anzeigen",
+      "Stock Balance": "Lagerbestand",
+      "New Purchase Order": "Neue Bestellung",
+      "Purchase Receipts": "Wareneingänge",
+      "Purchase Invoices": "Eingangsrechnungen",
+      "Delivery Notes": "Lieferscheine",
+      "Sales Invoices": "Ausgangsrechnungen",
+      "New Payment Entry": "Neue Zahlung",
+      "New Stock Entry": "Neue Lagerbuchung",
+      "New Journal Entry": "Neuer Buchungssatz",
+      "Profit & Loss": "Gewinn- und Verlustrechnung",
+      "Balance Sheet": "Bilanz",
+      "AR Aging": "Offene Posten Debitoren",
+      "AP Aging": "Offene Posten Kreditoren",
+      "Trial Balance": "Rohbilanz",
+      "General Ledger": "Hauptbuch",
+      "Open AI Chat": "KI-Chat öffnen"
+    },
+    "steps": {
+      "1": {
+        "title": "Unternehmen einrichten",
+        "description": "Erstellen Sie ein Unternehmen mit einer Basiswährung. Dadurch wird Ihr Kontenplan generiert (30 Standardkonten in den Bereichen Aktiva, Verbindlichkeiten, Eigenkapital, Erträge und Aufwendungen) sowie eine Standard-Kostenstelle. Sie können außerdem Demodaten mit Beispielkunden, -lieferanten und -artikeln anlegen, um schnell loszulegen."
+      },
+      "2": {
+        "title": "Stammdaten anlegen",
+        "description": "Bevor Sie buchen können, benötigen Sie Stammdaten. Legen Sie mindestens einen Kunden, einen Lieferanten, einen Artikel (mit Standardpreis) und ein Lager an. Wenn Sie in Schritt 1 Demodaten angelegt haben, existieren diese bereits.",
+        "tip": "Artikel haben einen Standardpreis, der beim Hinzufügen zu Dokumenten automatisch ausgefüllt wird. Sie können den Preis pro Transaktion jederzeit überschreiben."
+      },
+      "3": {
+        "title": "Angebot erstellen",
+        "description": "Ein Angebot ist eine unverbindliche Offerte an einen Kunden. Wählen Sie einen Kunden, fügen Sie Positionen mit Mengen und Preisen hinzu, optional Steuerzeilen, und speichern Sie. Angebote haben keine finanzielle Auswirkung – sie erzeugen keine Buchungs- oder Lagerbewegungen. Legen Sie ein Gültigkeitsdatum fest, damit das Angebot automatisch abläuft."
+      },
+      "4": {
+        "title": "Buchen und in Kundenauftrag umwandeln",
+        "description": "Öffnen Sie Ihr gespeichertes Angebot und klicken Sie auf Buchen, um es zu bestätigen. Klicken Sie dann auf „Kundenauftrag erstellen“, um es umzuwandeln. Der Kundenauftrag stellt eine bestätigte Zusage des Kunden dar. Er hat weiterhin keine finanzielle Auswirkung, reserviert aber Bestand für die Planung.",
+        "tip": "Nur gebuchte Dokumente können in den nächsten Schritt umgewandelt werden. Entwurf → Buchen → Umwandeln ist der Standardablauf. Für schnelle Geschäfte können Sie den Kundenauftrag überspringen und direkt vom Angebot zur Ausgangsrechnung oder zum Lieferschein gehen."
+      },
+      "5": {
+        "title": "Bestand vor der Erfüllung prüfen",
+        "description": "Bevor Sie liefern können, prüfen Sie, ob der Artikel tatsächlich auf Lager ist. Öffnen Sie den Bericht Lagerbestand und suchen Sie den Artikel. Wenn Ihr Lager eine Menge von null aufweist, müssen Sie zunächst Bestand beschaffen – entweder über eine Bestellung (Einkauf bei einem Lieferanten) oder eine Lagerbuchung (manueller Eingang).",
+        "tip": "Dies ist ein häufiges Szenario aus der Praxis: Sie verkaufen etwas und stellen dann fest, dass Sie es erst einkaufen müssen. Das ERP unterstützt beide Abläufe."
+      },
+      "6": {
+        "title": "Einkaufszyklus: Bestand bei einem Lieferanten kaufen",
+        "description": "Wenn Sie Bestand einkaufen müssen, haben Sie zwei gültige Wege. Der Standardweg ist Bestellung → Wareneingang → Eingangsrechnung: Nutzen Sie ihn, wenn die Ware vor oder getrennt von der Lieferantenrechnung eintrifft. Treffen Rechnung und Wareneingang gleichzeitig ein, können Sie die Eingangsrechnung direkt erstellen und „Lager aktualisieren“ aktivieren, sodass dasselbe Dokument sowohl den Bestand vereinnahmt als auch die Verbindlichkeit erfasst.",
+        "tip": "Verwenden Sie zuerst den Wareneingang, wenn Sie Waren getrennt erhalten. Verwenden Sie die Eingangsrechnung mit „Lager aktualisieren“, wenn ein Schritt sowohl den Bestand vereinnahmen als auch die Lieferantenrechnung buchen soll. Setzen Sie in diesem direkten Weg ein Lager in jeder Bestandszeile."
+      },
+      "7": {
+        "title": "Lieferschein erstellen",
+        "description": "Nachdem Sie nun Bestand haben, kehren Sie zu Ihrem gebuchten Kundenauftrag zurück und klicken Sie auf „Lieferschein erstellen“. Setzen Sie in jeder Position das Lager (von dem die Ware versendet wird) und buchen Sie. Dadurch wird Bestand aus dem Lager ausgebucht – Ihr Lagerbestand sinkt.",
+        "tip": "Der Lieferschein ist das Versanddokument. Er reduziert den Bestand, erzeugt aber keine Rechnung. Sie können Lieferung und Rechnungsstellung getrennt vornehmen."
+      },
+      "8": {
+        "title": "Ausgangsrechnung erstellen und buchen",
+        "description": "Erstellen Sie aus dem gebuchten Kundenauftrag eine Ausgangsrechnung. Beim Buchen der Rechnung werden Buchungen erzeugt: Forderungen aus Lieferungen und Leistungen werden im Soll gebucht (der Kunde schuldet Ihnen Geld) und Umsatzerlöse im Haben (erzielter Ertrag). Sind Steuern konfiguriert, wird auch die Steuerverbindlichkeit im Haben gebucht. Der offene Betrag zeigt, was der Kunde noch schuldet."
+      },
+      "9": {
+        "title": "Kundenzahlungen erfassen",
+        "description": "Erstellen Sie eine Zahlung, um vom Kunden erhaltenes Geld zu erfassen. Setzen Sie die Zahlungsart auf „Receive“ (Erhalten), wählen Sie den Kunden, geben Sie den Betrag an und ordnen Sie ihn der Ausgangsrechnung zu. Sie können Teilzahlungen vornehmen – der offene Betrag der Rechnung aktualisiert sich entsprechend. Erstellen Sie weitere Zahlungen, bis die Rechnung vollständig beglichen ist.",
+        "tip": "Teilzahlungen sind üblich. Eine Rechnung über 10.000 kann jetzt mit 3.000 und später mit 7.000 bezahlt werden. Jede Zahlung reduziert den offenen Betrag."
+      },
+      "10": {
+        "title": "Lagerbuchungen (manuelle Bestandsführung)",
+        "description": "Verwenden Sie Lagerbuchungen für Bestandsbewegungen, die nicht mit Ein- oder Verkäufen verbunden sind. „Material Receipt“ fügt Bestand hinzu (Eröffnungsbestände, Korrekturen). „Material Issue“ bucht Bestand aus (Abschreibungen, interner Verbrauch). „Material Transfer“ verschiebt Bestand zwischen Lägern. Jede Buchung aktualisiert das Lagerbuch mit gleitender Durchschnittsbewertung.",
+        "tip": "Verwenden Sie für eingekaufte Waren Wareneingänge statt Lagerbuchungen – sie sind mit der Bestellung verknüpft und bieten einen sauberen Prüfpfad."
+      },
+      "11": {
+        "title": "Buchungssätze",
+        "description": "Buchungssätze sind manuelle buchhalterische Anpassungen – Aufwandsabgrenzungen, Korrekturen, Umgliederungen, Eröffnungsbestände. Jeder Satz muss ausgeglichene Soll- und Haben-Beträge haben (Summe Soll = Summe Haben). Verwenden Sie sie, wenn kein anderer Dokumenttyp passt."
+      },
+      "12": {
+        "title": "Gehaltszahlungen",
+        "description": "Lambda ERP wickelt Gehälter über die vorhandenen Buchhaltungswerkzeuge ab. Grenzen Sie zunächst den Gehaltsaufwand ab: Erstellen Sie einen Buchungssatz, der Gehaltsaufwand im Soll und Gehaltsverbindlichkeiten im Haben für den gesamten Lohnbetrag bucht. Bezahlen Sie dann die Mitarbeiter: Erstellen Sie einen weiteren Buchungssatz (oder eine Zahlung), der Gehaltsverbindlichkeiten im Soll und Ihr Bankkonto im Haben bucht. Dieser zweistufige Prozess hält Ihre Bücher korrekt – der Aufwand wird in der richtigen Periode erfasst und der Geldabfluss separat nachverfolgt.",
+        "tip": "Sie können den KI-Assistenten bitten, dies für Sie zu erledigen: „Grenze 15.000 an Gehältern für April ab“ gefolgt von „Zahle die April-Gehälter von der Bank“. Er erstellt die richtigen Buchungssätze automatisch."
+      },
+      "13": {
+        "title": "Retouren und Gutschriften",
+        "description": "Wenn ein Kunde Waren zurückgibt oder Sie eine Gutschrift ausstellen müssen, erstellen Sie eine Retoure. Retouren verwenden denselben Dokumenttyp mit negativen Mengen. Öffnen Sie eine gebuchte Ausgangsrechnung und erstellen Sie eine Gutschrift (Ausgangsrechnungs-Retoure) – dies kehrt die Buchungen um und reduziert den offenen Betrag der ursprünglichen Rechnung. Erstellen Sie für den Bestand eine Lieferschein-Retoure, um Waren zurück ins Lager zu nehmen. Auf der Einkaufsseite erstellen Sie eine Lastschrift (Eingangsrechnungs-Retoure), um eine Lieferantenrechnung umzukehren, oder eine Wareneingangs-Retoure, um Waren zurückzusenden.",
+        "tip": "Eine Gutschrift ist einfach eine Ausgangsrechnung mit is_return=1 und negativen Mengen. Dieselbe Buchungslogik läuft – negative Beträge wechseln automatisch auf die richtige Soll-/Haben-Seite. Für eine vollständige Verkaufsretoure benötigen Sie sowohl eine Gutschrift (Finanzen) als auch eine Lieferschein-Retoure (Bestand)."
+      },
+      "14": {
+        "title": "Berichte ausführen",
+        "description": "Prüfen Sie Ihre Bücher. Die Gewinn- und Verlustrechnung zeigt Erträge gegenüber Aufwendungen und den Periodengewinn. Die Bilanz zeigt Ihre finanzielle Lage (Aktiva = Verbindlichkeiten + Eigenkapital). Die Offenen Posten Debitoren zeigen, wer Ihnen Geld schuldet und wie überfällig es ist. Die Offenen Posten Kreditoren zeigen, was Sie Lieferanten schulden. Die Rohbilanz überprüft die doppelte Buchführung. Das Hauptbuch zeigt jede einzelne Buchung. Der Lagerbestand zeigt den aktuellen Bestand."
+      },
+      "15": {
+        "title": "Arbeiten in Fremdwährungen",
+        "description": "Ihre Bücher werden in einer einzigen Basiswährung geführt (bei der Unternehmenseinrichtung gewählt), aber Sie können in jeder Währung buchen. Setzen Sie eine Währung auf einer Rechnung oder einem Beleg – oder geben Sie einem Kunden oder Lieferanten eine Standardwährung – und der Wechselkurs für dieses Datum wird automatisch ermittelt und auf dem Dokument gespeichert. Das Dokument behält seine Beträge in seiner eigenen Währung, während das Hauptbuch stets in Ihrer Basiswährung bucht. Wenn Sie später zu einem anderen Kurs einnehmen oder zahlen, wird der realisierte Währungsgewinn oder -verlust automatisch auf ein Konto Währungsgewinn/-verlust gebucht. Sie können sogar ein Fremdwährungs-Bankguthaben halten und es später zum Kurs Ihrer Bank umrechnen – die Differenz zum Buchwert wird dann realisiert. Zum Monatsende können Sie offene Fremdwährungssalden zum Stichtagskurs neu bewerten (ein unrealisierter Gewinn/Verlust, der in der nächsten Periode storniert wird), und Sie können jeden Jahresabschluss zur Anzeige in eine andere Währung umgerechnet betrachten.",
+        "tip": "Am einfachsten geht das über den KI-Chat – probieren Sie „Erstelle eine Ausgangsrechnung für Lumiere Audio in EUR“, „Zeig mir die Bilanz in EUR“ oder „Wie hoch ist unser unrealisiertes Währungsrisiko zum Monatsende?“. Die Demodaten enthalten bereits einen EUR-Kunden (Lumiere Audio SARL), dessen Rechnung zu einem anderen Kurs eingenommen wurde, sowie eine offene EUR-Lieferantenrechnung – öffnen Sie das Hauptbuch, um die realisierten Währungsbuchungen zu sehen."
+      }
+    }
   }
 }

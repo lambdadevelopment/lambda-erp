@@ -220,5 +220,32 @@
     "deleteConfirm": "Delete this {{label}}?",
     "disabledNotice": "This {{label}} is disabled. It remains in the system because other records still reference it.",
     "disabledOnDelete": "{{label}} {{name}} was disabled instead of deleted because it is referenced by {{reason}}."
+  },
+  "dashboard": {
+    "totalRevenue": "Total Revenue",
+    "outstandingReceivable": "Outstanding Receivable",
+    "outstandingPayable": "Outstanding Payable",
+    "totalStockValue": "Total Stock Value",
+    "recentDocuments": "Recent Documents",
+    "noRecentDocuments": "No recent documents"
+  },
+  "chat": {
+    "title": "Lambda ERP Chat",
+    "subtitle": "Ask me to create documents, look up data, or run reports.",
+    "s1": "What customers do we have?",
+    "s2": "Show me the trial balance",
+    "s3": "Create a quotation for 10 Bolt Pack M8",
+    "s4": "List all unpaid invoices",
+    "loadOlder": "Load older messages",
+    "uploading": "Uploading...",
+    "failed": "Failed",
+    "remove": "Remove",
+    "placeholderDemo": "Running live demo...",
+    "placeholderType": "Type a message...",
+    "placeholderConnecting": "Connecting...",
+    "attachTitle": "Attach file (PDF or image, max 10 MB)",
+    "creating": "Creating chat...",
+    "dropToAttach": "Drop file to attach (images or PDF, max 10 MB each)",
+    "demoError": "Could not start demo"
   }
 }

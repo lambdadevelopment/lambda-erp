@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import { useChat } from "@/components/chat/chat-provider";
 
@@ -172,6 +173,7 @@ const STEPS: Step[] = [
 
 function CustomAnalyticsHighlight() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { sessions, createSession } = useChat();
 
   const tryInChat = async (prefill: string) => {
@@ -189,10 +191,10 @@ function CustomAnalyticsHighlight() {
   };
 
   const samplePrompts = [
-    "Show me top 10 customers by revenue this year as a bar chart",
-    "Monthly purchases trend by supplier over all months and label x-axis with supplier name",
-    "Best selling items by quantity, with a table and a chart",
-    "Which customers owe me the most right now?",
+    t("tutorial.caPrompt1"),
+    t("tutorial.caPrompt2"),
+    t("tutorial.caPrompt3"),
+    t("tutorial.caPrompt4"),
   ];
 
   return (
@@ -204,22 +206,17 @@ function CustomAnalyticsHighlight() {
         <div className="flex-1 space-y-3">
           <div>
             <h3 className="text-base font-semibold text-gray-900">
-              Dynamic Analytics — Chat Your Way to Any Chart
+              {t("tutorial.caTitle")}
             </h3>
             <p className="mt-1 text-xs uppercase tracking-wider text-indigo-700">
-              Signature Feature
+              {t("tutorial.caBadge")}
             </p>
           </div>
           <p className="text-sm leading-relaxed text-gray-700">
-            Need a report the presets can&rsquo;t give you? Just describe it in chat.
-            The assistant calls a code-specialist model that writes the report for
-            you, runs it live over your ERP data, and returns a sharable link. The
-            chart or table renders in seconds and is saved as a draft under{" "}
-            <strong>Custom Analytics</strong> in the sidebar — you can reopen it,
-            share the URL with teammates, or ask the assistant to refine it.
+            {t("tutorial.caBody")}
           </p>
           <div className="rounded-md border border-indigo-100 bg-white px-3 py-2 text-xs text-gray-600">
-            <div className="mb-1 font-medium text-gray-800">Try asking (click to prefill in chat):</div>
+            <div className="mb-1 font-medium text-gray-800">{t("tutorial.caTryAsking")}</div>
             <ul className="space-y-0.5">
               {samplePrompts.map((prompt) => (
                 <li key={prompt}>
@@ -240,13 +237,13 @@ function CustomAnalyticsHighlight() {
               onClick={() => tryInChat(samplePrompts[2])}
               className="text-sm font-medium text-indigo-700 hover:text-indigo-900"
             >
-              Try it in chat &rarr;
+              {t("tutorial.caTryInChat")} &rarr;
             </button>
             <Link
               to="/reports/analytics"
               className="text-sm font-medium text-indigo-700 hover:text-indigo-900"
             >
-              Open Analytics workspace &rarr;
+              {t("tutorial.caOpenWorkspace")} &rarr;
             </Link>
           </div>
         </div>
@@ -256,62 +253,64 @@ function CustomAnalyticsHighlight() {
 }
 
 function FlowDiagram() {
+  const { t } = useTranslation();
+  const chip = (k: string) => t(`tutorial.chips.${k}`, { defaultValue: k });
   return (
     <Card>
       <h3 className="text-base font-semibold text-gray-900 mb-3">
-        Document Flow Overview
+        {t("tutorial.flowTitle")}
       </h3>
       <div className="space-y-4 text-sm text-gray-600">
         <div>
-          <div className="font-medium text-gray-800 mb-1">Sales Cycle</div>
+          <div className="font-medium text-gray-800 mb-1">{t("tutorial.salesCycle")}</div>
           <div className="flex flex-wrap items-center gap-1 font-mono text-xs">
-            <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-700">Quotation</span>
+            <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-700">{chip("Quotation")}</span>
             <span className="text-gray-400">&rarr;</span>
-            <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-700">Sales Order</span>
+            <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-700">{chip("Sales Order")}</span>
             <span className="text-gray-400">&rarr;</span>
-            <span className="rounded bg-green-50 px-2 py-0.5 text-green-700">Delivery Note</span>
+            <span className="rounded bg-green-50 px-2 py-0.5 text-green-700">{chip("Delivery Note")}</span>
             <span className="text-gray-300">/</span>
-            <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">Sales Invoice</span>
+            <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">{chip("Sales Invoice")}</span>
             <span className="text-gray-400">&rarr;</span>
-            <span className="rounded bg-purple-50 px-2 py-0.5 text-purple-700">Payment Entry</span>
+            <span className="rounded bg-purple-50 px-2 py-0.5 text-purple-700">{chip("Payment Entry")}</span>
           </div>
           <div className="mt-1 text-xs text-gray-400 italic">
-            Shortcut: Quotation can skip Sales Order and go directly to Sales Invoice or Delivery Note
+            {t("tutorial.flowShortcut")}
           </div>
         </div>
         <div>
-          <div className="font-medium text-gray-800 mb-1">Purchase Cycle</div>
+          <div className="font-medium text-gray-800 mb-1">{t("tutorial.purchaseCycle")}</div>
           <div className="flex flex-wrap items-center gap-1 font-mono text-xs">
-            <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-700">Purchase Order</span>
+            <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-700">{chip("Purchase Order")}</span>
             <span className="text-gray-400">&rarr;</span>
-            <span className="rounded bg-green-50 px-2 py-0.5 text-green-700">Purchase Receipt</span>
+            <span className="rounded bg-green-50 px-2 py-0.5 text-green-700">{chip("Purchase Receipt")}</span>
             <span className="text-gray-300">/</span>
-            <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">Purchase Invoice</span>
+            <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">{chip("Purchase Invoice")}</span>
             <span className="text-gray-400">&rarr;</span>
-            <span className="rounded bg-purple-50 px-2 py-0.5 text-purple-700">Payment Entry</span>
+            <span className="rounded bg-purple-50 px-2 py-0.5 text-purple-700">{chip("Payment Entry")}</span>
           </div>
         </div>
         <div>
-          <div className="font-medium text-gray-800 mb-1">Returns</div>
+          <div className="font-medium text-gray-800 mb-1">{t("tutorial.returns")}</div>
           <div className="flex flex-wrap items-center gap-1 font-mono text-xs">
-            <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">Sales Invoice</span>
+            <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">{chip("Sales Invoice")}</span>
             <span className="text-gray-400">&rarr;</span>
-            <span className="rounded bg-red-50 px-2 py-0.5 text-red-700">Credit Note</span>
+            <span className="rounded bg-red-50 px-2 py-0.5 text-red-700">{chip("Credit Note")}</span>
             <span className="mx-2 text-gray-300">|</span>
-            <span className="rounded bg-green-50 px-2 py-0.5 text-green-700">Delivery Note</span>
+            <span className="rounded bg-green-50 px-2 py-0.5 text-green-700">{chip("Delivery Note")}</span>
             <span className="text-gray-400">&rarr;</span>
-            <span className="rounded bg-red-50 px-2 py-0.5 text-red-700">DN Return</span>
+            <span className="rounded bg-red-50 px-2 py-0.5 text-red-700">{chip("DN Return")}</span>
             <span className="mx-2 text-gray-300">|</span>
-            <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">Purchase Invoice</span>
+            <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-700">{chip("Purchase Invoice")}</span>
             <span className="text-gray-400">&rarr;</span>
-            <span className="rounded bg-red-50 px-2 py-0.5 text-red-700">Debit Note</span>
+            <span className="rounded bg-red-50 px-2 py-0.5 text-red-700">{chip("Debit Note")}</span>
           </div>
         </div>
         <div className="border-t pt-3 text-xs text-gray-500">
-          <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-700">Green</span> = stock impact,{" "}
-          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">Amber</span> = GL impact,{" "}
-          <span className="rounded bg-purple-50 px-1.5 py-0.5 text-purple-700">Purple</span> = cash impact,{" "}
-          <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-700">Red</span> = reversal
+          <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-700">Green</span> = {t("tutorial.legendStock")},{" "}
+          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">Amber</span> = {t("tutorial.legendGl")},{" "}
+          <span className="rounded bg-purple-50 px-1.5 py-0.5 text-purple-700">Purple</span> = {t("tutorial.legendCash")},{" "}
+          <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-700">Red</span> = {t("tutorial.legendReversal")}
         </div>
       </div>
     </Card>
@@ -319,27 +318,29 @@ function FlowDiagram() {
 }
 
 function LifecycleCard() {
+  const { t } = useTranslation();
+  const chip = (k: string) => t(`tutorial.chips.${k}`, { defaultValue: k });
   return (
     <Card>
       <h3 className="text-base font-semibold text-gray-900 mb-3">
-        Document Lifecycle
+        {t("tutorial.lifecycleTitle")}
       </h3>
       <div className="space-y-2 text-sm text-gray-600">
         <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-          <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">Draft</span>
+          <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">{chip("Draft")}</span>
           <span className="text-gray-400">&rarr; save()</span>
-          <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">Draft</span>
+          <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">{chip("Draft")}</span>
           <span className="text-gray-400">&rarr; submit()</span>
-          <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-700">Submitted</span>
+          <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-700">{chip("Submitted")}</span>
           <span className="text-gray-400">&rarr; cancel()</span>
-          <span className="rounded bg-red-100 px-2 py-0.5 text-red-700">Cancelled</span>
+          <span className="rounded bg-red-100 px-2 py-0.5 text-red-700">{chip("Cancelled")}</span>
         </div>
         <ul className="list-disc pl-5 space-y-1 text-xs text-gray-500">
-          <li><strong>Draft:</strong> Editable. No financial or stock impact.</li>
-          <li><strong>Submitted:</strong> Locked. GL entries and stock ledger entries are posted.</li>
-          <li><strong>Cancelled:</strong> All entries reversed. Document is permanently archived.</li>
-          <li>There is no delete. To void a draft: submit it, then cancel it.</li>
-          <li>To correct a submitted document: cancel it and create a new one.</li>
+          <li><strong>{t("tutorial.lcDraftLabel")}</strong> {t("tutorial.lcDraftDesc")}</li>
+          <li><strong>{t("tutorial.lcSubmittedLabel")}</strong> {t("tutorial.lcSubmittedDesc")}</li>
+          <li><strong>{t("tutorial.lcCancelledLabel")}</strong> {t("tutorial.lcCancelledDesc")}</li>
+          <li>{t("tutorial.lcNoDelete")}</li>
+          <li>{t("tutorial.lcCorrect")}</li>
         </ul>
       </div>
     </Card>
@@ -347,33 +348,27 @@ function LifecycleCard() {
 }
 
 export default function TutorialPage() {
+  const { t } = useTranslation();
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-gray-900">
-          Getting Started with Lambda ERP
+          {t("tutorial.pageTitle")}
         </h2>
         <p className="mt-1 text-sm text-gray-500">
-          Lambda ERP is an AI Native ERP System, with all functionality
-           &mdash; like creating orders, checking inventory, recording payments &mdash; 
-           being accessible through a chat interface. It instructs, reasons and checks 
-           all your daily business tasks.
+          {t("tutorial.intro")}
         </p>
         <Link
           to="/chat"
           className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
-          Open AI Chat &rarr;
+          {t("tutorial.openChat")} &rarr;
         </Link>
         <p className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          <strong>Tip:</strong> The AI chat can also give you direct links
-          to documents and downloadable PDFs. Just ask it to create or look
-          up a document and it will include clickable links in its response.
+          <strong>{t("tutorial.tipLabel")}</strong> {t("tutorial.topTip")}
         </p>
         <p className="mt-4 text-sm text-gray-500">
-          If you want to fully understand how things work under the hood,
-          or prefer to do things manually, here&rsquo;s a full business
-          cycle step by step.
+          {t("tutorial.manualIntro")}
         </p>
       </div>
 
@@ -389,23 +384,23 @@ export default function TutorialPage() {
             </div>
             <div className="space-y-2">
               <h3 className="text-base font-semibold text-gray-900">
-                {step.title}
+                {t(`tutorial.steps.${step.number}.title`, { defaultValue: step.title })}
               </h3>
               <p className="text-sm leading-relaxed text-gray-600">
-                {step.description}
+                {t(`tutorial.steps.${step.number}.description`, { defaultValue: step.description })}
               </p>
               {step.tip && (
                 <p className="text-xs leading-relaxed text-amber-700 bg-amber-50 rounded px-3 py-2">
-                  <strong>Tip:</strong> {step.tip}
+                  <strong>{t("tutorial.tipLabel")}</strong> {t(`tutorial.steps.${step.number}.tip`, { defaultValue: step.tip })}
                 </p>
               )}
               <div className="flex flex-wrap gap-3 pt-1">
-                {step.link && (
+                {step.link && step.linkLabel && (
                   <Link
                     to={step.link}
                     className="text-sm font-medium text-blue-600 hover:text-blue-800"
                   >
-                    {step.linkLabel} &rarr;
+                    {t(`tutorial.links.${step.linkLabel}`, { defaultValue: step.linkLabel })} &rarr;
                   </Link>
                 )}
                 {step.links?.map((l) => (
@@ -414,7 +409,7 @@ export default function TutorialPage() {
                     to={l.to}
                     className="text-sm font-medium text-blue-600 hover:text-blue-800"
                   >
-                    {l.label} &rarr;
+                    {t(`tutorial.links.${l.label}`, { defaultValue: l.label })} &rarr;
                   </Link>
                 ))}
               </div>
@@ -430,27 +425,19 @@ export default function TutorialPage() {
           </div>
           <div className="space-y-2">
             <h3 className="text-base font-semibold text-gray-900">
-              You're Ready
+              {t("tutorial.readyTitle")}
             </h3>
             <p className="text-sm leading-relaxed text-gray-600">
-              You now understand the full cycle. A typical real-world scenario
-              looks like this: you receive a customer order (Quotation &rarr; Sales Order),
-              check stock, buy what you need (Purchase Order &rarr; Purchase Receipt &rarr; Purchase Invoice &rarr; Payment),
-              deliver to the customer (Delivery Note), bill them (Sales Invoice),
-              and collect payment (Payment Entry). If something comes back, create a
-              Credit Note and Delivery Note return to reverse the financials and stock.
-              The Trial Balance confirms everything is balanced.
+              {t("tutorial.readyBody1")}
             </p>
             <p className="text-sm leading-relaxed text-gray-600">
-              You can also use the AI chat to do all of this through natural
-              conversation — just describe what you need and it will create the
-              right documents for you.
+              {t("tutorial.readyBody2")}
             </p>
             <Link
               to="/chat"
               className="inline-block text-sm font-medium text-blue-600 hover:text-blue-800"
             >
-              Open AI Chat &rarr;
+              {t("tutorial.openChat")} &rarr;
             </Link>
           </div>
         </div>

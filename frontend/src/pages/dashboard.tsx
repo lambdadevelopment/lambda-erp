@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   TrendingUp,
   ArrowDownRight,
@@ -85,6 +86,7 @@ interface RecentDoc {
 }
 
 function RecentDocumentRow({ doc }: { doc: RecentDoc }) {
+  const { t } = useTranslation();
   const doctype = doc.doctype ?? doc.type ?? "Document";
   const date = doc.creation ?? doc.date;
   const Icon = DOCTYPE_ICON[doctype] ?? FileText;
@@ -103,7 +105,7 @@ function RecentDocumentRow({ doc }: { doc: RecentDoc }) {
       </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-fg">{doc.name}</div>
-        <div className="truncate text-xs text-fg-muted">{doctype}</div>
+        <div className="truncate text-xs text-fg-muted">{t(`nav.items.${doctype}`, { defaultValue: doctype })}</div>
       </div>
       <StatusBadge status={doc.status} />
       <div className="hidden text-xs tabular-nums text-fg-muted sm:block">
@@ -130,6 +132,7 @@ function RecentDocumentRowSkeleton() {
 // ─── Page ──────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: () => api.dashboardSummary(),
@@ -148,25 +151,25 @@ export default function DashboardPage() {
         ) : (
           <>
             <MetricCard
-              title="Total Revenue"
+              title={t("dashboard.totalRevenue")}
               value={data?.total_revenue}
               icon={TrendingUp}
               tone="text-emerald-600 bg-emerald-500/10"
             />
             <MetricCard
-              title="Outstanding Receivable"
+              title={t("dashboard.outstandingReceivable")}
               value={data?.outstanding_receivable}
               icon={ArrowDownRight}
               tone="text-sky-600 bg-sky-500/10"
             />
             <MetricCard
-              title="Outstanding Payable"
+              title={t("dashboard.outstandingPayable")}
               value={data?.outstanding_payable}
               icon={ArrowUpRight}
               tone="text-amber-600 bg-amber-500/10"
             />
             <MetricCard
-              title="Total Stock Value"
+              title={t("dashboard.totalStockValue")}
               value={data?.total_stock_value}
               icon={Package}
               tone="text-brand bg-brand/10"
@@ -175,7 +178,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <Card title="Recent Documents">
+      <Card title={t("dashboard.recentDocuments")}>
         <div className="-mx-3 space-y-0.5">
           {isLoading ? (
             <>
@@ -191,7 +194,7 @@ export default function DashboardPage() {
             ))
           ) : (
             <div className="px-3 py-10 text-center text-sm text-fg-muted">
-              No recent documents
+              {t("dashboard.noRecentDocuments")}
             </div>
           )}
         </div>

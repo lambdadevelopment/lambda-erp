@@ -356,5 +356,184 @@
     "Create Credit Note": "Créer un avoir",
     "Create Debit Note": "Créer une note de débit",
     "Create Return": "Créer un retour"
+  },
+  "dashboard": {
+    "totalRevenue": "Chiffre d'affaires total",
+    "outstandingReceivable": "Créances en cours",
+    "outstandingPayable": "Dettes en cours",
+    "totalStockValue": "Valeur totale du stock",
+    "recentDocuments": "Documents récents",
+    "noRecentDocuments": "Aucun document récent"
+  },
+  "chat": {
+    "title": "Chat Lambda ERP",
+    "subtitle": "Demandez-moi de créer des documents, de consulter des données ou d'exécuter des rapports.",
+    "s1": "Quels clients avons-nous ?",
+    "s2": "Affiche la balance comptable",
+    "s3": "Crée un devis pour 10 Bolt Pack M8",
+    "s4": "Liste toutes les factures impayées",
+    "loadOlder": "Charger les messages plus anciens",
+    "uploading": "Téléversement...",
+    "failed": "Échec",
+    "remove": "Supprimer",
+    "placeholderDemo": "Démo en direct en cours...",
+    "placeholderType": "Tapez un message...",
+    "placeholderConnecting": "Connexion...",
+    "attachTitle": "Joindre un fichier (PDF ou image, max 10 Mo)",
+    "creating": "Création du chat...",
+    "dropToAttach": "Déposez un fichier à joindre (images ou PDF, max 10 Mo chacun)",
+    "demoError": "Impossible de démarrer la démo"
+  },
+  "tutorial": {
+    "pageTitle": "Premiers pas avec Lambda ERP",
+    "intro": "Lambda ERP est un système ERP nativement IA, où toutes les fonctionnalités – comme créer des commandes, vérifier l'inventaire ou enregistrer des paiements – sont accessibles via une interface de chat. Il guide, raisonne et vérifie toutes vos tâches quotidiennes.",
+    "openChat": "Ouvrir le chat IA",
+    "tipLabel": "Astuce :",
+    "topTip": "Le chat IA peut aussi vous donner des liens directs vers des documents et des PDF téléchargeables. Demandez-lui simplement de créer ou de rechercher un document et il inclura des liens cliquables dans sa réponse.",
+    "manualIntro": "Si vous souhaitez comprendre pleinement le fonctionnement interne, ou préférez procéder manuellement, voici un cycle commercial complet étape par étape.",
+    "caTitle": "Analyses dynamiques – discutez pour obtenir n'importe quel graphique",
+    "caBadge": "Fonctionnalité phare",
+    "caBody": "Besoin d'un rapport que les modèles prédéfinis ne fournissent pas ? Décrivez-le simplement dans le chat. L'assistant appelle un modèle spécialiste du code qui écrit le rapport pour vous, l'exécute en direct sur vos données ERP et renvoie un lien partageable. Le graphique ou le tableau s'affiche en quelques secondes et est enregistré comme brouillon sous « Analyses personnalisées » dans la barre latérale – vous pouvez le rouvrir, partager l'URL avec vos collègues ou demander à l'assistant de l'affiner.",
+    "caTryAsking": "Essayez de demander (cliquez pour préremplir dans le chat) :",
+    "caPrompt1": "Montre-moi les 10 meilleurs clients par chiffre d'affaires cette année en diagramme à barres",
+    "caPrompt2": "Tendance mensuelle des achats par fournisseur sur tous les mois, étiquette l'axe des x avec le nom du fournisseur",
+    "caPrompt3": "Articles les plus vendus par quantité, avec un tableau et un graphique",
+    "caPrompt4": "Quels clients me doivent le plus en ce moment ?",
+    "caTryInChat": "Essayer dans le chat",
+    "caOpenWorkspace": "Ouvrir l'espace d'analyse",
+    "flowTitle": "Aperçu du flux des documents",
+    "salesCycle": "Cycle de vente",
+    "purchaseCycle": "Cycle d'achat",
+    "returns": "Retours",
+    "flowShortcut": "Raccourci : le devis peut ignorer la commande client et aller directement à la facture de vente ou au bon de livraison",
+    "legendStock": "impact stock",
+    "legendGl": "impact comptable",
+    "legendCash": "impact trésorerie",
+    "legendReversal": "annulation",
+    "lifecycleTitle": "Cycle de vie du document",
+    "lcDraftLabel": "Brouillon :",
+    "lcDraftDesc": "Modifiable. Aucun impact financier ni sur le stock.",
+    "lcSubmittedLabel": "Validé :",
+    "lcSubmittedDesc": "Verrouillé. Les écritures comptables et de stock sont générées.",
+    "lcCancelledLabel": "Annulé :",
+    "lcCancelledDesc": "Toutes les écritures sont inversées. Le document est archivé définitivement.",
+    "lcNoDelete": "Il n'y a pas de suppression. Pour annuler un brouillon : validez-le, puis annulez-le.",
+    "lcCorrect": "Pour corriger un document validé : annulez-le et créez-en un nouveau.",
+    "readyTitle": "Vous êtes prêt",
+    "readyBody1": "Vous comprenez maintenant le cycle complet. Un scénario réel typique ressemble à ceci : vous recevez une commande client (Devis → Commande client), vérifiez le stock, achetez ce dont vous avez besoin (Bon de commande → Bon de réception → Facture d'achat → Paiement), livrez au client (Bon de livraison), facturez-le (Facture de vente) et encaissez le paiement (Paiement). Si quelque chose revient, créez un avoir et un retour de bon de livraison pour inverser les finances et le stock. La Balance comptable confirme que tout est équilibré.",
+    "readyBody2": "Vous pouvez aussi tout faire via le chat IA en conversation naturelle – décrivez simplement ce dont vous avez besoin et il créera les bons documents pour vous.",
+    "chips": {
+      "Quotation": "Devis",
+      "Sales Order": "Commande client",
+      "Delivery Note": "Bon de livraison",
+      "Sales Invoice": "Facture de vente",
+      "Payment Entry": "Paiement",
+      "Purchase Order": "Bon de commande",
+      "Purchase Receipt": "Bon de réception",
+      "Purchase Invoice": "Facture d'achat",
+      "Credit Note": "Avoir",
+      "DN Return": "Retour BL",
+      "Debit Note": "Note de débit",
+      "Draft": "Brouillon",
+      "Submitted": "Validé",
+      "Cancelled": "Annulé"
+    },
+    "links": {
+      "Go to Setup": "Aller à la configuration",
+      "Customers": "Clients",
+      "Suppliers": "Fournisseurs",
+      "Items": "Articles",
+      "Warehouses": "Entrepôts",
+      "New Quotation": "Nouveau devis",
+      "View Quotations": "Voir les devis",
+      "Stock Balance": "Solde de stock",
+      "New Purchase Order": "Nouveau bon de commande",
+      "Purchase Receipts": "Bons de réception",
+      "Purchase Invoices": "Factures d'achat",
+      "Delivery Notes": "Bons de livraison",
+      "Sales Invoices": "Factures de vente",
+      "New Payment Entry": "Nouveau paiement",
+      "New Stock Entry": "Nouveau mouvement de stock",
+      "New Journal Entry": "Nouvelle écriture de journal",
+      "Profit & Loss": "Compte de résultat",
+      "Balance Sheet": "Bilan",
+      "AR Aging": "Balance âgée clients",
+      "AP Aging": "Balance âgée fournisseurs",
+      "Trial Balance": "Balance comptable",
+      "General Ledger": "Grand livre",
+      "Open AI Chat": "Ouvrir le chat IA"
+    },
+    "steps": {
+      "1": {
+        "title": "Configurer votre société",
+        "description": "Créez une société avec une devise de base. Cela génère votre plan comptable (30 comptes standard répartis entre Actif, Passif, Capitaux propres, Produits et Charges) ainsi qu'un centre de coûts par défaut. Vous pouvez aussi charger des données de démonstration avec des clients, fournisseurs et articles d'exemple pour démarrer rapidement."
+      },
+      "2": {
+        "title": "Créer les données de base",
+        "description": "Avant de pouvoir effectuer des transactions, vous avez besoin de fiches de base. Créez au moins un client, un fournisseur, un article (avec un prix standard) et un entrepôt. Si vous avez chargé les données de démonstration à l'étape 1, elles existent déjà.",
+        "tip": "Les articles ont un prix standard qui se remplit automatiquement lorsque vous les ajoutez à des documents. Vous pouvez toujours modifier le prix par transaction."
+      },
+      "3": {
+        "title": "Créer un devis",
+        "description": "Un devis est une offre non contraignante adressée à un client. Sélectionnez un client, ajoutez des lignes avec quantités et prix, éventuellement des lignes de taxe, puis enregistrez. Les devis n'ont aucun impact financier – ils ne créent ni écritures comptables ni mouvements de stock. Définissez une date de validité pour que l'offre expire automatiquement."
+      },
+      "4": {
+        "title": "Valider et convertir en commande client",
+        "description": "Ouvrez votre devis enregistré et cliquez sur Valider pour le confirmer. Cliquez ensuite sur « Créer une commande client » pour le convertir. La commande client représente un engagement confirmé du client. Elle n'a toujours aucun impact financier, mais réserve du stock à des fins de planification.",
+        "tip": "Seuls les documents validés peuvent être convertis à l'étape suivante. Brouillon → Valider → Convertir est le flux standard. Pour les affaires rapides, vous pouvez ignorer la commande client et passer directement du devis à la facture de vente ou au bon de livraison."
+      },
+      "5": {
+        "title": "Vérifier le stock avant l'exécution",
+        "description": "Avant de pouvoir livrer, vérifiez si vous avez réellement l'article en stock. Ouvrez le rapport Solde de stock et recherchez l'article. Si votre entrepôt affiche une quantité nulle, vous devrez d'abord approvisionner le stock – soit par un bon de commande (achat auprès d'un fournisseur), soit par un mouvement de stock (réception manuelle).",
+        "tip": "C'est un scénario courant dans la pratique : vous vendez quelque chose, puis réalisez que vous devez d'abord l'acheter. L'ERP gère les deux flux."
+      },
+      "6": {
+        "title": "Cycle d'achat : acheter du stock à un fournisseur",
+        "description": "Si vous devez acheter du stock, vous avez deux chemins valides. Le chemin standard est Bon de commande → Bon de réception → Facture d'achat : utilisez-le lorsque les marchandises arrivent avant ou séparément de la facture du fournisseur. Si la facture et la réception arrivent ensemble, vous pouvez créer directement la facture d'achat et activer « Mettre à jour le stock » afin que le même document réceptionne le stock et enregistre la dette fournisseur.",
+        "tip": "Utilisez d'abord le bon de réception lorsque vous recevez les marchandises séparément. Utilisez la facture d'achat avec « Mettre à jour le stock » lorsqu'une seule étape doit à la fois réceptionner le stock et comptabiliser la facture fournisseur. Dans ce chemin direct, indiquez un entrepôt sur chaque ligne d'article en stock."
+      },
+      "7": {
+        "title": "Créer un bon de livraison",
+        "description": "Maintenant que vous avez du stock, revenez à votre commande client validée et cliquez sur « Créer un bon de livraison ». Indiquez l'entrepôt sur chaque ligne d'article (d'où partent les marchandises), puis validez. Cela sort le stock de l'entrepôt – votre solde de stock diminue.",
+        "tip": "Le bon de livraison est le document d'expédition. Il réduit le stock mais ne crée pas de facture. Vous pouvez livrer et facturer séparément."
+      },
+      "8": {
+        "title": "Créer et valider la facture de vente",
+        "description": "À partir de la commande client validée, créez une facture de vente. Lorsque vous validez la facture, des écritures comptables sont générées : les Clients (créances) sont débités (le client vous doit de l'argent) et les Produits des ventes crédités (revenu acquis). Si des taxes sont configurées, la TVA collectée est également créditée. Le montant dû indique ce que le client doit encore."
+      },
+      "9": {
+        "title": "Enregistrer les paiements clients",
+        "description": "Créez un paiement pour enregistrer l'argent reçu du client. Définissez le type de paiement sur « Receive » (Recevoir), sélectionnez le client, indiquez le montant et affectez-le à la facture de vente. Vous pouvez effectuer des paiements partiels – le montant dû de la facture se met à jour en conséquence. Créez des paiements supplémentaires jusqu'à ce que la facture soit entièrement réglée.",
+        "tip": "Les paiements partiels sont courants. Une facture de 10 000 peut être payée 3 000 maintenant et 7 000 plus tard. Chaque paiement réduit le montant dû."
+      },
+      "10": {
+        "title": "Mouvements de stock (inventaire manuel)",
+        "description": "Utilisez les mouvements de stock pour les mouvements d'inventaire non liés aux achats ou aux ventes. « Material Receipt » ajoute du stock (soldes d'ouverture, ajustements). « Material Issue » sort du stock (pertes, consommation interne). « Material Transfer » déplace du stock entre entrepôts. Chaque mouvement met à jour le livre de stock avec une valorisation au coût moyen pondéré.",
+        "tip": "Pour les marchandises achetées, utilisez des bons de réception plutôt que des mouvements de stock – ils sont liés au bon de commande et offrent une piste d'audit appropriée."
+      },
+      "11": {
+        "title": "Écritures de journal",
+        "description": "Les écritures de journal sont des ajustements comptables manuels – charges à payer, corrections, reclassements, soldes d'ouverture. Chaque écriture doit avoir des débits et crédits équilibrés (total débit = total crédit). Utilisez-les lorsqu'aucun autre type de document ne convient."
+      },
+      "12": {
+        "title": "Paiements des salaires",
+        "description": "Lambda ERP gère les salaires à l'aide des outils comptables existants. Comptabilisez d'abord la charge salariale : créez une écriture de journal qui débite la Charge salariale et crédite les Salaires à payer pour le montant total de la paie. Payez ensuite les employés : créez une autre écriture de journal (ou un paiement) qui débite les Salaires à payer et crédite votre compte bancaire. Ce processus en deux étapes garde vos comptes exacts – la charge est enregistrée dans la bonne période et la sortie de trésorerie est suivie séparément.",
+        "tip": "Vous pouvez demander à l'assistant IA de le faire pour vous : « Comptabilise 15 000 de salaires pour avril » suivi de « Paie les salaires d'avril depuis la banque ». Il créera automatiquement les bonnes écritures de journal."
+      },
+      "13": {
+        "title": "Retours et avoirs",
+        "description": "Lorsqu'un client retourne des marchandises ou que vous devez émettre un avoir, créez un retour. Les retours utilisent le même type de document avec des quantités négatives. Ouvrez une facture de vente validée et créez un avoir (retour de facture de vente) – cela inverse les écritures comptables et réduit le montant dû de la facture d'origine. Pour le stock, créez un retour de bon de livraison pour réintégrer les marchandises en entrepôt. Côté achats, créez une note de débit (retour de facture d'achat) pour inverser une facture fournisseur, ou un retour de bon de réception pour renvoyer des marchandises.",
+        "tip": "Un avoir est simplement une facture de vente avec is_return=1 et des quantités négatives. La même logique comptable s'applique – les montants négatifs basculent automatiquement du bon côté débit/crédit. Pour un retour de vente complet, vous avez besoin à la fois d'un avoir (financier) et d'un retour de bon de livraison (stock)."
+      },
+      "14": {
+        "title": "Exécuter les rapports",
+        "description": "Vérifiez vos comptes. Le Compte de résultat montre les produits face aux charges et le résultat net d'une période. Le Bilan montre votre situation financière (actif = passif + capitaux propres). La Balance âgée clients montre qui vous doit de l'argent et le retard. La Balance âgée fournisseurs montre ce que vous devez aux fournisseurs. La Balance comptable vérifie l'intégrité de la partie double. Le Grand livre montre chaque écriture individuelle. Le Solde de stock montre l'inventaire actuel."
+      },
+      "15": {
+        "title": "Travailler en devises étrangères",
+        "description": "Vos comptes sont tenus dans une seule devise de base (choisie à la configuration de la société), mais vous pouvez effectuer des transactions dans n'importe quelle devise. Définissez une devise sur une facture ou un effet – ou attribuez une devise par défaut à un client ou un fournisseur – et le taux de change de cette date est recherché automatiquement et enregistré sur le document. Le document conserve ses montants dans sa propre devise, tandis que le Grand livre comptabilise toujours dans votre devise de base. Lorsque vous encaissez ou payez ultérieurement à un taux différent, le gain ou la perte de change réalisé est comptabilisé automatiquement sur un compte Gain/Perte de change. Vous pouvez même détenir un solde bancaire en devise étrangère et le convertir plus tard au taux de votre banque – l'écart par rapport à sa valeur comptable est alors réalisé. En fin de mois, vous pouvez réévaluer les soldes en devises ouverts au taux de clôture (un gain/perte latent qui s'inverse à la période suivante), et vous pouvez consulter n'importe quel état financier converti dans une autre devise pour l'affichage.",
+        "tip": "Le plus simple est de passer par le chat IA – essayez « Crée une facture de vente pour Lumiere Audio en EUR », « Montre-moi le bilan en EUR » ou « Quelle est notre exposition de change latente en fin de mois ? ». Les données de démonstration incluent déjà un client EUR (Lumiere Audio SARL) dont la facture a été encaissée à un taux différent, ainsi qu'une facture fournisseur EUR ouverte – ouvrez le Grand livre pour voir les écritures de change réalisées."
+      }
+    }
   }
 }

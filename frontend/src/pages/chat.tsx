@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { type ChatMessage, type ChatAttachment, useChat, rememberSessionId } from "@/components/chat/chat-provider";
 import { api } from "@/api/client";
+import { useTranslation } from "react-i18next";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
@@ -57,6 +58,7 @@ function formatFullTimestamp(ts?: string): string {
 }
 
 export default function ChatPage() {
+  const { t } = useTranslation();
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -316,7 +318,7 @@ export default function ChatPage() {
     setDemoError("");
     void startDemo(sessionId).catch((err) => {
       demoRunStartedRef.current = null;
-      setDemoError(err instanceof Error ? err.message : "Could not start demo");
+      setDemoError(err instanceof Error ? err.message : t("chat.demoError"));
     });
   }, [sessionId, isConnected, demoRequested, startDemo]);
 
@@ -498,7 +500,7 @@ export default function ChatPage() {
   if (!sessionId) {
     return (
       <div className="flex h-full items-center justify-center text-fg-muted">
-        Creating chat...
+        {t("chat.creating")}
       </div>
     );
   }
@@ -512,7 +514,7 @@ export default function ChatPage() {
     >
       {isDragOver && (
         <div className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-lg border-2 border-dashed border-brand bg-brand/5 text-sm font-medium text-brand">
-          Drop file to attach (images or PDF, max 10 MB each)
+          {t("chat.dropToAttach")}
         </div>
       )}
       {/* Messages — full-height scroll area so the scrollbar reaches the
@@ -535,7 +537,7 @@ export default function ChatPage() {
                 disabled={loadingOlder || !canLoadOlder}
                 className="rounded-full bg-surface px-3 py-1 text-xs text-fg-muted ring-1 ring-line transition-colors hover:bg-surface-subtle hover:text-fg disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loadingOlder ? "Loading..." : "Load older messages"}
+                {loadingOlder ? t("common.loading") : t("chat.loadOlder")}
               </button>
             </div>
           )}
@@ -548,17 +550,17 @@ export default function ChatPage() {
           {messages.length === 0 && demoStatus !== "running" && !demoRequested && (
             <div className="py-20 text-center">
               <h3 className="text-lg font-semibold text-fg-muted">
-                Lambda ERP Chat
+                {t("chat.title")}
               </h3>
               <p className="mt-2 text-sm text-fg-muted">
-                Ask me to create documents, look up data, or run reports.
+                {t("chat.subtitle")}
               </p>
               <div className="mt-6 flex flex-wrap justify-center gap-2">
                 {[
-                  "What customers do we have?",
-                  "Show me the trial balance",
-                  "Create a quotation for 10 Bolt Pack M8",
-                  "List all unpaid invoices",
+                  t("chat.s1"),
+                  t("chat.s2"),
+                  t("chat.s3"),
+                  t("chat.s4"),
                 ].map((suggestion) => (
                   <button
                     key={suggestion}
@@ -612,13 +614,13 @@ export default function ChatPage() {
                   <div className="flex min-w-0 flex-col">
                     <span className="max-w-[160px] truncate text-fg">{att.file.name}</span>
                     <span className="text-[10px] text-fg-muted">
-                      {att.uploading ? "Uploading..." : att.error ? "Failed" : `${Math.round(att.file.size / 1024)} KB`}
+                      {att.uploading ? t("chat.uploading") : att.error ? t("chat.failed") : `${Math.round(att.file.size / 1024)} KB`}
                     </span>
                   </div>
                   <button
                     onClick={() => removeAttachment(att.localId)}
                     className="ml-1 text-fg-muted transition-colors hover:text-red-500"
-                    title="Remove"
+                    title={t("chat.remove")}
                   >
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                       <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
@@ -660,10 +662,10 @@ export default function ChatPage() {
               onPaste={handlePaste}
               placeholder={
                 isDemoReplaying
-                  ? "Running live demo..."
+                  ? t("chat.placeholderDemo")
                   : isConnected
-                  ? "Type a message..."
-                  : "Connecting..."
+                  ? t("chat.placeholderType")
+                  : t("chat.placeholderConnecting")
               }
               disabled={!isConnected || !sessionId || isThinking || isDemoReplaying}
               rows={2}
@@ -679,7 +681,7 @@ export default function ChatPage() {
               onClick={() => fileInputRef.current?.click()}
               disabled={!isConnected || !sessionId || isThinking || isDemoReplaying || attachments.length >= MAX_ATTACHMENTS}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-fg-muted transition-all hover:bg-surface-subtle hover:text-fg disabled:cursor-not-allowed disabled:opacity-40 md:h-10 md:w-10"
-              title="Attach file (PDF or image, max 10 MB)"
+              title={t("chat.attachTitle")}
             >
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
