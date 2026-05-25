@@ -14,7 +14,19 @@
     "disable": "Disable",
     "refresh": "Refresh",
     "refreshing": "Refreshing",
-    "areYouSure": "Are you sure?"
+    "areYouSure": "Are you sure?",
+    "all": "All",
+    "apply": "Apply",
+    "new": "New",
+    "prev": "Prev",
+    "next": "Next",
+    "perPage": "Per page",
+    "page": "Page",
+    "of": "of",
+    "showing": "Showing",
+    "total": "Total",
+    "totals": "Totals",
+    "errorOccurred": "An error occurred"
   },
   "language": {
     "title": "Language",
@@ -178,5 +190,35 @@
     "Overdue": "Overdue",
     "Return": "Return",
     "Closed": "Closed"
+  },
+  "reports": {
+    "balanced": "BALANCED",
+    "imbalanced": "IMBALANCED",
+    "income": "Income",
+    "expenses": "Expenses",
+    "totalIncome": "Total Income",
+    "totalExpenses": "Total Expenses",
+    "netProfit": "Net Profit",
+    "netLoss": "Net Loss",
+    "assets": "Assets",
+    "liabilities": "Liabilities",
+    "equity": "Equity",
+    "totalAssets": "Total Assets",
+    "totalLiabilities": "Total Liabilities",
+    "totalEquity": "Total Equity",
+    "totalLiabilitiesEquity": "Total Liabilities + Equity",
+    "current": "Current",
+    "noData": "No data found",
+    "noEntries": "No entries found",
+    "noStockData": "No stock data found",
+    "noReceivables": "No outstanding receivables",
+    "noPayables": "No outstanding payables",
+    "noDocuments": "No documents found"
+  },
+  "masterForm": {
+    "required": "Required: {{fields}}",
+    "deleteConfirm": "Delete this {{label}}?",
+    "disabledNotice": "This {{label}} is disabled. It remains in the system because other records still reference it.",
+    "disabledOnDelete": "{{label}} {{name}} was disabled instead of deleted because it is referenced by {{reason}}."
   }
 }

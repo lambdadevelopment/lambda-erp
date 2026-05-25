@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -87,9 +88,12 @@ export default function MasterFormPage() {
   const { type, name } = useParams<{ type: string; name: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const isNew = !name || name === "new";
   const label = TYPE_LABELS[type ?? ""] ?? type ?? "";
+  const labelTr = t(`masters.${type}.one`, { defaultValue: label });
   const fields = MASTER_FIELDS[type ?? ""] ?? [];
+  const fieldLabel = (f: FieldDef) => t(`fields.${f.label}`, { defaultValue: f.label });
 
   const [formData, setFormData] = useState<Record<string, any>>({});
 
@@ -137,7 +141,11 @@ export default function MasterFormPage() {
         navigate(`/masters/${type}`, {
           replace: true,
           state: {
-            notice: `${label} ${name} was disabled instead of deleted because it is referenced by ${result.reason ?? "other records"}.`,
+            notice: t("masterForm.disabledOnDelete", {
+              label: labelTr,
+              name,
+              reason: result.reason ?? "other records",
+            }),
           },
         });
         return;
@@ -160,7 +168,7 @@ export default function MasterFormPage() {
   };
 
   const handleDelete = () => {
-    if (window.confirm(`Delete this ${label}?`)) {
+    if (window.confirm(t("masterForm.deleteConfirm", { label: labelTr }))) {
       deleteMut.mutate();
     }
   };
@@ -170,7 +178,7 @@ export default function MasterFormPage() {
   };
 
   if (!isNew && isLoading) {
-    return <p className="text-fg-muted">Loading...</p>;
+    return <p className="text-fg-muted">{t("common.loading")}</p>;
   }
 
   const saving = createMut.isPending || updateMut.isPending;
@@ -187,7 +195,7 @@ export default function MasterFormPage() {
       <div className="flex items-center justify-end">
         <div className="flex gap-2">
           <Button onClick={handleSave} disabled={saving || missingRequiredFields.length > 0}>
-            {saving ? "Saving..." : "Save"}
+            {saving ? t("common.saving") : t("common.save")}
           </Button>
           {!isNew && (
             <Button
@@ -195,7 +203,7 @@ export default function MasterFormPage() {
               onClick={handleDelete}
               disabled={deleteMut.isPending}
             >
-              Delete
+              {t("common.delete")}
             </Button>
           )}
         </div>
@@ -205,17 +213,17 @@ export default function MasterFormPage() {
       {(createMut.error || updateMut.error || deleteMut.error) && (
         <div className="rounded-lg bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
           {(createMut.error ?? updateMut.error ?? deleteMut.error)?.message ??
-            "An error occurred"}
+            t("common.errorOccurred")}
         </div>
       )}
       {missingRequiredFields.length > 0 && (
         <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
-          Required: {missingRequiredFields.map((field) => field.label).join(", ")}
+          {t("masterForm.required", { fields: missingRequiredFields.map(fieldLabel).join(", ") })}
         </div>
       )}
       {formData.disabled === 1 && (
         <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
-          This {label.toLowerCase()} is disabled. It remains in the system because other records still reference it.
+          {t("masterForm.disabledNotice", { label: labelTr })}
         </div>
       )}
 
@@ -232,7 +240,7 @@ export default function MasterFormPage() {
               return (
                 <div key={field.name}>
                   <Select
-                    label={field.label}
+                    label={fieldLabel(field)}
                     options={field.options}
                     value={formData[field.name] ?? ""}
                     required={isRequired}
@@ -247,7 +255,7 @@ export default function MasterFormPage() {
               return (
                 <div key={field.name} className="sm:col-span-2">
                   <label className="mb-1.5 block text-sm font-medium text-fg">
-                    {field.label}
+                    {fieldLabel(field)}
                   </label>
                   <textarea
                     className="block w-full rounded-lg bg-surface px-3 py-2 text-sm text-fg ring-1 ring-line transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:bg-surface-subtle disabled:text-fg-muted"
@@ -272,7 +280,7 @@ export default function MasterFormPage() {
             return (
               <Input
                 key={field.name}
-                label={field.label}
+                label={fieldLabel(field)}
                 type={inputType}
                 step={field.type === "currency" ? "0.01" : undefined}
                 required={isRequired}

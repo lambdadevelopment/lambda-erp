@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   useReactTable,
   getCoreRowModel,
@@ -62,6 +63,7 @@ function partyMasterType(partyType: unknown): string | null {
 const PAGE_SIZE_OPTIONS = ["25", "50", "100", "200"];
 
 export default function DocumentListPage() {
+  const { t } = useTranslation();
   const { doctype } = useParams<{ doctype: string }>();
   const config = getDoctypeConfig(doctype ?? "");
 
@@ -107,11 +109,20 @@ export default function DocumentListPage() {
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
     if (!config) return [];
     const helper = createColumnHelper<any>();
+    // Title-case a column slug, then translate it (English title-case is the
+    // fallback when a field has no translation yet).
+    const headerLabel = (c: string) => {
+      const titleCased = c
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+      return t(`fields.${titleCased}`, { defaultValue: titleCased });
+    };
 
     return config.listColumns.map((col) => {
       if (col === "name") {
         return helper.accessor("name", {
-          header: "Name",
+          header: t("fields.Name", { defaultValue: "Name" }),
           cell: (info) => (
             <Link
               to={`/app/${config.slug}/${info.getValue()}`}
@@ -125,24 +136,21 @@ export default function DocumentListPage() {
 
       if (col === "status") {
         return helper.accessor("status", {
-          header: "Status",
+          header: t("fields.Status", { defaultValue: "Status" }),
           cell: (info) => <StatusBadge status={info.getValue()} />,
         });
       }
 
       if (CURRENCY_FIELDS.has(col)) {
         return helper.accessor(col, {
-          header: col
-            .split("_")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" "),
+          header: headerLabel(col),
           cell: (info) => formatCurrency(info.getValue(), (info.row.original as any)?.currency || "USD"),
         });
       }
 
       if (col === "party") {
         return helper.accessor("party", {
-          header: "Party",
+          header: t("fields.Party", { defaultValue: "Party" }),
           cell: (info) => {
             const value = info.getValue();
             if (!value) return "-";
@@ -165,10 +173,7 @@ export default function DocumentListPage() {
       if (MASTER_REF_FIELDS[col]) {
         const masterType = MASTER_REF_FIELDS[col];
         return helper.accessor(col, {
-          header: col
-            .split("_")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" "),
+          header: headerLabel(col),
           cell: (info) => {
             const value = info.getValue();
             if (!value) return "-";
@@ -189,22 +194,16 @@ export default function DocumentListPage() {
 
       if (DATE_FIELDS.has(col)) {
         return helper.accessor(col, {
-          header: col
-            .split("_")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" "),
+          header: headerLabel(col),
           cell: (info) => formatDate(info.getValue()),
         });
       }
 
       return helper.accessor(col, {
-        header: col
-          .split("_")
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" "),
+        header: headerLabel(col),
       });
     });
-  }, [config]);
+  }, [config, t]);
 
   const table = useReactTable({
     data: rows,
@@ -224,25 +223,28 @@ export default function DocumentListPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-end">
         <Link to={`/app/${config.slug}/new`}>
-          <Button>New</Button>
+          <Button>{t("common.new")}</Button>
         </Link>
       </div>
 
       <div className="flex flex-wrap items-end gap-4">
         <Select
-          label="Status"
-          options={STATUS_OPTIONS}
+          label={t("fields.Status", { defaultValue: "Status" })}
+          options={STATUS_OPTIONS.map((s) => ({
+            value: s,
+            label: s === "All" ? t("common.all") : t(`status.${s}`, { defaultValue: s }),
+          }))}
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         />
         <Input
-          label="From Date"
+          label={t("fields.From Date", { defaultValue: "From Date" })}
           type="date"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
         />
         <Input
-          label="To Date"
+          label={t("fields.To Date", { defaultValue: "To Date" })}
           type="date"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
@@ -251,9 +253,9 @@ export default function DocumentListPage() {
       <DateRangePresets onSelect={(from, to) => patchUrl({ from, to, page: null })} />
 
       {isLoading ? (
-        <p className="text-fg-muted">Loading...</p>
+        <p className="text-fg-muted">{t("common.loading")}</p>
       ) : rows.length === 0 ? (
-        <p className="py-8 text-center text-fg-muted">No documents found</p>
+        <p className="py-8 text-center text-fg-muted">{t("reports.noDocuments")}</p>
       ) : (
         <>
           <div className="overflow-x-auto rounded-xl bg-surface ring-1 ring-line shadow-card">
@@ -296,12 +298,12 @@ export default function DocumentListPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-fg-muted">
             <div>
-              Showing <span className="font-medium text-fg">{rangeStart}–{rangeEnd}</span>{" "}
-              of <span className="font-medium text-fg">{total}</span>
+              {t("common.showing")} <span className="font-medium text-fg">{rangeStart}–{rangeEnd}</span>{" "}
+              {t("common.of")} <span className="font-medium text-fg">{total}</span>
             </div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5">
-                <span className="text-xs text-fg-muted">Per page</span>
+                <span className="text-xs text-fg-muted">{t("common.perPage")}</span>
                 <select
                   value={pageSize}
                   onChange={(e) => setPageSize(Number(e.target.value))}
@@ -317,10 +319,10 @@ export default function DocumentListPage() {
                 disabled={page === 0}
                 className="rounded-md bg-surface px-3 py-1 text-sm text-fg ring-1 ring-line transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Prev
+                {t("common.prev")}
               </button>
               <span className="text-xs">
-                Page <span className="font-medium text-fg">{page + 1}</span> of{" "}
+                {t("common.page")} <span className="font-medium text-fg">{page + 1}</span> {t("common.of")}{" "}
                 <span className="font-medium text-fg">{totalPages}</span>
               </span>
               <button
@@ -328,7 +330,7 @@ export default function DocumentListPage() {
                 disabled={page >= totalPages - 1}
                 className="rounded-md bg-surface px-3 py-1 text-sm text-fg ring-1 ring-line transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Next
+                {t("common.next")}
               </button>
             </div>
           </div>

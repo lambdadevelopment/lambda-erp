@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useGeneralLedger } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import { Card } from "@/components/ui/card";
@@ -18,6 +19,7 @@ function toSlug(voucherType: string): string {
 const PAGE_SIZE_OPTIONS = ["25", "50", "100", "200"];
 
 export default function GeneralLedgerPage() {
+  const { t } = useTranslation();
   // URL-backed filter and pagination state. Param names match the backend
   // where it's natural (account, party) and use human-friendly short forms
   // for pagination and dates (page, per_page, from, to).
@@ -76,32 +78,32 @@ export default function GeneralLedgerPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
         <LinkField
-          label="Account"
+          label={t("fields.Account", { defaultValue: "Account" })}
           value={account}
           onChange={setAccount}
           linkDoctype="account"
           readOnly={false}
         />
         <LinkField
-          label="Party"
+          label={t("fields.Party", { defaultValue: "Party" })}
           value={party}
           onChange={setParty}
           linkDoctype="customer"
           readOnly={false}
         />
         <Input
-          label="From Date"
+          label={t("fields.From Date", { defaultValue: "From Date" })}
           type="date"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
         />
         <Input
-          label="To Date"
+          label={t("fields.To Date", { defaultValue: "To Date" })}
           type="date"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
         />
-        <Button onClick={handleApply}>Apply</Button>
+        <Button onClick={handleApply}>{t("common.apply")}</Button>
       </div>
       <DateRangePresets onSelect={(from, to) => {
         setFromDate(from);
@@ -110,9 +112,9 @@ export default function GeneralLedgerPage() {
       }} />
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500">{t("common.loading")}</p>
       ) : rows.length === 0 ? (
-        <p className="py-8 text-center text-gray-400">No entries found</p>
+        <p className="py-8 text-center text-gray-400">{t("reports.noEntries")}</p>
       ) : (
         <>
           <Card>
@@ -121,28 +123,28 @@ export default function GeneralLedgerPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left font-medium text-gray-500">
-                      Date
+                      {t("fields.Date", { defaultValue: "Date" })}
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-gray-500">
-                      Account
+                      {t("fields.Account", { defaultValue: "Account" })}
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-gray-500">
-                      Party
+                      {t("fields.Party", { defaultValue: "Party" })}
                     </th>
                     <th className="px-4 py-3 text-right font-medium text-gray-500">
-                      Debit
+                      {t("fields.Debit", { defaultValue: "Debit" })}
                     </th>
                     <th className="px-4 py-3 text-right font-medium text-gray-500">
-                      Credit
+                      {t("fields.Credit", { defaultValue: "Credit" })}
                     </th>
                     <th className="px-4 py-3 text-right font-medium text-gray-500">
-                      Balance
+                      {t("fields.Balance", { defaultValue: "Balance" })}
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-gray-500">
-                      Voucher Type
+                      {t("fields.Voucher Type", { defaultValue: "Voucher Type" })}
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-gray-500">
-                      Voucher No
+                      {t("fields.Voucher No", { defaultValue: "Voucher No" })}
                     </th>
                   </tr>
                 </thead>
@@ -189,12 +191,12 @@ export default function GeneralLedgerPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
             <div>
-              Showing <span className="font-medium text-gray-900">{rangeStart}–{rangeEnd}</span>{" "}
-              of <span className="font-medium text-gray-900">{total}</span>
+              {t("common.showing")} <span className="font-medium text-gray-900">{rangeStart}–{rangeEnd}</span>{" "}
+              {t("common.of")} <span className="font-medium text-gray-900">{total}</span>
             </div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-500">Per page</span>
+                <span className="text-xs text-gray-500">{t("common.perPage")}</span>
                 <select
                   value={pageSize}
                   onChange={(e) => setPageSize(Number(e.target.value))}
@@ -210,10 +212,10 @@ export default function GeneralLedgerPage() {
                 disabled={page === 0}
                 className="rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Prev
+                {t("common.prev")}
               </button>
               <span className="text-xs">
-                Page <span className="font-medium text-gray-900">{page + 1}</span> of{" "}
+                {t("common.page")} <span className="font-medium text-gray-900">{page + 1}</span> {t("common.of")}{" "}
                 <span className="font-medium text-gray-900">{totalPages}</span>
               </span>
               <button
@@ -221,7 +223,7 @@ export default function GeneralLedgerPage() {
                 disabled={page >= totalPages - 1}
                 className="rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Next
+                {t("common.next")}
               </button>
             </div>
           </div>

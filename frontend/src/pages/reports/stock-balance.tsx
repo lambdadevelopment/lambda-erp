@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useStockBalance } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import { Card } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { formatCurrency as fmtCurrency, formatNumber } from "@/lib/utils";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 export default function StockBalancePage() {
+  const { t } = useTranslation();
   const [urlItemCode] = useUrlState<string>("item_code", "");
   const [urlWarehouse] = useUrlState<string>("warehouse", "");
   const patchUrl = useUrlPatch();
@@ -38,26 +40,26 @@ export default function StockBalancePage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
         <LinkField
-          label="Item Code"
+          label={t("fields.Item Code", { defaultValue: "Item Code" })}
           value={itemCode}
           onChange={setItemCode}
           linkDoctype="item"
           readOnly={false}
         />
         <LinkField
-          label="Warehouse"
+          label={t("fields.Warehouse", { defaultValue: "Warehouse" })}
           value={warehouse}
           onChange={setWarehouse}
           linkDoctype="warehouse"
           readOnly={false}
         />
-        <Button onClick={handleApply}>Apply</Button>
+        <Button onClick={handleApply}>{t("common.apply")}</Button>
       </div>
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500">{t("common.loading")}</p>
       ) : !data || !data.rows || data.rows.length === 0 ? (
-        <p className="py-8 text-center text-gray-400">No stock data found</p>
+        <p className="py-8 text-center text-gray-400">{t("reports.noStockData")}</p>
       ) : (
         <Card>
           <div className="overflow-x-auto">
@@ -65,22 +67,22 @@ export default function StockBalancePage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">
-                    Item Code
+                    {t("fields.Item Code", { defaultValue: "Item Code" })}
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">
-                    Item Name
+                    {t("fields.Item Name", { defaultValue: "Item Name" })}
                   </th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">
-                    Warehouse
+                    {t("fields.Warehouse", { defaultValue: "Warehouse" })}
                   </th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">
-                    Qty
+                    {t("fields.Qty", { defaultValue: "Qty" })}
                   </th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">
-                    Valuation Rate
+                    {t("fields.Valuation Rate", { defaultValue: "Valuation Rate" })}
                   </th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">
-                    Stock Value
+                    {t("fields.Stock Value", { defaultValue: "Stock Value" })}
                   </th>
                 </tr>
               </thead>

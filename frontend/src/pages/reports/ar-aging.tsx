@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useArAging } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import { Card } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { formatCurrency as fmtCurrency } from "@/lib/utils";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 export default function ArAgingPage() {
+  const { t } = useTranslation();
   const [urlCompany] = useUrlState<string>("company", "");
   const [urlAsOfDate] = useUrlState<string>("as_of_date", "");
   const patchUrl = useUrlPatch();
@@ -37,9 +39,9 @@ export default function ArAgingPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
-        <LinkField label="Company" value={company} onChange={setCompany} linkDoctype="company" readOnly={false} />
-        <Input label="As of Date" type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} />
-        <Button onClick={handleApply}>Apply</Button>
+        <LinkField label={t("fields.Company", { defaultValue: "Company" })} value={company} onChange={setCompany} linkDoctype="company" readOnly={false} />
+        <Input label={t("fields.As of Date", { defaultValue: "As of Date" })} type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} />
+        <Button onClick={handleApply}>{t("common.apply")}</Button>
       </div>
       <SingleDatePresets onSelect={(date) => {
         setAsOfDate(date);
@@ -47,20 +49,20 @@ export default function ArAgingPage() {
       }} />
 
       {isLoading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500">{t("common.loading")}</p>
       ) : !data || !data.rows || data.rows.length === 0 ? (
-        <p className="py-8 text-center text-gray-400">No outstanding receivables</p>
+        <p className="py-8 text-center text-gray-400">{t("reports.noReceivables")}</p>
       ) : (
         <Card>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-3 py-3 text-left font-medium text-gray-500">Invoice</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-500">Customer</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-500">Due Date</th>
-                  <th className="px-3 py-3 text-right font-medium text-gray-500">Outstanding</th>
-                  <th className="px-3 py-3 text-right font-medium text-gray-500">Current</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-500">{t("fields.Invoice", { defaultValue: "Invoice" })}</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-500">{t("fields.Customer", { defaultValue: "Customer" })}</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-500">{t("fields.Due Date", { defaultValue: "Due Date" })}</th>
+                  <th className="px-3 py-3 text-right font-medium text-gray-500">{t("fields.Outstanding", { defaultValue: "Outstanding" })}</th>
+                  <th className="px-3 py-3 text-right font-medium text-gray-500">{t("reports.current")}</th>
                   <th className="px-3 py-3 text-right font-medium text-gray-500">1-30</th>
                   <th className="px-3 py-3 text-right font-medium text-gray-500">31-60</th>
                   <th className="px-3 py-3 text-right font-medium text-gray-500">61-90</th>
@@ -91,7 +93,7 @@ export default function ArAgingPage() {
               </tbody>
               <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
                 <tr>
-                  <td className="px-3 py-3" colSpan={3}>Total</td>
+                  <td className="px-3 py-3" colSpan={3}>{t("common.total")}</td>
                   <td className="px-3 py-3 text-right">{formatCurrency(data.totals.outstanding)}</td>
                   <td className="px-3 py-3 text-right">{formatCurrency(data.totals.current)}</td>
                   <td className="px-3 py-3 text-right">{formatCurrency(data.totals.b1_30)}</td>

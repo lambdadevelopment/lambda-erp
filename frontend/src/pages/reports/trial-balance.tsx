@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useTrialBalance } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import { Card } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { formatCurrency as fmtCurrency } from "@/lib/utils";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 export default function TrialBalancePage() {
+  const { t } = useTranslation();
   const [urlCompany] = useUrlState<string>("company", "");
   const [urlFromDate] = useUrlState<string>("from", "");
   const [urlToDate] = useUrlState<string>("to", "");
@@ -46,25 +48,25 @@ export default function TrialBalancePage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
         <LinkField
-          label="Company"
+          label={t("fields.Company", { defaultValue: "Company" })}
           value={company}
           onChange={setCompany}
           linkDoctype="company"
           readOnly={false}
         />
         <Input
-          label="From Date"
+          label={t("fields.From Date", { defaultValue: "From Date" })}
           type="date"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
         />
         <Input
-          label="To Date"
+          label={t("fields.To Date", { defaultValue: "To Date" })}
           type="date"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
         />
-        <Button onClick={handleApply}>Apply</Button>
+        <Button onClick={handleApply}>{t("common.apply")}</Button>
       </div>
       <DateRangePresets onSelect={(from, to) => {
         setFromDate(from);
@@ -73,9 +75,9 @@ export default function TrialBalancePage() {
       }} />
 
       {isLoading ? (
-        <p className="text-fg-muted">Loading...</p>
+        <p className="text-fg-muted">{t("common.loading")}</p>
       ) : !data || !data.rows || data.rows.length === 0 ? (
-        <p className="py-8 text-center text-fg-muted">No data found</p>
+        <p className="py-8 text-center text-fg-muted">{t("reports.noData")}</p>
       ) : (
         <Card>
           <div className="overflow-x-auto">
@@ -83,16 +85,16 @@ export default function TrialBalancePage() {
               <thead className="bg-surface-subtle">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted">
-                    Account
+                    {t("fields.Account", { defaultValue: "Account" })}
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-fg-muted">
-                    Debit
+                    {t("fields.Debit", { defaultValue: "Debit" })}
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-fg-muted">
-                    Credit
+                    {t("fields.Credit", { defaultValue: "Credit" })}
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-fg-muted">
-                    Balance
+                    {t("fields.Balance", { defaultValue: "Balance" })}
                   </th>
                 </tr>
               </thead>
@@ -114,7 +116,7 @@ export default function TrialBalancePage() {
               </tbody>
               <tfoot className="border-t border-line bg-surface-subtle font-semibold">
                 <tr>
-                  <td className="px-4 py-3 text-fg">Total</td>
+                  <td className="px-4 py-3 text-fg">{t("common.total")}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-fg">
                     {formatCurrency(data.total_debit)}
                   </td>
@@ -133,12 +135,12 @@ export default function TrialBalancePage() {
             {isBalanced ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                BALANCED
+                {t("reports.balanced")}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-4 py-1.5 text-sm font-semibold text-rose-700 ring-1 ring-rose-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                IMBALANCED
+                {t("reports.imbalanced")}
               </span>
             )}
           </div>

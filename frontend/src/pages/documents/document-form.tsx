@@ -152,9 +152,12 @@ function FieldRenderer({
    *  (€/£/¥…) instead of always $. */
   currency?: string;
 }) {
+  const { t } = useTranslation();
   const isDisabled = readOnly || !!field.readOnly;
   const Label = () =>
-    hideLabel ? null : <FieldLabel label={field.label} hint={field.hint} />;
+    hideLabel ? null : (
+      <FieldLabel label={t(`fields.${field.label}`, { defaultValue: field.label })} hint={field.hint} />
+    );
 
   // Currency pickers get their options from the available-currencies endpoint
   // rather than a static list. The fetch is skipped for every other field.
@@ -316,7 +319,7 @@ function ChildTableEditor({
   };
 
   return (
-    <Card title={tableDef.label}>
+    <Card title={t(`tables.${tableDef.key}`, { defaultValue: tableDef.label })}>
       <div className="-mx-6 overflow-x-auto px-6">
         <table className="min-w-full divide-y divide-line text-sm">
           <thead>
@@ -329,7 +332,7 @@ function ChildTableEditor({
                   key={f.name}
                   className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wide text-fg-muted"
                 >
-                  {f.label}
+                  {t(`fields.${f.label}`, { defaultValue: f.label })}
                 </th>
               ))}
               {!readOnly && (
@@ -445,7 +448,7 @@ function DocumentActions({
             variant="secondary"
             onClick={() => onConvert(conv.targetDoctype)}
           >
-            {conv.label}
+            {t(`conversions.${conv.label}`, { defaultValue: conv.label })}
           </Button>
         ))}
     </div>
@@ -732,7 +735,7 @@ export default function DocumentFormPage() {
       {(createMut.error || updateMut.error || submitMut.error || cancelMut.error) && (
         <div className="rounded-lg bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
           {(createMut.error ?? updateMut.error ?? submitMut.error ?? cancelMut.error)
-            ?.message ?? "An error occurred"}
+            ?.message ?? t("common.errorOccurred")}
         </div>
       )}
 
@@ -767,7 +770,7 @@ export default function DocumentFormPage() {
 
       {/* Totals section */}
       {totalsFields.length > 0 && (
-        <Card title="Totals">
+        <Card title={t("common.totals")}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {totalsFields.map((field) => (
               <FieldRenderer
