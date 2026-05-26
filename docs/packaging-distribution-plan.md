@@ -4,14 +4,19 @@ Status: **Phases A & B done** (2026-05-26). A: backend builds a clean
 wheel/sdist via hatchling shipping `lambda_erp` + `api` (incl. the PDF
 template), verified by a clean-venv install + import. B: frontend override seam
 + dual app/library build shipping `@lambda-development/erp-core`, verified by a scratch
-consumer app type-checking the packed tarball. **Phases C (publish CI) & D
-(customer repo template) not started** — until then, consume both packages via
-the git-dependency interim path (no registry/account needed).
+consumer app type-checking the packed tarball. **Phase C (publish CI) in
+progress** — `release.yml` written, OIDC chosen, `private` flipped; what's left
+is manual registry / GitHub-UI setup (npm org, `release` environment, npm
+first-publish bootstrap — see Phase C). **Phase D not started.** Until the first
+release runs, consume both packages via the git-dependency interim path.
 
 ## Handoff — current state (2026-05-26)
 
 A fresh session (likely on another machine / another LLM) can pick up here.
-**Phases A and B are implemented and verified. Phase C (publish CI) is next.**
+**Phases A and B are implemented and verified. Phase C is in progress** — the
+`release.yml` workflow is written and `private` is flipped; the remaining work is
+the manual registry / GitHub-UI setup listed under Phase C (npm org, the
+`release` GitHub Environment, and the one-time npm first-publish bootstrap).
 
 > ⚠️ **Commit & push before switching machines.** The Phase A/B changes may be
 > uncommitted; the other machine only sees what's in git. Local auto-memory does
@@ -163,30 +168,42 @@ the design tokens from a shipped preset + base stylesheet).
 - [x] Overrides confirmed two ways: (a) runtime registration (the registries
   above), (b) build-time `resolve.alias` whole-module swap.
 
-## Phase C — Versioning + publish CI — **NEXT (not started)**
+## Phase C — Versioning + publish CI — **IN PROGRESS (2026-05-26)**
 
-**Open decisions to confirm with the user before writing the workflow:**
-- [ ] **Auth method** (applies to both registries): **trusted publishing / OIDC**
-  (no stored tokens — recommended; supported by PyPI and by npm as of 2025) vs.
-  classic API tokens in GitHub Secrets (`PYPI_API_TOKEN`, `NPM_TOKEN`). Leaning
-  OIDC to match the repo's existing keyless Azure auth.
-- [ ] **Flip `frontend/package.json` `"private": true`** → remove it. It's on now
-  to prevent accidental `npm publish`; the release must drop it (or the workflow
-  must pass a flag) to publish.
+**Decisions (resolved):**
+- [x] **Auth method: OIDC trusted publishing** (no stored tokens), matching the
+  repo's keyless Azure auth. Both publish jobs run in the `release` environment.
+- [x] **Flipped `frontend/package.json` `"private": true`** → removed, so
+  `npm publish` is allowed; the tag-triggered workflow is now the controlled path.
 
-**Steps:**
-- [ ] **Unified version**: both packages share the repo version, bumped together,
-  one tag `vX.Y.Z`. Keep `pyproject.toml` `version` and `frontend/package.json`
-  `version` in lockstep (both `0.1.0` today).
-- [ ] New `.github/workflows/release.yml`, triggered on tag `v*` (separate from
-  `deploy.yml`, which stays on `master` push):
-  - **Python job:** `python -m build` → publish to PyPI. Trusted publishing via
-    `pypa/gh-action-pypi-publish` with `permissions: id-token: write` (no token).
-  - **Frontend job:** `cd frontend && npm ci && npm run build:lib && npm publish
-    --access public` (a scoped package needs `--access public` to be public).
-    OIDC trusted publishing, else `NODE_AUTH_TOKEN` from an `NPM_TOKEN` secret.
+**Done:**
+- [x] `.github/workflows/release.yml` written — trigger: tag `v*` (+ manual
+  `workflow_dispatch`); separate from `deploy.yml` (a tag push does not fire its
+  `branches: [master]` trigger, so releasing never re-deploys the demo). Jobs:
+  - `verify-version` — fails unless tag (minus `v`) == `pyproject` version ==
+    `frontend/package.json` version (lockstep guard).
+  - `publish-pypi` — `python -m build` → `pypa/gh-action-pypi-publish@release/v1`;
+    `environment: release`, `permissions: id-token: write` (no token).
+  - `publish-npm` — `npm ci` + `npm run build:lib` + `npm publish --access public`;
+    upgrades to `npm@latest` (OIDC needs npm ≥ 11.5.1); `environment: release`,
+    `id-token: write`, no `NODE_AUTH_TOKEN`.
+- [x] **Unified version** enforced by the `verify-version` job (both `0.1.0` today).
 - [ ] Treat the public surface (extension seams) as **semver** — breaking changes
-  to a seam = major bump.
+  to a seam = major bump. (ongoing discipline)
+
+**Remaining before the first release run (manual, in the registry / GitHub UIs):**
+- [x] PyPI **pending publisher** created — project `lambda-erp`, owner/repo
+  `lambdadevelopment/lambda-erp`, workflow `release.yml`, environment `release`.
+- [ ] Create the GitHub **Environment** named `release` (Settings → Environments).
+  It only needs to *exist* for the OIDC `sub` claim to match — leave it empty, or
+  add required reviewers for an approval gate (gates each publish job).
+- [ ] Create the npm **Free org `lambda-development`** (owns the scope).
+- [ ] **Bootstrap the npm package once**: npm has no pending-publisher, so a
+  brand-new scoped package cannot first-publish via OIDC. Do one manual
+  `cd frontend && npm publish --access public` (2FA, or a one-time granular
+  token), then enable its **trusted publisher** (repo `lambdadevelopment/lambda-erp`,
+  workflow `release.yml`, environment `release`). Every release after is tokenless.
+- [ ] Then push tag `v0.1.0` → both packages publish keylessly.
 
 **Trusted-publisher settings to save once accounts/org are live (do this in the
 registry UIs, not in code):**

@@ -1,0 +1,101 @@
+name: Release (publish packages)
+
+# Cuts a release of BOTH packages from one tag:
+#   - PyPI:  lambda-erp                     (backend wheel + sdist)
+#   - npm:   @lambda-development/erp-core   (frontend library build)
+#
+# Trigger: pushing a tag `vX.Y.Z`. This is intentionally separate from
+# deploy.yml (which runs on pushes to `master`); a tag push does not fire the
+# branch-push trigger, so cutting a release never re-deploys the demo app.
+#
+# Auth: OIDC trusted publishing — NO stored tokens. Each publish job mints a
+# short-lived id-token that PyPI / npm verify against their trusted-publisher
+# config. The match is on owner/repo + this workflow's filename (release.yml)
+# + the `release` environment, so those must line up exactly with the registry
+# settings. (Same keyless model the repo already uses for Azure in deploy.yml.)
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+# Read-only by default; each publish job opts into id-token: write locally.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Fail fast if the tag and the two package versions have drifted. Both
+  # packages release in lockstep, so v0.1.0 must equal pyproject `version` and
+  # frontend/package.json `version`. (Skipped on manual workflow_dispatch,
+  # which has no tag — it just prints the versions it will publish.)
+  verify-version:
+    name: Verify version lockstep
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare tag to package versions
+        run: |
+          PY=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          NPM=$(node -p "require('./frontend/package.json').version")
+          echo "pyproject=$PY  npm=$NPM  ref=$GITHUB_REF_NAME ($GITHUB_REF_TYPE)"
+          if [ "$PY" != "$NPM" ]; then
+            echo "::error::pyproject ($PY) and frontend/package.json ($NPM) versions differ"; exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VER="${GITHUB_REF_NAME#v}"
+            if [ "$VER" != "$PY" ]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match package version $PY"; exit 1
+            fi
+          fi
+
+  publish-pypi:
+    name: Publish to PyPI (lambda-erp)
+    needs: verify-version
+    runs-on: ubuntu-latest
+    environment: release           # must match the PyPI trusted-publisher config
+    permissions:
+      id-token: write              # mint the OIDC token PyPI verifies
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel + sdist
+        run: |
+          python -m pip install --upgrade build
+          python -m build          # hatchling -> dist/*.whl + dist/*.tar.gz
+      - name: Publish (trusted publishing, no token)
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-npm:
+    name: Publish to npm (@lambda-development/erp-core)
+    needs: verify-version
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write              # OIDC trusted publishing + provenance
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      # npm >= 11.5.1 is required for OIDC trusted publishing; Node 22 ships an
+      # older npm, so upgrade. No NODE_AUTH_TOKEN is set — the CLI authenticates
+      # via the id-token once the package's trusted publisher is configured.
+      - name: Ensure npm supports trusted publishing
+        run: npm install -g npm@latest
+      - name: Install + build library
+        run: |
+          npm ci
+          npm run build:lib        # -> dist/index.js + dist/index.d.ts (peers external)
+      - name: Publish (scoped public, trusted publishing)
+        run: npm publish --access public
