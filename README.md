@@ -246,6 +246,88 @@ docs/agents/        # Invariants, gotchas, design decisions (LLM-readable)
 
 ---
 
+## Building a customer deployment on top of the core
+
+Lambda ERP is **one deployment per customer** (see the design choices above). A
+customer that needs **core business-logic changes** should **not fork this
+repo**. Instead, create a **separate private repo that depends on this one as
+the core** and overrides behavior at defined seams. Core fixes then arrive via a
+version bump, not a merge into a diverging fork. Full plan and rationale:
+[`docs/core-extension-architecture.md`](docs/core-extension-architecture.md).
+
+**Customer repo layout**
+
+```
+acme-erp/
+  pyproject.toml          # depends on this repo (git / path / submodule for now)
+  acme/
+    plugin.py             # register() — wires overrides + hooks
+    sales_invoice.py      # e.g. class AcmeSalesInvoice(SalesInvoice): ...
+  config/                 # branding, enabled features, base currency, OAuth
+  deploy/                 # Dockerfile, env/secrets
+```
+
+**Override core logic (replace) — subclass + register**
+
+```python
+# acme/sales_invoice.py
+from lambda_erp.accounting.sales_invoice import SalesInvoice
+class AcmeSalesInvoice(SalesInvoice):
+    def _get_gl_entries(self):
+        gl = super()._get_gl_entries()
+        # customer-specific posting
+        return gl
+```
+
+Registering it makes every loader path (`create/load/update/submit/cancel`) **and
+document conversions** use the subclass.
+
+**Add behavior (don't replace) — lifecycle hooks**
+
+```python
+from lambda_erp.hooks import register_hook
+register_hook("Sales Invoice:after_submit", push_to_external_system)
+```
+
+Events are `"<DocType>:{before,after}_{save,submit,cancel}"`. `before_*` run
+**inside** the document's transaction (a raise aborts and rolls back — use for
+guards/validation); `after_*` run **post-commit** (the voucher is durable — use
+for side-effects/integrations).
+
+**Wire it up**
+
+```python
+# acme/plugin.py
+from api.services import register_doctype, register_converter
+from lambda_erp.hooks import register_hook
+from .sales_invoice import AcmeSalesInvoice
+
+def register():
+    register_doctype("Sales Invoice", AcmeSalesInvoice)
+    register_hook("Sales Invoice:after_submit", push_to_external_system)
+    # register_converter(source, target, fn)   # only to replace conversion *logic*
+```
+
+Point the deployment at it with `LAMBDA_ERP_PLUGINS=acme` (comma-separated for
+several). On startup the core imports each module and calls `register()`. Unset
+= the core runs unchanged.
+
+**Rules**
+
+- **Don't edit core files** — override at a seam. If what you need to change
+  isn't a seam yet, add the seam to the core (a PR here), then override from the
+  customer repo.
+- Keep branding / feature toggles / base currency / auth config in `config`/env,
+  not code.
+- Bump the core version to pull fixes; never copy core code in.
+
+The backend seams (document classes, lifecycle hooks, converters, plugin
+loading) are implemented and tested. The **frontend** override seam
+(component/route registry + theming) is planned but not yet built — see the
+architecture doc.
+
+---
+
 ## Contributing
 
 This is early. The project needs:

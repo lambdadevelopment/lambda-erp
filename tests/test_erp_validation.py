@@ -2590,6 +2590,47 @@ def main():
         _svc.register_doctype("Sales Order", _orig_so)
         clear_hooks()
 
+    # ---------------------------------------------------------------------
+    # Plugin loader: LAMBDA_ERP_PLUGINS imports customer modules and calls
+    # their register() at startup. Unset = no-op; a bad plugin fails loudly.
+    # ---------------------------------------------------------------------
+    print_header("43. PLUGIN LOADER - LAMBDA_ERP_PLUGINS wiring")
+
+    import sys as _sys, types as _types, os as _os
+    from api.main import load_plugins
+
+    _loaded = []
+    _plug = _types.ModuleType("acme_test_plugin")
+    _plug.register = lambda: _loaded.append("registered")
+    _sys.modules["acme_test_plugin"] = _plug
+    _sys.modules["broken_test_plugin"] = _types.ModuleType("broken_test_plugin")  # no register()
+    _prev_env = _os.environ.get("LAMBDA_ERP_PLUGINS")
+    try:
+        _os.environ["LAMBDA_ERP_PLUGINS"] = "acme_test_plugin"
+        load_plugins()
+        assert _loaded == ["registered"], f"plugin register() should run once, got {_loaded}"
+        print("  LAMBDA_ERP_PLUGINS imported the plugin and ran register()")
+
+        _os.environ["LAMBDA_ERP_PLUGINS"] = "broken_test_plugin"
+        try:
+            load_plugins()
+            raise AssertionError("a plugin without register() should raise")
+        except RuntimeError:
+            pass
+        print("  plugin without register() failed loudly (RuntimeError)")
+
+        _os.environ["LAMBDA_ERP_PLUGINS"] = ""
+        load_plugins()
+        print("  empty LAMBDA_ERP_PLUGINS is a no-op")
+    finally:
+        if _prev_env is None:
+            _os.environ.pop("LAMBDA_ERP_PLUGINS", None)
+        else:
+            _os.environ["LAMBDA_ERP_PLUGINS"] = _prev_env
+        _sys.modules.pop("acme_test_plugin", None)
+        _sys.modules.pop("broken_test_plugin", None)
+        clear_hooks()
+
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================
