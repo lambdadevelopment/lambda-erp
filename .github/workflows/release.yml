@@ -35,7 +35,7 @@ jobs:
     name: Verify version lockstep
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Compare tag to package versions
         run: |
           PY=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/.*"([^"]+)".*/\1/')
@@ -60,8 +60,8 @@ jobs:
       id-token: write              # mint the OIDC token PyPI verifies
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Build wheel + sdist
@@ -83,8 +83,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
@@ -111,7 +111,7 @@ jobs:
     permissions:
       contents: write              # create the release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Extract release notes from CHANGELOG
         run: |
           VER="${GITHUB_REF_NAME#v}"
