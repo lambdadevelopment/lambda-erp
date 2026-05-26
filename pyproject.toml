@@ -2,6 +2,9 @@
 name = "lambda-erp"
 version = "0.1.0"
 description = "Core ERP logic - accounting, sales, purchasing, inventory"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "TORUS INVESTMENTS AG" }]
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.115",
@@ -21,5 +24,17 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["flit_core >=3.2,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# The distributable backend ships TWO top-level packages: the pure-Python
+# core (`lambda_erp`) and the FastAPI/extension layer (`api`, where
+# register_doctype / load_plugins / the document classes live). flit only
+# packages a single module matching the project name, so it would silently
+# drop `api`; hatchling lets us name both explicitly. frontend/tests/docs
+# are intentionally excluded from the distribution.
+[tool.hatch.build.targets.wheel]
+packages = ["lambda_erp", "api"]
+
+[tool.hatch.build.targets.sdist]
+include = ["lambda_erp", "api", "README.md", "LICENSE", "pyproject.toml"]
