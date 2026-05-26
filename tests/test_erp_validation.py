@@ -2512,6 +2512,63 @@ def main():
         f"({flt(top['qty_moved'], 2)} units across {int(top['moves'])} movements)"
     )
 
+    # ---------------------------------------------------------------------
+    # Extension seam: a customer repo overrides a document class via the
+    # registry and registers lifecycle hooks — without editing core files.
+    # ---------------------------------------------------------------------
+    print_header("42. EXTENSION SEAM - registry override + lifecycle hooks")
+
+    from api import services as _svc
+    from lambda_erp.hooks import register_hook, clear_hooks
+    from lambda_erp.accounting.sales_invoice import SalesInvoice as _BaseSI
+
+    _orig_si = _svc.DOCUMENT_CLASSES["Sales Invoice"]
+    sub_calls = []
+
+    class _PluginSI(_BaseSI):
+        def on_submit(self):
+            sub_calls.append("override")
+            super().on_submit()
+
+    def _new_si():
+        d = _svc.create_document("sales-invoice", {
+            "customer": "CUST-001", "company": "Lambda Corp", "posting_date": nowdate(),
+            "items": [_dict(item_code="ITEM-001", qty=1, rate=100)],
+        })
+        return d["name"]
+
+    try:
+        # (a) registry override is resolved by the loader path.
+        _svc.register_doctype("Sales Invoice", _PluginSI)
+        assert _svc.get_document_class("sales-invoice")[1] is _PluginSI, "registry should return the override"
+        n1 = _new_si()
+        _svc.submit_document("sales-invoice", n1)
+        assert "override" in sub_calls, "the registered subclass on_submit should run via create/submit"
+        print("  registry override used by create/submit:", sub_calls)
+
+        # (b) after_submit hook fires post-commit.
+        events = []
+        register_hook("Sales Invoice:after_submit", lambda doc: events.append(doc.name))
+        n2 = _new_si()
+        _svc.submit_document("sales-invoice", n2)
+        assert events == [n2], f"after_submit should fire once for the submitted doc, got {events}"
+        print("  after_submit hook fired for", events)
+
+        # (c) raising before_submit aborts and rolls back to draft.
+        clear_hooks()
+        register_hook("Sales Invoice:before_submit", lambda doc: (_ for _ in ()).throw(ValueError("blocked")))
+        n3 = _new_si()
+        try:
+            _svc.submit_document("sales-invoice", n3)
+            raise AssertionError("raising before_submit should have aborted the submit")
+        except ValueError:
+            pass
+        assert flt(db.get_value("Sales Invoice", n3, "docstatus")) == 0, "aborted submit must stay draft"
+        print("  raising before_submit aborted submit; docstatus stayed draft")
+    finally:
+        _svc.register_doctype("Sales Invoice", _orig_si)  # restore core class
+        clear_hooks()
+
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================

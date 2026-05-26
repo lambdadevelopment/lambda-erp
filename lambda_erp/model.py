@@ -10,6 +10,7 @@ import copy
 from lambda_erp.utils import _dict, flt, new_name, now
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError, DocumentStatusError
+from lambda_erp.hooks import run_hooks
 
 
 # Document status constants (mirrors the framework's docstatus)
@@ -288,7 +289,9 @@ class Document:
         self.validate()
         self._validate_links()
         self.before_save()
+        run_hooks(f"{self.DOCTYPE}:before_save", self)
         self._persist()
+        run_hooks(f"{self.DOCTYPE}:after_save", self)
         return self
 
     def submit(self):
@@ -315,6 +318,9 @@ class Document:
         self._data["docstatus"] = SUBMITTED
         self._data["status"] = "Submitted"
         try:
+            # Inside the transaction: a raising before_submit hook aborts and
+            # rolls back the whole submit (use for guards / extra validation).
+            run_hooks(f"{self.DOCTYPE}:before_submit", self)
             self._persist(commit=False)
             self.on_submit()
             db.commit()
@@ -326,6 +332,9 @@ class Document:
             raise
         finally:
             db._in_transaction = False
+        # Post-commit: the voucher is durable. after_submit is for side-effects
+        # (notifications, external sync); a raise here does NOT undo the submit.
+        run_hooks(f"{self.DOCTYPE}:after_submit", self)
         return self
 
     def cancel(self):
@@ -345,6 +354,7 @@ class Document:
         self._data["status"] = "Cancelled"
         self._data["modified"] = now()
         try:
+            run_hooks(f"{self.DOCTYPE}:before_cancel", self)
             self._persist(commit=False)
             self.on_cancel()
             db.commit()
@@ -355,6 +365,7 @@ class Document:
             raise
         finally:
             db._in_transaction = False
+        run_hooks(f"{self.DOCTYPE}:after_cancel", self)
         return self
 
     def _persist(self, commit=True):

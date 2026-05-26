@@ -77,6 +77,22 @@ for dt in DOCUMENT_CLASSES:
     DOCTYPE_TO_SLUG[dt] = slug
 
 
+def register_doctype(doctype: str, cls, slug: str | None = None) -> None:
+    """Register (or override) the class used for a doctype.
+
+    Extension point for customer deployments (see
+    docs/core-extension-architecture.md): a plugin subclasses a core document
+    class and registers it here at startup, so every loader path
+    (create/load/update/submit/cancel_document) resolves the subclass.
+    `get_document_class` reads `DOCUMENT_CLASSES` live, so no other change is
+    needed.
+    """
+    DOCUMENT_CLASSES[doctype] = cls
+    slug = slug or doctype.lower().replace(" ", "-")
+    SLUG_TO_DOCTYPE[slug] = doctype
+    DOCTYPE_TO_SLUG[doctype] = slug
+
+
 def get_document_class(doctype_slug: str):
     """Get document class from URL slug."""
     doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
