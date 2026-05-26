@@ -1,4 +1,13 @@
-const BASE = "/api";
+// API base URL. Defaults to the relative "/api" (the demo app and most
+// deployments serve the frontend and backend from the same origin). A
+// customer deployment can point the published library at a different backend
+// either at build time (VITE_API_BASE) or at runtime before any request is
+// made (configureApiBase).
+let BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
+
+export function configureApiBase(base: string) {
+  BASE = base.replace(/\/+$/, "");
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

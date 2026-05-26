@@ -259,10 +259,16 @@ version bump, not a merge into a diverging fork. Full plan and rationale:
 
 ```
 acme-erp/
-  pyproject.toml          # depends on this repo (git / path / submodule for now)
+  pyproject.toml          # depends on lambda-erp (git / path / PyPI)
   acme/
-    plugin.py             # register() — wires overrides + hooks
+    plugin.py             # register() — wires backend overrides + hooks
     sales_invoice.py      # e.g. class AcmeSalesInvoice(SalesInvoice): ...
+  frontend/
+    package.json          # depends on @lambda/erp-core
+    tailwind.config.ts    # scans @lambda/erp-core dist + adds its preset
+    src/
+      plugin.ts           # registers frontend overrides (doctypes/routes/nav/branding)
+      main.tsx            # import plugin + styles, then bootstrap()
   config/                 # branding, enabled features, base currency, OAuth
   deploy/                 # Dockerfile, env/secrets
 ```
@@ -312,6 +318,58 @@ Point the deployment at it with `LAMBDA_ERP_PLUGINS=acme` (comma-separated for
 several). On startup the core imports each module and calls `register()`. Unset
 = the core runs unchanged.
 
+**Frontend overrides — the `@lambda/erp-core` library**
+
+The frontend ships as a library. The customer app depends on it, registers its
+overrides in a plugin module, then boots the shared app shell. The seams mirror
+the backend: add/replace doctypes, routes, nav, whole components, branding, and
+the API base — without editing core files.
+
+```ts
+// frontend/src/plugin.ts — runs before bootstrap()
+import {
+  registerDoctype, registerRoute, registerNavGroup, registerComponent,
+  configureBranding, configureApiBase,
+} from "@lambda/erp-core";
+import AcmeDashboard from "./acme-dashboard";
+
+configureApiBase(import.meta.env.VITE_API_BASE ?? "/api");
+configureBranding({ appName: "Acme ERP", tokens: { "--brand": "260 80% 55%" } });
+
+registerDoctype({ slug: "service-ticket", label: "Service Ticket", /* …schema… */ });
+registerNavGroup({ label: "Service", icon: null, items: [{ label: "Tickets", path: "/app/service-ticket" }] });
+registerRoute({ path: "reports/sla", element: <SlaReport /> });   // under the app shell
+registerComponent("Dashboard", AcmeDashboard);                    // swap a core component
+```
+
+```tsx
+// frontend/src/main.tsx
+import "./plugin";                         // register overrides first
+import "@lambda/erp-core/styles.css";      // base tokens + layers (your Tailwind processes it)
+import "./acme.css";                       // optional: override :root tokens, add utilities
+import { bootstrap } from "@lambda/erp-core";
+bootstrap();                               // builds routes AFTER registration, then mounts
+```
+
+Styling follows the **"consumer scans source"** model — your app runs Tailwind
+and the library provides the tokens and preset:
+
+```ts
+// frontend/tailwind.config.ts
+import erpPreset from "@lambda/erp-core/tailwind-preset";
+export default {
+  content: ["./src/**/*.{ts,tsx}", "./node_modules/@lambda/erp-core/dist/**/*.js"],
+  presets: [erpPreset],
+};
+```
+
+Rebrand by overriding the `:root` CSS variables (`--brand`, `--surface`, `--text`,
+…) — at runtime via `configureBranding({ tokens })` or statically in your own CSS.
+
+**Wire up overrides:** registry registration at runtime (above) covers most
+cases. For a build-time whole-module swap, point a Vite `resolve.alias` at your
+replacement file.
+
 **Rules**
 
 - **Don't edit core files** — override at a seam. If what you need to change
@@ -321,10 +379,12 @@ several). On startup the core imports each module and calls `register()`. Unset
   not code.
 - Bump the core version to pull fixes; never copy core code in.
 
-The backend seams (document classes, lifecycle hooks, converters, plugin
-loading) are implemented and tested. The **frontend** override seam
-(component/route registry + theming) is planned but not yet built — see the
-architecture doc.
+Both the backend seams (document classes, lifecycle hooks, converters, plugin
+loading) and the frontend seams (doctype/route/nav/component registries,
+branding, configurable API base, Tailwind preset) are implemented. The backend
+also builds a clean pip wheel and the frontend a `@lambda/erp-core` npm library
+— see [`docs/packaging-distribution-plan.md`](docs/packaging-distribution-plan.md)
+for the publish path.
 
 ---
 

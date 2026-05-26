@@ -46,15 +46,7 @@ function useSidebarToggle(key: string) {
   return [open, toggle, expand] as const;
 }
 import {
-  FileText,
-  BarChart3,
-  Database,
-  Package,
-  ShoppingCart,
-  CreditCard,
-  BookOpen,
   MessageCircle,
-  Settings,
   ChevronDown,
   ChevronRight,
   Plus,
@@ -63,18 +55,9 @@ import {
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { useChat } from "@/components/chat/chat-provider";
+import { getNavGroups, type NavGroup } from "@/lib/nav";
+import { getBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
-
-interface NavItem {
-  label: string;
-  path: string;
-}
-
-interface NavGroup {
-  label: string;
-  icon: React.ReactNode;
-  items: NavItem[];
-}
 
 export const FLASH_STYLES: Record<string, string> = {
   "Introduction": "bg-fuchsia-300 text-fuchsia-950 ring-2 ring-inset ring-fuchsia-100",
@@ -87,90 +70,6 @@ export const FLASH_STYLES: Record<string, string> = {
   "Settings": "bg-purple-300 text-purple-950 ring-2 ring-inset ring-purple-100",
   "Custom Analytics": "bg-indigo-300 text-indigo-950 ring-2 ring-inset ring-indigo-100",
 };
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: "Introduction",
-    icon: <BookOpen className="h-4 w-4" />,
-    items: [
-      { label: "Getting Started", path: "/tutorial" },
-      { label: "Company Setup", path: "/setup" },
-      { label: "Opening Balances", path: "/setup/opening-balances" },
-    ],
-  },
-  {
-    label: "Selling",
-    icon: <ShoppingCart className="h-4 w-4" />,
-    items: [
-      { label: "Quotation", path: "/app/quotation" },
-      { label: "Sales Order", path: "/app/sales-order" },
-      { label: "Sales Invoice", path: "/app/sales-invoice" },
-      { label: "POS Invoice", path: "/app/pos-invoice" },
-    ],
-  },
-  {
-    label: "Buying",
-    icon: <CreditCard className="h-4 w-4" />,
-    items: [
-      { label: "Purchase Order", path: "/app/purchase-order" },
-      { label: "Purchase Invoice", path: "/app/purchase-invoice" },
-    ],
-  },
-  {
-    label: "Accounting",
-    icon: <FileText className="h-4 w-4" />,
-    items: [
-      { label: "Payment Entry", path: "/app/payment-entry" },
-      { label: "Journal Entry", path: "/app/journal-entry" },
-      { label: "Bank Transaction", path: "/app/bank-transaction" },
-      { label: "Budget", path: "/app/budget" },
-      { label: "Subscription", path: "/app/subscription" },
-    ],
-  },
-  {
-    label: "Stock",
-    icon: <Package className="h-4 w-4" />,
-    items: [
-      { label: "Stock Entry", path: "/app/stock-entry" },
-      { label: "Delivery Note", path: "/app/delivery-note" },
-      { label: "Purchase Receipt", path: "/app/purchase-receipt" },
-    ],
-  },
-  {
-    label: "Reports",
-    icon: <BarChart3 className="h-4 w-4" />,
-    items: [
-      { label: "Trial Balance", path: "/reports/trial-balance" },
-      { label: "Profit & Loss", path: "/reports/profit-and-loss" },
-      { label: "Balance Sheet", path: "/reports/balance-sheet" },
-      { label: "General Ledger", path: "/reports/general-ledger" },
-      { label: "AR Aging", path: "/reports/ar-aging" },
-      { label: "AP Aging", path: "/reports/ap-aging" },
-      { label: "Analytics", path: "/reports/analytics" },
-      { label: "Stock Balance", path: "/reports/stock-balance" },
-    ],
-  },
-  {
-    label: "Masters",
-    icon: <Database className="h-4 w-4" />,
-    items: [
-      { label: "Company", path: "/masters/company" },
-      { label: "Customer", path: "/masters/customer" },
-      { label: "Supplier", path: "/masters/supplier" },
-      { label: "Item", path: "/masters/item" },
-      { label: "Warehouse", path: "/masters/warehouse" },
-    ],
-  },
-  {
-    label: "Settings",
-    icon: <Settings className="h-4 w-4" />,
-    items: [
-      { label: "General", path: "/admin/settings" },
-      { label: "Pricing Rule", path: "/app/pricing-rule" },
-      { label: "Users & Team", path: "/admin/users" },
-    ],
-  },
-];
 
 function ChatGroup() {
   const [open, toggle] = useSidebarToggle("chats");
@@ -477,11 +376,12 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
 
   const firstCompany = setupStatus?.companies?.[0];
   const companyName: string =
-    firstCompany?.company_name || firstCompany?.name || "Lambda ERP";
+    firstCompany?.company_name || firstCompany?.name || getBranding().appName;
 
   const groups = useMemo(() => {
-    if (!settings) return NAV_GROUPS;
-    return NAV_GROUPS.map((group) => ({
+    const base = getNavGroups();
+    if (!settings) return base;
+    return base.map((group) => ({
       ...group,
       items: group.items.filter((item) => {
         const settingKey = HIDDEN_PATHS[item.path];

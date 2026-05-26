@@ -22,44 +22,98 @@ import Demo from "@/pages/demo";
 import OpeningBalances from "@/pages/opening-balances";
 import Users from "@/pages/admin/users";
 import GeneralSettings from "@/pages/admin/settings";
+import { getComponent } from "@/lib/component-registry";
 
-export const routes: RouteObject[] = [
+// The dashboard (the index route) is resolved through the component registry
+// so a customer deployment can swap it via registerComponent("Dashboard", …).
+function DashboardRoute() {
+  const C = getComponent("Dashboard", Dashboard);
+  return <C />;
+}
+
+const baseTopRoutes: RouteObject[] = [
   { path: "/login", element: <Login /> },
   { path: "/demo", element: <Demo /> },
-  {
-    path: "/",
-    element: <ProtectedRoute><AppShell /></ProtectedRoute>,
-    children: [
-      { index: true, element: <Dashboard /> },
-      { path: "setup", element: <Setup /> },
-      { path: "setup/opening-balances", element: <OpeningBalances /> },
-      { path: "tutorial", element: <Tutorial /> },
-      { path: "chat", element: <Chat /> },
-      { path: "chat/:sessionId", element: <Chat /> },
-
-      // Documents
-      { path: "app/:doctype", element: <DocumentList /> },
-      { path: "app/:doctype/new", element: <DocumentForm /> },
-      { path: "app/:doctype/:name", element: <DocumentForm /> },
-
-      // Masters (reuse same routes - the components detect whether it's a doctype or master)
-      { path: "masters/:type", element: <MasterList /> },
-      { path: "masters/:type/new", element: <MasterForm /> },
-      { path: "masters/:type/:name", element: <MasterForm /> },
-
-      // Reports
-      { path: "reports/trial-balance", element: <TrialBalance /> },
-      { path: "reports/general-ledger", element: <GeneralLedger /> },
-      { path: "reports/stock-balance", element: <StockBalance /> },
-      { path: "reports/profit-and-loss", element: <ProfitLoss /> },
-      { path: "reports/balance-sheet", element: <BalanceSheet /> },
-      { path: "reports/ar-aging", element: <ArAging /> },
-      { path: "reports/ap-aging", element: <ApAging /> },
-      { path: "reports/analytics", element: <Analytics /> },
-
-      // Admin
-      { path: "admin/users", element: <Users /> },
-      { path: "admin/settings", element: <GeneralSettings /> },
-    ],
-  },
 ];
+
+const baseChildRoutes: RouteObject[] = [
+  { index: true, element: <DashboardRoute /> },
+  { path: "setup", element: <Setup /> },
+  { path: "setup/opening-balances", element: <OpeningBalances /> },
+  { path: "tutorial", element: <Tutorial /> },
+  { path: "chat", element: <Chat /> },
+  { path: "chat/:sessionId", element: <Chat /> },
+
+  // Documents
+  { path: "app/:doctype", element: <DocumentList /> },
+  { path: "app/:doctype/new", element: <DocumentForm /> },
+  { path: "app/:doctype/:name", element: <DocumentForm /> },
+
+  // Masters (reuse same routes - the components detect whether it's a doctype or master)
+  { path: "masters/:type", element: <MasterList /> },
+  { path: "masters/:type/new", element: <MasterForm /> },
+  { path: "masters/:type/:name", element: <MasterForm /> },
+
+  // Reports
+  { path: "reports/trial-balance", element: <TrialBalance /> },
+  { path: "reports/general-ledger", element: <GeneralLedger /> },
+  { path: "reports/stock-balance", element: <StockBalance /> },
+  { path: "reports/profit-and-loss", element: <ProfitLoss /> },
+  { path: "reports/balance-sheet", element: <BalanceSheet /> },
+  { path: "reports/ar-aging", element: <ArAging /> },
+  { path: "reports/ap-aging", element: <ApAging /> },
+  { path: "reports/analytics", element: <Analytics /> },
+
+  // Admin
+  { path: "admin/users", element: <Users /> },
+  { path: "admin/settings", element: <GeneralSettings /> },
+];
+
+const extraTopRoutes: RouteObject[] = [];
+const extraChildRoutes: RouteObject[] = [];
+
+/**
+ * Register a route from a customer deployment.
+ *  - area "app" (default): added under the protected app shell (sidebar +
+ *    header), so it's an authenticated page like the core ones.
+ *  - area "top": added at the root (e.g. a public/unauthenticated page).
+ *
+ * A registered route whose `path` (or index) matches a core route replaces
+ * it — that's how you override a core page wholesale.
+ */
+export function registerRoute(route: RouteObject, opts?: { area?: "app" | "top" }) {
+  if (opts?.area === "top") {
+    extraTopRoutes.push(route);
+  } else {
+    extraChildRoutes.push(route);
+  }
+}
+
+const routeKey = (r: RouteObject) => (r.index ? "__index__" : r.path ?? "");
+
+function mergeRoutes(base: RouteObject[], extra: RouteObject[]): RouteObject[] {
+  const out = [...base];
+  for (const r of extra) {
+    const k = routeKey(r);
+    const i = out.findIndex((m) => routeKey(m) === k);
+    if (i >= 0) out[i] = r;
+    else out.push(r);
+  }
+  return out;
+}
+
+/**
+ * Build the full route table, merging any customer-registered routes over the
+ * core ones. Call this when constructing the router (the demo does so via
+ * bootstrap) — after plugins have registered, so overrides take effect.
+ */
+export function buildRoutes(): RouteObject[] {
+  return [
+    ...mergeRoutes(baseTopRoutes, extraTopRoutes),
+    {
+      path: "/",
+      element: <ProtectedRoute><AppShell /></ProtectedRoute>,
+      children: mergeRoutes(baseChildRoutes, extraChildRoutes),
+    },
+  ];
+}

@@ -607,6 +607,16 @@ export function getDoctypeConfig(slug: string): DoctypeConfig | undefined {
   return CONFIGS[slug];
 }
 
+/**
+ * Register (or override) a doctype config. A customer deployment built on the
+ * published library calls this at startup to add a new document type or swap
+ * the form/list schema of a core one. The list/form pages read CONFIGS live
+ * via getDoctypeConfig, so a registration takes effect immediately.
+ */
+export function registerDoctype(config: DoctypeConfig) {
+  CONFIGS[config.slug] = config;
+}
+
 export function getAllDoctypeConfigs(): DoctypeConfig[] {
   return Object.values(CONFIGS);
 }
