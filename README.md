@@ -409,6 +409,14 @@ MIT. See [LICENSE](./LICENSE) for the full text.
 
 ---
 
+## Changelog
+
+Release notes live in [CHANGELOG.md](./CHANGELOG.md). Releases are tagged
+`vX.Y.Z` and published in lockstep to PyPI (`lambda-erp`) and npm
+(`@lambda-development/erp-core`).
+
+---
+
 ## Status
 
 Version 0. Working prototype that implements the vision. Fine for demos, internal tools, and hacking. Not yet ready to handle your company's actual books - run it alongside your real ERP if you want to kick the tires.

@@ -99,3 +99,31 @@ jobs:
           npm run build:lib        # -> dist/index.js + dist/index.d.ts (peers external)
       - name: Publish (scoped public, trusted publishing)
         run: npm publish --access public
+
+  # After both packages are live, cut the GitHub Release for the tag, with notes
+  # pulled from the matching CHANGELOG.md section. Tag-only (workflow_dispatch
+  # has no tag); runs only if both publishes succeeded.
+  github-release:
+    name: Create GitHub Release
+    needs: [publish-pypi, publish-npm]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write              # create the release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract release notes from CHANGELOG
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          awk -v v="$VER" '
+            $0 ~ "^## \\[" v "\\]" { grab=1; next }
+            grab && /^## \[/ { exit }
+            grab { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "See [CHANGELOG.md](./CHANGELOG.md)." > release-notes.md
+          fi
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
