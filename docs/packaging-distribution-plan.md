@@ -4,11 +4,12 @@ Status: **Phases A & B done** (2026-05-26). A: backend builds a clean
 wheel/sdist via hatchling shipping `lambda_erp` + `api` (incl. the PDF
 template), verified by a clean-venv install + import. B: frontend override seam
 + dual app/library build shipping `@lambda-development/erp-core`, verified by a scratch
-consumer app type-checking the packed tarball. **Phase C (publish CI) in
-progress** — `release.yml` written, OIDC chosen, `private` flipped; what's left
-is manual registry / GitHub-UI setup (npm org, `release` environment, npm
-first-publish bootstrap — see Phase C). **Phase D not started.** Until the first
-release runs, consume both packages via the git-dependency interim path.
+consumer app type-checking the packed tarball. **Phase C (publish CI) is DONE
+(2026-05-27)** — `release.yml` publishes both packages keylessly via OIDC on a
+`v*` tag, and **both are live: PyPI `lambda-erp` + npm `@lambda-development/erp-core`,
+latest `0.1.2`**. **The remaining piece is Phase D** — a worked example/template
+that consumes both published packages (decided: a separate example repo,
+**deferred**; see Phase D).
 
 > **Release runbook:** the step-by-step "how to cut a release" + the one-time
 > registry/GitHub setup checklist live in [`docs/releasing.md`](releasing.md).
@@ -17,10 +18,10 @@ release runs, consume both packages via the git-dependency interim path.
 ## Handoff — current state (2026-05-26)
 
 A fresh session (likely on another machine / another LLM) can pick up here.
-**Phases A and B are implemented and verified. Phase C is in progress** — the
-`release.yml` workflow is written and `private` is flipped; the remaining work is
-the manual registry / GitHub-UI setup listed under Phase C (npm org, the
-`release` GitHub Environment, and the one-time npm first-publish bootstrap).
+**Phases A, B and C are done and verified — both packages publish keylessly via
+OIDC on a `v*` tag and are live at `0.1.2`.** The remaining piece is **Phase D**:
+a worked example/template that consumes both published packages (see Phase D for
+the open decision on its shape).
 
 > ⚠️ **Commit & push before switching machines.** The Phase A/B changes may be
 > uncommitted; the other machine only sees what's in git. Local auto-memory does
@@ -172,66 +173,86 @@ the design tokens from a shipped preset + base stylesheet).
 - [x] Overrides confirmed two ways: (a) runtime registration (the registries
   above), (b) build-time `resolve.alias` whole-module swap.
 
-## Phase C — Versioning + publish CI — **IN PROGRESS (2026-05-26)**
+## Phase C — Versioning + publish CI — **DONE (2026-05-27)**
 
-**Decisions (resolved):**
-- [x] **Auth method: OIDC trusted publishing** (no stored tokens), matching the
-  repo's keyless Azure auth. Both publish jobs run in the `release` environment.
-- [x] **Flipped `frontend/package.json` `"private": true`** → removed, so
-  `npm publish` is allowed; the tag-triggered workflow is now the controlled path.
+Both packages publish **keylessly via OIDC trusted publishing** on a `v*` tag,
+and are live: **PyPI `lambda-erp` and npm `@lambda-development/erp-core`, latest
+`0.1.2`**. (PyPI: `0.1.0/0.1.1/0.1.2`; npm: `0.1.0/0.1.2` — see the provenance
+lesson below for why npm skips `0.1.1`.)
 
-**Done:**
-- [x] `.github/workflows/release.yml` written — trigger: tag `v*` (+ manual
-  `workflow_dispatch`); separate from `deploy.yml` (a tag push does not fire its
-  `branches: [master]` trigger, so releasing never re-deploys the demo). Jobs:
-  - `verify-version` — fails unless tag (minus `v`) == `pyproject` version ==
-    `frontend/package.json` version (lockstep guard).
-  - `publish-pypi` — `python -m build` → `pypa/gh-action-pypi-publish@release/v1`;
-    `environment: release`, `permissions: id-token: write` (no token).
-  - `publish-npm` — `npm ci` + `npm run build:lib` + `npm publish --access public`;
-    upgrades to `npm@latest` (OIDC needs npm ≥ 11.5.1); `environment: release`,
-    `id-token: write`, no `NODE_AUTH_TOKEN`.
-- [x] **Unified version** enforced by the `verify-version` job (both `0.1.0` today).
-- [ ] Treat the public surface (extension seams) as **semver** — breaking changes
-  to a seam = major bump. (ongoing discipline)
+**What shipped:**
+- `.github/workflows/release.yml` — trigger: tag `v*` (+ manual
+  `workflow_dispatch`); separate from `deploy.yml` so releasing never re-deploys
+  the demo. Jobs: `verify-version` (tag == both package versions — lockstep
+  guard) → `publish-pypi` (`python -m build` → `pypa/gh-action-pypi-publish`,
+  `environment: release`, `id-token: write`) and `publish-npm` (`npm ci` +
+  `build:lib` + `npm publish --access public`, `environment: release`,
+  `id-token: write`, npm upgraded to ≥ 11.5.1) → `github-release` (creates the
+  GitHub Release from the matching `CHANGELOG.md` section).
+- Trusted publishers configured: PyPI **pending publisher** + npm package
+  **trusted publisher**, both → repo `lambdadevelopment/lambda-erp`, workflow
+  `release.yml`, GitHub environment `release` (created).
+- `CHANGELOG.md` (Keep a Changelog, lockstep, one entry per version) +
+  [`docs/releasing.md`](releasing.md) (the operational release runbook).
 
-**Remaining before the first release run (manual, in the registry / GitHub UIs):**
-- [x] PyPI **pending publisher** created — project `lambda-erp`, owner/repo
-  `lambdadevelopment/lambda-erp`, workflow `release.yml`, environment `release`.
-- [ ] Create the GitHub **Environment** named `release` (Settings → Environments).
-  It only needs to *exist* for the OIDC `sub` claim to match — leave it empty, or
-  add required reviewers for an approval gate (gates each publish job).
-- [ ] Create the npm **Free org `lambda-development`** (owns the scope).
-- [ ] **Bootstrap the npm package once**: npm has no pending-publisher, so a
-  brand-new scoped package cannot first-publish via OIDC. Do one manual
-  `cd frontend && npm publish --access public` (2FA, or a one-time granular
-  token), then enable its **trusted publisher** (repo `lambdadevelopment/lambda-erp`,
-  workflow `release.yml`, environment `release`). Every release after is tokenless.
-- [ ] Then push tag `v0.1.0` → both packages publish keylessly.
+**Lessons from the first releases (already folded into the workflow + runbook):**
+- **npm's first publish can't use OIDC** — npm requires the package to exist
+  before a trusted publisher can be enabled (no npm equivalent of PyPI's pending
+  publisher). So npm `0.1.0` was a one-time manual token/`npm login` bootstrap.
+- **npm provenance requires `repository.url`** in `frontend/package.json`
+  matching the GitHub repo, or `npm publish` (with provenance) fails with a 422.
+  This bit `0.1.1` on npm → npm skips `0.1.1`; both registries realigned at
+  `0.1.2`. PyPI was unaffected (it has `0.1.1`).
+- **Action majors bumped for Node 24** — `checkout@v5`, `setup-node@v6`,
+  `setup-python@v6` (Node 20 actions are being removed from runners mid-2026).
 
-**Trusted-publisher settings to save once accounts/org are live (do this in the
-registry UIs, not in code):**
-- PyPI → project `lambda-erp` → *Publishing* → add a GitHub publisher: owner/repo,
-  workflow filename `release.yml`, optional environment. Use a **pending
-  publisher** if configuring before the first manual upload.
-- npm → org `lambda-development` → package `@lambda-development/erp-core` → enable
-  trusted publishing for the GitHub repo + `release.yml` workflow.
+**Ongoing:** treat the extension seams as **semver** — a breaking seam change is
+a major bump.
 
-## Phase D — Customer repo template (private)
+## Phase D — Worked customer/example deployment — **DECIDED (deferred)**
 
-- [ ] Provide a `cookiecutter`/template private repo:
-  ```
-  acme-erp/
-    pyproject.toml          # lambda-erp-core==X.Y.Z
-    acme/plugin.py          # register() -> register_doctype / register_hook
-    acme/sales_invoice.py   # overrides
-    frontend/package.json   # @lambda-development/erp-core ^X.Y.Z + overrides + vite alias
-    config/                 # branding, features, base currency, OAuth
-    deploy/                 # Dockerfile (build core+overrides), Azure config
-  ```
+> **Decision (2026-05-27):** build a **separate public example repo** (option
+> (a) below) that consumes the published `0.1.2` packages, registers a couple of
+> overrides, and deploys as one container — doubling as the template customers
+> copy. **Deferred — to be built later**, not started yet.
+
+This is the remaining piece, and it answers *"how do we show the two published
+packages working together?"* Three shapes were considered:
+
+- **(a) A separate example/template repo** — *recommended*. A minimal public repo
+  (e.g. `lambda-erp-example`) that depends on the **published** packages
+  (`lambda-erp` from PyPI + `@lambda-development/erp-core` from npm), registers a
+  couple of overrides, and builds/deploys as a single container. Doubles as the
+  proof the published artifacts actually compose **and** the template real
+  (private) customer repos copy. Closest to the intended customer model.
+- **(b) README/docs only** — necessary but not sufficient on its own: prose
+  (already in the README + [`core-extension-architecture.md`](core-extension-architecture.md))
+  rots and never proves the published packages install and build together. Keep
+  it as the narrative, but back it with (a).
+- **(c) An `examples/` dir in this monorepo** — discoverable, but it tends to use
+  workspace/relative deps, which does **not** exercise the *published* packages,
+  and it muddies the monorepo. Weakest proof.
+
+**Recommendation: (a)**, with (b) linking to it. Template sketch:
+```
+acme-erp/
+  pyproject.toml          # lambda-erp==X.Y.Z
+  acme/plugin.py          # register() -> register_doctype / register_hook
+  acme/sales_invoice.py   # a backend override
+  frontend/package.json   # @lambda-development/erp-core ^X.Y.Z (+ peers)
+  frontend/src/plugin.ts  # registerDoctype / configureBranding / configureApiBase
+  config/                 # branding, features, base currency, OAuth
+  deploy/                 # Dockerfile (build core + overrides), Azure config
+```
+
+Still to settle when we build it:
+- [x] **Shape**: a **separate repo** (decided). Still open: plain example vs.
+  `cookiecutter` template.
+- [ ] **Public or private**: a *public* example (for demonstration) is distinct
+  from real *private* customer repos; likely a public example first.
 - [ ] Deploy shape: the **customer's** frontend build (core npm package +
-  overrides) produces the bundle the backend serves — still one container, built
-  from core packages + customer overrides. Set `LAMBDA_ERP_PLUGINS=acme`.
+  overrides) produces the bundle the backend serves — one container, built from
+  the core packages + customer overrides. Set `LAMBDA_ERP_PLUGINS=acme`.
 
 ---
 
@@ -259,5 +280,6 @@ it only skips the npm/PyPI publish step.
 1. ~~Frontend override seam (prerequisite for Phase B)~~ — **done.**
 2. ~~Phase A (backend pip)~~ — **done.**
 3. ~~Phase B (frontend npm library)~~ — **done.**
-4. **Phase C (publish CI) ← next**, then Phase D (first customer repo).
-   Until C is run, consume both packages via **git dependencies** (interim path).
+4. ~~Phase C (publish CI)~~ — **done; both packages live at `0.1.2`.**
+5. **Phase D (worked customer/example deployment)** — decided: a **separate
+   example repo**; **deferred** (build later). See Phase D.
