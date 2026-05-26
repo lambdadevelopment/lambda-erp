@@ -55,28 +55,88 @@
     "analytics": "Analytics"
   },
   "doctypes": {
-    "quotation": { "one": "Quotation", "other": "Quotations" },
-    "sales-order": { "one": "Sales Order", "other": "Sales Orders" },
-    "sales-invoice": { "one": "Sales Invoice", "other": "Sales Invoices" },
-    "pos-invoice": { "one": "POS Invoice", "other": "POS Invoices" },
-    "purchase-order": { "one": "Purchase Order", "other": "Purchase Orders" },
-    "purchase-invoice": { "one": "Purchase Invoice", "other": "Purchase Invoices" },
-    "payment-entry": { "one": "Payment Entry", "other": "Payment Entries" },
-    "journal-entry": { "one": "Journal Entry", "other": "Journal Entries" },
-    "bank-transaction": { "one": "Bank Transaction", "other": "Bank Transactions" },
-    "budget": { "one": "Budget", "other": "Budgets" },
-    "subscription": { "one": "Subscription", "other": "Subscriptions" },
-    "stock-entry": { "one": "Stock Entry", "other": "Stock Entries" },
-    "delivery-note": { "one": "Delivery Note", "other": "Delivery Notes" },
-    "purchase-receipt": { "one": "Purchase Receipt", "other": "Purchase Receipts" },
-    "pricing-rule": { "one": "Pricing Rule", "other": "Pricing Rules" }
+    "quotation": {
+      "one": "Quotation",
+      "other": "Quotations"
+    },
+    "sales-order": {
+      "one": "Sales Order",
+      "other": "Sales Orders"
+    },
+    "sales-invoice": {
+      "one": "Sales Invoice",
+      "other": "Sales Invoices"
+    },
+    "pos-invoice": {
+      "one": "POS Invoice",
+      "other": "POS Invoices"
+    },
+    "purchase-order": {
+      "one": "Purchase Order",
+      "other": "Purchase Orders"
+    },
+    "purchase-invoice": {
+      "one": "Purchase Invoice",
+      "other": "Purchase Invoices"
+    },
+    "payment-entry": {
+      "one": "Payment Entry",
+      "other": "Payment Entries"
+    },
+    "journal-entry": {
+      "one": "Journal Entry",
+      "other": "Journal Entries"
+    },
+    "bank-transaction": {
+      "one": "Bank Transaction",
+      "other": "Bank Transactions"
+    },
+    "budget": {
+      "one": "Budget",
+      "other": "Budgets"
+    },
+    "subscription": {
+      "one": "Subscription",
+      "other": "Subscriptions"
+    },
+    "stock-entry": {
+      "one": "Stock Entry",
+      "other": "Stock Entries"
+    },
+    "delivery-note": {
+      "one": "Delivery Note",
+      "other": "Delivery Notes"
+    },
+    "purchase-receipt": {
+      "one": "Purchase Receipt",
+      "other": "Purchase Receipts"
+    },
+    "pricing-rule": {
+      "one": "Pricing Rule",
+      "other": "Pricing Rules"
+    }
   },
   "masters": {
-    "company": { "one": "Company", "other": "Companies" },
-    "customer": { "one": "Customer", "other": "Customers" },
-    "supplier": { "one": "Supplier", "other": "Suppliers" },
-    "item": { "one": "Item", "other": "Items" },
-    "warehouse": { "one": "Warehouse", "other": "Warehouses" }
+    "company": {
+      "one": "Company",
+      "other": "Companies"
+    },
+    "customer": {
+      "one": "Customer",
+      "other": "Customers"
+    },
+    "supplier": {
+      "one": "Supplier",
+      "other": "Suppliers"
+    },
+    "item": {
+      "one": "Item",
+      "other": "Items"
+    },
+    "warehouse": {
+      "one": "Warehouse",
+      "other": "Warehouses"
+    }
   },
   "nav": {
     "chats": "Chats",
@@ -247,5 +307,293 @@
     "creating": "Creating chat...",
     "dropToAttach": "Drop file to attach (images or PDF, max 10 MB each)",
     "demoError": "Could not start demo"
+  },
+  "conversions": {
+    "Create Credit Note": "Create Credit Note",
+    "Create Debit Note": "Create Debit Note",
+    "Create Delivery Note": "Create Delivery Note",
+    "Create Purchase Invoice": "Create Purchase Invoice",
+    "Create Purchase Receipt": "Create Purchase Receipt",
+    "Create Return": "Create Return",
+    "Create Sales Invoice": "Create Sales Invoice",
+    "Create Sales Order": "Create Sales Order"
+  },
+  "fields": {
+    "% Billed": "% Billed",
+    "% Delivered": "% Delivered",
+    "Account": "Account",
+    "Address": "Address",
+    "Allocated": "Allocated",
+    "Amount": "Amount",
+    "As of Date": "As of Date",
+    "Balance": "Balance",
+    "Bank Account": "Bank Account",
+    "Billing Interval": "Billing Interval",
+    "Budget Amount": "Budget Amount",
+    "Buying": "Buying",
+    "Change": "Change",
+    "City": "City",
+    "Company": "Company",
+    "Company Name": "Company Name",
+    "Cost Center": "Cost Center",
+    "Country": "Country",
+    "Credit": "Credit",
+    "Credit Limit": "Credit Limit",
+    "Currency": "Currency",
+    "Current Period End": "Current Period End",
+    "Current Period Start": "Current Period Start",
+    "Customer": "Customer",
+    "Customer Group": "Customer Group",
+    "Customer Name": "Customer Name",
+    "Date": "Date",
+    "Debit": "Debit",
+    "Delivery Date": "Delivery Date",
+    "Deposit": "Deposit",
+    "Description": "Description",
+    "Discount %": "Discount %",
+    "Discount Amt": "Discount Amt",
+    "Discount Percentage": "Discount Percentage",
+    "Due Date": "Due Date",
+    "Email": "Email",
+    "Enabled": "Enabled",
+    "End Date": "End Date",
+    "Expense Account": "Expense Account",
+    "Fiscal Year": "Fiscal Year",
+    "From Date": "From Date",
+    "Grand Total": "Grand Total",
+    "ID": "ID",
+    "If Exceeded": "If Exceeded",
+    "Income Account": "Income Account",
+    "Incoming Value": "Incoming Value",
+    "Invoice": "Invoice",
+    "Item": "Item",
+    "Item Code": "Item Code",
+    "Item Group": "Item Group",
+    "Item Name": "Item Name",
+    "Matched Doc": "Matched Doc",
+    "Matched Type": "Matched Type",
+    "Min Qty": "Min Qty",
+    "Mode": "Mode",
+    "Month": "Month",
+    "Name": "Name",
+    "Net Total": "Net Total",
+    "Notes / Terms": "Notes / Terms",
+    "Outgoing Value": "Outgoing Value",
+    "Outstanding": "Outstanding",
+    "Outstanding Amount": "Outstanding Amount",
+    "Paid Amount": "Paid Amount",
+    "Paid From": "Paid From",
+    "Paid To": "Paid To",
+    "Party": "Party",
+    "Party Type": "Party Type",
+    "Payment Type": "Payment Type",
+    "Phone": "Phone",
+    "Plan Items": "Plan Items",
+    "Posting Date": "Posting Date",
+    "Priority": "Priority",
+    "Qty": "Qty",
+    "Rate": "Rate",
+    "Rate (%)": "Rate (%)",
+    "Rate Or Discount": "Rate Or Discount",
+    "Reference No": "Reference No",
+    "Remark": "Remark",
+    "Selling": "Selling",
+    "Source": "Source",
+    "Source Warehouse": "Source Warehouse",
+    "Standard Rate": "Standard Rate",
+    "Start Date": "Start Date",
+    "Status": "Status",
+    "Stock Entry Type": "Stock Entry Type",
+    "Stock UOM": "Stock UOM",
+    "Stock Value": "Stock Value",
+    "Supplier": "Supplier",
+    "Supplier Group": "Supplier Group",
+    "Supplier Name": "Supplier Name",
+    "Target": "Target",
+    "Target Warehouse": "Target Warehouse",
+    "Tax": "Tax",
+    "Tax ID": "Tax ID",
+    "Territory": "Territory",
+    "Title": "Title",
+    "To Date": "To Date",
+    "Total": "Total",
+    "Total Amount": "Total Amount",
+    "Total Credit": "Total Credit",
+    "Total Debit": "Total Debit",
+    "Transaction Date": "Transaction Date",
+    "Type": "Type",
+    "Unallocated": "Unallocated",
+    "Update Stock": "Update Stock",
+    "Valid From": "Valid From",
+    "Valid Till": "Valid Till",
+    "Valid Upto": "Valid Upto",
+    "Valuation Rate": "Valuation Rate",
+    "Voucher No": "Voucher No",
+    "Voucher Type": "Voucher Type",
+    "Warehouse": "Warehouse",
+    "Warehouse Name": "Warehouse Name",
+    "Withdrawal": "Withdrawal",
+    "Zip Code": "Zip Code"
+  },
+  "tables": {
+    "accounts": "accounts",
+    "items": "items",
+    "monthly_distribution": "monthly_distribution",
+    "payments": "payments",
+    "plans": "plans",
+    "references": "references",
+    "taxes": "taxes"
+  },
+  "tutorial": {
+    "chips": {
+      "Cancelled": "Cancelled",
+      "Credit Note": "Credit Note",
+      "DN Return": "DN Return",
+      "Debit Note": "Debit Note",
+      "Delivery Note": "Delivery Note",
+      "Draft": "Draft",
+      "Payment Entry": "Payment Entry",
+      "Purchase Invoice": "Purchase Invoice",
+      "Purchase Order": "Purchase Order",
+      "Purchase Receipt": "Purchase Receipt",
+      "Quotation": "Quotation",
+      "Sales Invoice": "Sales Invoice",
+      "Sales Order": "Sales Order",
+      "Submitted": "Submitted"
+    },
+    "links": {
+      "AP Aging": "AP Aging",
+      "AR Aging": "AR Aging",
+      "Balance Sheet": "Balance Sheet",
+      "Customers": "Customers",
+      "Delivery Notes": "Delivery Notes",
+      "General Ledger": "General Ledger",
+      "Go to Setup": "Go to Setup",
+      "Items": "Items",
+      "New Journal Entry": "New Journal Entry",
+      "New Payment Entry": "New Payment Entry",
+      "New Purchase Order": "New Purchase Order",
+      "New Quotation": "New Quotation",
+      "New Stock Entry": "New Stock Entry",
+      "Open AI Chat": "Open AI Chat",
+      "Profit & Loss": "Profit & Loss",
+      "Purchase Invoices": "Purchase Invoices",
+      "Purchase Receipts": "Purchase Receipts",
+      "Sales Invoices": "Sales Invoices",
+      "Stock Balance": "Stock Balance",
+      "Suppliers": "Suppliers",
+      "Trial Balance": "Trial Balance",
+      "View Quotations": "View Quotations",
+      "Warehouses": "Warehouses"
+    },
+    "steps": {
+      "1": {
+        "title": "Set Up Your Company",
+        "description": "Create a company with a base currency. This generates your Chart of Accounts (30 standard accounts across Assets, Liabilities, Equity, Income, and Expenses) and a default Cost Center. You can also seed demo data with sample customers, suppliers, and items to get started quickly."
+      },
+      "2": {
+        "title": "Create Master Data",
+        "description": "Before you can transact, you need master records. Create at least one Customer, one Supplier, one Item (with a standard rate), and one Warehouse. If you seeded demo data in Step 1, these already exist.",
+        "tip": "Items have a standard rate that auto-fills when you add them to documents. You can always override the rate per transaction."
+      },
+      "3": {
+        "title": "Create a Quotation",
+        "description": "A Quotation is a non-binding offer to a customer. Select a customer, add line items with quantities and rates, optionally add tax rows, then save. Quotations have no financial impact — they don't create accounting or stock entries. Set a validity date so the offer expires automatically."
+      },
+      "4": {
+        "title": "Submit and Convert to Sales Order",
+        "description": "Open your saved Quotation and click Submit to confirm it. Then click “Create Sales Order” to convert it. The Sales Order represents a confirmed commitment from the customer. It still has no financial impact, but it reserves stock for planning purposes.",
+        "tip": "Only submitted documents can be converted to the next step. Draft → Submit → Convert is the standard flow. For quick deals, you can skip the Sales Order and go directly from Quotation to Sales Invoice or Delivery Note."
+      },
+      "5": {
+        "title": "Check Stock Before Fulfilling",
+        "description": "Before you can deliver, check if you actually have the item in stock. Go to the Stock Balance report and look up the item. If your warehouse has zero quantity, you’ll need to bring stock in first — either through a Purchase Order (buying from a supplier) or a Stock Entry (manual receipt).",
+        "tip": "This is a common real-world scenario: you sell something, then realize you need to buy it first. The ERP handles both flows."
+      },
+      "6": {
+        "title": "Purchase Cycle: Buy Stock from a Supplier",
+        "description": "If you need to buy stock, you have two valid paths. The standard path is Purchase Order -> Purchase Receipt -> Purchase Invoice: use this when goods arrive before or separately from the supplier bill. If the bill and receipt happen together, you can create the Purchase Invoice directly and enable Update Stock so the same document both receives inventory and records Accounts Payable.",
+        "tip": "Use Purchase Receipt first when receiving goods separately. Use Purchase Invoice with Update Stock when one step should both receive stock and book the supplier bill. In that direct path, set a warehouse on each stock item row."
+      },
+      "7": {
+        "title": "Create a Delivery Note",
+        "description": "Now that you have stock, go back to your submitted Sales Order and click “Create Delivery Note.” Set the warehouse on each item row (where the goods ship from), then submit. This moves inventory out of the warehouse — your stock balance decreases.",
+        "tip": "The Delivery Note is the shipping document. It reduces stock but doesn’t create an invoice. You can deliver and invoice separately."
+      },
+      "8": {
+        "title": "Create and Submit the Sales Invoice",
+        "description": "From the submitted Sales Order, create a Sales Invoice. When you submit the invoice, GL entries are posted: Accounts Receivable is debited (the customer owes you) and Sales Revenue is credited (income earned). If taxes are configured, Tax Payable is also credited. The outstanding amount shows what the customer still owes."
+      },
+      "9": {
+        "title": "Record Customer Payments",
+        "description": "Create a Payment Entry to record money received from the customer. Set the payment type to “Receive,” select the customer, specify the amount, and allocate it against the Sales Invoice. You can make partial payments — the invoice’s outstanding amount updates accordingly. Create additional Payment Entries until the invoice is fully paid.",
+        "tip": "Partial payments are common. A 10,000 invoice might be paid as 3,000 now and 7,000 later. Each Payment Entry reduces the outstanding amount."
+      },
+      "10": {
+        "title": "Stock Entries (Manual Inventory)",
+        "description": "Use Stock Entries for inventory movements that aren’t tied to purchases or sales. Material Receipt adds stock (opening balances, adjustments). Material Issue removes stock (write-offs, internal consumption). Material Transfer moves stock between warehouses. Each entry updates the stock ledger with moving-average valuation.",
+        "tip": "For purchased goods, use Purchase Receipts instead of Stock Entries — they link to the Purchase Order and give you a proper audit trail."
+      },
+      "11": {
+        "title": "Journal Entries",
+        "description": "Journal Entries are manual accounting adjustments — expense accruals, corrections, reclassifications, opening balances. Each entry must have balanced debits and credits (total debit = total credit). Use these when no other document type fits."
+      },
+      "12": {
+        "title": "Salary Payments",
+        "description": "Lambda ERP handles salaries through the existing accounting tools. First, accrue the salary expense: create a Journal Entry that debits Salary Expense and credits Salary Payable for the total payroll amount. Then pay the employees: create another Journal Entry (or Payment Entry) that debits Salary Payable and credits your bank account. This two-step process keeps your books accurate — the expense is recorded in the right period, and the cash outflow is tracked separately.",
+        "tip": "You can ask the AI assistant to do this for you: “Accrue 15,000 in salaries for April” followed by “Pay the April salaries from bank.” It will create the right journal entries automatically."
+      },
+      "13": {
+        "title": "Returns and Credit Notes",
+        "description": "When a customer returns goods or you need to issue a credit, create a return. Returns use the same document type with negative quantities. Open a submitted Sales Invoice and create a Credit Note (Sales Invoice return) — this reverses the GL entries and reduces the original invoice’s outstanding amount. For stock, create a Delivery Note return to bring goods back into the warehouse. On the buying side, create a Debit Note (Purchase Invoice return) to reverse a supplier bill, or a Purchase Receipt return to send goods back.",
+        "tip": "A Credit Note is just a Sales Invoice with is_return=1 and negative quantities. The same GL logic runs — negative amounts automatically flip to the correct debit/credit sides. For a full sales return, you need both a Credit Note (financials) and a Delivery Note return (stock)."
+      },
+      "14": {
+        "title": "Run Reports",
+        "description": "Check your books. The Profit & Loss shows income vs expenses and net profit for a period. The Balance Sheet shows your financial position (assets = liabilities + equity). AR Aging shows who owes you money and how overdue it is. AP Aging shows what you owe suppliers. The Trial Balance verifies double-entry integrity. The General Ledger shows every individual posting. Stock Balance shows current inventory."
+      },
+      "15": {
+        "title": "Working in Foreign Currencies",
+        "description": "Your books are kept in a single base currency (chosen at company setup), but you can transact in any currency. Set a currency on an invoice or bill — or give a customer or supplier a default currency — and the exchange rate for that date is looked up automatically and stored on the document. The document keeps its amounts in its own currency, while the General Ledger always posts in your base currency. When you later collect or pay at a different rate, the realized exchange gain or loss is booked automatically to an Exchange Gain/Loss account. You can even hold a foreign-currency bank balance and convert it later at your bank’s rate — the difference versus its carried value is realized then. At month end you can revalue open foreign balances to the closing rate (an unrealized gain/loss that reverses next period), and you can view any financial statement translated into another currency for display.",
+        "tip": "This is easiest through the AI chat — try “Create a sales invoice for Lumiere Audio in EUR,” “Show me the balance sheet in EUR,” or “What’s our unrealized FX exposure at month end?” The seeded demo already includes a EUR customer (Lumiere Audio SARL) whose invoice was collected at a different rate, plus an open EUR supplier bill — open the General Ledger to see the realized FX postings."
+      }
+    },
+    "caTitle": "Dynamic Analytics — Chat Your Way to Any Chart",
+    "caBadge": "Signature Feature",
+    "caBody": "Need a report the presets can’t give you? Just describe it in chat. The assistant calls a code-specialist model that writes the report for you, runs it live over your ERP data, and returns a sharable link. The chart or table renders in seconds and is saved as a draft under Custom Analytics in the sidebar — you can reopen it, share the URL with teammates, or ask the assistant to refine it.",
+    "caTryAsking": "Try asking (click to prefill in chat):",
+    "caPrompt1": "Show me top 10 customers by revenue this year as a bar chart",
+    "caPrompt2": "Monthly purchases trend by supplier over all months and label x-axis with supplier name",
+    "caPrompt3": "Best selling items by quantity, with a table and a chart",
+    "caPrompt4": "Which customers owe me the most right now?",
+    "caTryInChat": "Try it in chat",
+    "caOpenWorkspace": "Open Analytics workspace",
+    "flowTitle": "Document Flow Overview",
+    "salesCycle": "Sales Cycle",
+    "flowShortcut": "Shortcut: Quotation can skip Sales Order and go directly to Sales Invoice or Delivery Note",
+    "purchaseCycle": "Purchase Cycle",
+    "returns": "Returns",
+    "legendStock": "stock impact",
+    "legendGl": "GL impact",
+    "legendCash": "cash impact",
+    "legendReversal": "reversal",
+    "lifecycleTitle": "Document Lifecycle",
+    "lcDraftLabel": "Draft:",
+    "lcDraftDesc": "Editable. No financial or stock impact.",
+    "lcSubmittedLabel": "Submitted:",
+    "lcSubmittedDesc": "Locked. GL entries and stock ledger entries are posted.",
+    "lcCancelledLabel": "Cancelled:",
+    "lcCancelledDesc": "All entries reversed. Document is permanently archived.",
+    "lcNoDelete": "There is no delete. To void a draft: submit it, then cancel it.",
+    "lcCorrect": "To correct a submitted document: cancel it and create a new one.",
+    "pageTitle": "Getting Started with Lambda ERP",
+    "intro": "Lambda ERP is an AI Native ERP System, with all functionality — like creating orders, checking inventory, recording payments — being accessible through a chat interface. It instructs, reasons and checks all your daily business tasks.",
+    "openChat": "Open AI Chat",
+    "tipLabel": "Tip:",
+    "topTip": "The AI chat can also give you direct links to documents and downloadable PDFs. Just ask it to create or look up a document and it will include clickable links in its response.",
+    "manualIntro": "If you want to fully understand how things work under the hood, or prefer to do things manually, here’s a full business cycle step by step.",
+    "readyTitle": "You're Ready",
+    "readyBody1": "You now understand the full cycle. A typical real-world scenario looks like this: you receive a customer order (Quotation → Sales Order), check stock, buy what you need (Purchase Order → Purchase Receipt → Purchase Invoice → Payment), deliver to the customer (Delivery Note), bill them (Sales Invoice), and collect payment (Payment Entry). If something comes back, create a Credit Note and Delivery Note return to reverse the financials and stock. The Trial Balance confirms everything is balanced.",
+    "readyBody2": "You can also use the AI chat to do all of this through natural conversation — just describe what you need and it will create the right documents for you."
   }
 }
