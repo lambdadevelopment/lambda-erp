@@ -20,11 +20,38 @@ from api.chat import chat_websocket, router as chat_router
 from api.routers import admin, documents, masters, reports, setup as setup_router, bank_reconciliation, analytics, accounting
 
 
+def load_plugins() -> None:
+    """Import customer extension modules named in LAMBDA_ERP_PLUGINS and call
+    each module's register().
+
+    A customer deployment is a separate repo that depends on this core and
+    registers doctype overrides / lifecycle hooks (see
+    docs/core-extension-architecture.md). Set e.g. LAMBDA_ERP_PLUGINS=acme
+    (comma-separated for several). Runs after setup() and BEFORE any documents
+    are created, so overrides/hooks apply to seeded data too. Unset = no-op, so
+    the core runs unchanged. Fails fast on a broken plugin rather than booting
+    silently without the customer's customizations.
+    """
+    import importlib
+
+    names = [m.strip() for m in os.environ.get("LAMBDA_ERP_PLUGINS", "").split(",") if m.strip()]
+    for name in names:
+        print(f"[plugins] loading {name}", flush=True)
+        module = importlib.import_module(name)
+        register = getattr(module, "register", None)
+        if not callable(register):
+            raise RuntimeError(f"Plugin '{name}' has no callable register()")
+        register()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: initialize database
     db_path = os.environ.get("LAMBDA_ERP_DB", "lambda_erp.db")
     setup(db_path)
+
+    # Load customer extension plugins before anything creates documents.
+    load_plugins()
 
     # Ensure the demo spend log table exists before any LLM call happens.
     from api.demo_limits import init_schema as init_demo_spend_schema
