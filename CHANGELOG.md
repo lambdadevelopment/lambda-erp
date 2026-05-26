@@ -13,9 +13,11 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-05-26
+## [0.1.1] - 2026-05-26
 
-Initial public release of the open-core packages.
+First coordinated public release — the first publish to PyPI and the first
+through the keyless CI pipeline, shipping both packages together. Same code as
+the 0.1.0 npm bootstrap noted below.
 
 ### Added
 - **Core ERP engine** (backend) — document lifecycle (quotation → sales order →
@@ -38,5 +40,12 @@ Initial public release of the open-core packages.
   `configureBranding`, `configureApiBase`) and a `bootstrap()` entry, so a
   customer deployment depends on the packages instead of forking the repo.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/lambdadevelopment/lambda-erp/releases/tag/v0.1.0
+## [0.1.0] - 2026-05-26
+
+Internal npm bootstrap that created `@lambda-development/erp-core` on the
+registry — required before OIDC trusted publishing can be enabled for a new npm
+package. No PyPI release and no functional changes; superseded by 0.1.1.
+
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/lambdadevelopment/lambda-erp/releases/tag/v0.1.1
+[0.1.0]: https://www.npmjs.com/package/@lambda-development/erp-core/v/0.1.0
