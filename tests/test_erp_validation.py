@@ -2521,14 +2521,22 @@ def main():
     from api import services as _svc
     from lambda_erp.hooks import register_hook, clear_hooks
     from lambda_erp.accounting.sales_invoice import SalesInvoice as _BaseSI
+    from lambda_erp.selling.sales_order import SalesOrder as _BaseSO
 
     _orig_si = _svc.DOCUMENT_CLASSES["Sales Invoice"]
+    _orig_so = _svc.DOCUMENT_CLASSES["Sales Order"]
     sub_calls = []
+    so_calls = []
 
     class _PluginSI(_BaseSI):
         def on_submit(self):
             sub_calls.append("override")
             super().on_submit()
+
+    class _PluginSO(_BaseSO):
+        def validate(self):
+            so_calls.append("so-override")
+            super().validate()
 
     def _new_si():
         d = _svc.create_document("sales-invoice", {
@@ -2565,8 +2573,21 @@ def main():
             pass
         assert flt(db.get_value("Sales Invoice", n3, "docstatus")) == 0, "aborted submit must stay draft"
         print("  raising before_submit aborted submit; docstatus stayed draft")
+
+        # (d) converters yield the overridden class (Phase 4 seam).
+        clear_hooks()
+        _svc.register_doctype("Sales Order", _PluginSO)
+        q = _svc.create_document("quotation", {
+            "customer": "CUST-001", "company": "Lambda Corp", "transaction_date": nowdate(),
+            "items": [_dict(item_code="ITEM-001", qty=2, rate=100)],
+        })
+        _svc.submit_document("quotation", q["name"])
+        _svc.convert_document("quotation", q["name"], "Sales Order")
+        assert "so-override" in so_calls, "converted Sales Order should use the registered override class"
+        print("  conversion (quotation -> sales order) used the override class")
     finally:
-        _svc.register_doctype("Sales Invoice", _orig_si)  # restore core class
+        _svc.register_doctype("Sales Invoice", _orig_si)  # restore core classes
+        _svc.register_doctype("Sales Order", _orig_so)
         clear_hooks()
 
     # =====================================================================

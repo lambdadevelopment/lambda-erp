@@ -155,6 +155,18 @@ def cancel_document(doctype_slug: str, name: str) -> dict:
     return doc.as_dict()
 
 
+def register_converter(source_doctype: str, target_doctype: str, fn) -> None:
+    """Register (or override) the converter for a (source, target) pair.
+
+    Extension point for customer deployments that need different conversion
+    logic (see docs/core-extension-architecture.md). To merely have the
+    converted document use an overridden class, you don't need this — register
+    the class with `register_doctype` and `convert_document` upgrades the
+    produced instance automatically.
+    """
+    CONVERTERS[(source_doctype, target_doctype)] = fn
+
+
 def convert_document(doctype_slug: str, name: str, target_doctype: str) -> dict:
     source_doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     if not source_doctype:
@@ -165,6 +177,15 @@ def convert_document(doctype_slug: str, name: str, target_doctype: str) -> dict:
         raise ValueError(f"Cannot convert {source_doctype} to {target_doctype}")
 
     new_doc = converter(name)
+    # Honor a registered class override for the produced doctype. The core
+    # converter builds a base-class instance; if a plugin registered a subclass
+    # for the target, upgrade the instance in place so save()/on_submit() use
+    # the override. Safe because overrides are subclasses (same layout, no
+    # __slots__); guarded so a non-subclass registration is ignored.
+    override = DOCUMENT_CLASSES.get(target_doctype)
+    if override is not None and type(new_doc) is not override and issubclass(override, type(new_doc)):
+        new_doc.__class__ = override
+
     new_doc.save()
     return new_doc.as_dict()
 
