@@ -10,6 +10,10 @@ is manual registry / GitHub-UI setup (npm org, `release` environment, npm
 first-publish bootstrap — see Phase C). **Phase D not started.** Until the first
 release runs, consume both packages via the git-dependency interim path.
 
+> **Release runbook:** the step-by-step "how to cut a release" + the one-time
+> registry/GitHub setup checklist live in [`docs/releasing.md`](releasing.md).
+> This plan is the *why/decisions*; that runbook is the *how*.
+
 ## Handoff — current state (2026-05-26)
 
 A fresh session (likely on another machine / another LLM) can pick up here.
