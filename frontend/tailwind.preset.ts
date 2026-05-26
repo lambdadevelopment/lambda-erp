@@ -3,7 +3,7 @@ import type { Config } from "tailwindcss";
 // Shared Tailwind theme for the ERP core, published as a preset so the demo
 // app and any customer deployment get identical design tokens. Add it with
 // `presets: [erpPreset]` in tailwind.config. Colours are backed by the CSS
-// variables defined in src/index.css (shipped as `@lambda/erp-core/styles.css`)
+// variables defined in src/index.css (shipped as `@lambda-development/erp-core/styles.css`)
 // — rebrand by overriding those variables, not by editing this preset.
 const preset: Partial<Config> = {
   theme: {

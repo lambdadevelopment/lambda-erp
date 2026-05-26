@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import dts from "vite-plugin-dts";
 import path from "path";
 
-// Library build for the published @lambda/erp-core package. Distinct from the
+// Library build for the published @lambda-development/erp-core package. Distinct from the
 // default vite.config.ts, which builds the demo *app*. This emits an ESM
 // bundle + type declarations from src/index.ts and externalizes React and the
 // other framework peers so the customer app owns a single copy of each.

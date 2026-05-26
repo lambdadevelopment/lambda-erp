@@ -1,5 +1,5 @@
 /**
- * Public entry point for the published @lambda/erp-core frontend library.
+ * Public entry point for the published @lambda-development/erp-core frontend library.
  *
  * A customer deployment depends on this package, registers its overrides
  * (doctypes, routes, nav, components, branding, API base) in a plugin module,
@@ -8,10 +8,10 @@
  *
  * Styling: this package follows the "consumer scans source" model. In the
  * customer app:
- *   - import "@lambda/erp-core/styles.css"
+ *   - import "@lambda-development/erp-core/styles.css"
  *   - add this package to Tailwind `content`:
- *       './node_modules/@lambda/erp-core/dist/**\/*.js'
- *   - add the preset: presets: [require("@lambda/erp-core/tailwind-preset")]
+ *       './node_modules/@lambda-development/erp-core/dist/**\/*.js'
+ *   - add the preset: presets: [require("@lambda-development/erp-core/tailwind-preset")]
  */
 
 // App bootstrap
