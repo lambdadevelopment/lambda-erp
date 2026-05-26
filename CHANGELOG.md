@@ -13,11 +13,21 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-26
+
+### Fixed
+- npm publish failed provenance verification on 0.1.1 because
+  `frontend/package.json` declared no `repository` field. Added it (plus
+  `description`, `license`, `homepage`, `bugs`). No functional changes since
+  0.1.1. Net effect on versions: **npm** goes 0.1.0 → 0.1.2 (npm 0.1.1 never
+  shipped); **PyPI** published 0.1.1 normally, so PyPI includes 0.1.1 and npm
+  does not. Both registries are aligned again at 0.1.2.
+
 ## [0.1.1] - 2026-05-26
 
-First coordinated public release — the first publish to PyPI and the first
-through the keyless CI pipeline, shipping both packages together. Same code as
-the 0.1.0 npm bootstrap noted below.
+First public release of `lambda-erp` to PyPI via the keyless CI pipeline. (npm
+0.1.1 failed provenance verification and shipped as 0.1.2 instead — see above.)
+Same code as the 0.1.0 npm bootstrap noted below.
 
 ### Added
 - **Core ERP engine** (backend) — document lifecycle (quotation → sales order →
@@ -46,6 +56,7 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/lambdadevelopment/lambda-erp/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lambdadevelopment/lambda-erp/releases/tag/v0.1.1
 [0.1.0]: https://www.npmjs.com/package/@lambda-development/erp-core/v/0.1.0

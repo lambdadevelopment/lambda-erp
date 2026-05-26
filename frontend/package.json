@@ -1,6 +1,15 @@
 {
   "name": "@lambda-development/erp-core",
-  "version": "0.1.1",
+  "version": "0.1.2",
+  "description": "Frontend core of Lambda ERP — app shell, document/master pages, chat UI, reports, and extension registries.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lambdadevelopment/lambda-erp.git",
+    "directory": "frontend"
+  },
+  "homepage": "https://github.com/lambdadevelopment/lambda-erp#readme",
+  "bugs": "https://github.com/lambdadevelopment/lambda-erp/issues",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
