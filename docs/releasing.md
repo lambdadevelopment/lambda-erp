@@ -17,8 +17,9 @@ this doc is *how* to ship.
 
 ## One-time setup
 
-Status as of 2026-05-26 in brackets. Do the unchecked items before the first
-keyless tag.
+All done as of the `0.1.2` keyless release (2026-05-27) — the OIDC publish on
+both registries proves the trusted publishers and the `release` environment are
+in place. Kept here as the setup record for a fresh repo.
 
 ### PyPI — `lambda-erp`
 - [x] PyPI account with 2FA.
@@ -32,18 +33,16 @@ keyless tag.
 - [x] **Bootstrap publish** of `0.1.0` done manually — OIDC cannot create a
   brand-new npm package (npm requires it to exist before a trusted publisher can
   be configured).
-- [ ] **Enable the Trusted Publisher** on the package (do this before the next
-  tag, or the npm job falls back to needing a token): npmjs.com →
+- [x] **Trusted Publisher enabled** on the package: npmjs.com →
   `@lambda-development/erp-core` → **Settings → Trusted Publisher** → GitHub
   Actions → repository `lambdadevelopment/lambda-erp`, workflow `release.yml`,
-  environment `release`.
+  environment `release`. (Confirmed working — `0.1.2` published keylessly.)
 
 ### GitHub
-- [ ] Create the **Environment** named `release` (repo **Settings →
-  Environments → New environment**). It must exist for both registries' OIDC
-  `sub` claim to match. Leave it empty, or add **required reviewers** for an
-  approval gate (note: a reviewer gate applies to *each* publish job, so you'd
-  approve twice).
+- [x] **Environment** named `release` created (repo **Settings → Environments →
+  New environment**). It must exist for both registries' OIDC `sub` claim to
+  match. Currently empty; add **required reviewers** if you want an approval gate
+  (note: a reviewer gate applies to *each* publish job, so you'd approve twice).
 
 ---
 

@@ -7,9 +7,9 @@ template), verified by a clean-venv install + import. B: frontend override seam
 consumer app type-checking the packed tarball. **Phase C (publish CI) is DONE
 (2026-05-27)** — `release.yml` publishes both packages keylessly via OIDC on a
 `v*` tag, and **both are live: PyPI `lambda-erp` + npm `@lambda-development/erp-core`,
-latest `0.1.2`**. **The remaining piece is Phase D** — a worked example/template
-that consumes both published packages (decided: a separate example repo,
-**deferred**; see Phase D).
+latest `0.1.2`**. **Phase D is now scaffolded** in the sibling repo
+`../lambda-erp-example` (consumes the published packages; needs one end-to-end
+build to verify they compose). See Phase D.
 
 > **Release runbook:** the step-by-step "how to cut a release" + the one-time
 > registry/GitHub setup checklist live in [`docs/releasing.md`](releasing.md).
@@ -19,9 +19,10 @@ that consumes both published packages (decided: a separate example repo,
 
 A fresh session (likely on another machine / another LLM) can pick up here.
 **Phases A, B and C are done and verified — both packages publish keylessly via
-OIDC on a `v*` tag and are live at `0.1.2`.** The remaining piece is **Phase D**:
-a worked example/template that consumes both published packages (see Phase D for
-the open decision on its shape).
+OIDC on a `v*` tag and are live at `0.1.2`.** **Phase D is scaffolded** in the
+sibling repo `../lambda-erp-example` — it consumes the published packages and
+needs one end-to-end build to confirm they compose (see Phase D / that repo's
+README "Status").
 
 > ⚠️ **Commit & push before switching machines.** The Phase A/B changes may be
 > uncommitted; the other machine only sees what's in git. Local auto-memory does
@@ -209,12 +210,32 @@ lesson below for why npm skips `0.1.1`.)
 **Ongoing:** treat the extension seams as **semver** — a breaking seam change is
 a major bump.
 
-## Phase D — Worked customer/example deployment — **DECIDED (deferred)**
+## Phase D — Worked customer/example deployment — **SCAFFOLDED (2026-05-27)**
 
 > **Decision (2026-05-27):** build a **separate public example repo** (option
 > (a) below) that consumes the published `0.1.2` packages, registers a couple of
 > overrides, and deploys as one container — doubling as the template customers
-> copy. **Deferred — to be built later**, not started yet.
+> copy.
+>
+> **Status:** scaffolded in the sibling repo **`../lambda-erp-example`** (its own
+> git repo, one initial commit, no remote yet). It depends on the published
+> `lambda-erp==0.1.2` (PyPI) + `@lambda-development/erp-core@^0.1.2` (npm) — no
+> core files forked. Demonstrates all seams: backend `AcmeSalesInvoice` override
+> + `after_submit` hook (via `LAMBDA_ERP_PLUGINS=acme`), and frontend
+> branding/API-base/dashboard/nav overrides. Single-container `Dockerfile` builds
+> the frontend and serves it from the core backend via a small `app.py` shim.
+>
+> **Verified (2026-05-27):** the published artifacts compose — `pip install -e .`
+> resolves `lambda-erp==0.1.2` and `uvicorn app:app` boots (`[plugins] loading
+> acme`), and `cd frontend && npm install && npm run build` produces `dist`
+> importing `@lambda-development/erp-core` (`tsc -b` passes).
+>
+> **Still TODO:** `docker build` (single-container path, untested);
+> decide plain-example vs. `cookiecutter`; give it a GitHub remote.
+>
+> **Core improvement surfaced:** the core only auto-serves a frontend next to its
+> own installed package, so the example needs an `app.py` static-mount shim — an
+> env-configurable frontend-dist path in the core would remove that.
 
 This is the remaining piece, and it answers *"how do we show the two published
 packages working together?"* Three shapes were considered:
@@ -281,5 +302,6 @@ it only skips the npm/PyPI publish step.
 2. ~~Phase A (backend pip)~~ — **done.**
 3. ~~Phase B (frontend npm library)~~ — **done.**
 4. ~~Phase C (publish CI)~~ — **done; both packages live at `0.1.2`.**
-5. **Phase D (worked customer/example deployment)** — decided: a **separate
-   example repo**; **deferred** (build later). See Phase D.
+5. **Phase D (worked customer/example deployment)** — **scaffolded** in the
+   sibling repo `../lambda-erp-example`; needs one end-to-end build to verify the
+   published artifacts compose. See Phase D.
