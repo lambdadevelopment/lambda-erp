@@ -16,16 +16,27 @@ Horizontal scaling would split that state.
 Deferred until someone actually hits the capacity wall; adds operational
 complexity ~5× for no demo benefit.
 
-## SQLite instead of Postgres
+## SQLite by default, optional Postgres
 
-**What:** Whole system runs on a file-backed SQLite DB with a process-
-wide `self._lock` for concurrency.
+**What:** Default backend is a file-backed SQLite DB with a process-wide
+`self._lock` for concurrency. Since 0.1.5 the same data layer also speaks
+**Postgres**, selected at runtime by setting `LAMBDA_ERP_DB` to a
+`postgresql://…` URL (install `lambda-erp[postgres]`). One code path, two
+dialects (see the dual-backend gotcha).
 
-**Why:** Zero-ops. `docker run` on a laptop just works. Fine for the
-demo use case (100 concurrent viewers, mostly read-heavy chat).
+**Why SQLite is still the default:** zero-ops. `docker run` on a laptop and the
+in-memory test suite both just work, no second container.
 
-**Rejected:** Postgres from day one. Would have doubled the deploy
-footprint and made `docker run` require a second container.
+**Why Postgres was added (not "from day one"):** a managed container host whose
+only durable storage is a **network file share** (e.g. Azure Files SMB) can't
+run SQLite — the share doesn't honour the file locks SQLite needs, so writes
+fail with `database is locked`. Rather than hack around the share (NFS, etc.),
+the cloud deployment uses Postgres; SQLite stays for dev/test/demo. Doing the
+port while the prod DB was still empty avoided a live SQLite→Postgres migration.
+
+**Still single-replica regardless of backend:** in-memory chat state pins the
+app to one replica until that moves to a shared store — Postgres lifts the
+SQLite single-writer limit but not this one.
 
 ## Opening Balance Equity (not Stock Adjustment) for seed stock
 

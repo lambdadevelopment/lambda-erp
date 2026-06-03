@@ -22,6 +22,17 @@ these, stop and read the note.
   post-submit updates that legitimately need to mutate submitted rows
   (`outstanding_amount`, `billed_qty`, `modified`). For anything else,
   the caller should be a DRAFT document going through `save()`.
+- **Dual backend (SQLite *and* Postgres) since 0.1.5.** The data layer also
+  speaks Postgres when `LAMBDA_ERP_DB` is a `postgresql://…` URL; `db.dialect`
+  says which. Write portable SQL: `COALESCE` not `IFNULL`, `substr` not
+  `strftime`, and `?` placeholders (the layer translates to `%s` for PG). Two
+  Postgres differences that bite: (1) a single failed statement **aborts the
+  whole transaction** — never run a query that may error mid-transaction and
+  swallow it (this is why `new_name()` only probes name-bearing tables); (2) the
+  quoted-identifier quirk above does **not** apply on PG — it errors on an
+  unknown column, so `get_value`/`get_all` now select only existing columns and
+  pad the rest as `NULL` (prefer them over hand-written `SELECT "maybe_missing"`).
+  CI runs the validation suite against both backends on every push.
 
 ## Schema / migrations
 
