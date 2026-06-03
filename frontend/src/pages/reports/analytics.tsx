@@ -18,6 +18,12 @@ import { useUrlState } from "@/hooks/use-url-state";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/components/chat/chat-provider";
+// Inlined (?worker&inline) so the published library bundle carries the worker
+// as an embedded blob rather than an external /assets/*.js reference. A bare
+// `new Worker(new URL(...))` makes Vite emit an absolute /assets URL that a
+// downstream consumer's build resolves against its own public/ dir and fails
+// to find. Inlining keeps the package consumer-buildable.
+import ReportRuntimeWorker from "@/workers/report-runtime.worker.ts?worker&inline";
 import { flt, formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { api } from "@/api/client";
 
@@ -181,9 +187,7 @@ export default function AnalyticsPage() {
       setRuntimeData(dataResponse.datasets);
 
       workerRef.current?.terminate();
-      const worker = new Worker(new URL("../../workers/report-runtime.worker.ts", import.meta.url), {
-        type: "module",
-      });
+      const worker = new ReportRuntimeWorker();
       workerRef.current = worker;
 
       const result = await new Promise<RuntimeReportOutput>((resolve, reject) => {
