@@ -105,21 +105,39 @@ class _PgConn:
         self._raw = raw
 
     def execute(self, sql, params=None):
-        cur = self._raw.cursor()
-        if params:
-            # psycopg does %-substitution when params are given, so a literal %
-            # must be doubled. No params -> psycopg leaves the SQL untouched, so
-            # literal % is already safe and needs no escaping.
-            cur.execute(sql.replace("%", "%%").replace("?", "%s"), list(params))
-        else:
-            cur.execute(sql.replace("?", "%s"))
-        return cur
+        try:
+            cur = self._raw.cursor()
+            if params:
+                # psycopg does %-substitution when params are given, so a literal
+                # % must be doubled. No params -> psycopg leaves the SQL
+                # untouched, so literal % is already safe and needs no escaping.
+                cur.execute(sql.replace("%", "%%").replace("?", "%s"), list(params))
+            else:
+                cur.execute(sql.replace("?", "%s"))
+            return cur
+        except Exception:
+            # A failed statement leaves the connection in an aborted transaction
+            # (autocommit=False); every later query on this pooled/thread-local
+            # connection would then fail with InFailedSqlTransaction. Roll back
+            # so the connection stays usable, then re-raise the real error.
+            self._safe_rollback()
+            raise
 
     def executemany(self, sql, seq_params):
-        cur = self._raw.cursor()
-        cur.executemany(sql.replace("%", "%%").replace("?", "%s"),
-                        [list(p) for p in seq_params])
-        return cur
+        try:
+            cur = self._raw.cursor()
+            cur.executemany(sql.replace("%", "%%").replace("?", "%s"),
+                            [list(p) for p in seq_params])
+            return cur
+        except Exception:
+            self._safe_rollback()
+            raise
+
+    def _safe_rollback(self):
+        try:
+            self._raw.rollback()
+        except Exception:
+            pass
 
     def commit(self):
         self._raw.commit()

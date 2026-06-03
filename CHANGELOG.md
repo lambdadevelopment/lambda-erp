@@ -13,6 +13,27 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-06-03
+
+### Fixed
+- **Double-quoted string literals in SQL broke on Postgres.** Several queries
+  used `WHERE x = "value"` / `IN ("a","b")` — SQLite quietly reads an unknown
+  double-quoted token as a string literal, but Postgres treats `"..."` as an
+  identifier and errors (`column "value" does not exist`). This 500'd the auth
+  (`get_current_user`, register/admin checks), chat-history, PDF, and master
+  delete-guard paths on Postgres. All converted to single-quoted values.
+- **A failed query no longer poisons the Postgres connection.** With
+  `autocommit=False`, one failing statement left the (thread-local) connection
+  in an aborted transaction, so every later request reusing it failed with
+  `InFailedSqlTransaction`. The connection wrapper now rolls back on error
+  before re-raising.
+
+### Added
+- `tests/test_db_portability.py`: a static scan that fails on double-quoted SQL
+  literals, plus a functional auth smoke test (`setup-status`/register/login +
+  an unauthenticated protected request) run against both backends. Wired into
+  CI. Frontend unchanged; ships at 0.1.6 for lockstep.
+
 ## [0.1.5] - 2026-06-03
 
 ### Added
@@ -105,7 +126,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.2...v0.1.3

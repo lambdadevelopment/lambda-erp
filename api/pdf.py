@@ -127,7 +127,7 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     taxes = doc.get("taxes", [])
 
     # Page size setting
-    page_size_row = db.sql('SELECT value FROM "Settings" WHERE key = "pdf_page_size"')
+    page_size_row = db.sql('SELECT value FROM "Settings" WHERE key = \'pdf_page_size\'')
     page_size = page_size_row[0]["value"] if page_size_row else "A4"
 
     # Render

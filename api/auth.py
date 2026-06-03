@@ -196,7 +196,7 @@ def get_current_user(request: Request) -> dict:
 
     # Fall back to public manager (demo mode)
     db = get_db()
-    pub = db.sql('SELECT name, email, full_name, role, enabled FROM "User" WHERE role = "public_manager" AND enabled = 1')
+    pub = db.sql('SELECT name, email, full_name, role, enabled FROM "User" WHERE role = \'public_manager\' AND enabled = 1')
     if pub:
         return dict(pub[0])
 
@@ -373,7 +373,7 @@ def change_role(user_name: str, data: ChangeRoleRequest, user: dict = Depends(re
         raise HTTPException(status_code=404, detail="User not found")
 
     if user_name == user["name"] and data.role != "admin":
-        admin_count = db.sql('SELECT COUNT(*) as cnt FROM "User" WHERE role = "admin" AND enabled = 1')[0]["cnt"]
+        admin_count = db.sql('SELECT COUNT(*) as cnt FROM "User" WHERE role = \'admin\' AND enabled = 1')[0]["cnt"]
         if admin_count <= 1:
             raise HTTPException(status_code=409, detail="Cannot demote the only admin")
 
@@ -414,7 +414,7 @@ def create_public_manager(user: dict = Depends(require_admin)):
     turned on.
     """
     db = get_db()
-    existing = db.sql('SELECT name, enabled FROM "User" WHERE role = "public_manager"')
+    existing = db.sql('SELECT name, enabled FROM "User" WHERE role = \'public_manager\'')
     if existing:
         if not existing[0]["enabled"]:
             db.set_value("User", existing[0]["name"], {"enabled": 1, "modified": now()})
@@ -453,7 +453,7 @@ def create_public_manager(user: dict = Depends(require_admin)):
 def remove_public_manager(user: dict = Depends(require_admin)):
     """Disable the public manager account."""
     db = get_db()
-    existing = db.sql('SELECT name FROM "User" WHERE role = "public_manager"')
+    existing = db.sql('SELECT name FROM "User" WHERE role = \'public_manager\'')
     if not existing:
         return {"ok": True, "status": "not_found"}
     db.set_value("User", existing[0]["name"], {"enabled": 0, "modified": now()})
@@ -464,7 +464,7 @@ def remove_public_manager(user: dict = Depends(require_admin)):
 def get_public_manager_status():
     """Public: check if a public manager exists and is enabled."""
     db = get_db()
-    existing = db.sql('SELECT name, full_name, role, enabled FROM "User" WHERE role = "public_manager" AND enabled = 1')
+    existing = db.sql('SELECT name, full_name, role, enabled FROM "User" WHERE role = \'public_manager\' AND enabled = 1')
     if existing:
         return {"active": True, "user": dict(existing[0])}
     return {"active": False}

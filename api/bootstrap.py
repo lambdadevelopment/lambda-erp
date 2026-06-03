@@ -477,7 +477,7 @@ def _format_qty(value) -> str:
 
 def _public_manager_user(db) -> dict | None:
     rows = db.sql(
-        'SELECT name, role FROM "User" WHERE role = "public_manager" LIMIT 1'
+        'SELECT name, role FROM "User" WHERE role = \'public_manager\' LIMIT 1'
     )
     if not rows:
         return None

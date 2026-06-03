@@ -121,7 +121,7 @@ async def ws_chat(websocket: WebSocket):
 
     # Fall back to public manager
     if not user:
-        pub = db.sql('SELECT name, full_name, role, enabled FROM "User" WHERE role = "public_manager" AND enabled = 1')
+        pub = db.sql('SELECT name, full_name, role, enabled FROM "User" WHERE role = \'public_manager\' AND enabled = 1')
         user = pub[0] if pub else None
 
     if not user:

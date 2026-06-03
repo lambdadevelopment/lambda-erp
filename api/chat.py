@@ -297,7 +297,7 @@ def count_assistant_messages(session_id: str) -> int:
     """Count assistant messages in a session (used to decide when to generate title)."""
     db = get_db()
     rows = db.sql(
-        'SELECT COUNT(*) as cnt FROM "Chat Message" WHERE session_id = ? AND role = "assistant" AND message_type = "chat"',
+        'SELECT COUNT(*) as cnt FROM "Chat Message" WHERE session_id = ? AND role = \'assistant\' AND message_type = \'chat\'',
         [session_id],
     )
     return rows[0]["cnt"] if rows else 0
@@ -385,7 +385,7 @@ def load_demo_history(session_id: str) -> list[dict]:
     db = get_db()
     rows = db.sql(
         'SELECT role, content, created_at FROM "Chat Message" '
-        'WHERE session_id = ? AND message_type = "demo" ORDER BY id',
+        'WHERE session_id = ? AND message_type = \'demo\' ORDER BY id',
         [session_id],
     )
     return [dict(r) for r in rows]
@@ -1172,7 +1172,7 @@ def _handle_retrieve_chat_history(args, session_id=None):
             params.append(date_to)
         rows = db.sql(
             f'SELECT role, content, created_at FROM "Chat Message" '
-            f'WHERE role IN ("user", "assistant") {session_clause} {date_clause} '
+            f'WHERE role IN (\'user\', \'assistant\') {session_clause} {date_clause} '
             f'ORDER BY id ASC LIMIT 50',
             params,
         )
@@ -1180,7 +1180,7 @@ def _handle_retrieve_chat_history(args, session_id=None):
         num = min(int(args.get("num_messages", 20)), 50)
         rows = db.sql(
             f'SELECT role, content, created_at FROM "Chat Message" '
-            f'WHERE role IN ("user", "assistant") {session_clause} '
+            f'WHERE role IN (\'user\', \'assistant\') {session_clause} '
             f'ORDER BY id DESC LIMIT ?',
             session_params + [num],
         )
@@ -2624,7 +2624,7 @@ async def chat_websocket(
                 # (non-demo) user/assistant messages.
                 non_demo_rows = get_db().sql(
                     'SELECT COUNT(*) as cnt FROM "Chat Message" '
-                    'WHERE session_id = ? AND message_type != "demo"',
+                    'WHERE session_id = ? AND message_type != \'demo\'',
                     [session_id],
                 )
                 if non_demo_rows and non_demo_rows[0]["cnt"] > 0:
@@ -2643,7 +2643,7 @@ async def chat_websocket(
                 db = get_db()
                 db.sql(
                     'DELETE FROM "Chat Message" '
-                    'WHERE session_id = ? AND message_type = "demo"',
+                    'WHERE session_id = ? AND message_type = \'demo\'',
                     [session_id],
                 )
                 db.conn.commit()
