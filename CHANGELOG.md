@@ -13,6 +13,20 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-06-03
+
+### Fixed
+- **`db.sql()` raised on Postgres for write statements.** It always called
+  `fetchall()`; after an `INSERT`/`UPDATE`/`DELETE` psycopg raises "the last
+  operation didn't produce records" (SQLite harmlessly returns `[]`). This broke
+  the chat/WebSocket path — which runs `UPDATE`/`DELETE` through `db.sql()` —
+  causing constant disconnect/reconnect loops, and affected other `db.sql()`
+  write call sites (settings, attachments, invites, report drafts). `db.sql()`
+  now fetches only when the statement produced a result set
+  (`cursor.description is not None`). `test_db_portability` extended to assert
+  write-via-`db.sql()` returns `[]` on both backends. Frontend unchanged; ships
+  at 0.1.7 for lockstep.
+
 ## [0.1.6] - 2026-06-03
 
 ### Fixed
@@ -126,7 +140,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.3...v0.1.4

@@ -1326,7 +1326,11 @@ class Database:
         """
         with self._lock:
             cursor = self.conn.execute(query, values or [])
-            rows = cursor.fetchall()
+            # Only fetch when the statement produced a result set. SQLite's
+            # fetchall() after an INSERT/UPDATE/DELETE harmlessly returns [];
+            # psycopg raises ("the last operation didn't produce records"). A
+            # NULL cursor.description means no result set on both drivers.
+            rows = cursor.fetchall() if cursor.description is not None else []
         if as_dict:
             return [_dict(dict(row)) for row in rows]
         return [tuple(row) for row in rows]

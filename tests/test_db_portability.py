@@ -99,6 +99,21 @@ def check_auth_flow():
 
     print(f"  [auth flow] setup-status/register/login OK on {backend}")
 
+    # db.sql() used for writes must return [] (not raise). psycopg errors with
+    # "the last operation didn't produce records" if fetchall() is called after
+    # an INSERT/UPDATE/DELETE; SQLite returns []. The chat/WebSocket path relies
+    # on this. (This was the cause of the WS disconnect/reconnect loop.)
+    from lambda_erp.database import get_db
+    db = get_db()
+    db.sql('CREATE TABLE IF NOT EXISTS "_PortTest" (k TEXT PRIMARY KEY, v INTEGER)')
+    assert db.sql('INSERT INTO "_PortTest" (k, v) VALUES (?, ?)', ["x", 1]) == []
+    assert db.sql('UPDATE "_PortTest" SET v = ? WHERE k = ?', [2, "x"]) == []
+    assert db.sql('SELECT v FROM "_PortTest" WHERE k = ?', ["x"])[0]["v"] == 2
+    assert db.sql('DELETE FROM "_PortTest" WHERE k = ?', ["x"]) == []
+    db.sql('DROP TABLE "_PortTest"')
+    db.conn.commit()
+    print(f"  [sql writes] INSERT/UPDATE/DELETE via db.sql() return [] on {backend}")
+
 
 def main():
     print("DB portability checks")
