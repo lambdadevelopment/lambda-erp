@@ -20,6 +20,13 @@ https://github.com/user-attachments/assets/1b2749ef-10e7-42f5-9cce-df5628292667
   <a href="https://discord.gg/ZwFh9hZJTb"><img alt="Join the Lambda ERP Discord" src="https://img.shields.io/discord/1496911123029557359?color=7289DA&label=Join%20on%20Discord&logo=discord&logoColor=white&style=for-the-badge"></a>
 </p>
 
+The two packages publish in lockstep on every release:
+
+<p>
+  <a href="https://pypi.org/project/lambda-erp/"><img alt="lambda-erp on PyPI" src="https://img.shields.io/pypi/v/lambda-erp?label=PyPI%20%7C%20lambda-erp&logo=pypi&logoColor=white"></a>
+  <a href="https://www.npmjs.com/package/@lambda-development/erp-core"><img alt="@lambda-development/erp-core on npm" src="https://img.shields.io/npm/v/@lambda-development/erp-core?label=npm%20%7C%20%40lambda-development%2Ferp-core&logo=npm"></a>
+</p>
+
 This release is not yet production-ready. It's a complete prototype but not vetted enough to run your payroll on it yet.
 
 ---
