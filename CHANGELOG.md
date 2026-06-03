@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-06-04
+
 ### Added
 - **Company Setup: "Create empty company, no demo data" option.** The setup
   page now offers a third seed mode alongside "Quick demo" and "Simulate 3 years
