@@ -293,7 +293,7 @@ def _ensure_top_customer_snapshots(db) -> None:
                SUM(net_total) AS revenue,
                COUNT(*) AS invoice_count
         FROM "Sales Invoice"
-        WHERE docstatus = 1 AND IFNULL(is_return, 0) = 0
+        WHERE docstatus = 1 AND COALESCE(is_return, 0) = 0
         GROUP BY customer, customer_name
         ORDER BY revenue DESC
         LIMIT 3
@@ -325,7 +325,7 @@ def _ensure_top_customer_snapshots(db) -> None:
             """
             SELECT name, posting_date
             FROM "Sales Invoice"
-            WHERE docstatus = 1 AND IFNULL(is_return, 0) = 0 AND customer = ?
+            WHERE docstatus = 1 AND COALESCE(is_return, 0) = 0 AND customer = ?
             ORDER BY posting_date DESC, name DESC
             LIMIT 1
             """,

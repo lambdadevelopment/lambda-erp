@@ -1,0 +1,68 @@
+name: Tests
+
+# Runs the ERP validation suite (full document cycle + GL/stock + atomicity
+# regressions) on BOTH supported backends:
+#   * in-memory SQLite — the fast default used by local dev
+#   * PostgreSQL — the production backend, via a GitHub Actions service
+#     container (an ephemeral postgres:16 Docker container the runner starts
+#     alongside the job and tears down after; nothing managed/external).
+# This is the guard that the accounting invariants hold on what we actually
+# ship, not just on SQLite.
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "frontend/**"
+      - "terraform/**"
+      - ".gitignore"
+      - "LICENSE"
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "frontend/**"
+      - "terraform/**"
+  workflow_dispatch:
+
+jobs:
+  validation:
+    name: Validation suite (SQLite + Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lambda_test
+        ports:
+          - 5432:5432
+        # Hold the job until Postgres accepts connections.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install (with the postgres extra)
+        run: pip install -e ".[postgres]"
+
+      - name: Validation suite — SQLite (in-memory)
+        run: python -m tests.test_erp_validation
+
+      - name: Validation suite — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_erp_validation

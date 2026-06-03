@@ -140,7 +140,17 @@ def new_name(prefix, sequence_store={}):
         try:
             db = get_db()
             # Search all tables for names matching this prefix pattern
-            tables = db.sql("SELECT name FROM sqlite_master WHERE type='table'")
+            if getattr(db, "dialect", "sqlite") == "postgres":
+                # Only probe tables that HAVE a `name` column. On Postgres a
+                # failing statement (e.g. SELECT name FROM a table without one)
+                # aborts the whole transaction, unlike SQLite which shrugs it
+                # off — so we must not issue a query that can error here.
+                tables = db.sql(
+                    "SELECT table_name AS name FROM information_schema.columns "
+                    "WHERE column_name = 'name' AND table_schema = 'public'"
+                )
+            else:
+                tables = db.sql("SELECT name FROM sqlite_master WHERE type='table'")
             max_num = 0
             for t in tables:
                 table_name = t["name"] if isinstance(t, dict) else t[0]

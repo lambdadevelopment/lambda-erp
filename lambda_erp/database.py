@@ -37,6 +37,103 @@ def _journal_mode() -> str:
     return mode if mode in _VALID_JOURNAL_MODES else "WAL"
 
 
+def _is_postgres_dsn(db_path) -> bool:
+    """A db_path that looks like a Postgres connection URL selects Postgres;
+    anything else (a file path or ':memory:') stays on SQLite. This is how
+    LAMBDA_ERP_DB doubles as the backend switch — no separate env var."""
+    return isinstance(db_path, str) and db_path.startswith(("postgresql://", "postgres://"))
+
+
+# ---------------------------------------------------------------------------
+# Postgres adapter
+#
+# The whole codebase was written against sqlite3: `?` placeholders,
+# `conn.execute(sql, params) -> cursor`, and `sqlite3.Row` rows that support
+# BOTH positional (row[0]) and mapping (row["x"], dict(row)) access. Rather
+# than rewrite every call site, we make a psycopg connection quack like that:
+#   * _PgConn translates `?`->`%s` and forwards execute/executemany/commit/...
+#   * _PgRow mirrors sqlite3.Row's dual access so get_value/sql/migrations and
+#     the external `db.conn.execute(...)` users keep working untouched.
+# ---------------------------------------------------------------------------
+
+class _PgRow:
+    """Row that mimics sqlite3.Row: positional and by-name access, dict(row),
+    and tuple(row) -> values."""
+
+    __slots__ = ("_cols", "_vals")
+
+    def __init__(self, cols, vals):
+        self._cols = cols
+        self._vals = vals
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._vals[key]
+        return self._vals[self._cols.index(key)]
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except (KeyError, ValueError, IndexError):
+            return default
+
+    def keys(self):
+        return list(self._cols)
+
+    def __iter__(self):
+        return iter(self._vals)  # tuple(row) -> values, like sqlite3.Row
+
+    def __len__(self):
+        return len(self._vals)
+
+
+def _pg_row_factory(cursor):
+    cols = [c.name for c in (cursor.description or [])]
+
+    def make(values):
+        return _PgRow(cols, values)
+
+    return make
+
+
+class _PgConn:
+    """Adapts a psycopg (v3) connection to the sqlite3 connection API the code
+    uses. autocommit is off so the existing `_in_transaction` + single commit()
+    / rollback() flow gives the same atomicity as SQLite's implicit transaction."""
+
+    def __init__(self, raw):
+        self._raw = raw
+
+    def execute(self, sql, params=None):
+        cur = self._raw.cursor()
+        if params:
+            # psycopg does %-substitution when params are given, so a literal %
+            # must be doubled. No params -> psycopg leaves the SQL untouched, so
+            # literal % is already safe and needs no escaping.
+            cur.execute(sql.replace("%", "%%").replace("?", "%s"), list(params))
+        else:
+            cur.execute(sql.replace("?", "%s"))
+        return cur
+
+    def executemany(self, sql, seq_params):
+        cur = self._raw.cursor()
+        cur.executemany(sql.replace("%", "%%").replace("?", "%s"),
+                        [list(p) for p in seq_params])
+        return cur
+
+    def commit(self):
+        self._raw.commit()
+
+    def rollback(self):
+        self._raw.rollback()
+
+    def close(self):
+        self._raw.close()
+
+    def cursor(self, *args, **kwargs):
+        return self._raw.cursor(*args, **kwargs)
+
+
 class _NullLock:
     """No-op context manager used when SQLite-level locking is sufficient."""
 
@@ -59,8 +156,11 @@ class Database:
         #   is a separate empty database, so we keep one shared connection
         #   guarded by a Python lock.
         self.db_path = db_path
+        self.dialect = "postgres" if _is_postgres_dsn(db_path) else "sqlite"
+        # :memory: is a SQLite-only concept (Postgres is always a server).
         self._is_memory = (db_path == ":memory:")
         self._local = threading.local()
+        self._col_cache = {}  # doctype -> set(columns); invalidated on ALTER
         if self._is_memory:
             self._lock = threading.Lock()
             self._shared_conn = self._open_conn()
@@ -74,12 +174,20 @@ class Database:
         self._setup_schema()
 
     def _open_conn(self):
-        """Open a new sqlite connection with the same per-conn settings.
+        """Open a new connection (per-backend) with the same per-conn settings.
 
-        For file DBs the connection is stored on thread-local state so the
-        same thread reuses it; for :memory: it is returned and held as the
-        shared connection.
+        For file/Postgres DBs the connection is stored on thread-local state so
+        the same thread reuses it; for :memory: it is returned and held as the
+        shared connection. Returns the object the `conn` property hands out:
+        the raw sqlite3 connection, or a _PgConn wrapper for Postgres.
         """
+        conn = self._open_pg_conn() if self.dialect == "postgres" else self._open_sqlite_conn()
+        if not self._is_memory:
+            self._local.conn = conn
+            self._local.in_transaction = False
+        return conn
+
+    def _open_sqlite_conn(self):
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute(f"PRAGMA journal_mode={_journal_mode()}")
@@ -88,10 +196,18 @@ class Database:
         # another thread is mid-write. Generous for our workload (LLM calls
         # dwarf any DB write).
         conn.execute("PRAGMA busy_timeout=5000")
-        if not self._is_memory:
-            self._local.conn = conn
-            self._local.in_transaction = False
         return conn
+
+    def _open_pg_conn(self):
+        # psycopg is only needed for the Postgres backend; import lazily so a
+        # SQLite-only install (tests, local dev) doesn't require the driver.
+        import psycopg
+
+        # autocommit off: matches SQLite's implicit transaction so the existing
+        # _in_transaction + commit()/rollback() atomicity (GL submit/cancel) is
+        # preserved exactly.
+        return _PgConn(psycopg.connect(self.db_path, autocommit=False,
+                                       row_factory=_pg_row_factory))
 
     @property
     def conn(self):
@@ -1106,9 +1222,26 @@ class Database:
         ]
 
         for stmt in stmts:
-            self.conn.execute(stmt)
+            self.conn.execute(self._ddl(stmt))
         self.conn.commit()
         self._migrate()
+
+    def _ddl(self, stmt: str) -> str:
+        """Translate SQLite DDL to the active dialect. No-op for SQLite.
+
+        For Postgres: SQLite's `REAL` is 8-byte (double); Postgres `REAL` is
+        only 4-byte, so map to DOUBLE PRECISION to keep float arithmetic
+        identical (the validation suite's balances depend on it). And
+        `INTEGER PRIMARY KEY AUTOINCREMENT` becomes BIGSERIAL.
+        """
+        if self.dialect != "postgres":
+            return stmt
+        import re
+        stmt = re.sub(r"\bINTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT\b",
+                      "BIGSERIAL PRIMARY KEY", stmt, flags=re.IGNORECASE)
+        stmt = re.sub(r"\bAUTOINCREMENT\b", "", stmt, flags=re.IGNORECASE)
+        stmt = re.sub(r"\bREAL\b", "DOUBLE PRECISION", stmt, flags=re.IGNORECASE)
+        return stmt
 
     # -----------------------------------------------------------------
     # Migrations
@@ -1125,9 +1258,9 @@ class Database:
     MIGRATIONS = None  # populated just below __init_subclass__ — see end of class
 
     def _add_column_if_missing(self, table: str, column: str, definition: str) -> None:
-        cols = {row[1] for row in self.conn.execute(f'PRAGMA table_info("{table}")').fetchall()}
-        if column not in cols:
-            self.conn.execute(f'ALTER TABLE "{table}" ADD COLUMN {column} {definition}')
+        if column not in self._get_table_columns(table):
+            self.conn.execute(self._ddl(f'ALTER TABLE "{table}" ADD COLUMN {column} {definition}'))
+            self._col_cache.pop(table, None)
 
     def _migrate(self):
         """Run each pending migration in order, tracking applied versions."""
@@ -1191,7 +1324,7 @@ class Database:
             fieldname = "name"
 
         fields = fieldname if isinstance(fieldname, (list, tuple)) else [fieldname]
-        field_str = ", ".join(f'"{f}"' for f in fields)
+        field_str = self._select_fields(doctype, fields)
 
         if isinstance(name, dict) or filters:
             filt = name if isinstance(name, dict) else (filters or {})
@@ -1224,7 +1357,7 @@ class Database:
         if fields == ["*"]:
             field_str = "*"
         else:
-            field_str = ", ".join(f'"{f}"' for f in fields)
+            field_str = self._select_fields(doctype, fields)
         query = f'SELECT {field_str} FROM "{doctype}"'
 
         params = []
@@ -1278,9 +1411,30 @@ class Database:
         return bool(rows)
 
     def _get_table_columns(self, doctype):
-        """Get column names for a table."""
-        cursor = self.conn.execute(f'PRAGMA table_info("{doctype}")')
-        return {row[1] for row in cursor.fetchall()}
+        """Get column names for a table (cached; invalidated on ALTER)."""
+        cached = self._col_cache.get(doctype)
+        if cached is not None:
+            return cached
+        if self.dialect == "postgres":
+            rows = self.conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = ?",
+                [doctype],
+            ).fetchall()
+            cols = {row[0] for row in rows}
+        else:
+            cursor = self.conn.execute(f'PRAGMA table_info("{doctype}")')
+            cols = {row[1] for row in cursor.fetchall()}
+        self._col_cache[doctype] = cols
+        return cols
+
+    def _select_fields(self, doctype, fields):
+        """Build the SELECT column list, selecting only columns that exist and
+        padding the rest as NULL. SQLite silently returns an unknown quoted
+        identifier as a string literal; Postgres errors. Padding missing fields
+        as NULL gives portable behaviour (None for absent columns) and supports
+        the cross-doctype field lists the codebase relies on."""
+        valid = self._get_table_columns(doctype)
+        return ", ".join(f'"{f}"' if f in valid else f'NULL AS "{f}"' for f in fields)
 
     def insert(self, doctype, doc):
         """Insert a record from a dict. Ignores fields not in the table schema."""

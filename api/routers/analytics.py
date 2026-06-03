@@ -28,10 +28,14 @@ _viewer = Depends(require_role("viewer"))
 # Legacy preset analytics
 # ---------------------------------------------------------------------------
 
+# Dates are stored as ISO text ('YYYY-MM-DD'), so substr-based bucketing is both
+# exact and portable across SQLite and Postgres — avoids SQLite-only strftime().
+# (Integer division (month+2)/3 -> quarter is integer in both dialects; the
+# parens guard SQLite's quirk where || binds tighter than /.)
 _TIME_BUCKETS = {
-    "month": "strftime('%Y-%m', {date_col})",
-    "quarter": "strftime('%Y-Q', {date_col}) || ((CAST(strftime('%m', {date_col}) AS INTEGER) + 2) / 3)",
-    "year": "strftime('%Y', {date_col})",
+    "month": "substr({date_col}, 1, 7)",
+    "quarter": "substr({date_col}, 1, 4) || '-Q' || ((CAST(substr({date_col}, 6, 2) AS INTEGER) + 2) / 3)",
+    "year": "substr({date_col}, 1, 4)",
 }
 
 

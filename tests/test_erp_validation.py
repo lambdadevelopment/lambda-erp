@@ -20,6 +20,8 @@ Tests all core business logic and verifies accounting integrity:
 Run with: python tests/test_erp_validation.py
 """
 
+import os
+
 from lambda_erp.database import setup
 from lambda_erp.utils import _dict, flt, fmt_money, nowdate, add_days
 from lambda_erp.accounting.chart_of_accounts import setup_chart_of_accounts, setup_cost_center
@@ -70,7 +72,10 @@ def main():
     # =====================================================================
     print_header("1. SETUP - Company, Chart of Accounts, Master Data")
 
-    db = setup()  # In-memory SQLite
+    # Default: in-memory SQLite (zero setup). Set LAMBDA_ERP_TEST_DB to a
+    # postgresql:// URL to run this exact suite against Postgres (CI does this
+    # to verify the accounting/stock invariants on the production backend).
+    db = setup(os.environ.get("LAMBDA_ERP_TEST_DB") or ":memory:")
 
     # Create company
     db.insert("Company", _dict(

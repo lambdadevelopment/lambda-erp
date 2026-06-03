@@ -13,6 +13,29 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-06-03
+
+### Added
+- **Optional PostgreSQL backend.** The data layer (`lambda_erp/database.py`) now
+  supports Postgres in addition to SQLite. SQLite stays the default (and is what
+  the test suite and local dev use); select Postgres at runtime by setting
+  `LAMBDA_ERP_DB` to a `postgresql://…` URL. Install the driver with the new
+  extra: `pip install lambda-erp[postgres]`. This unblocks deployments whose
+  durable storage can't host a SQLite file with working file locks (e.g. Azure
+  Files SMB volumes), where `PRAGMA journal_mode=WAL` and even ordinary writes
+  fail with "database is locked".
+- CI now runs the full validation suite against a real Postgres (service
+  container) on every push, alongside SQLite, so the accounting/stock invariants
+  are verified on the production backend.
+
+### Changed
+- A handful of queries were made dialect-portable (no behaviour change on
+  SQLite): `IFNULL`→`COALESCE`, `strftime` date bucketing → `substr`, and
+  `get_value`/`get_all` now select only columns that exist (padding the rest as
+  `NULL`) instead of relying on SQLite returning unknown quoted identifiers as
+  string literals. Frontend (`@lambda-development/erp-core`) is unchanged; it
+  ships at 0.1.5 to keep the two packages in lockstep.
+
 ## [0.1.4] - 2026-06-03
 
 ### Added
@@ -82,7 +105,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/lambdadevelopment/lambda-erp/releases/tag/v0.1.2

@@ -1,6 +1,6 @@
 [project]
 name = "lambda-erp"
-version = "0.1.4"
+version = "0.1.5"
 description = "Core ERP logic - accounting, sales, purchasing, inventory"
 readme = "README.md"
 license = "MIT"
@@ -22,6 +22,12 @@ dependencies = [
     "weasyprint>=62.0",
     "holidays>=0.40",
 ]
+
+# Postgres backend is opt-in: `pip install lambda-erp[postgres]`. SQLite (the
+# default, used by tests and local dev) needs no extra driver. Select Postgres
+# at runtime by setting LAMBDA_ERP_DB to a postgresql:// connection URL.
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
 
 [build-system]
 requires = ["hatchling"]

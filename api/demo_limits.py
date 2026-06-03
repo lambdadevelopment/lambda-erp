@@ -80,7 +80,8 @@ def init_schema() -> None:
         if _schema_ready:
             return
         db = get_db()
-        db.conn.execute(_SCHEMA_SQL)
+        # _ddl() maps the SQLite DDL (AUTOINCREMENT, REAL) to the active dialect.
+        db.conn.execute(db._ddl(_SCHEMA_SQL))
         db.conn.execute(_INDEX_TS_SQL)
         db.conn.execute(_INDEX_IP_TS_SQL)
         db.conn.commit()
