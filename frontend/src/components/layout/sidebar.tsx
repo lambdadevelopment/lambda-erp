@@ -380,16 +380,19 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
 
   const groups = useMemo(() => {
     const base = getNavGroups();
-    if (!settings) return base;
     return base.map((group) => ({
       ...group,
       items: group.items.filter((item) => {
+        // Company Setup is a one-time step — hide it once a company exists.
+        if (item.path === "/setup" && setupStatus?.setup_complete) return false;
+        // Settings-gated items (default to shown until settings load).
         const settingKey = HIDDEN_PATHS[item.path];
         if (!settingKey) return true;
+        if (!settings) return true;
         return settings[settingKey] !== "0";
       }),
     }));
-  }, [settings]);
+  }, [settings, setupStatus]);
 
   return (
     <aside

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 
 const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY", "INR"];
 
-type SeedMode = "quick" | "history";
+type SeedMode = "none" | "quick" | "history";
 
 export default function SetupPage() {
   const queryClient = useQueryClient();
@@ -44,9 +44,10 @@ export default function SetupPage() {
       if (seedMode === "history") {
         const res = await seedHistoryMut.mutateAsync();
         setHistoryStats(res.stats);
-      } else {
+      } else if (seedMode === "quick") {
         await seedDemoMut.mutateAsync();
       }
+      // seedMode === "none": create the company only, seed nothing.
       queryClient.invalidateQueries({ queryKey: ["setup-status"] });
       setSuccess(true);
     } catch {
@@ -92,9 +93,11 @@ export default function SetupPage() {
               Setup complete!
             </p>
             <p className="mt-2 text-sm text-gray-500">
-              {historyStats
+              {seedMode === "history"
                 ? "Your company has been created and three years of history has been simulated."
-                : "Your company has been created and demo data has been seeded."}
+                : seedMode === "quick"
+                  ? "Your company has been created and demo data has been seeded."
+                  : "Your company has been created. No demo data was added."}
             </p>
             {historyStats && (
               <div className="mx-auto mt-6 max-w-sm text-left">
@@ -196,6 +199,25 @@ export default function SetupPage() {
                 </div>
               </div>
             </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border border-gray-200 p-3 hover:bg-gray-50">
+              <input
+                type="radio"
+                name="seed-mode"
+                value="none"
+                checked={seedMode === "none"}
+                onChange={() => setSeedMode("none")}
+                className="mt-1"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900">
+                  Create empty company, no demo data
+                </div>
+                <div className="text-xs text-gray-500">
+                  Just the company and its chart of accounts. Add your own
+                  customers, suppliers, items, and transactions from scratch.
+                </div>
+              </div>
+            </label>
           </fieldset>
 
           <div className="pt-2">
@@ -209,7 +231,9 @@ export default function SetupPage() {
                   : "Setting up..."
                 : seedMode === "history"
                   ? "Create Company & Simulate History"
-                  : "Create Company & Seed Demo Data"}
+                  : seedMode === "quick"
+                    ? "Create Company & Seed Demo Data"
+                    : "Create Company"}
             </Button>
           </div>
         </div>

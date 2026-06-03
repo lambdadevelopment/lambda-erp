@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- **Company Setup: "Create empty company, no demo data" option.** The setup
+  page now offers a third seed mode alongside "Quick demo" and "Simulate 3 years
+  of history" that creates only the company (and its chart of accounts) and
+  seeds nothing — for real deployments starting from scratch. Frontend only;
+  the backend already exposed company creation and seeding as separate calls.
+
+### Changed
+- **Company Setup nav link hides once setup is complete.** The sidebar drops the
+  "Company Setup" (`/setup`) item once a company exists (`setup_complete`), since
+  it's a one-time step. Getting Started and Opening Balances are unaffected.
+
 ## [0.1.7] - 2026-06-03
 
 ### Fixed
