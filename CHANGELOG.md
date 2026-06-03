@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-06-03
+
+### Added
+- **`LAMBDA_ERP_SQLITE_JOURNAL_MODE`** env var (default `WAL`) to choose the
+  SQLite journal mode. WAL relies on a memory-mapped `-shm` file and therefore
+  cannot be used when the database lives on a **network filesystem** (SMB/NFS
+  Azure Files, NFS shares): `PRAGMA journal_mode=WAL` fails outright with
+  "database is locked" at startup. A deployment that persists its DB on such a
+  share now sets `LAMBDA_ERP_SQLITE_JOURNAL_MODE=DELETE` (rollback-journal mode,
+  which uses only byte-range locks the share supports). Single-replica /
+  single-worker deployments lose nothing by using DELETE. Frontend unchanged;
+  ships at 0.1.4 to keep the two packages in lockstep.
+
 ## [0.1.3] - 2026-06-03
 
 ### Fixed
@@ -69,7 +82,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/lambdadevelopment/lambda-erp/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lambdadevelopment/lambda-erp/releases/tag/v0.1.1

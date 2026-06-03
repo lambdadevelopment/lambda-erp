@@ -9,10 +9,32 @@ Schema is created from Python table definitions instead of DocType JSON files.
 """
 
 import datetime as _datetime
+import os
 import sqlite3
 import threading
 from contextlib import contextmanager
 from lambda_erp.utils import _dict
+
+
+_VALID_JOURNAL_MODES = {"WAL", "DELETE", "TRUNCATE", "PERSIST", "MEMORY", "OFF"}
+
+
+def _journal_mode() -> str:
+    """SQLite journal mode for connections, from LAMBDA_ERP_SQLITE_JOURNAL_MODE.
+
+    Defaults to WAL — best for a local-disk DB (concurrent readers alongside a
+    writer). But WAL relies on a memory-mapped ``-shm`` file, so it does NOT work
+    on a network filesystem (SMB/NFS Azure Files, NFS mounts): the
+    ``PRAGMA journal_mode=WAL`` itself fails with "database is locked". A
+    deployment whose DB lives on such a share must set
+    ``LAMBDA_ERP_SQLITE_JOURNAL_MODE=DELETE`` — rollback-journal mode, which uses
+    only the byte-range locks the share does support. A single-writer deployment
+    (one replica, one worker) loses nothing by using DELETE. Unknown values fall
+    back to WAL. The value is validated against an allowlist before being
+    interpolated into the PRAGMA.
+    """
+    mode = os.environ.get("LAMBDA_ERP_SQLITE_JOURNAL_MODE", "WAL").strip().upper()
+    return mode if mode in _VALID_JOURNAL_MODES else "WAL"
 
 
 class _NullLock:
@@ -60,7 +82,7 @@ class Database:
         """
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(f"PRAGMA journal_mode={_journal_mode()}")
         conn.execute("PRAGMA foreign_keys=ON")
         # Wait up to 5s for the file lock instead of raising SQLITE_BUSY when
         # another thread is mid-write. Generous for our workload (LLM calls
