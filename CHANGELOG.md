@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-06-04
+
+### Added
+- PDF templates can reference **sibling assets** (logo, fonts, CSS) by relative
+  path: `generate_pdf` now sets WeasyPrint's `base_url` to the rendered
+  template's own directory. A `register_pdf_template_dir` override can drop a
+  `document.html` next to its `logo.png` and use `<img src="logo.png">`.
+
 ## [0.1.11] - 2026-06-04
 
 ### Added
@@ -198,7 +206,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.11...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.12...HEAD
+[0.1.12]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.8...v0.1.9

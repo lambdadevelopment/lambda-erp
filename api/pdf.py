@@ -160,6 +160,10 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
 
     # Render
     template = _jinja_env.get_template("document.html")
+    # base_url = the resolved template's own directory, so a template (e.g. a
+    # plugin's branded override) can reference sibling assets — logo.png, fonts,
+    # CSS — by relative path. Falls back to the built-in templates dir.
+    base_url = template.filename or os.path.join(TEMPLATE_DIR, "document.html")
     html_str = template.render(
         doc=doc,
         title=title,
@@ -176,4 +180,4 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
         page_size=page_size,
     )
 
-    return HTML(string=html_str).write_pdf()
+    return HTML(string=html_str, base_url=base_url).write_pdf()
