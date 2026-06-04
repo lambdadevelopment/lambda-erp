@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Fixed
+- **New customers/suppliers now inherit the company's base currency instead of
+  defaulting to USD.** The Customer/Supplier `default_currency` column defaults
+  to `'USD'`, so for a non-USD company (e.g. CHF) a customer created without an
+  explicit currency was stored as USD — which then forced its sales/purchase
+  documents to USD and failed to save without a USD->base exchange rate.
+  `create_master_record` now fills `default_currency` from the company when none
+  is given (explicit values still win). Also exposed the **Currency** field on
+  the Customer and Supplier master forms (previously only settable via the
+  API/chat, so it was invisible in the UI).
+
 ## [0.1.10] - 2026-06-04
 
 ### Changed

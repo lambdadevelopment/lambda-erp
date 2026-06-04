@@ -222,6 +222,15 @@ def create_master_record(master_type: str, data: dict) -> dict:
     if db.exists(doctype, doc["name"]):
         raise HTTPException(status_code=409, detail=f"{doctype} {doc['name']} already exists")
 
+    # Party masters inherit the company's base currency when none is specified.
+    # Otherwise the Customer/Supplier default_currency column default ('USD')
+    # wins, so a non-USD company (e.g. CHF) gets USD customers that then force
+    # every sales/purchase document to USD (and fail with no USD->base rate).
+    if master_type in ("customer", "supplier") and not doc.get("default_currency"):
+        companies = db.get_all("Company", fields=["name", "default_currency"], limit=1)
+        if companies:
+            doc["default_currency"] = companies[0].get("default_currency") or "USD"
+
     db.insert(doctype, doc)
     row = db.get_all(doctype, filters={"name": doc["name"]}, fields=["*"])[0]
     return _echo_identity_alias(master_type, row)
