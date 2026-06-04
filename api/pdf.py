@@ -1,13 +1,41 @@
 """PDF generation for ERP documents."""
 
 import os
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, ChoiceLoader
 from weasyprint import HTML
 from lambda_erp.database import get_db
 from api.services import load_document
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
-_jinja_env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=True)
+
+# Extension seam: deployment plugins can register their own template
+# directories (searched BEFORE the built-in one) to override document.html with
+# custom branding/styling. The render context in generate_pdf is unchanged, so
+# a custom template just re-styles the same data.
+_plugin_template_dirs: list[str] = []
+
+
+def _build_loader():
+    return ChoiceLoader(
+        [FileSystemLoader(d) for d in _plugin_template_dirs] + [FileSystemLoader(TEMPLATE_DIR)]
+    )
+
+
+_jinja_env = Environment(loader=_build_loader(), autoescape=True)
+
+
+def register_pdf_template_dir(path: str) -> None:
+    """Register a directory of PDF templates searched before the built-in ones.
+
+    Call from a plugin's register(). Drop a `document.html` (and/or other
+    templates) in `path` to override the built-in PDF layout with your own
+    styling — the template receives the same context generate_pdf() builds
+    (doc, title, company_info, party_info, currency, meta_fields, items, taxes,
+    page_size, ...). Later registrations win.
+    """
+    if path and path not in _plugin_template_dirs:
+        _plugin_template_dirs.insert(0, path)
+        _jinja_env.loader = _build_loader()
 
 # Document type → (title, party_field, party_name_field, party_doctype, party_label)
 DOC_CONFIG = {

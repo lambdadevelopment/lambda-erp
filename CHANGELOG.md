@@ -13,6 +13,15 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- **PDF template override seam** (`register_pdf_template_dir(path)` in
+  `api/pdf.py`). A deployment plugin can register a directory whose templates
+  (e.g. `document.html`) override the built-in invoice/document PDF layout —
+  registered dirs are searched before the core's. The custom template gets the
+  same render context generate_pdf() builds (doc, company_info, party_info,
+  items, taxes, currency, page_size, ...), so it just restyles the same data.
+  No behaviour change when nothing is registered.
+
 ### Fixed
 - **New customers/suppliers now inherit the company's base currency instead of
   defaulting to USD.** The Customer/Supplier `default_currency` column defaults
