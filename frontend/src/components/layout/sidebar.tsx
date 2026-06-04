@@ -323,29 +323,39 @@ function SidebarGroup({ group }: { group: NavGroup }) {
       </button>
       {open && (
         <ul className="mb-1">
-          {group.items.map((item) => (
-            <li key={item.path} className="relative">
-              <NavLink
-                to={item.path}
-                className={({ isActive }) =>
-                  cn(
-                    "relative block px-4 py-1.5 pl-10 text-sm transition-all duration-300",
-                    !isActive && "text-fg-muted hover:bg-surface-subtle hover:text-fg",
-                    isActive && "bg-surface-subtle font-medium text-fg",
-                    navigationFlash?.group === group.label && navigationFlash?.item === item.label &&
-                      flashStyle,
-                  )
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    {isActive && <ActiveAccent />}
-                    {t(`nav.items.${item.label}`, { defaultValue: item.label })}
-                  </>
-                )}
-              </NavLink>
-            </li>
-          ))}
+          {group.items.map((item) => {
+            // Exact matching when another item's path is nested under this one
+            // (e.g. /setup vs /setup/opening-balances). Without `end`, NavLink
+            // treats the shorter path as active on the longer one's page, so
+            // both rows highlight grey at once.
+            const end = group.items.some(
+              (other) => other.path !== item.path && other.path.startsWith(item.path + "/"),
+            );
+            return (
+              <li key={item.path} className="relative">
+                <NavLink
+                  to={item.path}
+                  end={end}
+                  className={({ isActive }) =>
+                    cn(
+                      "relative block px-4 py-1.5 pl-10 text-sm transition-all duration-300",
+                      !isActive && "text-fg-muted hover:bg-surface-subtle hover:text-fg",
+                      isActive && "bg-surface-subtle font-medium text-fg",
+                      navigationFlash?.group === group.label && navigationFlash?.item === item.label &&
+                        flashStyle,
+                    )
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {isActive && <ActiveAccent />}
+                      {t(`nav.items.${item.label}`, { defaultValue: item.label })}
+                    </>
+                  )}
+                </NavLink>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

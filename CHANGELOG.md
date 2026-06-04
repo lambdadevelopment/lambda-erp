@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-06-04
+
+### Fixed
+- **Sidebar highlighted two nav rows at once.** A NavLink to a path that is a
+  prefix of a sibling's (`/setup` "Company Setup" vs `/setup/opening-balances`
+  "Opening Balances") matched as active on the longer path's page, so both rows
+  showed the active grey background on the Opening Balances page. Items whose
+  path is nested under a sibling now use exact (`end`) matching. Backend
+  unchanged; ships at 0.1.9 for lockstep.
+
 ## [0.1.8] - 2026-06-04
 
 ### Added
