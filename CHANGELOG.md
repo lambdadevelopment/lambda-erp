@@ -13,6 +13,28 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-06-04
+
+### Added
+- **Opt-in public signup.** A new admin setting `allow_public_signup` (default
+  off) under General Settings. When enabled, anyone may self-register — as a
+  **viewer** only. The first user still bootstraps as admin, and with the toggle
+  off registration stays invite-only. `setup-status` now returns `first_run`,
+  `public_signup`, and `registration_open` so the signup page can distinguish
+  first-run admin creation from open viewer signup.
+- **Invite management** on the Users page: copy a pending invite's link again,
+  and revoke a pending invite via `DELETE /auth/invites/{token}` (admin-only;
+  404 if unknown, 409 if already used).
+
+### Fixed
+- **Token Spend (formerly "Demo Spend") crashed on Postgres.** A double-quoted
+  SQL string literal (`role = "public_manager"`) was read as an identifier by
+  Postgres, 500-ing the `/admin/demo-spend` endpoint. Now single-quoted. The
+  card is relabeled **Token Spend**, stays admin-only, and on non-demo
+  deployments leads with total LLM spend (cap details show only in demo mode).
+- The double-quoted-literal CI guard now also scans continuation lines of
+  multi-line SQL (`CASE/WHEN/THEN`, aggregates), which previously slipped past.
+
 ## [0.1.13] - 2026-06-04
 
 ### Added

@@ -207,6 +207,7 @@
     "browsingBody": "Start a fresh chat session and watch the live demo.",
     "enterDemo": "Enter Live Demo",
     "haveInvite": "Have an invite?",
+    "noAccountPrompt": "Need an account?",
     "registerLink": "Register",
     "alreadyHaveAccount": "Already have an account?",
     "signInLink": "Sign in",
@@ -223,6 +224,10 @@
     "openingBody": "The Opening Balances page allows importing account balances, stock, and outstanding invoices from a previous system.",
     "openingEnabled": "Currently enabled — accessible under Introduction > Opening Balances.",
     "openingDisabled": "Currently disabled — the page is hidden from the sidebar.",
+    "signupTitle": "Public Signup",
+    "signupBody": "Allow anyone to create their own account (as a viewer) without an invite. When off, new users can only join via an invite link.",
+    "signupEnabled": "Currently enabled — anyone with the URL can register as a viewer.",
+    "signupDisabled": "Currently disabled — registration is invite-only.",
     "publicTitle": "Public Access (Demo Mode)",
     "publicActive": "Active",
     "publicActiveBody": "Public access is enabled. Anyone can use the application without logging in. All visitors get manager-level permissions.",
@@ -233,7 +238,7 @@
     "enableWarning": "This will allow anyone to access the application without logging in. They will be able to create, edit, and submit documents. Your admin account still requires login.",
     "yesEnable": "Yes, Enable",
     "enabling": "Enabling...",
-    "demoSpendTitle": "Demo Spend"
+    "tokenSpendTitle": "Token Spend"
   },
   "status": {
     "Draft": "Draft",

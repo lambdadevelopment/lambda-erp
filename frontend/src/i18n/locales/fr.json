@@ -147,6 +147,7 @@
     "browsingBody": "Démarrez une nouvelle session de chat et regardez la démo en direct.",
     "enterDemo": "Lancer la démo",
     "haveInvite": "Vous avez une invitation ?",
+    "noAccountPrompt": "Besoin d'un compte ?",
     "registerLink": "S'inscrire",
     "alreadyHaveAccount": "Vous avez déjà un compte ?",
     "signInLink": "Se connecter",
@@ -163,6 +164,10 @@
     "openingBody": "La page Soldes d'ouverture permet d'importer les soldes des comptes, le stock et les factures impayées d'un système précédent.",
     "openingEnabled": "Actuellement activé — accessible sous Introduction > Soldes d'ouverture.",
     "openingDisabled": "Actuellement désactivé — la page est masquée dans la barre latérale.",
+    "signupTitle": "Inscription publique",
+    "signupBody": "Permettre à quiconque de créer son propre compte (en tant que lecteur) sans invitation. Lorsque désactivé, les nouveaux utilisateurs ne peuvent rejoindre que via un lien d'invitation.",
+    "signupEnabled": "Actuellement activé — toute personne disposant de l'URL peut s'inscrire en tant que lecteur.",
+    "signupDisabled": "Actuellement désactivé — l'inscription se fait uniquement sur invitation.",
     "publicTitle": "Accès public (mode démo)",
     "publicActive": "Actif",
     "publicActiveBody": "L'accès public est activé. N'importe qui peut utiliser l'application sans se connecter. Tous les visiteurs obtiennent des autorisations de niveau gestionnaire.",
@@ -173,7 +178,7 @@
     "enableWarning": "Cela permettra à quiconque d'accéder à l'application sans se connecter. Ils pourront créer, modifier et valider des documents. Votre compte administrateur nécessite toujours une connexion.",
     "yesEnable": "Oui, activer",
     "enabling": "Activation...",
-    "demoSpendTitle": "Dépenses démo"
+    "tokenSpendTitle": "Dépenses de jetons"
   },
   "status": {
     "Draft": "Brouillon",

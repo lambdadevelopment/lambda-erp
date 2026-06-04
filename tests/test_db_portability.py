@@ -26,8 +26,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # A double-quoted token used as a VALUE: after =, !=, <>, or inside IN (...).
 _BAD_LITERAL = re.compile(r'(?:=|!=|<>|\bIN\s*\()\s*"[A-Za-z_][\w ]*"')
 # Only flag lines that are clearly SQL, so Python tuples like `x in ("a","b")`
-# don't false-positive.
-_SQL_LINE = re.compile(r"\b(SELECT|UPDATE|DELETE|WHERE|FROM|JOIN|INSERT)\b|db\.sql\(")
+# don't false-positive. Includes clause/expression keywords (CASE/WHEN/THEN,
+# AND/OR, aggregates) so a bad literal on a CONTINUATION line of a multi-line
+# query is still caught — e.g. `WHEN role = "public_manager"` whose SELECT/FROM
+# live on other lines. These are matched as whole uppercase tokens, which don't
+# occur in idiomatic Python (which uses lowercase and/or), keeping false
+# positives negligible.
+_SQL_LINE = re.compile(
+    r"\b(SELECT|UPDATE|DELETE|WHERE|FROM|JOIN|INSERT|CASE|WHEN|THEN|ELSE|END"
+    r"|AND|OR|HAVING|COALESCE|SUM|COUNT|GROUP\s+BY|ORDER\s+BY|VALUES|SET)\b"
+    r"|db\.sql\("
+)
 
 
 def check_no_double_quoted_literals():
@@ -97,7 +106,27 @@ def check_auth_flow():
         r = client.get("/api/accounting/currencies")
         assert r.status_code == 200, f"authed currencies -> {r.status_code}: {r.text[:200]}"
 
-    print(f"  [auth flow] setup-status/register/login OK on {backend}")
+        # Public-signup toggle (admin cookie is active from register above).
+        # With the toggle OFF (default), a no-invite registration is refused.
+        r = client.post("/api/auth/register",
+                        json={"email": "nope@example.com", "full_name": "Nope",
+                              "password": "test-password-123"})
+        assert r.status_code == 403, f"no-invite register (closed) -> {r.status_code}: {r.text[:200]}"
+        s = client.get("/api/auth/setup-status").json()
+        assert s["public_signup"] is False and s["registration_open"] is False, s
+
+        # Enable open signup; a no-invite registrant then joins as a viewer.
+        r = client.put("/api/auth/settings", json={"allow_public_signup": "1"})
+        assert r.status_code == 200, f"enable public signup -> {r.status_code}: {r.text[:200]}"
+        s = client.get("/api/auth/setup-status").json()
+        assert s["public_signup"] and s["registration_open"] and not s["first_run"], s
+        r = client.post("/api/auth/register",
+                        json={"email": "viewer@example.com", "full_name": "Viewer",
+                              "password": "test-password-123"})
+        assert r.status_code == 200, f"public register -> {r.status_code}: {r.text[:300]}"
+        assert r.json()["role"] == "viewer", r.json()
+
+    print(f"  [auth flow] setup-status/register/login + public-signup OK on {backend}")
 
     # db.sql() used for writes must return [] (not raise). psycopg errors with
     # "the last operation didn't produce records" if fetchall() is called after

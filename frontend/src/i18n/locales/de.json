@@ -147,6 +147,7 @@
     "browsingBody": "Starten Sie eine neue Chat-Sitzung und sehen Sie sich die Live-Demo an.",
     "enterDemo": "Live-Demo starten",
     "haveInvite": "Haben Sie eine Einladung?",
+    "noAccountPrompt": "Noch kein Konto?",
     "registerLink": "Registrieren",
     "alreadyHaveAccount": "Haben Sie bereits ein Konto?",
     "signInLink": "Anmelden",
@@ -163,6 +164,10 @@
     "openingBody": "Auf der Seite Eröffnungsbilanzen können Kontensalden, Lagerbestände und offene Rechnungen aus einem früheren System importiert werden.",
     "openingEnabled": "Derzeit aktiviert — erreichbar unter Einführung > Eröffnungsbilanzen.",
     "openingDisabled": "Derzeit deaktiviert — die Seite ist in der Seitenleiste ausgeblendet.",
+    "signupTitle": "Öffentliche Registrierung",
+    "signupBody": "Erlauben Sie es jedem, ohne Einladung ein eigenes Konto (als Betrachter) zu erstellen. Wenn deaktiviert, können neue Benutzer nur über einen Einladungslink beitreten.",
+    "signupEnabled": "Derzeit aktiviert — jeder mit der URL kann sich als Betrachter registrieren.",
+    "signupDisabled": "Derzeit deaktiviert — die Registrierung erfolgt nur per Einladung.",
     "publicTitle": "Öffentlicher Zugriff (Demomodus)",
     "publicActive": "Aktiv",
     "publicActiveBody": "Der öffentliche Zugriff ist aktiviert. Jeder kann die Anwendung ohne Anmeldung nutzen. Alle Besucher erhalten Manager-Rechte.",
@@ -173,7 +178,7 @@
     "enableWarning": "Dadurch kann jeder ohne Anmeldung auf die Anwendung zugreifen. Besucher können Dokumente erstellen, bearbeiten und buchen. Ihr Administratorkonto erfordert weiterhin eine Anmeldung.",
     "yesEnable": "Ja, aktivieren",
     "enabling": "Wird aktiviert...",
-    "demoSpendTitle": "Demo-Ausgaben"
+    "tokenSpendTitle": "Token-Ausgaben"
   },
   "status": {
     "Draft": "Entwurf",

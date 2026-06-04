@@ -353,7 +353,13 @@ export const api = {
     request<any>("/setup/opening-balances/invoices", { method: "POST", body: JSON.stringify(data) }),
 
   // Auth
-  authSetupStatus: () => request<{ has_users: boolean; registration_open: boolean }>("/auth/setup-status"),
+  authSetupStatus: () =>
+    request<{
+      has_users: boolean;
+      first_run: boolean;
+      public_signup: boolean;
+      registration_open: boolean;
+    }>("/auth/setup-status"),
   authRegister: (data: { email: string; full_name: string; password: string; invite_token?: string }) =>
     request<any>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
   authLogin: (email: string, password: string) =>
@@ -368,6 +374,8 @@ export const api = {
   authDisableUser: (userName: string) =>
     request<any>(`/auth/users/${encodeURIComponent(userName)}`, { method: "DELETE" }),
   authListInvites: () => request<any[]>("/auth/invites"),
+  authRevokeInvite: (token: string) =>
+    request<any>(`/auth/invites/${encodeURIComponent(token)}`, { method: "DELETE" }),
   getPublicManagerStatus: () => request<{ active: boolean; user?: any }>("/auth/public-manager"),
   createPublicManager: () => request<any>("/auth/public-manager", { method: "POST" }),
   removePublicManager: () => request<any>("/auth/public-manager", { method: "DELETE" }),

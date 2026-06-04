@@ -36,7 +36,7 @@ def _window_totals(now: float, seconds: int) -> dict:
     totals = db.conn.execute(
         'SELECT '
         '  COALESCE(SUM(cost_usd), 0) AS total_usd, '
-        '  COALESCE(SUM(CASE WHEN role = "public_manager" THEN cost_usd ELSE 0 END), 0) AS demo_usd, '
+        '  COALESCE(SUM(CASE WHEN role = \'public_manager\' THEN cost_usd ELSE 0 END), 0) AS demo_usd, '
         '  COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens, '
         '  COALESCE(SUM(completion_tokens), 0) AS completion_tokens, '
         '  COUNT(*) AS call_count, '

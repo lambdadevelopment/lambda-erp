@@ -244,10 +244,23 @@ def require_non_public_manager(user: dict = Depends(get_current_user)) -> dict:
 
 @router.get("/setup-status")
 def auth_setup_status():
-    """Public: check if any users exist (for first-run detection)."""
+    """Public: first-run detection + whether registration is open.
+
+    - first_run: no users yet — the next registrant becomes the admin.
+    - public_signup: the admin has enabled open self-registration (as viewer).
+    - registration_open: registration without an invite is possible at all
+      (first_run OR public_signup) — the signup form keys off this.
+    """
     db = get_db()
     count = db.sql('SELECT COUNT(*) as cnt FROM "User"')[0]["cnt"]
-    return {"has_users": count > 0, "registration_open": count == 0}
+    first_run = count == 0
+    public_signup = _setting_enabled(db, "allow_public_signup")
+    return {
+        "has_users": count > 0,
+        "first_run": first_run,
+        "public_signup": public_signup,
+        "registration_open": first_run or public_signup,
+    }
 
 
 @router.post("/register")
@@ -263,11 +276,10 @@ def register(data: RegisterRequest, request: Request, response: Response):
     user_count = db.sql('SELECT COUNT(*) as cnt FROM "User"')[0]["cnt"]
 
     if user_count == 0:
+        # First user bootstraps the instance as admin.
         role = "admin"
-    else:
-        if not data.invite_token:
-            raise HTTPException(status_code=403, detail="Registration requires an invite")
-
+    elif data.invite_token:
+        # Invite-only registration: the invite is bound to an email and a role.
         rows = db.sql('SELECT token, email, role, used FROM "Invite" WHERE token = ?', [data.invite_token])
         invite = rows[0] if rows else None
         if not invite:
@@ -280,6 +292,11 @@ def register(data: RegisterRequest, request: Request, response: Response):
         role = validate_assignable_role(invite["role"])
         db.sql('UPDATE "Invite" SET used = 1 WHERE token = ?', [data.invite_token])
         db.conn.commit()
+    elif _setting_enabled(db, "allow_public_signup"):
+        # Open signup is enabled: anyone may self-register, but only as a viewer.
+        role = "viewer"
+    else:
+        raise HTTPException(status_code=403, detail="Registration requires an invite")
 
     user_name = f"USR-{uuid.uuid4().hex[:8]}"
     db.insert("User", {
@@ -401,6 +418,20 @@ def list_invites(user: dict = Depends(require_admin)):
     return [dict(r) for r in rows]
 
 
+@router.delete("/invites/{token}")
+def revoke_invite(token: str, user: dict = Depends(require_admin)):
+    """Revoke a pending (unused) invite so its link no longer works."""
+    db = get_db()
+    rows = db.sql('SELECT token, used FROM "Invite" WHERE token = ?', [token])
+    if not rows:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    if rows[0]["used"]:
+        raise HTTPException(status_code=409, detail="Invite already used")
+    db.sql('DELETE FROM "Invite" WHERE token = ?', [token])
+    db.conn.commit()
+    return {"ok": True}
+
+
 @router.post("/public-manager")
 def create_public_manager(user: dict = Depends(require_admin)):
     """Create (or re-enable) the public manager account for demo mode.
@@ -477,7 +508,17 @@ def get_public_manager_status():
 DEFAULTS = {
     "pdf_page_size": "A4",
     "opening_balances_enabled": "1",
+    # When "1", anyone may self-register (as viewer) without an invite. Default
+    # off: after the first user (admin), registration is invite-only.
+    "allow_public_signup": "0",
 }
+
+
+def _setting_enabled(db, key: str) -> bool:
+    """Read a boolean Settings flag, honoring DEFAULTS for unset keys."""
+    rows = db.sql('SELECT value FROM "Settings" WHERE key = ?', [key])
+    value = rows[0]["value"] if rows else DEFAULTS.get(key)
+    return str(value) == "1"
 
 
 @router.get("/settings")

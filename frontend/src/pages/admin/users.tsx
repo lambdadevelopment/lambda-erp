@@ -44,6 +44,25 @@ export default function UsersPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["auth-users"] }),
   });
 
+  const revokeMut = useMutation({
+    mutationFn: (token: string) => api.authRevokeInvite(token),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["auth-invites"] }),
+  });
+
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const inviteLink = (token: string) => `${window.location.origin}/login?invite=${token}`;
+  const copyInviteLink = async (token: string) => {
+    try {
+      await navigator.clipboard.writeText(inviteLink(token));
+      setCopiedToken(token);
+      setTimeout(() => setCopiedToken((t) => (t === token ? null : t)), 2000);
+    } catch {
+      // Clipboard API unavailable (e.g. non-HTTPS): fall back to a prompt so
+      // the admin can still grab the link.
+      window.prompt("Invite link", inviteLink(token));
+    }
+  };
+
   if (currentUser?.role !== "admin") {
     return <p className="py-8 text-center text-gray-400">Admin access required</p>;
   }
@@ -122,6 +141,7 @@ export default function UsersPage() {
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Email</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Role</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Created</th>
+                <th className="px-4 py-2 text-right font-medium text-gray-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -132,6 +152,23 @@ export default function UsersPage() {
                     <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium">{invite.role}</span>
                   </td>
                   <td className="px-4 py-2 text-gray-500">{invite.creation?.split("T")[0]}</td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        onClick={() => copyInviteLink(invite.token)}
+                        className="text-xs font-medium text-brand hover:text-brand/80"
+                      >
+                        {copiedToken === invite.token ? "Copied!" : "Copy link"}
+                      </button>
+                      <button
+                        onClick={() => revokeMut.mutate(invite.token)}
+                        disabled={revokeMut.isPending}
+                        className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                      >
+                        Revoke
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

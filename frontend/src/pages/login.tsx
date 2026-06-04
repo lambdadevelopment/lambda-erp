@@ -16,6 +16,9 @@ export default function LoginPage() {
 
   const [mode, setMode] = useState<"login" | "register">(inviteToken ? "register" : "login");
   const [registrationOpen, setRegistrationOpen] = useState(false);
+  // first run = no users yet (next registrant becomes admin); distinct from
+  // public signup (admin enabled open self-registration as viewer).
+  const [firstRun, setFirstRun] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -35,7 +38,10 @@ export default function LoginPage() {
     api.authSetupStatus()
       .then((s) => {
         setRegistrationOpen(s.registration_open);
-        if (s.registration_open) setMode("register");
+        setFirstRun(s.first_run);
+        // Force register only on first run; under public signup keep login the
+        // default (existing users sign in) while still allowing registration.
+        if (s.first_run) setMode("register");
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -84,7 +90,7 @@ export default function LoginPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-brand">Lambda ERP</h1>
           <p className="mt-1 text-sm text-fg-muted">
-            {registrationOpen
+            {firstRun
               ? t("login.taglineFirstRun")
               : mode === "register"
                 ? t("login.taglineRegister")
@@ -137,7 +143,7 @@ export default function LoginPage() {
               />
             )}
             <Button type="submit" className="w-full">
-              {mode === "register" ? (registrationOpen ? t("login.createAdmin") : t("login.register")) : t("login.signIn")}
+              {mode === "register" ? (firstRun ? t("login.createAdmin") : t("login.register")) : t("login.signIn")}
             </Button>
           </form>
         </Card>
@@ -162,11 +168,11 @@ export default function LoginPage() {
           </Card>
         )}
 
-        {!registrationOpen && !inviteToken && (
+        {!firstRun && !inviteToken && (
           <p className="text-center text-sm text-fg-muted">
             {mode === "login" ? (
               <>
-                {t("login.haveInvite")}{" "}
+                {registrationOpen ? t("login.noAccountPrompt") : t("login.haveInvite")}{" "}
                 <button onClick={() => setMode("register")} className="font-medium text-brand transition-colors hover:text-brand/80">
                   {t("login.registerLink")}
                 </button>

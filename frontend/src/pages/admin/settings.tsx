@@ -24,7 +24,7 @@ function fmtUsd(v: number): string {
   return `$${v.toFixed(2)}`;
 }
 
-function DemoSpendCard() {
+function TokenSpendCard({ demoActive }: { demoActive: boolean }) {
   const { t } = useTranslation();
   const [windowKey, setWindowKey] = useState<string>("1h");
   const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery({
@@ -47,13 +47,19 @@ function DemoSpendCard() {
     capPct >= 90 ? "bg-red-500" : capPct >= 60 ? "bg-amber-500" : "bg-emerald-500";
 
   return (
-    <Card title={t("settings.demoSpendTitle")}>
+    <Card title={t("settings.tokenSpendTitle")}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-lg text-sm text-gray-600">
-          Token spend from LLM calls in this deployment. Only{" "}
-          <span className="font-medium text-gray-900">public_manager</span>{" "}
-          traffic counts against the demo cap; admin/manager sessions are
-          included in <em>Total</em> for visibility.
+          Cost and token usage from AI / LLM calls in this deployment, across
+          all providers.
+          {demoActive && (
+            <>
+              {" "}Only{" "}
+              <span className="font-medium text-gray-900">public_manager</span>{" "}
+              (demo) traffic counts against the demo cap; admin/manager sessions
+              are included in the total.
+            </>
+          )}
         </div>
         <div className="flex items-end gap-2">
           <div className="w-48">
@@ -101,44 +107,63 @@ function DemoSpendCard() {
 
       {window && (
         <div className="mt-5 space-y-5">
-          {/* Headline: demo $/hr vs cap */}
-          <div>
-            <div className="flex items-baseline justify-between">
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Demo spend (avg/hr over {windowSpec.label.toLowerCase()})
+          {demoActive ? (
+            /* Demo deployments: spend-against-cap is the number that matters. */
+            <div>
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Demo spend (avg/hr over {windowSpec.label.toLowerCase()})
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold text-gray-900">
+                    {fmtUsd(demoUsdPerHour)}
+                    <span className="ml-2 text-sm font-normal text-gray-500">
+                      / {fmtUsd(demoCap)} hourly cap
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-1 text-2xl font-semibold text-gray-900">
-                  {fmtUsd(demoUsdPerHour)}
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    / {fmtUsd(demoCap)} hourly cap
-                  </span>
+                <div className="text-right">
+                  <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Total (all roles)
+                  </div>
+                  <div className="mt-1 text-lg font-semibold text-gray-700">
+                    {fmtUsd(window.total_usd)}
+                    <span className="ml-1 text-xs font-normal text-gray-500">
+                      ({fmtUsd(totalUsdPerHour)}/hr)
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Total (all roles)
-                </div>
-                <div className="mt-1 text-lg font-semibold text-gray-700">
-                  {fmtUsd(window.total_usd)}
-                  <span className="ml-1 text-xs font-normal text-gray-500">
-                    ({fmtUsd(totalUsdPerHour)}/hr)
-                  </span>
-                </div>
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                <div className={`h-full ${capColor} transition-all`} style={{ width: `${capPct}%` }} />
+              </div>
+              <div className="mt-1 text-xs text-gray-400">
+                {capPct.toFixed(0)}% of the hourly cap
+                {capPct >= 100 && " — demo visitors are currently blocked"}
               </div>
             </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
-              <div className={`h-full ${capColor} transition-all`} style={{ width: `${capPct}%` }} />
+          ) : (
+            /* Normal deployments: total LLM spend is the useful headline. */
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Total spend (avg/hr over {windowSpec.label.toLowerCase()})
+              </div>
+              <div className="mt-1 text-2xl font-semibold text-gray-900">
+                {fmtUsd(totalUsdPerHour)}
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  ({fmtUsd(window.total_usd)} over {windowSpec.label.toLowerCase()})
+                </span>
+              </div>
             </div>
-            <div className="mt-1 text-xs text-gray-400">
-              {capPct.toFixed(0)}% of the hourly cap
-              {capPct >= 100 && " — demo visitors are currently blocked"}
-            </div>
-          </div>
+          )}
 
           {/* Stats grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Demo spend" value={fmtUsd(window.demo_usd)} />
+            {demoActive ? (
+              <Stat label="Demo spend" value={fmtUsd(window.demo_usd)} />
+            ) : (
+              <Stat label="Cost" value={fmtUsd(window.total_usd)} />
+            )}
             <Stat label="Calls" value={window.call_count.toLocaleString()} />
             <Stat label="Unique IPs" value={window.unique_ips.toLocaleString()} />
             <Stat
@@ -324,6 +349,36 @@ export default function SettingsPage() {
           )}
         </div>
       </Card>
+
+      <Card title={t("settings.signupTitle")}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-700">
+              {t("settings.signupBody")}
+            </p>
+            <p className="mt-1 text-xs text-gray-400">
+              {settings?.allow_public_signup === "1"
+                ? t("settings.signupEnabled")
+                : t("settings.signupDisabled")}
+            </p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => settingsMut.mutate({
+                allow_public_signup: settings?.allow_public_signup === "1" ? "0" : "1",
+              })}
+              className={`ml-4 shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
+                settings?.allow_public_signup === "1"
+                  ? "bg-red-50 text-red-700 hover:bg-red-100"
+                  : "bg-green-50 text-green-700 hover:bg-green-100"
+              }`}
+            >
+              {settings?.allow_public_signup === "1" ? t("common.disable") : t("common.enable")}
+            </button>
+          )}
+        </div>
+      </Card>
+
       {/* Public Manager / Demo Mode */}
       {isAdmin && (
         <Card title={t("settings.publicTitle")}>
@@ -384,7 +439,7 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {isAdmin && <DemoSpendCard />}
+      {isAdmin && <TokenSpendCard demoActive={!!pubStatus?.active} />}
     </div>
   );
 }
