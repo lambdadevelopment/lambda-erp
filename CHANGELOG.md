@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-06-04
+
 ### Added
 - **PDF template override seam** (`register_pdf_template_dir(path)` in
   `api/pdf.py`). A deployment plugin can register a directory whose templates
@@ -196,7 +198,11 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.11...HEAD
+[0.1.11]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.10...v0.1.11
+[0.1.10]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.9...v0.1.10
+[0.1.9]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.8...v0.1.9
+[0.1.8]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.1.4...v0.1.5
