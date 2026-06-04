@@ -69,6 +69,7 @@ const MASTER_FIELDS: Record<string, FieldDef[]> = {
     { name: "zip_code", label: "Zip Code", type: "text" },
     { name: "country", label: "Country", type: "text" },
     { name: "tax_id", label: "Tax ID", type: "text" },
+    { name: "iban", label: "IBAN", type: "text" },
   ],
 };
 

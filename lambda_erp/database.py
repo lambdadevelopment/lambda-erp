@@ -270,6 +270,7 @@ class Database:
                 zip_code TEXT,
                 country TEXT,
                 tax_id TEXT,
+                iban TEXT,
                 default_cost_center TEXT,
                 round_off_account TEXT,
                 round_off_cost_center TEXT,
@@ -1707,6 +1708,11 @@ def _m013_unrealized_exchange_account(db: "Database") -> None:
         )
 
 
+def _m014_company_iban(db: "Database") -> None:
+    """Add Company.iban (bank account for payment instructions / QR-bills)."""
+    db._add_column_if_missing("Company", "iban", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -1721,6 +1727,7 @@ Database.MIGRATIONS = [
     (11, "payment_entry_currency", _m011_payment_entry_currency),
     (12, "exchange_gain_loss_account", _m012_exchange_gain_loss_account),
     (13, "unrealized_exchange_account", _m013_unrealized_exchange_account),
+    (14, "company_iban", _m014_company_iban),
 ]
 
 

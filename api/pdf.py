@@ -37,6 +37,22 @@ def register_pdf_template_dir(path: str) -> None:
         _plugin_template_dirs.insert(0, path)
         _jinja_env.loader = _build_loader()
 
+
+_pdf_context_providers = []
+
+
+def register_pdf_context(fn) -> None:
+    """Register a provider that augments the PDF render context.
+
+    `fn(doctype, name, context)` is called just before rendering with the
+    assembled context (doc, company_info, party_info, currency, items, …) and
+    may return a dict of EXTRA keys to merge in — e.g. a computed Swiss QR-bill
+    image for invoices. Lets a deployment add per-document content the template
+    can't compute itself. Exceptions are swallowed so a buggy provider can't
+    break PDF generation.
+    """
+    _pdf_context_providers.append(fn)
+
 # Document type → (title, party_field, party_name_field, party_doctype, party_label)
 DOC_CONFIG = {
     "Quotation":        ("Quotation",        "customer", "customer_name", "Customer", "Customer"),
@@ -114,7 +130,7 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     company_info = {}
     if company_id:
         row = db.get_value("Company", company_id,
-                           ["company_name", "email", "phone", "address", "city", "zip_code", "country", "tax_id"])
+                           ["company_name", "email", "phone", "address", "city", "zip_code", "country", "tax_id", "iban"])
         if row:
             company_info = _get_dict(row)
             # Show the company's CURRENT display name from the master.
@@ -164,7 +180,7 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     # plugin's branded override) can reference sibling assets — logo.png, fonts,
     # CSS — by relative path. Falls back to the built-in templates dir.
     base_url = template.filename or os.path.join(TEMPLATE_DIR, "document.html")
-    html_str = template.render(
+    context = dict(
         doc=doc,
         title=title,
         company_name=company_name,
@@ -179,5 +195,17 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
         show_warehouse=doctype in SHOW_WAREHOUSE,
         page_size=page_size,
     )
+
+    # Let deployment plugins augment the context (e.g. a Swiss QR-bill image for
+    # invoices). A provider that raises must not break PDF generation.
+    for provider in _pdf_context_providers:
+        try:
+            extra = provider(doctype, name, context)
+            if extra:
+                context.update(extra)
+        except Exception:
+            pass
+
+    html_str = template.render(**context)
 
     return HTML(string=html_str, base_url=base_url).write_pdf()

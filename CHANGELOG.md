@@ -13,6 +13,20 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-06-04
+
+### Added
+- **`register_pdf_context(fn)`** seam (`api.pdf`): a deployment plugin can
+  register a provider `fn(doctype, name, context)` that returns extra keys
+  merged into the PDF render context just before rendering — e.g. a computed
+  Swiss QR-bill image for invoices. Providers run after the built-in context is
+  assembled; an exception in one is swallowed so it can't break PDF generation.
+- **`Company.iban`** field (schema + migration `_m014_company_iban`) and an
+  IBAN input on the company master form. A generic bank-account field for
+  payment instructions; consumed by deployments that render payment slips
+  (e.g. the Swiss QR-bill in the example/internal plugins). The company info
+  passed to PDF templates now includes `iban`.
+
 ## [0.1.12] - 2026-06-04
 
 ### Added
