@@ -83,7 +83,9 @@ def bootstrap_demo() -> None:
         from api.routers.setup import create_company
 
         create_company(
-            {"name": DEMO_COMPANY, "currency": demo_currency},
+            # Demo company: opt into the pseudo-random address so seeded
+            # invoices/PDFs look complete. Real setups (the /setup form) don't.
+            {"name": DEMO_COMPANY, "currency": demo_currency, "autofill_address": True},
             _user=None,
         )
     else:

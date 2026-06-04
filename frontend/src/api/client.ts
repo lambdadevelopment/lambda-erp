@@ -325,8 +325,17 @@ export const api = {
   // Setup
   setupStatus: () => request<{ setup_complete: boolean; companies: any[] }>("/setup/status"),
 
-  createCompany: (data: { name: string; currency?: string }) =>
-    request<any>("/setup/company", { method: "POST", body: JSON.stringify(data) }),
+  createCompany: (data: {
+    name: string;
+    currency?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    zip_code?: string;
+    country?: string;
+    tax_id?: string;
+  }) => request<any>("/setup/company", { method: "POST", body: JSON.stringify(data) }),
 
   seedDemo: () => request<any>("/setup/seed-demo", { method: "POST" }),
 

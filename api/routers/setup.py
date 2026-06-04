@@ -77,20 +77,21 @@ def create_company(data: dict, _user: dict = Depends(require_role("admin"))):
     if db.exists("Company", name):
         return {"detail": f"Company {name} already exists"}
 
-    # Auto-fill contact info with a deterministic random address if the caller
-    # didn't supply one. This keeps the PDFs looking complete for demo users.
-    auto = _random_address_for(name)
+    # Contact/address fields come from the caller. Only when the caller opts in
+    # (autofill_address — the demo seeding does) do we invent a deterministic
+    # pseudo-random address so the demo's PDFs look complete. A real deployment
+    # leaves anything it doesn't provide blank rather than getting a fake US
+    # address printed on its invoices.
+    fields = ("email", "phone", "address", "city", "zip_code", "country", "tax_id")
+    contact = {k: (data.get(k) or "") for k in fields}
+    if data.get("autofill_address"):
+        auto = _random_address_for(name)
+        contact = {k: (data.get(k) or auto[k]) for k in fields}
     db.insert("Company", _dict(
         name=name,
         company_name=name,
         default_currency=currency,
-        email=data.get("email") or auto["email"],
-        phone=data.get("phone") or auto["phone"],
-        address=data.get("address") or auto["address"],
-        city=data.get("city") or auto["city"],
-        zip_code=data.get("zip_code") or auto["zip_code"],
-        country=data.get("country") or auto["country"],
-        tax_id=data.get("tax_id") or auto["tax_id"],
+        **contact,
     ))
 
     setup_chart_of_accounts(name, currency)

@@ -21,12 +21,23 @@ export default function SetupPage() {
 
   const [companyName, setCompanyName] = useState("");
   const [currency, setCurrency] = useState("USD");
+  const [details, setDetails] = useState({
+    address: "",
+    city: "",
+    zip_code: "",
+    country: "",
+    email: "",
+    phone: "",
+    tax_id: "",
+  });
+  const setDetail = (key: keyof typeof details) => (e: { target: { value: string } }) =>
+    setDetails((d) => ({ ...d, [key]: e.target.value }));
   const [seedMode, setSeedMode] = useState<SeedMode>("quick");
   const [success, setSuccess] = useState(false);
   const [historyStats, setHistoryStats] = useState<Record<string, number> | null>(null);
 
   const createCompanyMut = useMutation({
-    mutationFn: () => api.createCompany({ name: companyName, currency }),
+    mutationFn: () => api.createCompany({ name: companyName, currency, ...details }),
   });
 
   const seedDemoMut = useMutation({
@@ -157,6 +168,30 @@ export default function SetupPage() {
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
           />
+
+          <fieldset className="space-y-3">
+            <legend className="mb-1 text-sm font-medium text-gray-700">
+              Company details
+            </legend>
+            <p className="text-xs text-gray-500">
+              These appear on your invoices and other PDFs. Optional now — you can
+              fill or change them later under Masters → Company.
+            </p>
+            <Input label="Address" value={details.address} onChange={setDetail("address")}
+              placeholder="e.g. 42 Market Street" />
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="City" value={details.city} onChange={setDetail("city")} />
+              <Input label="ZIP / Postal code" value={details.zip_code} onChange={setDetail("zip_code")} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Country" value={details.country} onChange={setDetail("country")} />
+              <Input label="Tax ID / VAT" value={details.tax_id} onChange={setDetail("tax_id")} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Email" value={details.email} onChange={setDetail("email")} />
+              <Input label="Phone" value={details.phone} onChange={setDetail("phone")} />
+            </div>
+          </fieldset>
 
           <fieldset className="space-y-2">
             <legend className="mb-1 text-sm font-medium text-gray-700">

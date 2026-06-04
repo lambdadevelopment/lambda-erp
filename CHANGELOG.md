@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-06-04
+
+### Changed
+- **Company Setup no longer invents a fake address for real companies.** The
+  `/setup/company` endpoint used to fill any missing contact field with a
+  deterministic pseudo-random US address (so demo PDFs looked complete) — which
+  meant every real company got a bogus address printed on its invoices. Now the
+  Company Setup form collects address / city / ZIP / country / tax-id / email /
+  phone (optional), and the backend only auto-fills when the caller opts in
+  (`autofill_address`), which the public demo seeding does. Real setups keep
+  unprovided fields blank. Backend + frontend; ships at 0.1.10.
+
 ## [0.1.9] - 2026-06-04
 
 ### Fixed
