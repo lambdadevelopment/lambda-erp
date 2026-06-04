@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-06-05
+
+### Fixed
+- **Sidebar logo broken in consumer deployments.** `.lambda-logo-icon` masked
+  its gradient with `url('/logo_lad_erp.png')` — an absolute path to an asset
+  that was only in the core's own `public/` and not shipped in the npm package,
+  so every downstream deployment got a broken (empty) logo. The mark now lives
+  at `src/logo_lad_erp.png`, is referenced relatively (`url('./logo_lad_erp.png')`)
+  so each consumer's bundler emits and rewrites it, and is included in the
+  package `files`. Frontend only; backend bumps for version lockstep.
+
 ## [0.1.14] - 2026-06-04
 
 ### Added

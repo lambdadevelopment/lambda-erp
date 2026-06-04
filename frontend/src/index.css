@@ -66,11 +66,11 @@
   background: linear-gradient(135deg, #cbd5e1, #b0bacb, #c2ccd8, #94a3b8, #cbd5e1);
   background-size: 300% 300%;
   animation: lambda-logo-gradient 12s ease infinite;
-  -webkit-mask-image: url('/logo_lad_erp.png');
+  -webkit-mask-image: url('./logo_lad_erp.png');
   -webkit-mask-size: contain;
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-position: center;
-  mask-image: url('/logo_lad_erp.png');
+  mask-image: url('./logo_lad_erp.png');
   mask-size: contain;
   mask-repeat: no-repeat;
   mask-position: center;

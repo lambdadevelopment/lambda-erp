@@ -1,6 +1,6 @@
 {
   "name": "@lambda-development/erp-core",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Frontend core of Lambda ERP — app shell, document/master pages, chat UI, reports, and extension registries.",
   "license": "MIT",
   "repository": {
@@ -25,6 +25,7 @@
   "files": [
     "dist",
     "src/index.css",
+    "src/logo_lad_erp.png",
     "tailwind.preset.ts"
   ],
   "sideEffects": [
