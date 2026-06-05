@@ -255,6 +255,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function ChangePasswordCard() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -292,23 +293,47 @@ function ChangePasswordCard() {
   return (
     <Card title={t("settings.passwordTitle")}>
       <form onSubmit={submit} className="max-w-sm space-y-3">
+        {/* Hidden username anchor: lets password managers (1Password, etc.)
+            associate the saved login so they fill/save against the right
+            account. 1Password recommends a real text input hidden with
+            display:none rather than the `hidden` attribute. */}
+        <input
+          type="text"
+          name="username"
+          id="username"
+          autoComplete="username"
+          value={user?.email || ""}
+          readOnly
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ display: "none" }}
+        />
         <Input
           label={t("settings.currentPassword")}
+          id="current-password"
+          name="current-password"
           type="password"
+          autoComplete="current-password"
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
           required
         />
         <Input
           label={t("settings.newPassword")}
+          id="new-password"
+          name="new-password"
           type="password"
+          autoComplete="new-password"
           value={next}
           onChange={(e) => setNext(e.target.value)}
           required
         />
         <Input
           label={t("settings.confirmNewPassword")}
+          id="confirm-password"
+          name="confirm-password"
           type="password"
+          autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           required
@@ -455,7 +480,10 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      {/* Public Manager / Demo Mode */}
+      {isAdmin && <TokenSpendCard demoActive={!!pubStatus?.active} />}
+
+      {/* Public Manager / Demo Mode — kept last: it's the most consequential
+          toggle (opens the whole app to anonymous demo access). */}
       {isAdmin && (
         <Card title={t("settings.publicTitle")}>
           {pubStatus?.active ? (
@@ -514,8 +542,6 @@ export default function SettingsPage() {
           )}
         </Card>
       )}
-
-      {isAdmin && <TokenSpendCard demoActive={!!pubStatus?.active} />}
     </div>
   );
 }

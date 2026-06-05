@@ -153,20 +153,22 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-2 text-gray-500">{invite.creation?.split("T")[0]}</td>
                   <td className="px-4 py-2 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      <button
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => copyInviteLink(invite.token)}
-                        className="text-xs font-medium text-brand hover:text-brand/80"
                       >
                         {copiedToken === invite.token ? "Copied!" : "Copy link"}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
                         onClick={() => revokeMut.mutate(invite.token)}
                         disabled={revokeMut.isPending}
-                        className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
                       >
                         Revoke
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>

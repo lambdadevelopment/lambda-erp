@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-06-05
+
+### Fixed
+- **Change Password form now works with password managers.** Added
+  `autocomplete="current-password"` / `new-password` (on both the new and
+  confirm fields, so managers fill the generated password into both), unique
+  `id`/`name` per field, and a hidden `username` anchor input
+  (`autocomplete="username"`, `display:none`) so 1Password et al. associate and
+  save the credential against the right account.
+
+### Changed
+- **Settings page reordering:** the Public Access (Demo Mode) card moved to the
+  very bottom (it's the most consequential toggle).
+- **Users page:** the pending-invite "Copy link" and "Revoke" actions are now
+  proper buttons (shared `Button` component — secondary / danger) instead of
+  text links, matching "Create Invite".
+
 ## [0.1.16] - 2026-06-05
 
 ### Added
