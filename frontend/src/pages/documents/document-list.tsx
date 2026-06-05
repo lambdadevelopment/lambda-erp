@@ -73,6 +73,7 @@ export default function DocumentListPage() {
   const [status] = useUrlState<string>("status", "All");
   const [fromDate] = useUrlState<string>("from", "");
   const [toDate] = useUrlState<string>("to", "");
+  const [showDiscarded] = useUrlState<string>("discarded", "");
   const [pageSize] = useUrlState<number>("per_page", 50);
   // URL is human-friendly 1-indexed; internal state stays 0-indexed for
   // offset calculation. setPage accepts the 0-indexed value.
@@ -87,6 +88,7 @@ export default function DocumentListPage() {
   const setStatus = (s: string) => patchUrl({ status: s === "All" ? null : s, page: null });
   const setFromDate = (s: string) => patchUrl({ from: s || null, page: null });
   const setToDate = (s: string) => patchUrl({ to: s || null, page: null });
+  const setShowDiscarded = (on: boolean) => patchUrl({ discarded: on ? "1" : null, page: null });
   const setPageSize = (n: number) => patchUrl({ per_page: n, page: null });
 
   const filters = useMemo(() => {
@@ -94,10 +96,11 @@ export default function DocumentListPage() {
     if (status !== "All") f.status = status;
     if (fromDate) f.from_date = fromDate;
     if (toDate) f.to_date = toDate;
+    if (showDiscarded) f.include_discarded = "true";
     f.limit = pageSize;
     f.offset = page * pageSize;
     return f;
-  }, [status, fromDate, toDate, pageSize, page]);
+  }, [status, fromDate, toDate, showDiscarded, pageSize, page]);
 
   const { data, isLoading } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
@@ -249,6 +252,15 @@ export default function DocumentListPage() {
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
         />
+        <label className="flex h-10 items-center gap-2 text-sm text-fg-muted">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-line text-brand focus:ring-brand/30"
+            checked={!!showDiscarded}
+            onChange={(e) => setShowDiscarded(e.target.checked)}
+          />
+          {t("common.showDiscarded")}
+        </label>
       </div>
       <DateRangePresets onSelect={(from, to) => patchUrl({ from, to, page: null })} />
 

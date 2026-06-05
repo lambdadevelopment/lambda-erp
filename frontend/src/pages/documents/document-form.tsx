@@ -393,55 +393,102 @@ function DocumentActions({
   doctype,
   name,
   docstatus,
+  discarded,
   saving,
   config,
   onSave,
   onSubmit,
   onCancel,
   onConvert,
+  onDiscard,
 }: {
   isNew: boolean;
   doctype?: string;
   name?: string;
   docstatus: number;
+  discarded?: boolean;
   saving: boolean;
   config: ReturnType<typeof getDoctypeConfig>;
   onSave: () => void;
   onSubmit: () => void;
   onCancel: () => void;
   onConvert: (targetDoctype: string) => void;
+  onDiscard: () => void;
 }) {
   const { t } = useTranslation();
+  // Two-step cancel: clicking "Cancel" doesn't cancel — it arms confirmation.
+  // The confirm button then renders in a DIFFERENT place (pushed right) while
+  // the original spot becomes a safe "Don't cancel", so a double-click can't
+  // accidentally go through with this irreversible action.
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  // Discard (drafts only) is a soft delete — reversible at the DB level — so a
+  // lighter inline two-step arm is enough.
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   if (!config) return null;
 
   const pdfUrl = !isNew && doctype && name
     ? `/api/documents/${doctype}/${encodeURIComponent(name)}/pdf`
     : null;
 
+  const showCancel = !isNew && config.canCancel && docstatus === 1;
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {pdfUrl && (
         <Button variant="secondary" onClick={() => window.open(pdfUrl, "_blank")}>
           {t("common.pdf")}
         </Button>
       )}
-      {docstatus < 1 && (
+      {docstatus < 1 && !discarded && (
         <Button onClick={onSave} disabled={saving}>
           {saving ? t("common.saving") : t("common.save")}
         </Button>
       )}
-      {!isNew && config.canSubmit && docstatus === 0 && (
+      {!isNew && config.canSubmit && docstatus === 0 && !discarded && (
         <Button variant="secondary" onClick={onSubmit}>
           {t("common.submit")}
         </Button>
       )}
-      {!isNew && config.canCancel && docstatus === 1 && (
-        <Button variant="danger" onClick={onCancel}>
-          {t("common.cancelDoc")}
-        </Button>
+      {/* Discard draft (soft delete) — only on an unsubmitted, saved draft. */}
+      {!isNew && config.canSubmit && docstatus === 0 && !discarded && (
+        confirmingDiscard ? (
+          <>
+            <Button variant="secondary" onClick={() => setConfirmingDiscard(false)}>
+              {t("common.keepDraft")}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setConfirmingDiscard(false);
+                onDiscard();
+              }}
+            >
+              {t("common.discardDraftConfirm")}
+            </Button>
+          </>
+        ) : (
+          <Button variant="ghost" onClick={() => setConfirmingDiscard(true)}>
+            {t("common.discardDraft")}
+          </Button>
+        )
       )}
+      {/* Original Cancel button position. In confirm mode it becomes the safe
+          "Don't cancel" so a stray repeat click here aborts rather than fires. */}
+      {showCancel && (
+        confirmingCancel ? (
+          <Button variant="secondary" onClick={() => setConfirmingCancel(false)}>
+            {t("common.cancelDocAbort")}
+          </Button>
+        ) : (
+          <Button variant="danger" onClick={() => setConfirmingCancel(true)}>
+            {t("common.cancelDoc")}
+          </Button>
+        )
+      )}
+      {/* Conversions are hidden while confirming to keep the choice unambiguous. */}
       {!isNew &&
         docstatus === 1 &&
+        !confirmingCancel &&
         config.conversions.map((conv) => (
           <Button
             key={conv.targetDoctype}
@@ -451,6 +498,20 @@ function DocumentActions({
             {t(`conversions.${conv.label}`, { defaultValue: conv.label })}
           </Button>
         ))}
+      {/* The actual confirm — deliberately placed far from the original button
+          (pushed to the opposite end) so it can't be hit by a double-click. */}
+      {showCancel && confirmingCancel && (
+        <Button
+          variant="danger"
+          className="ml-auto"
+          onClick={() => {
+            setConfirmingCancel(false);
+            onCancel();
+          }}
+        >
+          {t("common.cancelDocConfirmBtn")}
+        </Button>
+      )}
     </div>
   );
 }
@@ -618,6 +679,15 @@ export default function DocumentFormPage() {
     },
   });
 
+  const discardMut = useMutation({
+    mutationFn: () => api.discardDocument(doctype!, name!),
+    onSuccess: () => {
+      // The draft is now hidden from the default list; leave the editor.
+      queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
+      navigate(`/app/${doctype}`, { replace: true });
+    },
+  });
+
   const convertMut = useMutation({
     mutationFn: (targetDoctype: string) =>
       api.convertDocument(doctype!, name!, targetDoctype),
@@ -665,11 +735,20 @@ export default function DocumentFormPage() {
   };
 
   const handleCancel = () => {
+    // Cancelling reverses all postings (GL + stock) and is irreversible. The
+    // two-step confirm UI lives in DocumentActions (the confirm button appears
+    // in a different place, so a double-click can't fire it by accident).
     cancelMut.mutate();
   };
 
   const handleConvert = (targetDoctype: string) => {
     convertMut.mutate(targetDoctype);
+  };
+
+  const handleDiscard = () => {
+    // Soft delete of an unwanted draft — no postings to reverse. Confirmation
+    // is handled inline in DocumentActions.
+    discardMut.mutate();
   };
 
   if (!config) {
@@ -685,7 +764,9 @@ export default function DocumentFormPage() {
   }
 
   const docstatus: number = formData.docstatus ?? 0;
-  const readOnly = docstatus >= 1;
+  const discarded = !!formData.discarded;
+  // A discarded draft is voided/terminal — lock it like a submitted document.
+  const readOnly = docstatus >= 1 || discarded;
 
   // The document's currency drives how amounts are formatted (€/£/¥ vs $).
   const docCurrency: string = formData.currency || "USD";
@@ -724,10 +805,12 @@ export default function DocumentFormPage() {
           docstatus={docstatus}
           saving={createMut.isPending || updateMut.isPending}
           config={config}
+          discarded={discarded}
           onSave={handleSave}
           onSubmit={handleSubmit}
           onCancel={handleCancel}
           onConvert={handleConvert}
+          onDiscard={handleDiscard}
         />
       </div>
 

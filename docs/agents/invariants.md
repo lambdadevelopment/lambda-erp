@@ -10,6 +10,14 @@ before touching any accounting, stock, or lifecycle path.
   `docstatus != DRAFT`. Post-submit field updates (`outstanding_amount`,
   `billed_qty`, `modified`) go through `db.set_value` directly, never
   round-trip via `.save()`. (`lambda_erp/model.py`)
+- **Discard is a draft-only soft delete, never a hard delete.** There is no
+  row deletion anywhere — `Document.discard()` voids an unwanted **draft**
+  (docstatus 0) by setting `discarded = 1` / status `'Discarded'`; the row is
+  kept for the audit trail and hidden from default lists (`list_documents`
+  filters `discarded = 0` unless `include_discarded`). It refuses non-drafts
+  (submitted docs must be **cancelled**), and `submit()` refuses a discarded
+  draft (else it would post to the ledger while staying hidden). Cancel
+  (docstatus 1 → 2) is the separate, posting-reversing operation. (`model.py`)
 - **Every voucher that posts GL must balance to the cent.** Enforced by
   `general_ledger.process_debit_credit_difference`. Small rounding residues
   post to the company's Round Off account; gaps > 0.5 raise.

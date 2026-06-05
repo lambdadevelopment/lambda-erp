@@ -309,6 +309,13 @@ class Document:
             raise DocumentStatusError(
                 f"Cannot submit {self.DOCTYPE} {self.name}: docstatus is {self.docstatus}"
             )
+        # A discarded draft is voided — refuse to submit it, otherwise it would
+        # post to the ledger while staying hidden from lists ("posted but
+        # invisible"). Discard is terminal.
+        if self._data.get("discarded"):
+            raise DocumentStatusError(
+                f"Cannot submit {self.DOCTYPE} {self.name}: it was discarded."
+            )
 
         db = get_db()
         db._in_transaction = True
@@ -366,6 +373,28 @@ class Document:
         finally:
             db._in_transaction = False
         run_hooks(f"{self.DOCTYPE}:after_cancel", self)
+        return self
+
+    def discard(self):
+        """Void an unwanted DRAFT (docstatus 0) — a soft delete that keeps the row.
+
+        Unlike cancel (which reverses a submission's GL/stock postings), a draft
+        has never posted anything, so there is nothing to reverse. Discarding
+        just flags the document `discarded` and sets status 'Discarded' so it
+        drops out of default lists, while the record itself is preserved for the
+        audit trail (no hard delete — see docs/agents/invariants.md). Only valid
+        on drafts; a submitted document must be cancelled instead.
+        """
+        if self.docstatus != DRAFT:
+            raise DocumentStatusError(
+                f"Cannot discard {self.DOCTYPE} {self.name}: only drafts can be "
+                f"discarded (docstatus is {self.docstatus}). A submitted document "
+                f"must be cancelled."
+            )
+        self._data["discarded"] = 1
+        self._data["status"] = "Discarded"
+        self._data["modified"] = now()
+        self._persist()
         return self
 
     def _persist(self, commit=True):

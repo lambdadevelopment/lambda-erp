@@ -14,6 +14,7 @@ const STATUS_VARIANT_MAP: Record<string, BadgeVariant> = {
   Ordered: "success",
   Paid: "success",
   Cancelled: "danger",
+  Discarded: "secondary",
   Overdue: "danger",
 };
 

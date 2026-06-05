@@ -13,6 +13,27 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-06-05
+
+### Added
+- **Discard draft (void).** An unwanted *draft* can now be discarded instead of
+  the old "submit then cancel" dance — a soft delete that keeps the row for the
+  audit trail (no hard delete anywhere). `Document.discard()` sets
+  `discarded = 1` / status `'Discarded'` (drafts only; submitted docs must still
+  be cancelled), `submit()` refuses a discarded draft, and discarded documents
+  are hidden from default lists (`include_discarded` to show them, plus a "Show
+  discarded" toggle on the list and a `discarded` column on every submittable
+  doctype via migration `_m015`). Exposed end to end: `POST
+  /documents/{type}/{name}/discard`, the **Discard draft** button (drafts render
+  terminal/read-only once voided), and a `discard_document` **chat tool**.
+
+### Changed
+- **Document cancel now needs a deliberate two-step confirmation.** "Cancel"
+  (Stornieren) no longer fires immediately; it arms a confirmation whose
+  confirm button renders in a *different place* while the original spot becomes
+  a safe "Don't cancel" — so a double-click can't trigger an irreversible
+  posting reversal by accident.
+
 ## [0.1.17] - 2026-06-05
 
 ### Fixed

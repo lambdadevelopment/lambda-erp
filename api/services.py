@@ -155,6 +155,16 @@ def cancel_document(doctype_slug: str, name: str) -> dict:
     return doc.as_dict()
 
 
+def discard_document(doctype_slug: str, name: str) -> dict:
+    """Void an unwanted draft (soft delete — keeps the row, hides it from lists)."""
+    doctype, cls = get_document_class(doctype_slug)
+    if not cls:
+        raise ValueError(f"Unknown document type: {doctype_slug}")
+    doc = cls.load(name)
+    doc.discard()
+    return doc.as_dict()
+
+
 def register_converter(source_doctype: str, target_doctype: str, fn) -> None:
     """Register (or override) the converter for a (source, target) pair.
 
@@ -206,7 +216,17 @@ DATE_FIELDS = {
 }
 
 
-def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, offset: int = 0) -> list:
+def _exclude_discarded(db, doctype: str, db_filters: dict, include_discarded: bool) -> None:
+    """Hide voided drafts (discarded=1) unless explicitly requested. Guarded on
+    the column existing so non-submittable doctypes are unaffected."""
+    if include_discarded:
+        return
+    if "discarded" in db._get_table_columns(doctype) and "discarded" not in db_filters:
+        db_filters["discarded"] = 0
+
+
+def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, offset: int = 0,
+                   include_discarded: bool = False) -> list:
     doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     if not doctype:
         raise ValueError(f"Unknown document type: {doctype_slug}")
@@ -225,6 +245,8 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
                 to_date = value
             else:
                 db_filters[key] = value
+
+    _exclude_discarded(db, doctype, db_filters, include_discarded)
 
     # Date range filtering via the doctype's primary date field
     date_field = DATE_FIELDS.get(doctype)
@@ -261,7 +283,7 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
     return _attach_children(db, doctype_slug, rows)
 
 
-def count_documents(doctype_slug: str, filters: dict = None) -> int:
+def count_documents(doctype_slug: str, filters: dict = None, include_discarded: bool = False) -> int:
     """Count documents matching the filters (ignores limit/offset)."""
     doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     if not doctype:
@@ -281,6 +303,8 @@ def count_documents(doctype_slug: str, filters: dict = None) -> int:
                 to_date = value
             else:
                 db_filters[key] = value
+
+    _exclude_discarded(db, doctype, db_filters, include_discarded)
 
     date_field = DATE_FIELDS.get(doctype)
     where_parts = []

@@ -8,6 +8,7 @@ from api.services import (
     update_document,
     submit_document,
     cancel_document,
+    discard_document,
     convert_document,
     list_documents,
     count_documents,
@@ -29,6 +30,7 @@ def list_docs(
     from_date: str | None = None,
     to_date: str | None = None,
     docstatus: int | None = None,
+    include_discarded: bool = False,
     limit: int = Query(default=50, le=500),
     offset: int = Query(default=0, ge=0),
     _user: dict = _viewer,
@@ -44,8 +46,9 @@ def list_docs(
         filters["from_date"] = from_date
     if to_date:
         filters["to_date"] = to_date
-    rows = list_documents(doctype_slug, filters=filters, limit=limit, offset=offset)
-    total = count_documents(doctype_slug, filters=filters)
+    rows = list_documents(doctype_slug, filters=filters, limit=limit, offset=offset,
+                          include_discarded=include_discarded)
+    total = count_documents(doctype_slug, filters=filters, include_discarded=include_discarded)
     return {"rows": rows, "total": total, "limit": limit, "offset": offset}
 
 
@@ -90,6 +93,13 @@ def submit_doc(doctype_slug: str, name: str, _user: dict = _manager):
 @router.post("/{doctype_slug}/{name}/cancel")
 def cancel_doc(doctype_slug: str, name: str, _user: dict = _manager):
     return cancel_document(doctype_slug, name)
+
+
+@router.post("/{doctype_slug}/{name}/discard")
+def discard_doc(doctype_slug: str, name: str, _user: dict = _manager):
+    """Void an unwanted draft (soft delete — kept for the audit trail, hidden
+    from default lists). Only valid on drafts; submitted docs must be cancelled."""
+    return discard_document(doctype_slug, name)
 
 
 @router.post("/{doctype_slug}/{name}/convert")

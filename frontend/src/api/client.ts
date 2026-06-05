@@ -130,6 +130,9 @@ export const api = {
   cancelDocument: (doctype: string, name: string) =>
     request<any>(`/documents/${doctype}/${encodeURIComponent(name)}/cancel`, { method: "POST" }),
 
+  discardDocument: (doctype: string, name: string) =>
+    request<any>(`/documents/${doctype}/${encodeURIComponent(name)}/discard`, { method: "POST" }),
+
   convertDocument: (doctype: string, name: string, targetDoctype: string) =>
     request<any>(`/documents/${doctype}/${encodeURIComponent(name)}/convert`, {
       method: "POST",

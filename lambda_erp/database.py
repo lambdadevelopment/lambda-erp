@@ -492,6 +492,7 @@ class Database:
                 remarks TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 creation TEXT,
                 modified TEXT
             )""",
@@ -545,6 +546,7 @@ class Database:
                 remarks TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 creation TEXT,
                 modified TEXT
             )""",
@@ -601,6 +603,7 @@ class Database:
                 remarks TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 creation TEXT,
                 modified TEXT
             )""",
@@ -664,6 +667,7 @@ class Database:
                 per_billed REAL DEFAULT 0,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
                 modified TEXT
@@ -727,6 +731,7 @@ class Database:
                 purchase_order TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
                 modified TEXT
@@ -780,6 +785,7 @@ class Database:
                 cost_center TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
                 modified TEXT
@@ -808,6 +814,7 @@ class Database:
                 remark TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 creation TEXT,
                 modified TEXT
             )""",
@@ -844,6 +851,7 @@ class Database:
                 total_amount REAL DEFAULT 0,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
                 modified TEXT
@@ -906,6 +914,7 @@ class Database:
                 return_against TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
                 modified TEXT
@@ -958,6 +967,7 @@ class Database:
                 return_against TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
                 modified TEXT
@@ -1015,6 +1025,7 @@ class Database:
                 return_against TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
                 modified TEXT
@@ -1713,6 +1724,25 @@ def _m014_company_iban(db: "Database") -> None:
     db._add_column_if_missing("Company", "iban", "TEXT")
 
 
+# Submittable transactional doctypes — those with a Draft/Submitted/Cancelled
+# lifecycle. `discarded` is the soft-delete flag for voided drafts.
+_SUBMITTABLE_DOCTYPES = (
+    "Quotation", "Sales Order", "Sales Invoice", "Delivery Note",
+    "Purchase Order", "Purchase Invoice", "Purchase Receipt",
+    "Payment Entry", "Journal Entry", "Stock Entry", "POS Invoice",
+)
+
+
+def _m015_document_discarded(db: "Database") -> None:
+    """Add the `discarded` soft-delete flag to every submittable doctype.
+
+    Voiding an unwanted DRAFT sets discarded=1 (status 'Discarded') instead of
+    hard-deleting it — the row is kept for the audit trail and hidden from
+    default lists. Cancel (for submitted docs) is unaffected."""
+    for table in _SUBMITTABLE_DOCTYPES:
+        db._add_column_if_missing(table, "discarded", "INTEGER DEFAULT 0")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -1728,6 +1758,7 @@ Database.MIGRATIONS = [
     (12, "exchange_gain_loss_account", _m012_exchange_gain_loss_account),
     (13, "unrealized_exchange_account", _m013_unrealized_exchange_account),
     (14, "company_iban", _m014_company_iban),
+    (15, "document_discarded", _m015_document_discarded),
 ]
 
 

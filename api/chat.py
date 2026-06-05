@@ -533,7 +533,22 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "cancel_document",
-            "description": "Cancel a submitted document (reverses GL/stock entries). Only works on submitted documents (docstatus=1). To void a draft, submit it first then cancel it. There is no delete — cancel is the only way to void a document.",
+            "description": "Cancel a SUBMITTED document (reverses its GL/stock entries). Only works on submitted documents (docstatus=1). For an unwanted DRAFT (docstatus=0), use discard_document instead — do NOT submit a draft just to cancel it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "doctype": {"type": "string", "enum": DOCUMENT_SLUGS},
+                    "name": {"type": "string"},
+                },
+                "required": ["doctype", "name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "discard_document",
+            "description": "Void/discard an unwanted DRAFT document (docstatus=0). This is a soft delete: the record is kept for the audit trail but flagged 'Discarded' and hidden from default lists. It has no financial or stock impact (a draft never posted anything). Only works on drafts — a submitted document must be cancelled instead. There is no hard delete in the system.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1051,6 +1066,10 @@ def _handle_cancel_document(args):
     return services.cancel_document(args["doctype"], args["name"])
 
 
+def _handle_discard_document(args):
+    return services.discard_document(args["doctype"], args["name"])
+
+
 def _handle_convert_document(args):
     return services.convert_document(args["doctype"], args["name"], args["target_doctype"])
 
@@ -1384,6 +1403,7 @@ TOOL_HANDLERS = {
     "update_document": _handle_update_document,
     "submit_document": _handle_submit_document,
     "cancel_document": _handle_cancel_document,
+    "discard_document": _handle_discard_document,
     "convert_document": _handle_convert_document,
     "search_masters": _handle_search_masters,
     "create_master": _handle_create_master,

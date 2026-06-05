@@ -23,6 +23,7 @@ Run with: python tests/test_erp_validation.py
 import os
 
 from lambda_erp.database import setup
+from lambda_erp.exceptions import DocumentStatusError
 from lambda_erp.utils import _dict, flt, fmt_money, nowdate, add_days
 from lambda_erp.accounting.chart_of_accounts import setup_chart_of_accounts, setup_cost_center
 from lambda_erp.accounting.general_ledger import get_gl_balance
@@ -2635,6 +2636,52 @@ def main():
         _sys.modules.pop("acme_test_plugin", None)
         _sys.modules.pop("broken_test_plugin", None)
         clear_hooks()
+
+    # =====================================================================
+    print_header("44. DRAFT DISCARD - soft-delete a draft (no hard delete)")
+
+    import api.services as _svc
+    from lambda_erp.selling.quotation import Quotation as _Q
+
+    _d1 = _Q(customer="CUST-001", company="Lambda Corp", transaction_date=nowdate(),
+             items=[_dict(item_code="ITEM-001", qty=1, rate=100)])
+    _d1.save()
+    _d2 = _Q(customer="CUST-001", company="Lambda Corp", transaction_date=nowdate(),
+             items=[_dict(item_code="ITEM-001", qty=2, rate=100)])
+    _d2.save()
+
+    _before = _svc.count_documents("quotation")
+    _svc.discard_document("quotation", _d1.name)
+
+    # Hidden from default lists, but the row is preserved (audit trail).
+    _names = [r["name"] for r in _svc.list_documents("quotation")]
+    assert _d1.name not in _names, "discarded draft must be hidden from default list"
+    assert _d2.name in _names, "non-discarded draft must remain"
+    assert _svc.count_documents("quotation") == _before - 1
+    assert db.exists("Quotation", _d1.name), "discarded draft must NOT be hard-deleted"
+
+    # Visible (flagged) when explicitly requested.
+    _all = {r["name"]: r for r in _svc.list_documents("quotation", include_discarded=True)}
+    assert _all[_d1.name]["status"] == "Discarded" and _all[_d1.name]["discarded"] == 1
+
+    # A discarded draft is terminal — it cannot be submitted (that would post to
+    # the ledger while staying hidden). Reload to get the persisted flag.
+    _reloaded = _Q.load(_d1.name)
+    try:
+        _reloaded.submit()
+        raise AssertionError("a discarded draft must not be submittable")
+    except DocumentStatusError:
+        pass
+
+    # A submitted document cannot be discarded — it must be cancelled.
+    _d2.submit()
+    try:
+        _svc.discard_document("quotation", _d2.name)
+        raise AssertionError("discarding a submitted document must fail")
+    except DocumentStatusError:
+        pass
+    print(f"  {_d1.name} discarded (hidden, row kept); submitted {_d2.name} correctly refused")
+    print("  PASSED - Draft discard is a soft delete; submitted docs still require cancel")
 
     # =====================================================================
     # FINAL SUMMARY
