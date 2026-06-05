@@ -13,6 +13,15 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-06-05
+
+### Added
+- **Change password.** Signed-in users can change their own password from
+  General Settings (a card reachable by every role). New endpoint
+  `POST /auth/change-password` verifies the current password, requires the new
+  one to be at least 6 characters, and rejects the shared `public_manager` demo
+  account. Wrong current → 403, too short → 422.
+
 ## [0.1.15] - 2026-06-05
 
 ### Fixed

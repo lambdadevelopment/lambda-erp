@@ -173,6 +173,11 @@ class ChangeRoleRequest(BaseModel):
     role: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
@@ -349,6 +354,28 @@ def logout(response: Response):
 @router.get("/me")
 def me(user: dict = Depends(get_current_user)):
     return {"name": user["name"], "email": user["email"], "full_name": user["full_name"], "role": user["role"]}
+
+
+@router.post("/change-password")
+def change_password(data: ChangePasswordRequest, user: dict = Depends(get_current_user)):
+    """Change the signed-in user's own password (verifies the current one)."""
+    # The public_manager is a shared demo account — no real password to change.
+    if user["role"] == "public_manager":
+        raise HTTPException(status_code=403, detail="Demo accounts cannot change password")
+
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=422, detail="Password must be at least 6 characters")
+
+    db = get_db()
+    rows = db.sql('SELECT hashed_password FROM "User" WHERE name = ?', [user["name"]])
+    if not rows:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not verify_password(data.current_password, rows[0]["hashed_password"]):
+        raise HTTPException(status_code=403, detail="Current password is incorrect")
+
+    db.set_value("User", user["name"],
+                 {"hashed_password": hash_password(data.new_password), "modified": now()})
+    return {"ok": True}
 
 
 @router.post("/invite")

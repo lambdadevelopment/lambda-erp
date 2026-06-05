@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import { useAuth } from "@/contexts/auth-context";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { LanguageSelect } from "@/components/ui/language-select";
 
 // Map window keys (as returned by /admin/demo-spend) to seconds so we can
@@ -251,6 +253,76 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ChangePasswordCard() {
+  const { t } = useTranslation();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const mut = useMutation({
+    mutationFn: () => api.authChangePassword(current, next),
+    onSuccess: () => {
+      setDone(true);
+      setError("");
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setTimeout(() => setDone(false), 4000);
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : t("login.registrationFailed")),
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setDone(false);
+    if (next !== confirm) {
+      setError(t("login.passwordsNoMatch"));
+      return;
+    }
+    if (next.length < 6) {
+      setError(t("login.passwordTooShort"));
+      return;
+    }
+    mut.mutate();
+  };
+
+  return (
+    <Card title={t("settings.passwordTitle")}>
+      <form onSubmit={submit} className="max-w-sm space-y-3">
+        <Input
+          label={t("settings.currentPassword")}
+          type="password"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          required
+        />
+        <Input
+          label={t("settings.newPassword")}
+          type="password"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          required
+        />
+        <Input
+          label={t("settings.confirmNewPassword")}
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          required
+        />
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {done && <p className="text-sm text-green-700">{t("settings.passwordChanged")}</p>}
+        <Button type="submit" disabled={mut.isPending || !current || !next || !confirm}>
+          {mut.isPending ? t("settings.changingPassword") : t("settings.changePassword")}
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -299,6 +371,10 @@ export default function SettingsPage() {
         </div>
         <p className="mt-2 text-xs text-gray-400">{t("language.help")}</p>
       </Card>
+
+      {/* Personal account — every signed-in user can change their own password
+          (the shared public_manager demo account has none). */}
+      {user?.role !== "public_manager" && <ChangePasswordCard />}
 
       <Card title={t("settings.pdfTitle")}>
         <div className="flex flex-wrap items-end gap-4">

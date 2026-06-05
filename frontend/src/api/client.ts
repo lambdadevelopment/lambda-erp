@@ -366,6 +366,11 @@ export const api = {
     request<any>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   authLogout: () => request<any>("/auth/logout", { method: "POST" }),
   authMe: () => request<any>("/auth/me"),
+  authChangePassword: (current_password: string, new_password: string) =>
+    request<any>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
+    }),
   authInvite: (email: string, role: string) =>
     request<any>("/auth/invite", { method: "POST", body: JSON.stringify({ email, role }) }),
   authListUsers: () => request<any[]>("/auth/users"),

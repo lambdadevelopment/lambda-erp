@@ -106,6 +106,22 @@ def check_auth_flow():
         r = client.get("/api/accounting/currencies")
         assert r.status_code == 200, f"authed currencies -> {r.status_code}: {r.text[:200]}"
 
+        # Change own password: wrong current -> 403, correct -> 200, then the
+        # new password logs in and the old one does not.
+        r = client.post("/api/auth/change-password",
+                        json={"current_password": "WRONG", "new_password": "test-password-456"})
+        assert r.status_code == 403, f"change-pw wrong current -> {r.status_code}: {r.text[:200]}"
+        r = client.post("/api/auth/change-password",
+                        json={"current_password": "test-password-123", "new_password": "test-password-456"})
+        assert r.status_code == 200, f"change-pw -> {r.status_code}: {r.text[:200]}"
+        client.post("/api/auth/logout")
+        assert client.post("/api/auth/login",
+                           json={"email": "admin@example.com", "password": "test-password-123"}
+                           ).status_code == 401, "old password still works after change"
+        r = client.post("/api/auth/login",
+                        json={"email": "admin@example.com", "password": "test-password-456"})
+        assert r.status_code == 200, f"login with new password -> {r.status_code}: {r.text[:200]}"
+
         # Public-signup toggle (admin cookie is active from register above).
         # With the toggle OFF (default), a no-invite registration is refused.
         r = client.post("/api/auth/register",
