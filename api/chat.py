@@ -9,9 +9,12 @@ Supports multiple chat sessions, each with their own history and auto-generated 
 """
 
 import asyncio
+import base64
+import io
 import json
 import logging
 import os
+import re
 import traceback
 import uuid
 from datetime import date
@@ -29,7 +32,7 @@ from api.demo_limits import (
     is_demo_role,
     limiter as demo_limiter,
 )
-from api.providers import cost_of_anthropic_call, cost_of_openai_call
+from api.providers import cost_of_anthropic_call, cost_of_openai_call, cost_of_transcription
 from api.routers.masters import create_master_record, update_master_record, MASTER_IDENTITY_ALIAS
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt, now, nowdate
@@ -2327,6 +2330,65 @@ async def run_thinking_loop(
 
 
 # ---------------------------------------------------------------------------
+# Speech-to-text (voice → text)
+# ---------------------------------------------------------------------------
+
+# Domain-vocabulary biasing for the transcription `prompt`. A bare term list,
+# NO language constraint — the spoken language is auto-detected, and a
+# locale-derived hint would mis-transcribe users who speak another language
+# than their UI. Swiss German transcribes to Standard German on its own, which
+# is what the thinking loop wants. These are the ERP terms short utterances
+# otherwise mangle.
+VOICE_TRANSCRIBE_PROMPT = (
+    "Lambda, ERP, Offerte, Angebot, Auftrag, Rechnung, Gutschrift, Beleg, "
+    "Lieferschein, Bestellung, Zahlung, Buchung, Kunde, Lieferant, Artikel, "
+    "Lager, Konto, Kostenstelle, quotation, sales order, invoice, credit note, "
+    "purchase order, payment, journal entry, customer, supplier, item, warehouse"
+)
+
+# Below this the API rejects the clip as "too short"; we treat it as a no-op
+# (the user tapped the mic by accident) rather than an error.
+_MIN_TRANSCRIBE_BYTES = 1500  # ~1s of webm/opus at the ~1.5 KB/s we assume below
+
+
+def transcribe_audio(audio_bytes: bytes, audio_format: str, api_key: str) -> str:
+    """Transcribe audio to text via OpenAI gpt-4o-transcribe.
+
+    Returns the transcript, or "" when the model detects silence/near-silence
+    (empty result or a prompt-echo hallucination on a near-silent clip).
+    Raises on an actual API error so the caller can surface it.
+    """
+    client = OpenAI(api_key=api_key, timeout=httpx.Timeout(60.0, connect=10.0))
+
+    audio_file = io.BytesIO(audio_bytes)
+    audio_file.name = f"voice.{audio_format or 'webm'}"
+
+    transcription = client.audio.transcriptions.create(
+        model="gpt-4o-transcribe",
+        file=audio_file,
+        response_format="json",
+        prompt=VOICE_TRANSCRIBE_PROMPT,
+    )
+
+    text = (getattr(transcription, "text", "") or "").strip()
+    if len(text) < 2:
+        return ""
+
+    # Prompt-echo guard: on silent/noise audio, prompt-biased transcription
+    # tends to hallucinate the biasing vocabulary back. If (nearly) every word
+    # of the transcript is drawn from the prompt itself, it's an echo, not
+    # speech — real utterances carry verbs/objects outside the glossary.
+    prompt_tokens = set(re.findall(r"[\w'-]+", VOICE_TRANSCRIBE_PROMPT.lower()))
+    text_tokens = re.findall(r"[\w'-]+", text.lower())
+    if text_tokens:
+        coverage = sum(1 for tok in text_tokens if tok in prompt_tokens) / len(text_tokens)
+        if coverage >= 0.8:
+            return ""
+
+    return text
+
+
+# ---------------------------------------------------------------------------
 # WebSocket endpoint
 # ---------------------------------------------------------------------------
 
@@ -2673,6 +2735,77 @@ async def chat_websocket(
                 session = get_session(session_id)
                 await send_event("demo_started", request_id=request_id, session_id=session_id, title=session["title"] if session else "New Chat")
                 session_tasks[session_id] = asyncio.create_task(replay_demo_session(session_id))
+                continue
+
+            if msg_type == "transcribe":
+                # Voice → text: transcribe a recorded clip and return the text
+                # for the composer. No LLM turn here — the user reviews/edits
+                # the text and sends it like any typed message.
+                openai_api_key = os.environ.get("OPENAI_API_KEY", "")
+                if not openai_api_key or openai_api_key == "sk-your-key-here":
+                    await send_event(
+                        "transcription_result", request_id=request_id,
+                        success=False, error="Speech-to-text is not available (OPENAI_API_KEY not configured).",
+                    )
+                    continue
+
+                # Demo visitors are rate-limited the same way as LLM turns — a
+                # paid OpenAI call still costs money. Block before transcribing.
+                if is_demo_role(ws_user_role) and client_ip:
+                    blocked = demo_limiter.check(client_ip)
+                    if blocked:
+                        await send_event(
+                            "transcription_result", request_id=request_id,
+                            success=False, error=blocked,
+                        )
+                        continue
+
+                audio_b64 = data.get("audio_data") or ""
+                audio_format = (data.get("audio_format") or "webm").lower()
+                try:
+                    audio_bytes = base64.b64decode(audio_b64) if audio_b64 else b""
+                except Exception:
+                    audio_bytes = b""
+
+                if len(audio_bytes) < _MIN_TRANSCRIBE_BYTES:
+                    # Too short to be speech (accidental tap) — treat as empty,
+                    # no API call, no cost.
+                    await send_event(
+                        "transcription_result", request_id=request_id,
+                        success=True, text="",
+                    )
+                    continue
+
+                try:
+                    text = await asyncio.to_thread(
+                        transcribe_audio, audio_bytes, audio_format, openai_api_key,
+                    )
+                except Exception as e:
+                    logger.warning("Transcription failed: %s", e)
+                    await send_event(
+                        "transcription_result", request_id=request_id,
+                        success=False, error="Transcription failed. Please try again.",
+                    )
+                    continue
+
+                # Track the spend. Audio duration is estimated from byte size
+                # (~1.5 KB/s for webm/opus); the Demo Spend Log records every
+                # role for the admin dashboard, and counts public_manager rows
+                # against the hourly cap.
+                estimated_seconds = len(audio_bytes) / 1500
+                demo_limiter.record(
+                    client_ip or "unknown",
+                    cost_of_transcription("gpt-4o-transcribe", estimated_seconds),
+                    role=ws_user_role,
+                    provider="openai",
+                    model="gpt-4o-transcribe",
+                    session_id=data.get("session_id"),
+                )
+
+                await send_event(
+                    "transcription_result", request_id=request_id,
+                    success=True, text=text,
+                )
                 continue
 
             if msg_type != "send_message":

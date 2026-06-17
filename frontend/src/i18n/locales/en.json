@@ -325,7 +325,12 @@
     "attachTitle": "Attach file (PDF or image, max 10 MB)",
     "creating": "Creating chat...",
     "dropToAttach": "Drop file to attach (images or PDF, max 10 MB each)",
-    "demoError": "Could not start demo"
+    "demoError": "Could not start demo",
+    "voiceStart": "Record voice message",
+    "voiceStop": "Stop recording",
+    "voiceTranscribing": "Transcribing...",
+    "micDenied": "Microphone access was denied.",
+    "transcribeFailed": "Transcription failed. Please try again."
   },
   "conversions": {
     "Create Credit Note": "Create Credit Note",

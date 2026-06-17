@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-06-17
+
+### Added
+- **Voice-to-text in chat.** A microphone button in the chat composer records a
+  spoken message, transcribes it with OpenAI `gpt-4o-transcribe`, and drops the
+  text into the input for review before sending (it does not auto-send). Click
+  to start, click to stop; a short accidental tap is ignored without an API
+  call. Transcription is biased with ERP domain vocabulary and guards against
+  silence/prompt-echo hallucinations. The spend is recorded to the Demo Spend
+  Log (per-minute STT pricing in `api.providers.cost_of_transcription`) and
+  demo visitors are rate-limited the same as LLM turns. New WebSocket message
+  `transcribe` → `transcription_result`.
+
 ## [0.1.18] - 2026-06-05
 
 ### Added

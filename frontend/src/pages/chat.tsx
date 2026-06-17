@@ -23,6 +23,20 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+// Strip the `data:<mime>;base64,` prefix a FileReader data URL carries so we
+// send the server the bare base64 payload.
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read audio."));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function formatTime(ts?: string): string {
   if (!ts) return "";
   const d = new Date(ts);
@@ -69,7 +83,12 @@ export default function ChatPage() {
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
+  // Voice → text: "idle" (mic ready), "recording" (capturing), "transcribing"
+  // (waiting on the server). Click toggles record on/off.
+  const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing">("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const {
     connectionStatus,
     connectionVersion,
@@ -79,6 +98,7 @@ export default function ChatPage() {
     loadHistory,
     loadMoreHistory,
     sendMessage,
+    transcribeAudio,
     getMessages,
     hasMoreHistory,
     isLoadingOlder,
@@ -497,6 +517,86 @@ export default function ChatPage() {
     }
   }
 
+  // Append the transcript to whatever is already typed so a voice note adds to
+  // the draft rather than replacing it. Returns the text trimmed/spaced.
+  function appendTranscript(text: string) {
+    const clean = text.trim();
+    if (!clean) return;
+    setInput((prev) => (prev.trim() ? `${prev.trim()} ${clean}` : clean));
+    // Defer focus so the textarea has the new value when we resize it.
+    window.setTimeout(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.style.height = "auto";
+      el.style.height = Math.min(Math.max(el.scrollHeight, 48), 120) + "px";
+    }, 0);
+  }
+
+  async function startRecording() {
+    if (voiceState !== "idle") return;
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setAttachmentError(t("chat.micDenied"));
+      return;
+    }
+
+    setAttachmentError("");
+    const recorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = recorder;
+    audioChunksRef.current = [];
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) audioChunksRef.current.push(event.data);
+    };
+
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((track) => track.stop());
+      const chunks = audioChunksRef.current;
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = null;
+      if (chunks.length === 0) {
+        setVoiceState("idle");
+        return;
+      }
+      const mimeType = recorder.mimeType || chunks[0]?.type || "audio/webm";
+      const blob = new Blob(chunks, { type: mimeType });
+      // "audio/webm;codecs=opus" → "webm"; the server only needs the container.
+      const format = (mimeType.split(";")[0].split("/")[1] || "webm").toLowerCase();
+
+      setVoiceState("transcribing");
+      try {
+        const base64 = await blobToBase64(blob);
+        const text = await transcribeAudio(base64, format, sessionId);
+        appendTranscript(text);
+      } catch (error) {
+        setAttachmentError(error instanceof Error ? error.message : t("chat.transcribeFailed"));
+      } finally {
+        setVoiceState("idle");
+      }
+    };
+
+    recorder.start();
+    setVoiceState("recording");
+  }
+
+  function stopRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }
+
+  function toggleRecording() {
+    if (voiceState === "recording") {
+      stopRecording();
+    } else if (voiceState === "idle") {
+      void startRecording();
+    }
+  }
+
   if (!sessionId) {
     return (
       <div className="flex h-full items-center justify-center text-fg-muted">
@@ -686,6 +786,39 @@ export default function ChatPage() {
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
               </svg>
+            </button>
+            <button
+              onClick={toggleRecording}
+              disabled={!isConnected || !sessionId || isThinking || isDemoReplaying || voiceState === "transcribing"}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-all disabled:cursor-not-allowed disabled:opacity-40 md:h-10 md:w-10 ${
+                voiceState === "recording"
+                  ? "bg-rose-500/10 text-rose-600 hover:bg-rose-500/20"
+                  : "text-fg-muted hover:bg-surface-subtle hover:text-fg"
+              }`}
+              title={
+                voiceState === "recording"
+                  ? t("chat.voiceStop")
+                  : voiceState === "transcribing"
+                  ? t("chat.voiceTranscribing")
+                  : t("chat.voiceStart")
+              }
+            >
+              {voiceState === "transcribing" ? (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                  <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
+                </svg>
+              ) : voiceState === "recording" ? (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" className="animate-pulse">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                  <path d="M19 10v2a7 7 0 01-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              )}
             </button>
             <button
               onClick={sendCurrentMessage}

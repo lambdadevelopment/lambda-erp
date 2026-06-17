@@ -401,7 +401,12 @@
     "attachTitle": "Datei anhängen (PDF oder Bild, max. 10 MB)",
     "creating": "Chat wird erstellt...",
     "dropToAttach": "Datei zum Anhängen ablegen (Bilder oder PDF, je max. 10 MB)",
-    "demoError": "Demo konnte nicht gestartet werden"
+    "demoError": "Demo konnte nicht gestartet werden",
+    "voiceStart": "Sprachnachricht aufnehmen",
+    "voiceStop": "Aufnahme stoppen",
+    "voiceTranscribing": "Wird transkribiert...",
+    "micDenied": "Zugriff auf das Mikrofon wurde verweigert.",
+    "transcribeFailed": "Transkription fehlgeschlagen. Bitte erneut versuchen."
   },
   "tutorial": {
     "pageTitle": "Erste Schritte mit Lambda ERP",

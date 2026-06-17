@@ -66,6 +66,7 @@ interface ChatContextValue {
   loadMoreHistory: (sessionId: string) => Promise<void>;
   clearHistory: (sessionId: string) => Promise<void>;
   sendMessage: (sessionId: string, content: string, attachmentIds?: string[]) => boolean;
+  transcribeAudio: (audioBase64: string, audioFormat: string, sessionId?: string) => Promise<string>;
   getMessages: (sessionId?: string) => ChatMessage[];
   hasMoreHistory: (sessionId?: string) => boolean;
   isLoadingOlder: (sessionId?: string) => boolean;
@@ -865,6 +866,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function transcribeAudio(audioBase64: string, audioFormat: string, sessionId?: string): Promise<string> {
+    const data = await sendRequest(
+      "transcribe",
+      { audio_data: audioBase64, audio_format: audioFormat, session_id: sessionId },
+      "transcription_result",
+    );
+    if (!data.success) {
+      throw new Error(typeof data.error === "string" ? data.error : "Transcription failed.");
+    }
+    return typeof data.text === "string" ? data.text : "";
+  }
+
   function getMessages(sessionId?: string): ChatMessage[] {
     if (!sessionId) return [];
     return messagesBySession[sessionId] ?? [];
@@ -910,6 +923,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         loadMoreHistory,
         clearHistory,
         sendMessage,
+        transcribeAudio,
         getMessages,
         hasMoreHistory,
         isLoadingOlder,

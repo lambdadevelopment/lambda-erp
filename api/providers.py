@@ -43,6 +43,13 @@ ANTHROPIC_PRICING: dict[str, dict[str, Any]] = {
     "claude-haiku-4-5":  {"input": 1.00, "output": 5.00,  "cache_write": 1.25, "cache_read": 0.10},
 }
 
+# Speech-to-text, priced per minute of audio (not per token).
+TRANSCRIBE_PRICING: dict[str, dict[str, float]] = {
+    "gpt-4o-transcribe":      {"per_minute": 0.006},
+    "gpt-4o-mini-transcribe": {"per_minute": 0.003},
+    "whisper-1":              {"per_minute": 0.006},
+}
+
 
 # ---------------------------------------------------------------------------
 # Rate lookup — unknown models fall back to the most expensive model in each
@@ -114,3 +121,14 @@ def cost_of_anthropic_call(model: str, usage: Optional[Any]) -> float:
         + output_tokens * rates["output"]
     )
     return total / 1_000_000
+
+
+def cost_of_transcription(model: str, audio_seconds: float) -> float:
+    """USD cost of one speech-to-text call, billed per minute of audio.
+
+    Unknown models fall back to the most expensive STT rate so we never
+    under-count. `audio_seconds` is the (estimated) audio duration."""
+    rates = TRANSCRIBE_PRICING.get(model)
+    if rates is None:
+        rates = max(TRANSCRIBE_PRICING.values(), key=lambda r: r["per_minute"])
+    return max(float(audio_seconds or 0.0), 0.0) / 60.0 * rates["per_minute"]
