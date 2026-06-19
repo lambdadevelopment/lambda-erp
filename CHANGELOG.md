@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.20] - 2026-06-19
+
+### Added
+- **Contact person (Ansprechperson) on Customer.** The Customer master gains
+  three optional fields — `contact_person` (a named contact at the customer),
+  `contact_email`, and `contact_phone` — kept separate from the company-level
+  email/phone. They appear in the master create/edit form (en/de/fr labels) and
+  are settable via the chat `create_master`/`update_master` tools. Additive
+  migration (16); existing customers keep the fields empty until edited.
+
 ## [0.1.19] - 2026-06-17
 
 ### Added

@@ -600,7 +600,7 @@ TOOLS = [
             "description": (
                 "Create a new master record. You MUST include the full `data` object using the EXACT field names listed below — unknown fields are silently dropped.\n\n"
                 "Every record's id is `name`. Customer/Supplier/Item/Warehouse auto-generate it (CUST-/SUPP-/ITEM-/WH-NNN) when omitted; Company/Account/Cost Center have NO auto-id, so `name` is required for them.\n\n"
-                "**Customer fields:** name (optional custom id; auto CUST-NNN), customer_name (required), customer_group, territory, default_currency, credit_limit, email, phone, address, city, zip_code, country, tax_id.\n"
+                "**Customer fields:** name (optional custom id; auto CUST-NNN), customer_name (required), customer_group, territory, default_currency, credit_limit, email, phone, address, city, zip_code, country, tax_id, contact_person (named contact at the customer), contact_email, contact_phone.\n"
                 "**Supplier fields:** name (optional custom id; auto SUPP-NNN), supplier_name (required), supplier_group, default_currency, email, phone, address, city, zip_code, country, tax_id.\n"
                 "**Item fields:** item_code (the unique item code/id, e.g. \"SVC-SPARK\" — optional, may use ANY prefix, not just ITEM; auto-generated as ITEM-NNN if omitted), item_name (required, the human-readable name), item_group, stock_uom, standard_rate, is_stock_item, default_warehouse, description.\n"
                 "**Warehouse fields:** name (optional custom id; auto WH-NNN), warehouse_name (required), company, parent_warehouse (omit or null when not needed), address, city, zip_code, country.\n"
@@ -626,7 +626,7 @@ TOOLS = [
         "function": {
             "name": "update_master",
             "description": (
-                "Update an existing master record. You MUST include the `name` of the existing record and a `data` object with the fields to change. Use the same field names listed in create_master (customer: customer_name, email, phone, address, city, zip_code, country, tax_id, etc.). Example: {\"master_type\":\"customer\",\"name\":\"CUST-001\",\"data\":{\"address\":\"123 New Street\",\"city\":\"Boston\",\"zip_code\":\"02110\"}}"
+                "Update an existing master record. You MUST include the `name` of the existing record and a `data` object with the fields to change. Use the same field names listed in create_master (customer: customer_name, email, phone, address, city, zip_code, country, tax_id, contact_person, contact_email, contact_phone, etc.). Example: {\"master_type\":\"customer\",\"name\":\"CUST-001\",\"data\":{\"address\":\"123 New Street\",\"city\":\"Boston\",\"zip_code\":\"02110\"}}"
             ),
             "parameters": {
                 "type": "object",

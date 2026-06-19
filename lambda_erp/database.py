@@ -331,7 +331,10 @@ class Database:
                 city TEXT,
                 zip_code TEXT,
                 country TEXT,
-                tax_id TEXT
+                tax_id TEXT,
+                contact_person TEXT,
+                contact_email TEXT,
+                contact_phone TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Supplier" (
@@ -1743,6 +1746,15 @@ def _m015_document_discarded(db: "Database") -> None:
         db._add_column_if_missing(table, "discarded", "INTEGER DEFAULT 0")
 
 
+def _m016_customer_contact_person(db: "Database") -> None:
+    """Add a named contact person (Ansprechperson) to the Customer master:
+    a free-text name plus their own email and phone, kept separate from the
+    company-level email/phone already on the record."""
+    db._add_column_if_missing("Customer", "contact_person", "TEXT")
+    db._add_column_if_missing("Customer", "contact_email", "TEXT")
+    db._add_column_if_missing("Customer", "contact_phone", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -1759,6 +1771,7 @@ Database.MIGRATIONS = [
     (13, "unrealized_exchange_account", _m013_unrealized_exchange_account),
     (14, "company_iban", _m014_company_iban),
     (15, "document_discarded", _m015_document_discarded),
+    (16, "customer_contact_person", _m016_customer_contact_person),
 ]
 
 

@@ -28,6 +28,9 @@ const MASTER_FIELDS: Record<string, FieldDef[]> = {
     { name: "zip_code", label: "Zip Code", type: "text" },
     { name: "country", label: "Country", type: "text" },
     { name: "tax_id", label: "Tax ID", type: "text" },
+    { name: "contact_person", label: "Contact Person", type: "text" },
+    { name: "contact_email", label: "Contact Email", type: "text" },
+    { name: "contact_phone", label: "Contact Phone", type: "text" },
   ],
   supplier: [
     { name: "name", label: "ID", type: "text", required: true },
