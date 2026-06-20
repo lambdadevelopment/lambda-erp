@@ -18,6 +18,7 @@ cover letter and per-position copy aren't retyped), not to link the offers.
 
 from lambda_erp.model import Document
 from lambda_erp.database import get_db
+from lambda_erp.exceptions import DocumentStatusError
 
 
 class Proposal(Document):
@@ -38,6 +39,15 @@ class Proposal(Document):
     CHILD_LINK_FIELDS = {
         "quotations": {"quotation": "Quotation"},
     }
+
+    def submit(self):
+        # A Proposal is a print-only assembly — there is nothing to post. Guard
+        # against an accidental submit from the chat or API; you "deliver" it by
+        # generating its PDF, not by submitting.
+        raise DocumentStatusError(
+            "A Proposal (Sammelofferte) is print-only and is not submitted. "
+            "Generate its PDF instead."
+        )
 
     def before_save(self) -> None:
         # Denormalise the customer's display name so the list view has it without

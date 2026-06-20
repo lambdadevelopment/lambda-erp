@@ -442,7 +442,7 @@ def api_rename_session(session_id: str, data: dict, user: dict = _Depends(get_cu
 # ---------------------------------------------------------------------------
 
 DOCUMENT_SLUGS = [
-    "quotation", "sales-order", "sales-invoice",
+    "quotation", "proposal", "sales-order", "sales-invoice",
     "purchase-order", "purchase-invoice",
     "payment-entry", "journal-entry", "stock-entry",
     "delivery-note", "purchase-receipt", "pos-invoice",
@@ -1542,7 +1542,7 @@ Lambda ERP has four roles:
 When a user asks you to do something they don't have permission for, explain what role is needed instead of attempting the action (the API will reject it anyway).
 
 ## Available Document Types (use the slug when calling tools)
-- **Selling:** quotation, sales-order, sales-invoice, pos-invoice
+- **Selling:** quotation, proposal, sales-order, sales-invoice, pos-invoice
 - **Buying:** purchase-order, purchase-invoice
 - **Accounting:** payment-entry, journal-entry, budget, subscription, bank-transaction
 - **Stock:** stock-entry, delivery-note, purchase-receipt
@@ -1559,6 +1559,15 @@ Shortcuts: Quotation can also convert directly to Sales Invoice or Delivery Note
 - **Delivery Note:** Ships goods to customer. **Posts stock entries** (inventory decreases). Requires warehouse on each item. No GL impact on its own.
 - **Sales Invoice:** Bills the customer. **Posts GL entries:** Debit Accounts Receivable, Credit Sales Revenue (+ Credit Tax Payable if taxes). Creates outstanding amount.
 - **Payment Entry (Receive):** Records customer payment. **Posts GL entries:** Debit Bank, Credit Accounts Receivable. Reduces invoice outstanding.
+
+### Proposal (Sammelofferte) — combine several offers into one PDF
+A **Proposal** bundles several EXISTING quotations into one branded, customer-facing PDF, each shown as a lettered position (A, B, C…). It is **print-only**: no financial or stock impact, it references the quotations without changing them, and it is **never submitted** — to deliver it you just generate its PDF.
+
+Shape (doctype slug `proposal`) — note it does NOT use `items`:
+- Parent fields: `title` (e.g. "Offerte"), `customer`, `company`, `proposal_date`, `partner_name`, `partner_email`, `cover_letter` (the intro/greeting letter text).
+- Child table `quotations[]` — one row per offer to include, in display order. Each row: `{"quotation": "<existing Quotation name>", "position_title": "...", "position_blurb": "...", "is_recommended": 0 or 1}`. Set `is_recommended: 1` on the offer you recommend (draws an "Empfehlung" badge). `position_title`/`position_blurb` are optional and default from the quotation.
+
+To build one: ensure each offer already exists as its own Quotation (create them first if needed), then `create_document(doctype="proposal", data={...})` referencing those quotations by name in `quotations[]`. Do NOT submit it; link the user to the PDF at `/api/documents/proposal/<name>/pdf` (and the editor at `/app/proposal/<name>`).
 
 ### Purchase Cycle
 Purchase Order → Purchase Receipt (receiving) / Purchase Invoice (billing) → Payment Entry

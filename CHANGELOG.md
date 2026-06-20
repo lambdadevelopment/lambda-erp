@@ -13,7 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
-## [0.1.21] - 2026-06-20
+## [0.1.22] - 2026-06-20
+
+### Added
+- **Proposals in the chat assistant.** The LLM can now create, read, update, and
+  list Proposals (Sammelofferten) through the document tools — e.g. "combine
+  QTN-0001 and QTN-0003 into one offer for Plus Medica AG". The system prompt
+  documents the Proposal shape (the `quotations[]` child table referencing
+  existing quotations, not `items`) and that it is print-only.
+
+### Changed
+- A Proposal can no longer be submitted (it's print-only); an attempted submit
+  now raises a clear error instead of silently flipping docstatus.
 
 ### Added
 - **Proposal (Sammelofferte).** A new print-only document that assembles several
