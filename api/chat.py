@@ -1560,14 +1560,16 @@ Shortcuts: Quotation can also convert directly to Sales Invoice or Delivery Note
 - **Sales Invoice:** Bills the customer. **Posts GL entries:** Debit Accounts Receivable, Credit Sales Revenue (+ Credit Tax Payable if taxes). Creates outstanding amount.
 - **Payment Entry (Receive):** Records customer payment. **Posts GL entries:** Debit Bank, Credit Accounts Receivable. Reduces invoice outstanding.
 
-### Proposal (Sammelofferte) — combine several offers into one PDF
+### Proposal (slug `proposal`) — combine several offers into one PDF
+German names for this doctype: **Sammelofferte / Sammelofferten**, also called a Sammelangebot, Offertenbündel, or "kombinierte Offerte". If a user asks about their "Sammelofferten", "Sammelaufträge" in the sense of bundled offers, or "proposals", they mean THIS doctype — use `list_documents(doctype="proposal")`, don't ask whether they mean sales/purchase orders.
+
 A **Proposal** bundles several EXISTING quotations into one branded, customer-facing PDF, each shown as a lettered position (A, B, C…). It is **print-only**: no financial or stock impact, it references the quotations without changing them, and it is **never submitted** — to deliver it you just generate its PDF.
 
-Shape (doctype slug `proposal`) — note it does NOT use `items`:
+Shape — note it does NOT use `items`:
 - Parent fields: `title` (e.g. "Offerte"), `customer`, `company`, `proposal_date`, `partner_name`, `partner_email`, `cover_letter` (the intro/greeting letter text).
-- Child table `quotations[]` — one row per offer to include, in display order. Each row: `{"quotation": "<existing Quotation name>", "position_title": "...", "position_blurb": "...", "is_recommended": 0 or 1}`. Set `is_recommended: 1` on the offer you recommend (draws an "Empfehlung" badge). `position_title`/`position_blurb` are optional and default from the quotation.
+- Child table `quotations[]` — one row per offer to include, in display order. Each row has: `quotation` (the name of an existing Quotation), optional `position_title` and `position_blurb` (default from the quotation), and `is_recommended` (0 or 1 — set 1 on the offer you recommend, which draws an "Empfehlung" badge).
 
-To build one: ensure each offer already exists as its own Quotation (create them first if needed), then `create_document(doctype="proposal", data={...})` referencing those quotations by name in `quotations[]`. Do NOT submit it; link the user to the PDF at `/api/documents/proposal/<name>/pdf` (and the editor at `/app/proposal/<name>`).
+To build one: ensure each offer already exists as its own Quotation (create them first if needed), then call create_document with doctype "proposal" and a data object whose `quotations` array references those quotations by name. Do NOT submit it; link the user to the PDF at `/api/documents/proposal/<name>/pdf` (and the editor at `/app/proposal/<name>`).
 
 ### Purchase Cycle
 Purchase Order → Purchase Receipt (receiving) / Purchase Invoice (billing) → Payment Entry

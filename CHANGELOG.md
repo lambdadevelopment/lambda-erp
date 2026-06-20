@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.23] - 2026-06-20
+
+### Fixed
+- **Chat assistant crashed on every message** in 0.1.22. The Proposal section
+  added to the system prompt contained a literal `{…}` JSON example, but the
+  prompt is an f-string, so the braces were parsed as format fields and
+  `build_system_prompt()` raised `ValueError: Invalid format specifier`. The
+  example is now brace-free prose. Also taught the assistant the German names
+  (Sammelofferte/Sammelofferten) so "zeig mir unsere Sammelofferten" maps to the
+  proposal doctype instead of asking which order type is meant.
+
 ## [0.1.22] - 2026-06-20
 
 ### Added
