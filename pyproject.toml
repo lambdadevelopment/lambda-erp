@@ -1,6 +1,6 @@
 [project]
 name = "lambda-erp"
-version = "0.1.20"
+version = "0.1.21"
 description = "Core ERP logic - accounting, sales, purchasing, inventory"
 readme = "README.md"
 license = "MIT"
@@ -20,6 +20,7 @@ dependencies = [
     "bcrypt>=5",
     "Jinja2>=3.1",
     "weasyprint>=62.0",
+    "pypdf>=4.0",
     "holidays>=0.40",
 ]
 

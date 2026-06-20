@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import Dashboard from "@/pages/dashboard";
 import DocumentList from "@/pages/documents/document-list";
 import DocumentForm from "@/pages/documents/document-form";
+import ProposalForm from "@/pages/proposals/proposal-form";
 import MasterList from "@/pages/masters/master-list";
 import MasterForm from "@/pages/masters/master-form";
 import TrialBalance from "@/pages/reports/trial-balance";
@@ -43,6 +44,12 @@ const baseChildRoutes: RouteObject[] = [
   { path: "tutorial", element: <Tutorial /> },
   { path: "chat", element: <Chat /> },
   { path: "chat/:sessionId", element: <Chat /> },
+
+  // Proposal (Sammelofferte) — a custom builder; the list reuses the generic
+  // DocumentList via the `proposal` doctype config. The static "proposal"
+  // segment outranks the ":doctype" wildcard below in react-router's matcher.
+  { path: "app/proposal/new", element: <ProposalForm /> },
+  { path: "app/proposal/:name", element: <ProposalForm /> },
 
   // Documents
   { path: "app/:doctype", element: <DocumentList /> },

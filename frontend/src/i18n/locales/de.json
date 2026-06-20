@@ -62,6 +62,7 @@
   },
   "doctypes": {
     "quotation": { "one": "Angebot", "other": "Angebote" },
+    "proposal": { "one": "Sammelofferte", "other": "Sammelofferten" },
     "sales-order": { "one": "Kundenauftrag", "other": "Kundenaufträge" },
     "sales-invoice": { "one": "Ausgangsrechnung", "other": "Ausgangsrechnungen" },
     "pos-invoice": { "one": "Kassenbeleg", "other": "Kassenbelege" },
@@ -106,6 +107,7 @@
       "Company Setup": "Unternehmenseinrichtung",
       "Opening Balances": "Eröffnungsbilanzen",
       "Quotation": "Angebot",
+      "Proposal": "Sammelofferte",
       "Sales Order": "Kundenauftrag",
       "Sales Invoice": "Ausgangsrechnung",
       "POS Invoice": "Kassenbeleg",

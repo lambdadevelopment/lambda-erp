@@ -62,6 +62,7 @@
   },
   "doctypes": {
     "quotation": { "one": "Devis", "other": "Devis" },
+    "proposal": { "one": "Offre groupée", "other": "Offres groupées" },
     "sales-order": { "one": "Commande client", "other": "Commandes client" },
     "sales-invoice": { "one": "Facture de vente", "other": "Factures de vente" },
     "pos-invoice": { "one": "Ticket de caisse", "other": "Tickets de caisse" },
@@ -106,6 +107,7 @@
       "Company Setup": "Configuration de l'entreprise",
       "Opening Balances": "Soldes d'ouverture",
       "Quotation": "Devis",
+      "Proposal": "Offre groupée",
       "Sales Order": "Commande client",
       "Sales Invoice": "Facture de vente",
       "POS Invoice": "Ticket de caisse",

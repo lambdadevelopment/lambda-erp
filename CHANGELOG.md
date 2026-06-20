@@ -13,7 +13,20 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
-## [0.1.20] - 2026-06-19
+## [0.1.21] - 2026-06-20
+
+### Added
+- **Proposal (Sammelofferte).** A new print-only document that assembles several
+  *independent* quotations into one branded, customer-facing PDF — each rendered
+  as a lettered position (A, B, C…) with an optional "recommendation" badge, a
+  cover letter (pre-filled from a per-company template), and an optional uploaded
+  appendix PDF stapled on the end (`pypdf`). It has no financial behaviour and
+  never mutates the quotations it references; saving lets a user reopen and
+  duplicate it. New **Proposals** page under Quotation in the nav. New tables
+  `Proposal` / `Proposal Item` / `Proposal Appendix` (the appendix stored as a
+  blob so it survives restarts); `Company.proposal_cover_template` (migration 17).
+  Deployments override the look via a `proposal.html` template, same seam as
+  `document.html`.
 
 ### Added
 - **Contact person (Ansprechperson) on Customer.** The Customer master gains

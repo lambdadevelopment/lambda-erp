@@ -65,6 +65,10 @@
       "one": "Quotation",
       "other": "Quotations"
     },
+    "proposal": {
+      "one": "Proposal",
+      "other": "Proposals"
+    },
     "sales-order": {
       "one": "Sales Order",
       "other": "Sales Orders"
@@ -166,6 +170,7 @@
       "Company Setup": "Company Setup",
       "Opening Balances": "Opening Balances",
       "Quotation": "Quotation",
+      "Proposal": "Proposals",
       "Sales Order": "Sales Order",
       "Sales Invoice": "Sales Invoice",
       "POS Invoice": "POS Invoice",

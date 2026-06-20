@@ -287,7 +287,8 @@ class Database:
                 default_freight_in_account TEXT,
                 default_customs_account TEXT,
                 default_exchange_gain_loss_account TEXT,
-                default_unrealized_exchange_account TEXT
+                default_unrealized_exchange_account TEXT,
+                proposal_cover_template TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Account" (
@@ -522,6 +523,56 @@ class Database:
                 base_net_amount REAL DEFAULT 0,
                 warehouse TEXT,
                 FOREIGN KEY (parent) REFERENCES "Quotation"(name)
+            )""",
+
+            # --- Proposal (Sammelofferte) ---
+            # A print-only assembly of several independent Quotations into one
+            # branded PDF. No docstatus lifecycle that posts anything: it never
+            # touches the quotations it references. `discarded` lets a saved
+            # proposal be soft-deleted like other documents.
+            """CREATE TABLE IF NOT EXISTS "Proposal" (
+                name TEXT PRIMARY KEY,
+                title TEXT,
+                customer TEXT,
+                customer_name TEXT,
+                company TEXT,
+                proposal_date TEXT,
+                partner_name TEXT,
+                partner_email TEXT,
+                cover_letter TEXT,
+                appendix_filename TEXT,
+                status TEXT DEFAULT 'Draft',
+                docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
+                creation TEXT,
+                modified TEXT,
+                FOREIGN KEY (customer) REFERENCES "Customer"(name)
+            )""",
+
+            # Each row references one independent Quotation, rendered as a
+            # lettered position (A, B, C…) in the combined PDF. position_title /
+            # position_blurb are per-proposal copy; is_recommended draws the badge.
+            """CREATE TABLE IF NOT EXISTS "Proposal Item" (
+                name TEXT PRIMARY KEY,
+                parent TEXT,
+                idx INTEGER DEFAULT 0,
+                quotation TEXT,
+                position_title TEXT,
+                position_blurb TEXT,
+                is_recommended INTEGER DEFAULT 0,
+                FOREIGN KEY (parent) REFERENCES "Proposal"(name)
+            )""",
+
+            # The optional uploaded appendix PDF (e.g. a static price overview),
+            # stored as a blob so it survives container restarts (the app disk is
+            # ephemeral). 1:1 with a Proposal; kept out of the Proposal row so the
+            # generic document CRUD/list never has to serialise bytes.
+            """CREATE TABLE IF NOT EXISTS "Proposal Appendix" (
+                parent TEXT PRIMARY KEY,
+                filename TEXT,
+                data BLOB,
+                uploaded TEXT,
+                FOREIGN KEY (parent) REFERENCES "Proposal"(name)
             )""",
 
             # --- Sales Order ---
@@ -1274,6 +1325,8 @@ class Database:
                       "BIGSERIAL PRIMARY KEY", stmt, flags=re.IGNORECASE)
         stmt = re.sub(r"\bAUTOINCREMENT\b", "", stmt, flags=re.IGNORECASE)
         stmt = re.sub(r"\bREAL\b", "DOUBLE PRECISION", stmt, flags=re.IGNORECASE)
+        # SQLite's BLOB is Postgres' BYTEA (used for the Proposal appendix PDF).
+        stmt = re.sub(r"\bBLOB\b", "BYTEA", stmt, flags=re.IGNORECASE)
         return stmt
 
     # -----------------------------------------------------------------
@@ -1755,6 +1808,17 @@ def _m016_customer_contact_person(db: "Database") -> None:
     db._add_column_if_missing("Customer", "contact_phone", "TEXT")
 
 
+def _m017_proposal_cover_template(db: "Database") -> None:
+    """Add Company.proposal_cover_template — the default cover-letter text a new
+    Proposal (Sammelofferte) pre-fills, so account managers don't retype the
+    salutation/intro every time. May contain {placeholders} resolved at build.
+
+    The Proposal / Proposal Item / Proposal Appendix tables themselves are
+    created by _setup_schema (CREATE TABLE IF NOT EXISTS runs every startup);
+    only this column on the pre-existing Company table needs a migration."""
+    db._add_column_if_missing("Company", "proposal_cover_template", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -1772,6 +1836,7 @@ Database.MIGRATIONS = [
     (14, "company_iban", _m014_company_iban),
     (15, "document_discarded", _m015_document_discarded),
     (16, "customer_contact_person", _m016_customer_contact_person),
+    (17, "proposal_cover_template", _m017_proposal_cover_template),
 ]
 
 

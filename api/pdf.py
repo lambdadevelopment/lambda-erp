@@ -1,5 +1,6 @@
 """PDF generation for ERP documents."""
 
+import io
 import os
 from jinja2 import Environment, FileSystemLoader, ChoiceLoader
 from weasyprint import HTML
@@ -78,6 +79,12 @@ def _get_dict(row):
 
 def generate_pdf(doctype_slug: str, name: str) -> bytes:
     """Generate a PDF for a document and return raw bytes."""
+    # The Proposal (Sammelofferte) has a wholly different shape — several
+    # quotations rendered as lettered positions + an appended appendix — so it
+    # gets its own render path rather than the single-document template below.
+    if doctype_slug == "proposal":
+        return generate_proposal_pdf(name)
+
     doc = load_document(doctype_slug, name)
     db = get_db()
 
@@ -209,3 +216,131 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     html_str = template.render(**context)
 
     return HTML(string=html_str, base_url=base_url).write_pdf()
+
+
+def _append_pdf(base_pdf: bytes, extra_pdf: bytes) -> bytes:
+    """Concatenate `extra_pdf` after `base_pdf`. Used to staple the uploaded
+    appendix onto the rendered offers. A corrupt/unreadable appendix must not
+    sink the whole proposal, so on any failure we return the base unchanged."""
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except Exception:
+        return base_pdf
+    try:
+        writer = PdfWriter()
+        for src in (base_pdf, extra_pdf):
+            reader = PdfReader(io.BytesIO(src))
+            for page in reader.pages:
+                writer.add_page(page)
+        out = io.BytesIO()
+        writer.write(out)
+        return out.getvalue()
+    except Exception:
+        return base_pdf
+
+
+def generate_proposal_pdf(name: str) -> bytes:
+    """Render a Proposal (Sammelofferte): a cover letter plus each referenced
+    Quotation as a lettered position (A, B, C…), then append the uploaded
+    appendix PDF if there is one. Never mutates the quotations."""
+    proposal = load_document("proposal", name)
+    db = get_db()
+
+    # Customer (party) — looked up live so a corrected name/address shows.
+    party_name = proposal.get("customer_name") or proposal.get("customer") or ""
+    party_info = {}
+    if proposal.get("customer"):
+        row = db.get_value(
+            "Customer", proposal["customer"],
+            ["customer_name", "email", "phone", "address", "city", "zip_code",
+             "country", "tax_id", "contact_person", "contact_email", "contact_phone"],
+        )
+        if row:
+            party_info = _get_dict(row)
+            party_name = party_info.get("customer_name") or party_name
+
+    # Company / letterhead.
+    company_id = proposal.get("company", "") or ""
+    company_name = company_id
+    company_info = {}
+    if company_id:
+        row = db.get_value(
+            "Company", company_id,
+            ["company_name", "email", "phone", "address", "city", "zip_code",
+             "country", "tax_id", "iban"],
+        )
+        if row:
+            company_info = _get_dict(row)
+            company_name = company_info.get("company_name") or company_id
+
+    # Build the lettered positions from the referenced quotations (idx order).
+    positions = []
+    rows = sorted(proposal.get("quotations", []) or [], key=lambda r: r.get("idx") or 0)
+    for i, row in enumerate(rows):
+        qname = row.get("quotation")
+        if not qname:
+            continue
+        try:
+            quote = load_document("quotation", qname)
+        except Exception:
+            continue
+        items = quote.get("items", []) or []
+        # Refresh each line's item_name from the master, consistent with the
+        # single-document path.
+        for item in items:
+            code = item.get("item_code")
+            if code:
+                live = db.get_value("Item", code, "item_name")
+                if live:
+                    item["item_name"] = live
+        default_title = items[0].get("item_name") if items else qname
+        positions.append({
+            "letter": chr(ord("A") + i),
+            "quotation": qname,
+            "title": row.get("position_title") or default_title or qname,
+            "blurb": row.get("position_blurb") or quote.get("remarks") or "",
+            "is_recommended": bool(row.get("is_recommended")),
+            "currency": quote.get("currency", "USD") or "USD",
+            "grand_total": quote.get("grand_total") or 0,
+            "items": items,
+        })
+
+    # Page size setting (shared with the single-document path).
+    page_size_row = db.sql('SELECT value FROM "Settings" WHERE key = \'pdf_page_size\'')
+    page_size = page_size_row[0]["value"] if page_size_row else "A4"
+
+    template = _jinja_env.get_template("proposal.html")
+    base_url = template.filename or os.path.join(TEMPLATE_DIR, "proposal.html")
+    context = dict(
+        proposal=proposal,
+        title=proposal.get("title") or "Offerte",
+        company_name=company_name,
+        company_info=company_info,
+        party_name=party_name,
+        party_info=party_info,
+        positions=positions,
+        page_size=page_size,
+    )
+
+    # Let deployment plugins augment the context, same seam as generate_pdf.
+    for provider in _pdf_context_providers:
+        try:
+            extra = provider("Proposal", name, context)
+            if extra:
+                context.update(extra)
+        except Exception:
+            pass
+
+    html_str = template.render(**context)
+    pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
+
+    # Staple the uploaded appendix (stored as a blob) onto the end.
+    appendix = db.sql('SELECT data FROM "Proposal Appendix" WHERE parent = ?', [name])
+    if appendix and appendix[0].get("data"):
+        data = appendix[0]["data"]
+        if isinstance(data, memoryview):
+            data = data.tobytes()
+        if data:
+            pdf_bytes = _append_pdf(pdf_bytes, bytes(data))
+
+    return pdf_bytes

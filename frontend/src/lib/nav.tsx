@@ -45,6 +45,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: <ShoppingCart className="h-4 w-4" />,
     items: [
       { label: "Quotation", path: "/app/quotation" },
+      { label: "Proposal", path: "/app/proposal" },
       { label: "Sales Order", path: "/app/sales-order" },
       { label: "Sales Invoice", path: "/app/sales-invoice" },
       { label: "POS Invoice", path: "/app/pos-invoice" },

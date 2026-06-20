@@ -17,7 +17,7 @@ from api.errors import register_exception_handlers
 from api.auth import router as auth_router, COOKIE_NAME, decode_token
 from api.attachments import router as attachments_router
 from api.chat import chat_websocket, router as chat_router
-from api.routers import admin, documents, masters, reports, setup as setup_router, bank_reconciliation, analytics, accounting
+from api.routers import admin, documents, masters, reports, setup as setup_router, bank_reconciliation, analytics, accounting, proposals
 
 
 def load_plugins() -> None:
@@ -89,6 +89,7 @@ register_exception_handlers(app)
 app.include_router(auth_router, prefix="/api")
 app.include_router(attachments_router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
+app.include_router(proposals.router, prefix="/api")
 app.include_router(masters.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")

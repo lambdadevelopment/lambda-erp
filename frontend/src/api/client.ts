@@ -139,6 +139,37 @@ export const api = {
       body: JSON.stringify({ target_doctype: targetDoctype }),
     }),
 
+  // Proposal (Sammelofferte) extras — CRUD goes through the document methods
+  // above (doctype "proposal"); these cover the appendix blob + cover default.
+  getProposalCoverDefault: (company?: string, customer?: string) =>
+    request<{ cover_letter: string }>(
+      `/proposals/cover-default${qs({ company, customer })}`,
+    ),
+
+  uploadProposalAppendix: async (name: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE}/proposals/${encodeURIComponent(name)}/appendix`, {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    if (!res.ok) {
+      if (res.status === 401) {
+        window.location.href = "/login";
+        throw new ApiError(401, "Session expired");
+      }
+      const body = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new ApiError(res.status, body.detail || "Upload failed");
+    }
+    return res.json() as Promise<{ appendix_filename: string; size: number }>;
+  },
+
+  deleteProposalAppendix: (name: string) =>
+    request<{ ok: boolean }>(`/proposals/${encodeURIComponent(name)}/appendix`, { method: "DELETE" }),
+
+  proposalPdfUrl: (name: string) => `${BASE}/documents/proposal/${encodeURIComponent(name)}/pdf`,
+
   // Masters
   listMasters: (type: string, params?: Record<string, string | number | undefined>) =>
     request<{ rows: any[]; total: number; limit: number; offset: number }>(

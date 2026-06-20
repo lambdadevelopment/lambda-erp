@@ -7,6 +7,7 @@ from lambda_erp.selling.quotation import (
     Quotation, make_sales_order,
     make_sales_invoice_from_quotation, make_delivery_note_from_quotation,
 )
+from lambda_erp.selling.proposal import Proposal
 from lambda_erp.selling.sales_order import SalesOrder, make_sales_invoice
 from lambda_erp.buying.purchase_order import PurchaseOrder, make_purchase_invoice
 from lambda_erp.accounting.sales_invoice import SalesInvoice, make_sales_return
@@ -27,6 +28,7 @@ from lambda_erp.accounting.bank_transaction import BankTransaction
 
 DOCUMENT_CLASSES = {
     "Quotation": Quotation,
+    "Proposal": Proposal,
     "Sales Order": SalesOrder,
     "Sales Invoice": SalesInvoice,
     "Purchase Order": PurchaseOrder,

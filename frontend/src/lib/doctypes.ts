@@ -116,6 +116,23 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     ],
   },
 
+  // Proposal (Sammelofferte) — the form is a custom builder (see
+  // pages/proposals/proposal-form.tsx, routed ahead of the generic form). This
+  // config only drives the generic LIST page: columns + label + title.
+  proposal: {
+    slug: "proposal",
+    label: "Proposal",
+    dateField: "proposal_date",
+    partyField: "customer",
+    partyLabel: "Customer",
+    fields: [],
+    childTables: [],
+    listColumns: ["name", "title", "customer", "modified"],
+    canSubmit: false,
+    canCancel: false,
+    conversions: [],
+  },
+
   "sales-order": {
     slug: "sales-order",
     label: "Sales Order",

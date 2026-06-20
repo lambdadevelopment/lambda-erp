@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: {{ page_size }}; margin: 20mm 15mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1a1a1a; line-height: 1.45; }
+
+  .header { display: flex; justify-content: space-between; margin-bottom: 24px; }
+  .company { font-size: 14pt; font-weight: bold; color: #2563eb; }
+  .doc-title { text-align: right; }
+  .doc-title h1 { font-size: 16pt; }
+  .doc-title .doc-name { font-size: 10pt; color: #666; }
+  .doc-title .doc-date { font-size: 9pt; color: #888; margin-top: 2px; }
+
+  .parties { display: flex; justify-content: space-between; margin-bottom: 18px; }
+  .party-block h3 { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; }
+  .party-block .name { font-weight: bold; font-size: 10pt; }
+  .party-block .detail { font-size: 8pt; color: #555; }
+
+  .cover { margin-bottom: 22px; white-space: pre-line; font-size: 9.5pt; }
+
+  .position { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; page-break-inside: avoid; }
+  .position .pos-head { display: flex; align-items: baseline; gap: 10px; }
+  .position .letter { font-weight: bold; font-size: 11pt; color: #2563eb; min-width: 18px; }
+  .position .pos-title { font-weight: bold; font-size: 10.5pt; }
+  .position .recommended { display: inline-block; margin-left: 8px; padding: 1px 9px; border-radius: 10px; background: #2563eb; color: #fff; font-size: 7.5pt; font-weight: bold; vertical-align: middle; }
+  .position .blurb { margin: 3px 0 8px 28px; font-size: 8.5pt; color: #444; }
+
+  table.lines { width: 100%; border-collapse: collapse; margin-left: 28px; width: calc(100% - 28px); }
+  table.lines td { padding: 3px 0; font-size: 9pt; }
+  table.lines td.amount { text-align: right; white-space: nowrap; }
+  table.lines td.desc { color: #333; }
+
+  .footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 7.5pt; color: #999; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div><div class="company">{{ company_name or proposal.company or "" }}</div></div>
+  <div class="doc-title">
+    <h1>{{ title }}</h1>
+    <div class="doc-name">{{ proposal.name }}</div>
+    {% if proposal.proposal_date %}<div class="doc-date">{{ proposal.proposal_date }}</div>{% endif %}
+  </div>
+</div>
+
+<div class="parties">
+  <div class="party-block">
+    <h3>From</h3>
+    <div class="name">{{ company_name or proposal.company or "" }}</div>
+    {% if company_info.get("address") %}<div class="detail">{{ company_info.address }}</div>{% endif %}
+    {% if company_info.get("city") or company_info.get("zip_code") %}<div class="detail">{{ company_info.get("zip_code", "") }} {{ company_info.get("city", "") }}</div>{% endif %}
+    {% if company_info.get("email") %}<div class="detail">{{ company_info.email }}</div>{% endif %}
+    {% if proposal.partner_name %}<div class="detail" style="margin-top:4px;">{{ proposal.partner_name }}{% if proposal.partner_email %} · {{ proposal.partner_email }}{% endif %}</div>{% endif %}
+  </div>
+  <div class="party-block" style="text-align: right;">
+    <h3>To</h3>
+    <div class="name">{{ party_name }}</div>
+    {% if party_info.get("contact_person") %}<div class="detail">{{ party_info.contact_person }}</div>{% endif %}
+    {% if party_info.get("address") %}<div class="detail">{{ party_info.address }}</div>{% endif %}
+    {% if party_info.get("city") or party_info.get("zip_code") %}<div class="detail">{{ party_info.get("zip_code", "") }} {{ party_info.get("city", "") }}</div>{% endif %}
+  </div>
+</div>
+
+{% if proposal.cover_letter %}<div class="cover">{{ proposal.cover_letter }}</div>{% endif %}
+
+{% for p in positions %}
+<div class="position">
+  <div class="pos-head">
+    <span class="letter">{{ p.letter }}</span>
+    <span class="pos-title">{{ p.title }}{% if p.is_recommended %}<span class="recommended">Empfehlung</span>{% endif %}</span>
+  </div>
+  {% if p.blurb %}<div class="blurb">{{ p.blurb }}</div>{% endif %}
+  <table class="lines">
+    {% for item in p["items"] %}
+    <tr>
+      <td class="desc">{{ item.item_name or item.description or item.item_code or "" }}{% if item.qty and item.qty != 1 %} ({{ "%g"|format(item.qty) }}×){% endif %}</td>
+      <td class="amount">{{ p.currency }} {{ "%.2f"|format(item.amount or item.net_amount or (item.qty or 0) * (item.rate or 0)) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endfor %}
+
+<div class="footer">{{ company_name or proposal.company or "" }}</div>
+
+</body>
+</html>
