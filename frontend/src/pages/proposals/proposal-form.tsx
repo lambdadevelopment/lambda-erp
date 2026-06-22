@@ -113,6 +113,15 @@ export default function ProposalForm() {
     onError: (e: any) => setError(e?.message ?? "Save failed"),
   });
 
+  const discardMut = useMutation({
+    mutationFn: () => api.discardDocument("proposal", name!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["documents", "proposal"] });
+      navigate("/app/proposal");
+    },
+    onError: (e: any) => setError(e?.message ?? "Discard failed"),
+  });
+
   // --- Position rows ---
   const updateRow = (i: number, patch: Partial<PositionRow>) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -167,6 +176,19 @@ export default function ProposalForm() {
           {!isNew && <p className="text-sm text-fg-muted">{name}</p>}
         </div>
         <div className="flex gap-2">
+          {!isNew && (
+            <Button
+              variant="danger"
+              disabled={discardMut.isPending}
+              onClick={() => {
+                if (window.confirm(tr("proposal.discardConfirm", "Discard this proposal? It will be hidden from the list."))) {
+                  discardMut.mutate();
+                }
+              }}
+            >
+              {discardMut.isPending ? tr("common.discarding", "Discarding…") : tr("common.discard", "Discard")}
+            </Button>
+          )}
           {!isNew && (
             <Button variant="secondary" onClick={() => window.open(api.proposalPdfUrl(name!), "_blank")}>
               {tr("common.pdf", "PDF")}

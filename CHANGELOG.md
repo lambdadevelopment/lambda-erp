@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.24] - 2026-06-22
+
+### Added
+- **Discard a Proposal from the UI.** The Proposal builder now has a Discard
+  button (existing proposals only, with a confirm). It soft-deletes the proposal
+  (status `Discarded`, hidden from the list) via the standard discard path —
+  the custom builder page previously had no way to remove a proposal.
+
 ## [0.1.23] - 2026-06-20
 
 ### Fixed
