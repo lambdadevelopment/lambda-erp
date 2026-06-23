@@ -603,7 +603,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_master_fields",
-            "description": "List the available columns of a master type (customer, supplier, item, ...). Call this BEFORE passing `fields` to search_masters (or before guessing column names) so you target real fields instead of guessing. Returns: `fields` (all columns), `default_search_fields` (what search_masters searches when `fields` is omitted), and `bulk_text_fields` (large text columns searched only when named in `fields`).",
+            "description": "List the available columns of a master type (customer, supplier, item, ...). Call this WHENEVER you're unsure which columns exist: before passing `fields` to search_masters, and before building a `data` payload for create_master/update_master when you're not certain a field exists or where a value belongs (e.g. a contact person, a tax id, a payment term). It lets you target real fields instead of guessing — or wrongly concluding a value can't be stored. Returns: `fields` (all columns), `default_search_fields` (what search_masters searches when `fields` is omitted), and `bulk_text_fields` (large text columns searched only when named in `fields`).",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -628,8 +628,10 @@ TOOLS = [
                 "**Account fields:** name (REQUIRED — full account id, conventionally \"<account_name> - <company abbr>\", e.g. \"Marketing Expenses - LAMB\"), account_name (required), company (required), root_type (Asset/Liability/Equity/Income/Expense), report_type (\"Balance Sheet\" or \"Profit and Loss\"), account_type (e.g. Receivable, Payable, Bank, Cash, Stock, Tax), parent_account, account_currency, is_group (0/1).\n"
                 "**Cost Center fields:** name (REQUIRED — e.g. \"Marketing - LAMB\"), cost_center_name (required), company (required), parent_cost_center, is_group (0/1).\n\n"
                 "zip_code is free text (e.g. \"8400\", \"ZH 8400\", \"59123\"), never numeric.\n"
+                "When the user names a contact person at a customer (e.g. \"Kontakt/Ansprechpartner ist Marlene Voss, 079 123 45 67\"), put the person's name in contact_person and their phone/email in contact_phone/contact_email — NOT in the company-level phone/email. There is no separate contact tool; contact-person data lives on these Customer columns, so never claim you cannot store a contact person.\n"
                 "Supplier example: {\"master_type\":\"supplier\",\"data\":{\"supplier_name\":\"Schlafteq\",\"email\":\"jacob@schlafteq.ch\",\"phone\":\"+1 555-0104\",\"address\":\"145 Harbor Rd\",\"city\":\"Seattle\",\"zip_code\":\"98101\",\"country\":\"US\",\"tax_id\":\"98-7654321\"}}\n"
-                "Item example (custom code): {\"master_type\":\"item\",\"data\":{\"item_code\":\"SVC-SPARK\",\"item_name\":\"Spark\",\"item_group\":\"Services\",\"is_stock_item\":0,\"standard_rate\":310}}"
+                "Item example (custom code): {\"master_type\":\"item\",\"data\":{\"item_code\":\"SVC-SPARK\",\"item_name\":\"Spark\",\"item_group\":\"Services\",\"is_stock_item\":0,\"standard_rate\":310}}\n"
+                "Customer example (with contact person): {\"master_type\":\"customer\",\"data\":{\"customer_name\":\"Foglio AG\",\"address\":\"Seeweg 12\",\"city\":\"Bramblewick\",\"zip_code\":\"9999\",\"contact_person\":\"Marlene Voss\",\"contact_phone\":\"079 123 45 67\"}}"
             ),
             "parameters": {
                 "type": "object",
@@ -1268,7 +1270,8 @@ def _handle_create_master(args):
     if ignored:
         result["_warning"] = (
             f"These fields were IGNORED because they are not valid columns on the {master_type}: "
-            f"{ignored}. Retry the call using the correct field names from the create_master tool description."
+            f"{ignored}. Call get_master_fields(master_type=\"{master_type}\") to see the real columns, "
+            f"then retry mapping those values onto valid field names."
         )
     return result
 
@@ -1863,6 +1866,7 @@ If the user refers to something by its human name ("bill them 8 hours of project
 - Same for customers, suppliers, warehouses, etc. — `search_masters` is **case-insensitive** and falls back to **fuzzy matching for misspellings**, so a typo'd name ("Meynex") still resolves. Trust its results instead of concluding "not found" after one narrow try.
 - **Prefer narrowing with `fields`** whenever you know the attribute: search a customer by city with `fields=["city"]`, by email with `fields=["contact_email"]`, etc. It's faster and avoids false matches from unrelated columns. Omitting `fields` searches all standard text fields (a good fallback when you're unsure where the value lives), but large free-text columns (e.g. item `description`) are only searched when you name them explicitly in `fields`.
 - **Don't guess column names** — call `get_master_fields(master_type=...)` first to see the real columns (and which are searched by default), then pass the exact names to `search_masters` `fields`. This also tells you which large text fields (like `description`) you must name explicitly to search.
+- **When unsure where a value belongs, discover the schema — don't guess or give up.** Before a `create_master`/`update_master` where you're not certain a field exists or which column fits (the user gives a contact person, a VAT/tax id, a payment term, an IBAN, …), call `get_master_fields(master_type=...)` and map the value onto the real column. Never tell the user you can't store something without checking the fields first — the master usually has a column for it (e.g. a customer's contact person goes in `contact_person`/`contact_phone`/`contact_email`, not the company-level `phone`/`email`).
 
 When you list masters back to the user (items on an invoice, customers on a report), include the key in parentheses so follow-ups are unambiguous. Example: "Project Management (SVC-005) — 16 Hour".
 

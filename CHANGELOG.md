@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Changed
+- **Chat assistant now discovers master fields instead of guessing.** The
+  `get_master_fields` tool and the system prompt steer the assistant to look up
+  a master's real columns before a `create_master`/`update_master` when it's
+  unsure where a value belongs, and the "fields ignored" warning points back to
+  it. Fixes cases like a customer's contact person being dropped (or a contact
+  phone misfiled into the company `phone`) because the model assumed there was
+  no field for it — `create_master` now spells out the contact-person mapping
+  with a worked example.
+
 ## [0.1.25] - 2026-06-23
 
 ### Fixed
