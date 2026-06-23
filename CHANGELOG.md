@@ -13,6 +13,27 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.25] - 2026-06-23
+
+### Fixed
+- **Master search was case-sensitive in production.** `search_masters` used a
+  bare `LIKE`, which SQLite treats case-insensitively but Postgres does not — so
+  a search that worked in dev returned nothing in prod unless the exact stored
+  casing was typed. Matching now lowercases both sides
+  (`lower(col) LIKE lower(?)`), identical on both backends.
+
+### Added
+- **Master search now covers all text columns and tolerates typos.** It searches
+  every text field (name, display name, and address fields like city/zip),
+  discovered from the live schema so new columns are searchable automatically,
+  and falls back to fuzzy matching for misspellings. Large free-text columns
+  (e.g. item `description`, templates) are skipped by default and searchable on
+  demand via the new optional `fields` argument, which also narrows a search to
+  specific columns.
+- **`get_master_fields` chat tool.** Lists a master type's real columns (and
+  which are searched by default), so the assistant targets existing fields
+  instead of guessing.
+
 ## [0.1.24] - 2026-06-22
 
 ### Added
