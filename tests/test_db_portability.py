@@ -160,10 +160,81 @@ def check_auth_flow():
     print(f"  [sql writes] INSERT/UPDATE/DELETE via db.sql() return [] on {backend}")
 
 
+def check_master_search():
+    """search_masters must be case-insensitive, search all text fields (incl.
+    address/city), and fuzzy-match misspellings — on BOTH backends. Bare LIKE is
+    case-insensitive on SQLite but case-sensitive on Postgres, so this only fails
+    on Postgres if the case-folding regresses. Relies on the DB set up by
+    check_auth_flow()."""
+    from lambda_erp.database import get_db
+    from api.chat import _handle_search_masters, _handle_get_master_fields
+
+    db = get_db()
+    db.insert("Customer", {
+        "name": "CUST-PORT1",
+        "customer_name": "Zorblax AG",
+        "city": "Frimbleton",
+        "disabled": 0,
+    })
+    db.conn.commit()
+
+    def names(query, **kw):
+        return {r["name"] for r in _handle_search_masters(
+            {"master_type": "customer", "query": query, **kw})}
+
+    # Case-insensitive substring match on the display name (the prod regression).
+    assert "CUST-PORT1" in names("zorblax"), "lowercase query did not match 'Zorblax AG'"
+    assert "CUST-PORT1" in names("ZORBLAX"), "uppercase query did not match 'Zorblax AG'"
+    # Address fields are searched, not just name/customer_name.
+    assert "CUST-PORT1" in names("frimbleton"), "city query did not match"
+    # Fuzzy fallback catches misspellings that no substring would.
+    assert "CUST-PORT1" in names("zorlax"), "fuzzy query did not match misspelled name"
+    # A genuine non-match still returns nothing (fuzzy must not match everything).
+    assert "CUST-PORT1" not in names("zzqxnomatch"), "unrelated query unexpectedly matched"
+
+    # `fields` narrows to specific columns: matches when the value is there...
+    assert "CUST-PORT1" in names("frimbleton", fields=["city"]), "targeted city search missed"
+    # ...and does not match when searching a column that lacks the value.
+    assert "CUST-PORT1" not in names("frimbleton", fields=["customer_name"]), \
+        "targeted name search wrongly matched a city value"
+
+    # Large free-text columns are skipped by default but reachable via `fields`.
+    db.insert("Item", {
+        "name": "ITEM-PORT1",
+        "item_name": "Widget",
+        "description": "ships with a qwobble bracket",
+        "disabled": 0,
+    })
+    db.conn.commit()
+
+    def item_names(query, **kw):
+        return {r["name"] for r in _handle_search_masters(
+            {"master_type": "item", "query": query, **kw})}
+
+    assert "ITEM-PORT1" not in item_names("qwobble"), "description should not be searched by default"
+    assert "ITEM-PORT1" in item_names("qwobble", fields=["description"]), \
+        "description should be searchable when named in fields"
+
+    # Unknown field names yield a clear error rather than matching everything.
+    err = _handle_search_masters({"master_type": "customer", "query": "x", "fields": ["no_such_col"]})
+    assert isinstance(err, dict) and "error" in err, f"bad fields should error, got {err!r}"
+
+    # get_master_fields exposes real columns so the model can target them.
+    meta = _handle_get_master_fields({"master_type": "item"})
+    assert "description" in meta["fields"], meta
+    assert "description" not in meta["default_search_fields"], meta
+    assert "description" in meta["bulk_text_fields"], meta
+    assert "item_name" in meta["default_search_fields"], meta
+
+    backend = "postgres" if os.environ.get("LAMBDA_ERP_TEST_DB", "").startswith("postgres") else "sqlite"
+    print(f"  [master search] case-insensitive + address + fuzzy + fields OK on {backend}")
+
+
 def main():
     print("DB portability checks")
     check_no_double_quoted_literals()
     check_auth_flow()
+    check_master_search()
     print("All portability checks passed.")
 
 

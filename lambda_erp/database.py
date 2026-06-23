@@ -179,6 +179,7 @@ class Database:
         self._is_memory = (db_path == ":memory:")
         self._local = threading.local()
         self._col_cache = {}  # doctype -> set(columns); invalidated on ALTER
+        self._text_col_cache = {}  # doctype -> set(text columns); invalidated on ALTER
         if self._is_memory:
             self._lock = threading.Lock()
             self._shared_conn = self._open_conn()
@@ -1347,6 +1348,7 @@ class Database:
         if column not in self._get_table_columns(table):
             self.conn.execute(self._ddl(f'ALTER TABLE "{table}" ADD COLUMN {column} {definition}'))
             self._col_cache.pop(table, None)
+            self._text_col_cache.pop(table, None)
 
     def _migrate(self):
         """Run each pending migration in order, tracking applied versions."""
@@ -1515,6 +1517,34 @@ class Database:
             cursor = self.conn.execute(f'PRAGMA table_info("{doctype}")')
             cols = {row[1] for row in cursor.fetchall()}
         self._col_cache[doctype] = cols
+        return cols
+
+    def _get_text_columns(self, doctype):
+        """Text/character columns of a table — the ones worth matching a
+        free-text search against. Discovered from the live schema so new
+        columns become searchable automatically. Cached; invalidated on ALTER."""
+        cached = self._text_col_cache.get(doctype)
+        if cached is not None:
+            return cached
+        if self.dialect == "postgres":
+            rows = self.conn.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_name = ?",
+                [doctype],
+            ).fetchall()
+            cols = {
+                row[0]
+                for row in rows
+                if "char" in (row[1] or "").lower() or (row[1] or "").lower() in ("text", "citext")
+            }
+        else:
+            cursor = self.conn.execute(f'PRAGMA table_info("{doctype}")')
+            cols = {
+                row[1]
+                for row in cursor.fetchall()
+                if any(t in (row[2] or "").upper() for t in ("CHAR", "CLOB", "TEXT"))
+            }
+        self._text_col_cache[doctype] = cols
         return cols
 
     def _select_fields(self, doctype, fields):

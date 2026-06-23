@@ -10,6 +10,7 @@ Supports multiple chat sessions, each with their own history and auto-generated 
 
 import asyncio
 import base64
+import difflib
 import io
 import json
 import logging
@@ -582,12 +583,31 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_masters",
-            "description": "Search master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). Returns matching records.",
+            "description": "Search master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). Case-insensitive, with fuzzy fallback for misspellings. By default matches across standard text fields (name, display name, address/city/zip); large free-text columns like description/templates are skipped unless named in `fields`. PREFER passing `fields` whenever you know which attribute you're matching on (e.g. a city, an email, a tax id) — it's faster, more precise, and avoids false hits from other columns. Returns matching records.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "master_type": {"type": "string", "enum": MASTER_TYPES},
                     "query": {"type": "string", "description": "Search term (empty string returns all)", "default": ""},
+                    "fields": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Recommended: the column(s) to search, e.g. [\"city\"] or [\"customer_name\"]. Narrowing here is faster and avoids matching unrelated columns. Omit only when you genuinely don't know which field holds the value, to search all standard text fields.",
+                    },
+                },
+                "required": ["master_type"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_master_fields",
+            "description": "List the available columns of a master type (customer, supplier, item, ...). Call this BEFORE passing `fields` to search_masters (or before guessing column names) so you target real fields instead of guessing. Returns: `fields` (all columns), `default_search_fields` (what search_masters searches when `fields` is omitted), and `bulk_text_fields` (large text columns searched only when named in `fields`).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "master_type": {"type": "string", "enum": MASTER_TYPES},
                 },
                 "required": ["master_type"],
             },
@@ -1077,26 +1097,139 @@ def _handle_convert_document(args):
     return services.convert_document(args["doctype"], args["name"], args["target_doctype"])
 
 
+# Columns that are technically text but are noise for free-text master search.
+_MASTER_SEARCH_SKIP_COLUMNS = {
+    "naming_series",
+    "owner",
+    "modified_by",
+    "creation",
+    "modified",
+    "created_at",
+    "updated_at",
+}
+
+# Large free-text columns excluded from the DEFAULT search: scanning/fuzzing a
+# big blob (e.g. an item description or an HTML template) is costly and rarely
+# how you identify a record. Still searchable on demand via the `fields` arg.
+_MASTER_BULK_TEXT_COLUMNS = {"description", "notes", "remarks", "terms", "comments"}
+
+# Minimum difflib similarity for a fuzzy (misspelled) match to be returned.
+_MASTER_FUZZY_THRESHOLD = 0.6
+# Bounds for the fuzzy scorer so a single large value can't blow up cost:
+# skip whole-value scoring past this length, and only score the first N tokens.
+_FUZZY_MAX_VALUE_LEN = 200
+_FUZZY_MAX_TOKENS = 16
+
+
+def _is_bulk_text_column(col):
+    return (col in _MASTER_BULK_TEXT_COLUMNS
+            or col.endswith("_template") or col.endswith("_html"))
+
+
+def _master_search_columns(db, doctype):
+    """Text columns worth matching a query against by default. Discovered from
+    the live schema (new text fields become searchable automatically), minus
+    audit noise and large free-text/template columns."""
+    cols = db._get_text_columns(doctype) - _MASTER_SEARCH_SKIP_COLUMNS
+    # Deterministic order keeps generated SQL and fuzzy scoring stable.
+    return sorted(c for c in cols if not _is_bulk_text_column(c))
+
+
+def _fuzzy_master_search(db, doctype, search_cols, query, has_disabled, limit):
+    """Fallback for misspellings: rank active rows by best per-field similarity.
+
+    Substring search misses typos ("Meynex" vs "medynex"), so when it finds
+    nothing we pull a capped candidate set and score it in Python with difflib —
+    portable across SQLite and Postgres, no DB extensions required."""
+    where = "WHERE disabled = 0 " if has_disabled else ""
+    candidates = db.sql(f'SELECT * FROM "{doctype}" {where}LIMIT 1000')
+
+    q = query.lower()
+    scored = []
+    for row in candidates:
+        best = 0.0
+        for col in search_cols:
+            val = row.get(col)
+            if not val:
+                continue
+            val = str(val).lower()
+            # Skip whole-value scoring of big blobs (low ratio anyway, high cost).
+            if len(val) <= _FUZZY_MAX_VALUE_LEN:
+                best = max(best, difflib.SequenceMatcher(None, q, val).ratio())
+            # Also score the first few words so a typo'd single token still
+            # matches a multi-word field (e.g. "medynex" within "medynex ag").
+            for token in val.split()[:_FUZZY_MAX_TOKENS]:
+                best = max(best, difflib.SequenceMatcher(None, q, token).ratio())
+        if best >= _MASTER_FUZZY_THRESHOLD:
+            scored.append((best, row))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [dict(row) for _, row in scored[:limit]]
+
+
+def _handle_get_master_fields(args):
+    db = get_db()
+    master_type = args["master_type"]
+    entry = services.MASTER_TABLES.get(master_type)
+    if not entry:
+        return {"error": f"Unknown master type: {master_type}"}
+    doctype, _ = entry
+    default_search = _master_search_columns(db, doctype)
+    bulk = sorted(c for c in db._get_text_columns(doctype) if _is_bulk_text_column(c))
+    return {
+        "master_type": master_type,
+        "fields": sorted(db._get_table_columns(doctype)),
+        # What search_masters searches when `fields` is omitted.
+        "default_search_fields": default_search,
+        # Large text fields searched ONLY when named in search_masters `fields`.
+        "bulk_text_fields": bulk,
+    }
+
+
 def _handle_search_masters(args):
     db = get_db()
     master_type = args["master_type"]
-    query = args.get("query", "")
+    query = (args.get("query") or "").strip()
 
     entry = services.MASTER_TABLES.get(master_type)
     if not entry:
         return {"error": f"Unknown master type: {master_type}"}
 
-    doctype, name_field = entry
-    active_prefix = 'disabled = 0 AND ' if "disabled" in db._get_table_columns(doctype) else ""
+    doctype, _name_field = entry
+    has_disabled = "disabled" in db._get_table_columns(doctype)
+
     if not query:
-        filters = {"disabled": 0} if "disabled" in db._get_table_columns(doctype) else None
+        filters = {"disabled": 0} if has_disabled else None
         return db.get_all(doctype, filters=filters, fields=["*"], limit=20)
 
+    # Optional `fields` narrows the search to specific columns — cheaper, more
+    # precise, and the only way to reach bulk columns (description, templates)
+    # that the default search skips. Unknown names are ignored.
+    requested = args.get("fields") or []
+    if requested:
+        valid = db._get_table_columns(doctype)
+        search_cols = sorted(c for c in requested if c in valid)
+        if not search_cols:
+            return {"error": f"None of fields {requested} exist on {master_type}"}
+    else:
+        search_cols = _master_search_columns(db, doctype)
+
+    active_prefix = "disabled = 0 AND " if has_disabled else ""
+
+    # Case-insensitive substring match. lower() on both sides is portable (bare
+    # LIKE is case-insensitive on SQLite but case-sensitive on Postgres, which
+    # silently broke prod search); CAST lets targeted non-text columns match too.
+    where = " OR ".join(f'lower(CAST("{col}" AS TEXT)) LIKE ?' for col in search_cols)
+    pattern = f"%{query.lower()}%"
     rows = db.sql(
-        f'SELECT * FROM "{doctype}" WHERE {active_prefix}(name LIKE ? OR "{name_field}" LIKE ?) LIMIT 20',
-        [f"%{query}%", f"%{query}%"],
+        f'SELECT * FROM "{doctype}" WHERE {active_prefix}({where}) LIMIT 20',
+        [pattern] * len(search_cols),
     )
-    return [dict(r) for r in rows]
+    if rows:
+        return [dict(r) for r in rows]
+
+    # Nothing matched literally — try fuzzy matching to catch misspellings.
+    return _fuzzy_master_search(db, doctype, search_cols, query, has_disabled, limit=20)
 
 
 def _ignored_master_fields(master_type: str, data: dict) -> list[str]:
@@ -1408,6 +1541,7 @@ TOOL_HANDLERS = {
     "cancel_document": _handle_cancel_document,
     "discard_document": _handle_discard_document,
     "convert_document": _handle_convert_document,
+    "get_master_fields": _handle_get_master_fields,
     "search_masters": _handle_search_masters,
     "create_master": _handle_create_master,
     "update_master": _handle_update_master,
@@ -1726,7 +1860,9 @@ When you fill in `item_code`, `customer`, `supplier`, `warehouse`, `company`, et
 
 If the user refers to something by its human name ("bill them 8 hours of project mgmt", "add Redstone to the quote"), resolve the key first:
 - `search_masters(master_type="item", q="project management")` → returns `[{{name: "SVC-005", item_name: "Project Management"}}]`. Use `name` as `item_code`.
-- Same for customers, suppliers, warehouses, etc. — `search_masters` matches **both** the key and the display field.
+- Same for customers, suppliers, warehouses, etc. — `search_masters` is **case-insensitive** and falls back to **fuzzy matching for misspellings**, so a typo'd name ("Meynex") still resolves. Trust its results instead of concluding "not found" after one narrow try.
+- **Prefer narrowing with `fields`** whenever you know the attribute: search a customer by city with `fields=["city"]`, by email with `fields=["contact_email"]`, etc. It's faster and avoids false matches from unrelated columns. Omitting `fields` searches all standard text fields (a good fallback when you're unsure where the value lives), but large free-text columns (e.g. item `description`) are only searched when you name them explicitly in `fields`.
+- **Don't guess column names** — call `get_master_fields(master_type=...)` first to see the real columns (and which are searched by default), then pass the exact names to `search_masters` `fields`. This also tells you which large text fields (like `description`) you must name explicitly to search.
 
 When you list masters back to the user (items on an invoice, customers on a report), include the key in parentheses so follow-ups are unambiguous. Example: "Project Management (SVC-005) — 16 Hour".
 
