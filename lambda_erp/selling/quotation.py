@@ -68,6 +68,51 @@ class Quotation(Document):
 
         # Calculate taxes and totals (the core shared calculation)
         calculate_taxes_and_totals(self)
+        self._apply_frequency_split()
+
+    def _apply_frequency_split(self):
+        """When the offer mixes one-time and recurring lines, the headline
+        totals AND the tax rows reflect the ONE-TIME part only — recurring
+        periods are presented separately (on the PDF) and must not inflate the
+        one-time grand total. A quote with no recurring lines is left exactly as
+        the shared engine computed it."""
+        import copy
+        from lambda_erp.controllers.taxes_and_totals import (
+            has_recurring_items, calculate_taxes_and_totals,
+            ONE_TIME_FREQUENCY, _item_frequency,
+        )
+
+        if not has_recurring_items(self):
+            return
+
+        items = self.get("items") or []
+        one_time_items = [it for it in items if _item_frequency(it) == ONE_TIME_FREQUENCY]
+        taxes = self.get("taxes") or []
+
+        # Re-run the standard engine on the one-time items alone, then copy its
+        # results back so the document's totals and tax rows are self-consistent.
+        tmp = {
+            "items": copy.deepcopy(one_time_items),
+            "taxes": copy.deepcopy(taxes),
+            "conversion_rate": self.get("conversion_rate") or 1.0,
+        }
+        calculate_taxes_and_totals(tmp)
+
+        total_fields = [
+            "total", "base_total", "net_total", "base_net_total",
+            "total_taxes_and_charges", "base_total_taxes_and_charges",
+            "grand_total", "base_grand_total", "rounded_total", "rounding_adjustment",
+        ]
+        for f in total_fields:
+            self[f] = flt(tmp.get(f) or 0, 2)
+
+        # Bring each tax row down to its one-time amount so the printed MWSt line
+        # matches the one-time Gesamttotal.
+        tmp_taxes = tmp.get("taxes") or []
+        for i, tax in enumerate(taxes):
+            src = tmp_taxes[i] if i < len(tmp_taxes) else {}
+            for tf in ("tax_amount", "base_tax_amount", "total", "base_total"):
+                tax[tf] = flt(src.get(tf) or 0, 2)
 
     def _validate_valid_till(self):
         if self.valid_till and getdate(self.valid_till) < getdate(self.transaction_date):

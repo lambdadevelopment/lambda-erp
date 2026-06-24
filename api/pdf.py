@@ -7,6 +7,7 @@ from weasyprint import HTML
 from lambda_erp.database import get_db
 from api.services import load_document
 from api.remarks_md import render_remarks
+from lambda_erp.controllers.taxes_and_totals import split_by_frequency
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
@@ -182,6 +183,15 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     page_size_row = db.sql('SELECT value FROM "Settings" WHERE key = \'pdf_page_size\'')
     page_size = page_size_row[0]["value"] if page_size_row else "A4"
 
+    # Billing-frequency split: recurring line groups for the per-period blocks,
+    # and whether to show the frequency column at all (any recurring line, or a
+    # `>>` price line in the notes — which renders in that same column).
+    _one_time, recurring_summary = split_by_frequency(doc)
+    _remarks = doc.get("remarks") or ""
+    show_frequency = bool(recurring_summary) or any(
+        line.lstrip().startswith(">>") for line in _remarks.splitlines()
+    )
+
     # Render
     template = _jinja_env.get_template("document.html")
     # base_url = the resolved template's own directory, so a template (e.g. a
@@ -207,6 +217,13 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
         # emitted classes. Falls back to plain `doc.remarks` if a template
         # doesn't use it. See api/remarks_md.py.
         remarks_html=render_remarks(doc.get("remarks")),
+        # Billing-frequency split (offers with recurring lines). `recurring_summary`
+        # is the per-period totals (one entry per Monatlich/Quartalsweise/… group);
+        # the doc's own net_total/grand_total already reflect the one-time part only.
+        # `show_frequency` tells a template to render the (untitled) frequency column,
+        # true when any line is recurring OR the notes carry a `>>` price line.
+        recurring_summary=recurring_summary,
+        show_frequency=show_frequency,
     )
 
     # Let deployment plugins augment the context (e.g. a Swiss QR-bill image for

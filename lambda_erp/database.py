@@ -509,6 +509,7 @@ class Database:
                 item_code TEXT,
                 item_name TEXT,
                 description TEXT,
+                frequency TEXT DEFAULT 'One-time',
                 qty REAL DEFAULT 0,
                 uom TEXT DEFAULT 'Nos',
                 rate REAL DEFAULT 0,
@@ -1849,6 +1850,14 @@ def _m017_proposal_cover_template(db: "Database") -> None:
     db._add_column_if_missing("Company", "proposal_cover_template", "TEXT")
 
 
+def _m018_quotation_item_frequency(db: "Database") -> None:
+    """Add Quotation Item.frequency — the billing cadence of an offer line
+    (One-time / Monthly / Quarterly / Half-Yearly / Yearly, matching the
+    Subscription billing intervals). One-time and recurring lines are totalled
+    separately on the offer; existing rows are NULL, treated as One-time."""
+    db._add_column_if_missing("Quotation Item", "frequency", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -1867,6 +1876,7 @@ Database.MIGRATIONS = [
     (15, "document_discarded", _m015_document_discarded),
     (16, "customer_contact_person", _m016_customer_contact_person),
     (17, "proposal_cover_template", _m017_proposal_cover_template),
+    (18, "quotation_item_frequency", _m018_quotation_item_frequency),
 ]
 
 

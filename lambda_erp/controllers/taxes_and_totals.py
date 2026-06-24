@@ -367,3 +367,76 @@ class TaxCalculator:
 def calculate_taxes_and_totals(doc):
     """Convenience function matching the reference implementation's pattern."""
     TaxCalculator(doc).calculate()
+
+
+# --- Billing frequency split (offers with recurring lines) -----------------
+#
+# A line item may carry a `frequency`: one-time ("Einmalig") or a recurring
+# cadence. On an offer the one-time and recurring lines are totalled
+# separately — a recurring line must not inflate the one-time grand total —
+# and each recurring period shows its own net / tax / grand. These helpers run
+# the SAME tax engine on each frequency group independently so every period
+# carries correct taxes; nothing here changes the shared calculation above.
+
+ONE_TIME_FREQUENCY = "One-time"
+# Recurring cadences in display order. These match the Subscription doctype's
+# billing_interval values exactly, so a recurring offer line maps 1:1 onto a
+# Subscription later. (Templates localize these labels for display.)
+RECURRING_FREQUENCY_ORDER = ["Monthly", "Quarterly", "Half-Yearly", "Yearly"]
+
+
+def _item_frequency(item):
+    return (item.get("frequency") or ONE_TIME_FREQUENCY)
+
+
+def has_recurring_items(doc):
+    """True if any line item carries a recurring (non-Einmalig) frequency."""
+    return any(_item_frequency(it) != ONE_TIME_FREQUENCY for it in (doc.get("items") or []))
+
+
+def split_by_frequency(doc):
+    """Group a doc's items by `frequency` and total each group independently.
+
+    Returns `(one_time, recurring)` where `one_time` is a totals dict for the
+    Einmalig group and `recurring` is an ordered list of
+    `{frequency, net_total, total_taxes_and_charges, grand_total}` — one per
+    recurring period present. Each group is run through the standard tax engine
+    with the doc's tax rows and conversion rate, so taxes are correct per
+    period. (Document-level discounts are not distributed across groups.)
+    """
+    import copy
+
+    items = doc.get("items") or []
+    taxes = doc.get("taxes") or []
+    conversion_rate = doc.get("conversion_rate") or 1.0
+
+    groups = {}
+    for it in items:
+        groups.setdefault(_item_frequency(it), []).append(it)
+
+    def totals_for(group_items):
+        tmp = {
+            "items": copy.deepcopy(group_items),
+            "taxes": copy.deepcopy(taxes),
+            "conversion_rate": conversion_rate,
+        }
+        calculate_taxes_and_totals(tmp)
+        return {
+            "net_total": flt(tmp.get("net_total"), 2),
+            "total_taxes_and_charges": flt(tmp.get("total_taxes_and_charges"), 2),
+            "grand_total": flt(tmp.get("grand_total"), 2),
+        }
+
+    one_time = totals_for(groups.get(ONE_TIME_FREQUENCY, []))
+
+    recurring, seen = [], set()
+    for freq in RECURRING_FREQUENCY_ORDER:
+        if groups.get(freq):
+            recurring.append({"frequency": freq, **totals_for(groups[freq])})
+            seen.add(freq)
+    # Any custom/unknown recurring label, kept in insertion order after the known ones.
+    for freq, gitems in groups.items():
+        if freq != ONE_TIME_FREQUENCY and freq not in seen:
+            recurring.append({"frequency": freq, **totals_for(gitems)})
+
+    return one_time, recurring

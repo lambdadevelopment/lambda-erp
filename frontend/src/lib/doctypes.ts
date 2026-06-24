@@ -65,6 +65,22 @@ const ITEM_FIELDS: FieldDef[] = [
   { name: "amount", label: "Amount", type: "currency", readOnly: true },
 ];
 
+// Quotation lines additionally carry a billing frequency: one-time or a
+// recurring cadence. Recurring lines are totalled separately on the offer
+// (their own per-period subtotal), so they don't inflate the one-time total.
+// Values match the Subscription billing intervals exactly (kept in English;
+// the branded PDF localizes them for display).
+const QUOTATION_ITEM_FIELDS: FieldDef[] = [
+  ...ITEM_FIELDS,
+  {
+    name: "frequency",
+    label: "Frequency",
+    type: "select",
+    options: ["One-time", "Monthly", "Quarterly", "Half-Yearly", "Yearly"],
+    default: "One-time",
+  },
+];
+
 // Transaction currency picker, shared by all sales/purchase documents. The
 // dropdown is populated at runtime (base + convertible currencies) and the
 // form pre-selects the party's (or company's) default currency on new docs.
@@ -107,7 +123,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "remarks", label: "Notes / Terms", type: "textarea" },
     ],
     childTables: [
-      { key: "items", label: "Items", fields: ITEM_FIELDS },
+      { key: "items", label: "Items", fields: QUOTATION_ITEM_FIELDS },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "customer", "transaction_date", "grand_total", "status"],

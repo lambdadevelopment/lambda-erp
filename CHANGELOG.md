@@ -13,6 +13,21 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.29] - 2026-06-24
+
+### Added
+- **Billing frequency on quotation lines (recurring offers).** A quotation
+  line now carries a `frequency` — `One-time` (default) or a recurring cadence
+  (`Monthly`/`Quarterly`/`Half-Yearly`/`Yearly`, matching the Subscription
+  billing intervals). When an offer mixes one-time and recurring lines, the
+  headline totals (and tax rows) reflect the **one-time** part only, and each
+  recurring cadence is totalled separately with its own MWSt — so a recurring
+  line never inflates the one-time grand total. `generate_pdf()` exposes the
+  per-period breakdown as `recurring_summary` and a `show_frequency` flag for
+  templates. Quotations still post nothing to the ledger; this is presentation
+  + captured intent only. New `frequency` column on `Quotation Item` (migration
+  18) and a Frequency picker on quotation line items in the form.
+
 ## [0.1.28] - 2026-06-24
 
 ### Added
