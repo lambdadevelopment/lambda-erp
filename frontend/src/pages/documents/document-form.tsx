@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
@@ -75,6 +76,11 @@ function LinkField({
 }) {
   const [query, setQuery] = useState(value ?? "");
   const [open, setOpen] = useState(false);
+  // The dropdown is portaled to <body> so it isn't clipped by the line-items
+  // table's overflow-x-auto scroll container; we track the input's viewport
+  // rect to position it (and follow it on scroll/resize).
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [menuRect, setMenuRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const { data: options } = useQuery({
     queryKey: ["link-search", field.linkDoctype, query],
@@ -86,6 +92,25 @@ function LinkField({
     setQuery(value ?? "");
   }, [value]);
 
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const el = wrapRef.current;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setMenuRect({ top: r.bottom, left: r.left, width: r.width });
+      }
+    };
+    update();
+    // capture=true so scrolling any ancestor (the table's scroller) repositions it.
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+
   if (disabled) {
     return (
       <div>
@@ -96,7 +121,7 @@ function LinkField({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef}>
       <Input
         label={hideLabel ? undefined : field.label}
         value={query}
@@ -107,8 +132,11 @@ function LinkField({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 200)}
       />
-      {open && options && options.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-lg bg-surface ring-1 ring-line shadow-card-hover">
+      {open && options && options.length > 0 && menuRect && createPortal(
+        <ul
+          className="fixed z-50 mt-1 max-h-40 overflow-auto rounded-lg bg-surface ring-1 ring-line shadow-card-hover"
+          style={{ top: menuRect.top, left: menuRect.left, width: menuRect.width }}
+        >
           {options.map((opt: any) => (
             <li
               key={opt.name}
@@ -122,7 +150,8 @@ function LinkField({
               {opt.name}
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );

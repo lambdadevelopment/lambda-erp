@@ -1708,11 +1708,19 @@ Shape — note it does NOT use `items`:
 
 To build one: ensure each offer already exists as its own Quotation (create them first if needed), then call create_document with doctype "proposal" and a data object whose `quotations` array references those quotations by name. Do NOT submit it; link the user to the PDF at `/api/documents/proposal/<name>/pdf` (and the editor at `/app/proposal/<name>`).
 
+### Recurring offer lines (quotation line `frequency`)
+A **Quotation** line item carries an optional `frequency` that controls how it is billed and totalled on the offer:
+- `One-time` (the default) — a normal one-off line.
+- `Monthly` / `Quarterly` / `Half-Yearly` / `Yearly` — a recurring line.
+When a quote mixes one-time and recurring lines, the one-time lines form the headline grand total (the "Gesamttotal"), and each recurring cadence is totalled **separately** (its own net + MWSt) so a monthly fee never inflates the one-time total. To put a recurring service ON the offer as a real line, set that line's `frequency` alongside its item_code / qty / rate — e.g. a CHF 380 line with `frequency` set to `Monthly`. These values match the Subscription billing intervals exactly; the Quotation itself still posts nothing to the ledger.
+
+Use the line `frequency` for a recurring item that is genuinely part of the quote. For recurring info you only want to SHOW but that is NOT part of the quotation (a "billed separately after implementation" aside), use the `>> … | …` notes markup below instead — that is cosmetic free text, not a line item, and never enters any total.
+
 ### Notes / Terms markup (the `remarks` field)
 The `remarks` (Notes / Terms) field on quotations, sales orders, and invoices renders on the PDF with a small markup vocabulary, so when a user dictates offer notes, conditions, recurring services, or a sign-off you can compose a polished closing block instead of a flat paragraph. Put this ONLY in `remarks` (never in item descriptions):
 - `# Heading` at the start of a line -> bold heading
 - `*italic*` or `_italic_` -> italic; `**bold**` -> bold
-- `>> Period | Amount` at the start of a line -> a right-aligned price line that sits beside the heading/description above it; use it for separately- or recurring-billed items, e.g. `>> Monatlich | CHF 380.—`
+- A line starting with `>>` is a price line, split by the FIRST `|` pipe: the text BEFORE the pipe goes in the left (frequency) column, the text AFTER it in the right (amount) column — both placed literally as you write them, NOT interpreted (it does not know "Monatlich" is a frequency or that "CHF 380" is a number). Omit the pipe to put everything in the amount column. The two columns line up with the line-items table's frequency/amount columns, so use it for a separately- or recurring-billed item, e.g. `>> Monatlich | CHF 380.—`.
 - Separate blocks with a blank line; a single newline is just a line break.
 Plain text (no special characters) still renders fine, so only reach for the markup when it improves a customer-facing note.
 

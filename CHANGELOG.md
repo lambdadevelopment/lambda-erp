@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.30] - 2026-06-24
+
+### Fixed
+- **Link-field dropdown was clipped inside the line-items table.** The
+  search-as-you-type picker (item, customer, warehouse, account…) is now
+  rendered in a portal with fixed positioning, so it's no longer occluded by
+  the line-items table's horizontal-scroll container. It follows the input on
+  scroll/resize.
+
+### Changed
+- **Chat assistant now knows about quotation line `frequency` and the notes
+  pipe rule.** The system prompt documents the recurring-offer `frequency`
+  field (One-time/Monthly/Quarterly/Half-Yearly/Yearly) and when to use it
+  versus the cosmetic `>>` note, and spells out the `>> left | amount` markup
+  rule explicitly (the `|` pipe splits the frequency column from the amount
+  column; both are literal, not interpreted).
+
 ## [0.1.29] - 2026-06-24
 
 ### Added
