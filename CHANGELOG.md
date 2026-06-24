@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.27] - 2026-06-24
+
+### Changed
+- **Notes / Terms field is now prominent in the document form.** On
+  quotations, sales orders, invoices, etc. the field moves onto its own
+  full-width row below the other fields and is taller (7 rows), with an info
+  icon beside the label that explains the supported markup (`# heading`,
+  `*italic*`/`**bold**`, and the right-aligned `>> Period | Amount` price line)
+  on hover or click. Translated for en/de/fr.
+
 ## [0.1.26] - 2026-06-24
 
 ### Added

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatCurrency, flt } from "@/lib/utils";
 import { HintTooltip } from "@/components/ui/hint-tooltip";
+import { NotesMarkupHelp } from "@/components/ui/notes-markup-help";
 import { useCurrencies } from "@/hooks/use-currencies";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useTranslation } from "react-i18next";
@@ -45,11 +46,12 @@ export function linkRefHref(linkDoctype: string | undefined | null, value: strin
 // FieldLabel -- label with optional hint tooltip
 // ---------------------------------------------------------------------------
 
-function FieldLabel({ label, hint }: { label: string; hint?: string }) {
+function FieldLabel({ label, hint, extra }: { label: string; hint?: string; extra?: React.ReactNode }) {
   return (
     <label className="mb-1.5 block text-sm font-medium text-fg">
       {label}
       {hint && <HintTooltip text={hint} />}
+      {extra}
     </label>
   );
 }
@@ -244,12 +246,22 @@ function FieldRenderer({
   }
 
   if (field.type === "textarea") {
+    // The `remarks` field is rendered from a light markup on the PDF, so it
+    // gets the formatting-help icon. Parent textareas (not child-table cells)
+    // are roomier since they sit on their own full-width row.
+    const showMarkupHelp = field.name === "remarks";
     return (
       <div>
-        <Label />
+        {!hideLabel && (
+          <FieldLabel
+            label={t(`fields.${field.label}`, { defaultValue: field.label })}
+            hint={field.hint}
+            extra={showMarkupHelp ? <NotesMarkupHelp /> : undefined}
+          />
+        )}
         <textarea
           className="block w-full rounded-lg bg-surface px-3 py-2 text-sm text-fg ring-1 ring-line transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30"
-          rows={3}
+          rows={hideLabel ? 3 : 7}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -772,8 +784,12 @@ export default function DocumentFormPage() {
   const docCurrency: string = formData.currency || "USD";
   const docRate: number = flt(formData.conversion_rate ?? 1);
 
-  // Separate editable parent fields from computed/totals fields
+  // Separate editable parent fields from computed/totals fields. Textareas
+  // (Notes / Terms) are pulled onto their own full-width row below the grid so
+  // there's room to write — and to surface the markup the field supports.
   const editableFields = config.fields.filter((f) => !f.readOnly);
+  const gridFields = editableFields.filter((f) => f.type !== "textarea");
+  const noteFields = editableFields.filter((f) => f.type === "textarea");
   const totalsFields = config.fields.filter((f) => f.readOnly);
 
   return (
@@ -825,7 +841,7 @@ export default function DocumentFormPage() {
       {/* Parent fields */}
       <Card>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {editableFields.map((field) => (
+          {gridFields.map((field) => (
             <FieldRenderer
               key={field.name}
               field={field}
@@ -837,6 +853,22 @@ export default function DocumentFormPage() {
             />
           ))}
         </div>
+        {/* Notes / Terms — full width, below Company/Currency etc. */}
+        {noteFields.length > 0 && (
+          <div className="mt-4 space-y-4">
+            {noteFields.map((field) => (
+              <FieldRenderer
+                key={field.name}
+                field={field}
+                value={formData[field.name]}
+                onChange={(v) => setField(field.name, v)}
+                readOnly={readOnly}
+                rowData={formData}
+                currency={docCurrency}
+              />
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* Child tables */}

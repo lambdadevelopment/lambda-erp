@@ -564,5 +564,13 @@
         "tip": "Am einfachsten geht das über den KI-Chat – probieren Sie „Erstelle eine Ausgangsrechnung für Lumiere Audio in EUR“, „Zeig mir die Bilanz in EUR“ oder „Wie hoch ist unser unrealisiertes Währungsrisiko zum Monatsende?“. Die Demodaten enthalten bereits einen EUR-Kunden (Lumiere Audio SARL), dessen Rechnung zu einem anderen Kurs eingenommen wurde, sowie eine offene EUR-Lieferantenrechnung – öffnen Sie das Hauptbuch, um die realisierten Währungsbuchungen zu sehen."
       }
     }
+  },
+  "notesMarkup": {
+    "title": "Formatierungshilfe",
+    "intro": "Der Text unter Notizen / Konditionen unterstützt eine einfache Formatierung im PDF:",
+    "heading": "fette Überschrift",
+    "emphasis": "kursiv / fett",
+    "price": "rechtsbündiger Preis neben dem Text darüber (z. B. Monatlich | CHF 380.—)",
+    "block": "Trennen Sie Blöcke durch eine Leerzeile."
   }
 }

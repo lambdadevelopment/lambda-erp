@@ -564,5 +564,13 @@
         "tip": "Le plus simple est de passer par le chat IA – essayez « Crée une facture de vente pour Lumiere Audio en EUR », « Montre-moi le bilan en EUR » ou « Quelle est notre exposition de change latente en fin de mois ? ». Les données de démonstration incluent déjà un client EUR (Lumiere Audio SARL) dont la facture a été encaissée à un taux différent, ainsi qu'une facture fournisseur EUR ouverte – ouvrez le Grand livre pour voir les écritures de change réalisées."
       }
     }
+  },
+  "notesMarkup": {
+    "title": "Aide au formatage",
+    "intro": "Le texte des Notes / Conditions prend en charge une mise en forme légère sur le PDF :",
+    "heading": "titre en gras",
+    "emphasis": "italique / gras",
+    "price": "prix aligné à droite à côté du texte ci-dessus (p. ex. Mensuel | CHF 380.—)",
+    "block": "Séparez les blocs par une ligne vide."
   }
 }
