@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.28] - 2026-06-24
+
+### Added
+- **Editable per-line description on document line items.** The line-item
+  table now has a Description column, so a quotation/order/invoice line can
+  carry its own blurb (like a Proposal position). It defaults from the Item
+  master on save — leaving it blank falls back to the master, so it never
+  wipes the default — and a typed value overrides it for that document only.
+  The backend already stored and defaulted this field; this exposes it in the
+  form.
+
 ## [0.1.27] - 2026-06-24
 
 ### Changed

@@ -56,6 +56,10 @@ export interface DoctypeConfig {
 const ITEM_FIELDS: FieldDef[] = [
   { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
   { name: "item_name", label: "Item Name", type: "text", readOnly: true },
+  // Per-line description/blurb. Defaults from the Item master on save (an empty
+  // value falls back to the master, so leaving it blank never wipes anything);
+  // type here to override it for this document only — like a Proposal position.
+  { name: "description", label: "Description", type: "textarea" },
   { name: "qty", label: "Qty", type: "number", required: true },
   { name: "rate", label: "Rate", type: "currency", required: true },
   { name: "amount", label: "Amount", type: "currency", readOnly: true },
