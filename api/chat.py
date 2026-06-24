@@ -1708,6 +1708,14 @@ Shape — note it does NOT use `items`:
 
 To build one: ensure each offer already exists as its own Quotation (create them first if needed), then call create_document with doctype "proposal" and a data object whose `quotations` array references those quotations by name. Do NOT submit it; link the user to the PDF at `/api/documents/proposal/<name>/pdf` (and the editor at `/app/proposal/<name>`).
 
+### Notes / Terms markup (the `remarks` field)
+The `remarks` (Notes / Terms) field on quotations, sales orders, and invoices renders on the PDF with a small markup vocabulary, so when a user dictates offer notes, conditions, recurring services, or a sign-off you can compose a polished closing block instead of a flat paragraph. Put this ONLY in `remarks` (never in item descriptions):
+- `# Heading` at the start of a line -> bold heading
+- `*italic*` or `_italic_` -> italic; `**bold**` -> bold
+- `>> Period | Amount` at the start of a line -> a right-aligned price line that sits beside the heading/description above it; use it for separately- or recurring-billed items, e.g. `>> Monatlich | CHF 380.—`
+- Separate blocks with a blank line; a single newline is just a line break.
+Plain text (no special characters) still renders fine, so only reach for the markup when it improves a customer-facing note.
+
 ### Purchase Cycle
 Purchase Order → Purchase Receipt (receiving) / Purchase Invoice (billing) → Payment Entry
 

@@ -6,6 +6,7 @@ from jinja2 import Environment, FileSystemLoader, ChoiceLoader
 from weasyprint import HTML
 from lambda_erp.database import get_db
 from api.services import load_document
+from api.remarks_md import render_remarks
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
@@ -201,6 +202,11 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
         taxes=taxes,
         show_warehouse=doctype in SHOW_WAREHOUSE,
         page_size=page_size,
+        # Notes / Terms rendered from a small markup subset (headings, bold/
+        # italic, right-aligned price lines) into safe HTML; templates style the
+        # emitted classes. Falls back to plain `doc.remarks` if a template
+        # doesn't use it. See api/remarks_md.py.
+        remarks_html=render_remarks(doc.get("remarks")),
     )
 
     # Let deployment plugins augment the context (e.g. a Swiss QR-bill image for

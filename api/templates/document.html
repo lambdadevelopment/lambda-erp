@@ -48,6 +48,15 @@
 
   .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 7.5pt; color: #999; text-align: center; }
   .remarks { margin-top: 15px; padding: 8px; background: #fefce8; border-radius: 4px; font-size: 8pt; color: #713f12; }
+  /* Structured notes (remarks_html). A template can restyle these freely. */
+  .remarks .rm-block { overflow: hidden; margin-bottom: 8px; }
+  .remarks .rm-block:last-child { margin-bottom: 0; }
+  .remarks .rm-h { font-weight: 700; }
+  .remarks .rm-h + .rm-p, .remarks .rm-p + .rm-p { margin-top: 2px; }
+  .remarks .rm-amt { float: right; text-align: right; margin: 0 0 4px 16px; }
+  .remarks .rm-amt-val { white-space: nowrap; }
+  .remarks em { font-style: italic; }
+  .remarks strong { font-weight: 700; }
 </style>
 </head>
 <body>
@@ -182,8 +191,10 @@
 </div>
 
 {# ---- Remarks ---- #}
-{% if doc.remarks %}
-<div class="remarks">
+{% if remarks_html is defined and remarks_html %}
+<div class="remarks">{{ remarks_html | safe }}</div>
+{% elif doc.remarks %}
+<div class="remarks" style="white-space: pre-line;">
   <strong>Remarks:</strong> {{ doc.remarks }}
 </div>
 {% endif %}

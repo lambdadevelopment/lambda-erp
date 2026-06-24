@@ -13,6 +13,21 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.26] - 2026-06-24
+
+### Added
+- **Lightweight markup for document Notes / Terms.** The `remarks` field on
+  quotations, sales orders, and invoices now renders on the PDF from a small
+  markup subset — `# Heading`, `*italic*`/`**bold**`, and a right-aligned
+  `>> Period | Amount` price line that sits beside the description above it —
+  so a closing block (recurring services, conditions, a sign-off) reads like a
+  real offer instead of flat text. `generate_pdf()` exposes the result as
+  `remarks_html` (safe, HTML-escaped); templates render it with `| safe` and
+  style the emitted classes (`.rm-block`, `.rm-h`, `.rm-p`, `.rm-amt`), so a
+  branded template can restyle the same markup. The chat assistant knows the
+  syntax and uses it when composing customer-facing notes. See
+  `api/remarks_md.py`.
+
 ### Changed
 - **Chat assistant now discovers master fields instead of guessing.** The
   `get_master_fields` tool and the system prompt steer the assistant to look up
