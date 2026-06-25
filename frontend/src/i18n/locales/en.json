@@ -634,6 +634,7 @@
     "intro": "The Notes / Terms text supports light formatting on the PDF:",
     "heading": "bold heading",
     "emphasis": "italic / bold",
+    "rule": "horizontal divider line",
     "price": "right-aligned price beside the text above (e.g. Monthly | CHF 380.—)",
     "block": "Separate blocks with a blank line."
   }

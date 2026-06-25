@@ -571,6 +571,7 @@
     "intro": "Der Text unter Notizen / Konditionen unterstützt eine einfache Formatierung im PDF:",
     "heading": "fette Überschrift",
     "emphasis": "kursiv / fett",
+    "rule": "horizontale Trennlinie",
     "price": "rechtsbündiger Preis neben dem Text darüber (z. B. Monatlich | CHF 380.—)",
     "block": "Trennen Sie Blöcke durch eine Leerzeile."
   }

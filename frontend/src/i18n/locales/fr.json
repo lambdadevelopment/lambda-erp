@@ -571,6 +571,7 @@
     "intro": "Le texte des Notes / Conditions prend en charge une mise en forme légère sur le PDF :",
     "heading": "titre en gras",
     "emphasis": "italique / gras",
+    "rule": "ligne de séparation horizontale",
     "price": "prix aligné à droite à côté du texte ci-dessus (p. ex. Mensuel | CHF 380.—)",
     "block": "Séparez les blocs par une ligne vide."
   }

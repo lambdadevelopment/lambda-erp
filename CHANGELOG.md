@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.31] - 2026-06-25
+
+### Added
+- **Horizontal rule in the Notes / Terms markup.** A line of 3+ dashes (`---`)
+  now renders as a full-width thin divider in the notes block. Like the rest of
+  the markup, the core emits a semantic `<div class="rm-hr">` and templates
+  style it (the default is a light grey; a branded template can match it to its
+  own separators). Documented in the chat system prompt and the formatting-help
+  tooltip (en/de/fr).
+
 ## [0.1.30] - 2026-06-24
 
 ### Fixed

@@ -16,6 +16,7 @@ Syntax (authored in the same textarea, also what the chat assistant emits):
   **bold**                -> bold
   >> Monatlich | CHF 380.—  -> right-aligned price box (period over amount),
                                floated beside the block's heading/description
+  --- (3+ dashes)         -> a full-width horizontal rule
 Everything is HTML-escaped first, so user text can't inject markup.
 """
 import html
@@ -64,6 +65,7 @@ def _block(lines):
 
     for raw in lines:
         stripped = raw.lstrip()
+        s = raw.strip()
         if stripped.startswith(">>"):
             flush_para()
             price_html += _price(raw)
@@ -71,6 +73,10 @@ def _block(lines):
             flush_para()
             heading = stripped.lstrip("#").strip()
             body += f'<div class="rm-h">{_inline(heading)}</div>'
+        elif len(s) >= 3 and set(s) == {"-"}:
+            # A line of 3+ dashes -> a full-width horizontal rule.
+            flush_para()
+            body += '<div class="rm-hr"></div>'
         else:
             para.append(raw)
     flush_para()

@@ -13,6 +13,7 @@ export function NotesMarkupHelp() {
   const rows: [string, string][] = [
     ["# Heading", t("notesMarkup.heading", { defaultValue: "bold heading" })],
     ["*italic*  **bold**", t("notesMarkup.emphasis", { defaultValue: "italic / bold" })],
+    ["---", t("notesMarkup.rule", { defaultValue: "horizontal divider line" })],
     [
       ">> Period | Amount",
       t("notesMarkup.price", {
