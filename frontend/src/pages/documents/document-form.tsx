@@ -228,10 +228,16 @@ function FieldRenderer({
     if ((field.type === "currency") && typeof value === "number") {
       display = formatCurrency(value, currency);
     }
+    // Multi-line fields (Notes / Terms) keep their line breaks when shown
+    // read-only, instead of collapsing to one paragraph like a <p> does.
+    const pClass = [
+      hideLabel ? "text-sm text-fg" : "py-2 text-sm text-fg",
+      field.type === "textarea" ? "whitespace-pre-line" : "",
+    ].join(" ").trim();
     return (
       <div>
         <Label />
-        <p className={hideLabel ? "text-sm text-fg" : "py-2 text-sm text-fg"}>{display}</p>
+        <p className={pClass}>{display}</p>
       </div>
     );
   }
