@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.34] - 2026-07-01
+
+### Changed
+- **No signup screen on invite-only instances.** When registration is closed
+  (not first-run and public signup off), the login page no longer shows the
+  "Register" link, which previously led to a dead-end signup form that failed on
+  submit. Invite-only instances now present sign-in only (password + any
+  configured social providers); invited users still register via their invite
+  link, which can be completed with a password or by continuing with Google /
+  Apple.
+
 ## [0.1.33] - 2026-07-01
 
 ### Fixed

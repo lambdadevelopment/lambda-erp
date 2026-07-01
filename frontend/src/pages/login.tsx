@@ -199,11 +199,15 @@ export default function LoginPage() {
           </Card>
         )}
 
-        {!firstRun && !inviteToken && (
+        {/* Only offer registration when it's actually open (first-run or public
+            signup). When the instance is invite-only, there is no signup screen:
+            invited users arrive via the invite link (which forces register mode)
+            and can then set a password or continue with Google. */}
+        {!firstRun && !inviteToken && registrationOpen && (
           <p className="text-center text-sm text-fg-muted">
             {mode === "login" ? (
               <>
-                {registrationOpen ? t("login.noAccountPrompt") : t("login.haveInvite")}{" "}
+                {t("login.noAccountPrompt")}{" "}
                 <button onClick={() => setMode("register")} className="font-medium text-brand transition-colors hover:text-brand/80">
                   {t("login.registerLink")}
                 </button>
