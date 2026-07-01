@@ -9,6 +9,14 @@ export function configureApiBase(base: string) {
   BASE = base.replace(/\/+$/, "");
 }
 
+// The API origin as a browser-navigable URL. Social login is a full-page
+// redirect (not a fetch), so the button must point the browser straight at the
+// backend endpoint — resolving BASE (which may be relative like "/api") against
+// the current origin.
+export function apiUrl(path: string): string {
+  return new URL(`${BASE}${path}`, window.location.origin).toString();
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -393,7 +401,18 @@ export const api = {
       first_run: boolean;
       public_signup: boolean;
       registration_open: boolean;
+      oauth_providers: string[];
     }>("/auth/setup-status"),
+  // Social login is a full-page navigation, not a fetch — build the URL the
+  // browser should be sent to. `link` starts a "link to my account" flow.
+  oauthLoginUrl: (provider: string, opts?: { link?: boolean; invite?: string }) => {
+    const qs = new URLSearchParams();
+    if (opts?.link) qs.set("link", "1");
+    if (opts?.invite) qs.set("invite", opts.invite);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return apiUrl(`/auth/${encodeURIComponent(provider)}/login${suffix}`);
+  },
+  oauthListIdentities: () => request<{ provider: string; email: string | null; creation: string }[]>("/auth/oauth/identities"),
   authRegister: (data: { email: string; full_name: string; password: string; invite_token?: string }) =>
     request<any>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
   authLogin: (email: string, password: string) =>

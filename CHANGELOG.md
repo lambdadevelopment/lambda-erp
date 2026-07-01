@@ -13,6 +13,33 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.32] - 2026-07-01
+
+### Added
+- **Social login with Google and Apple (`api/oauth.py`).** Users can sign in
+  with Google or Apple instead of an email + password. OAuth/OIDC is layered on
+  top of the existing password auth without changing what a session is: once a
+  provider proves identity, the same `lambda_erp_token` JWT cookie is minted, so
+  everything downstream is unchanged and password login keeps working. New
+  endpoints `GET /auth/{provider}/login` and `GET|POST /auth/{provider}/callback`
+  (Google and Apple), plus `GET /auth/oauth/providers` and
+  `GET /auth/oauth/identities`. No new dependency — httpx does OIDC discovery +
+  token exchange, python-jose validates the ID token against the provider JWKS
+  and signs Apple's ES256 client secret. Provider config is read from env; a
+  provider is simply disabled (its button hidden) when its vars are absent, so
+  local/dev needs no OAuth setup.
+- **Login page "Continue with Google / Apple" buttons** and a **Linked Accounts**
+  panel in Settings to link a provider to an existing account (the sanctioned
+  password → social switch, keeping the same user id and history). Invites can be
+  accepted via OAuth. New table `User OAuth Identity` (created at boot — no
+  migration; `hashed_password` stays NOT NULL, OAuth-only users carry a
+  non-matchable sentinel). i18n in en/de/fr. See `docs/social-login-plan.md`.
+
+### Fixed
+- **Read-only Notes / Terms preserved line breaks.** After a quotation became
+  Open, the read-only display of the Notes / Terms field collapsed its line
+  breaks; textarea fields now render with `whitespace-pre-line`.
+
 ## [0.1.31] - 2026-06-25
 
 ### Added

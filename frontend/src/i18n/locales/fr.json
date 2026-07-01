@@ -162,7 +162,19 @@
     "passwordsNoMatch": "Les mots de passe ne correspondent pas",
     "passwordTooShort": "Le mot de passe doit comporter au moins 6 caractères",
     "registrationFailed": "Échec de l'inscription",
-    "loginFailed": "Échec de la connexion"
+    "loginFailed": "Échec de la connexion",
+    "orContinueWith": "ou continuer avec",
+    "continueWithProvider": "Continuer avec {{provider}}",
+    "oauthError": {
+      "generic": "Échec de la connexion. Veuillez réessayer.",
+      "email_exists": "Un compte avec cet e-mail existe déjà. Connectez-vous, puis liez ce fournisseur depuis les paramètres du compte.",
+      "email_unverified": "Votre fournisseur n'a pas confirmé d'e-mail vérifié, la connexion est donc impossible.",
+      "registration_closed": "Cet e-mail n'a pas encore de compte et l'inscription se fait uniquement sur invitation.",
+      "invite_invalid": "Cette invitation est invalide, déjà utilisée ou émise pour un autre e-mail.",
+      "identity_taken": "Ce compte fournisseur est déjà lié à un autre utilisateur.",
+      "account_disabled": "Ce compte a été désactivé.",
+      "token_exchange_failed": "Échec de la connexion auprès du fournisseur. Veuillez réessayer."
+    }
   },
   "settings": {
     "pdfTitle": "PDF et impression",
@@ -175,6 +187,10 @@
     "changePassword": "Changer le mot de passe",
     "changingPassword": "Modification...",
     "passwordChanged": "Mot de passe modifié.",
+    "linkedAccountsTitle": "Comptes liés",
+    "linkedAccountsBody": "Liez un compte Google ou Apple pour vous connecter sans mot de passe.",
+    "linked": "Lié",
+    "linkProvider": "Lier {{provider}}",
     "openingTitle": "Soldes d'ouverture",
     "openingBody": "La page Soldes d'ouverture permet d'importer les soldes des comptes, le stock et les factures impayées d'un système précédent.",
     "openingEnabled": "Actuellement activé — accessible sous Introduction > Soldes d'ouverture.",

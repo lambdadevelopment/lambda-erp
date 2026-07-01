@@ -1286,6 +1286,23 @@ class Database:
                 FOREIGN KEY (created_by) REFERENCES "User"(name)
             )""",
 
+            # Third-party (Google / Apple) sign-in identities. One User may hold
+            # several (password + Google + Apple); a provider account maps to at
+            # most one User via the UNIQUE(provider, subject). `subject` is the
+            # provider's stable per-user id (OIDC `sub`), so it survives the user
+            # changing their provider-side email. Password stays on User (an
+            # OAuth-only user just carries a sentinel, non-matchable hash).
+            """CREATE TABLE IF NOT EXISTS "User OAuth Identity" (
+                name TEXT PRIMARY KEY,
+                user TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                email TEXT,
+                creation TEXT,
+                UNIQUE(provider, subject),
+                FOREIGN KEY (user) REFERENCES "User"(name)
+            )""",
+
             """CREATE TABLE IF NOT EXISTS "Settings" (
                 key TEXT PRIMARY KEY,
                 value TEXT

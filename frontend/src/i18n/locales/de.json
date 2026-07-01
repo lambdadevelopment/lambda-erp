@@ -162,7 +162,19 @@
     "passwordsNoMatch": "Passwörter stimmen nicht überein",
     "passwordTooShort": "Das Passwort muss mindestens 6 Zeichen lang sein",
     "registrationFailed": "Registrierung fehlgeschlagen",
-    "loginFailed": "Anmeldung fehlgeschlagen"
+    "loginFailed": "Anmeldung fehlgeschlagen",
+    "orContinueWith": "oder weiter mit",
+    "continueWithProvider": "Weiter mit {{provider}}",
+    "oauthError": {
+      "generic": "Anmeldung fehlgeschlagen. Bitte erneut versuchen.",
+      "email_exists": "Ein Konto mit dieser E-Mail existiert bereits. Melden Sie sich an und verknüpfen Sie diesen Anbieter in den Kontoeinstellungen.",
+      "email_unverified": "Ihr Anbieter hat keine bestätigte E-Mail übermittelt, daher ist keine Anmeldung möglich.",
+      "registration_closed": "Für diese E-Mail besteht noch kein Konto und die Registrierung ist nur per Einladung möglich.",
+      "invite_invalid": "Diese Einladung ist ungültig, bereits verwendet oder für eine andere E-Mail ausgestellt.",
+      "identity_taken": "Dieses Anbieterkonto ist bereits mit einem anderen Benutzer verknüpft.",
+      "account_disabled": "Dieses Konto wurde deaktiviert.",
+      "token_exchange_failed": "Anmeldung beim Anbieter fehlgeschlagen. Bitte erneut versuchen."
+    }
   },
   "settings": {
     "pdfTitle": "PDF & Druck",
@@ -175,6 +187,10 @@
     "changePassword": "Passwort ändern",
     "changingPassword": "Wird geändert...",
     "passwordChanged": "Passwort geändert.",
+    "linkedAccountsTitle": "Verknüpfte Konten",
+    "linkedAccountsBody": "Verknüpfen Sie ein Google- oder Apple-Konto, um sich ohne Passwort anzumelden.",
+    "linked": "Verknüpft",
+    "linkProvider": "{{provider}} verknüpfen",
     "openingTitle": "Eröffnungsbilanzen",
     "openingBody": "Auf der Seite Eröffnungsbilanzen können Kontensalden, Lagerbestände und offene Rechnungen aus einem früheren System importiert werden.",
     "openingEnabled": "Derzeit aktiviert — erreichbar unter Einführung > Eröffnungsbilanzen.",

@@ -225,7 +225,19 @@
     "passwordsNoMatch": "Passwords do not match",
     "passwordTooShort": "Password must be at least 6 characters",
     "registrationFailed": "Registration failed",
-    "loginFailed": "Login failed"
+    "loginFailed": "Login failed",
+    "orContinueWith": "or continue with",
+    "continueWithProvider": "Continue with {{provider}}",
+    "oauthError": {
+      "generic": "Sign-in failed. Please try again.",
+      "email_exists": "An account with this email already exists. Sign in, then link this provider from your account settings.",
+      "email_unverified": "Your provider did not confirm a verified email, so we can't sign you in.",
+      "registration_closed": "This email has no account yet and registration is invite-only.",
+      "invite_invalid": "That invite is invalid, already used, or issued for a different email.",
+      "identity_taken": "That provider account is already linked to a different user.",
+      "account_disabled": "This account has been disabled.",
+      "token_exchange_failed": "Sign-in failed while contacting the provider. Please try again."
+    }
   },
   "settings": {
     "pdfTitle": "PDF & Print",
@@ -238,6 +250,10 @@
     "changePassword": "Change password",
     "changingPassword": "Changing...",
     "passwordChanged": "Password changed.",
+    "linkedAccountsTitle": "Linked Accounts",
+    "linkedAccountsBody": "Link a Google or Apple account to sign in without a password.",
+    "linked": "Linked",
+    "linkProvider": "Link {{provider}}",
     "openingTitle": "Opening Balances",
     "openingBody": "The Opening Balances page allows importing account balances, stock, and outstanding invoices from a previous system.",
     "openingEnabled": "Currently enabled — accessible under Introduction > Opening Balances.",

@@ -260,11 +260,14 @@ def auth_setup_status():
     count = db.sql('SELECT COUNT(*) as cnt FROM "User"')[0]["cnt"]
     first_run = count == 0
     public_signup = _setting_enabled(db, "allow_public_signup")
+    # Lazy import avoids a circular import (api.oauth imports from api.auth).
+    from api.oauth import configured_providers
     return {
         "has_users": count > 0,
         "first_run": first_run,
         "public_signup": public_signup,
         "registration_open": first_run or public_signup,
+        "oauth_providers": configured_providers(),
     }
 
 

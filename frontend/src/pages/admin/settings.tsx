@@ -348,6 +348,55 @@ function ChangePasswordCard() {
   );
 }
 
+function LinkedAccountsCard() {
+  const { t } = useTranslation();
+
+  const { data: setup } = useQuery({
+    queryKey: ["auth-setup-status"],
+    queryFn: () => api.authSetupStatus(),
+  });
+  const { data: identities } = useQuery({
+    queryKey: ["oauth-identities"],
+    queryFn: () => api.oauthListIdentities(),
+  });
+
+  const providers = setup?.oauth_providers ?? [];
+  if (providers.length === 0) return null; // no social login configured on this deployment
+
+  const linked = new Set((identities ?? []).map((i) => i.provider));
+
+  return (
+    <Card title={t("settings.linkedAccountsTitle")}>
+      <p className="text-sm text-gray-600">{t("settings.linkedAccountsBody")}</p>
+      <div className="mt-3 space-y-2">
+        {providers.map((p) => {
+          const label = p.charAt(0).toUpperCase() + p.slice(1);
+          const isLinked = linked.has(p);
+          return (
+            <div key={p} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
+              <span className="text-sm font-medium text-gray-900">{label}</span>
+              {isLinked ? (
+                <span className="inline-flex items-center gap-1.5 text-sm text-green-700">
+                  <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                  {t("settings.linked")}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { window.location.href = api.oauthLoginUrl(p, { link: true }); }}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {t("settings.linkProvider", { provider: label })}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -400,6 +449,7 @@ export default function SettingsPage() {
       {/* Personal account — every signed-in user can change their own password
           (the shared public_manager demo account has none). */}
       {user?.role !== "public_manager" && <ChangePasswordCard />}
+      {user?.role !== "public_manager" && <LinkedAccountsCard />}
 
       <Card title={t("settings.pdfTitle")}>
         <div className="flex flex-wrap items-end gap-4">
