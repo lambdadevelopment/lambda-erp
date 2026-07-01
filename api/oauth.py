@@ -233,12 +233,12 @@ def _email_is_verified(claims: dict) -> bool:
 
 def _find_by_identity(db, provider: str, subject: str) -> dict | None:
     rows = db.sql(
-        'SELECT user FROM "User OAuth Identity" WHERE provider = ? AND subject = ?',
+        'SELECT user_name FROM "User OAuth Identity" WHERE provider = ? AND subject = ?',
         [provider, subject],
     )
     if not rows:
         return None
-    user_name = rows[0]["user"]
+    user_name = rows[0]["user_name"]
     users = db.sql(
         'SELECT name, email, full_name, role, enabled FROM "User" WHERE name = ?',
         [user_name],
@@ -249,7 +249,7 @@ def _find_by_identity(db, provider: str, subject: str) -> dict | None:
 def _link_identity(db, user_name: str, provider: str, subject: str, email: str | None):
     db.insert("User OAuth Identity", {
         "name": f"OAI-{uuid.uuid4().hex[:8]}",
-        "user": user_name,
+        "user_name": user_name,
         "provider": provider,
         "subject": subject,
         "email": (email or "").lower() or None,
@@ -325,7 +325,7 @@ def list_identities(user: dict = Depends(get_current_user)):
     """The signed-in user's linked providers (for a 'Linked accounts' UI)."""
     db = get_db()
     rows = db.sql(
-        'SELECT provider, email, creation FROM "User OAuth Identity" WHERE user = ? ORDER BY creation',
+        'SELECT provider, email, creation FROM "User OAuth Identity" WHERE user_name = ? ORDER BY creation',
         [user["name"]],
     )
     return [dict(r) for r in rows]

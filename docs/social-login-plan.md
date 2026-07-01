@@ -96,7 +96,7 @@ boot — the established pattern for brand-new tables), so no migration is neede
 ```
 Table: "User OAuth Identity"
   name        TEXT PK      -- OAI-{uuid[:8]}
-  user        TEXT         -- FK → User.name
+  user_name   TEXT         -- FK → User.name  (NOT `user` — reserved in Postgres)
   provider    TEXT         -- 'google' | 'apple'
   subject     TEXT         -- provider 'sub' (stable per-provider user id)
   email       TEXT         -- provider-asserted email at link time (audit)

@@ -1294,13 +1294,13 @@ class Database:
             # OAuth-only user just carries a sentinel, non-matchable hash).
             """CREATE TABLE IF NOT EXISTS "User OAuth Identity" (
                 name TEXT PRIMARY KEY,
-                user TEXT NOT NULL,
+                user_name TEXT NOT NULL,
                 provider TEXT NOT NULL,
                 subject TEXT NOT NULL,
                 email TEXT,
                 creation TEXT,
                 UNIQUE(provider, subject),
-                FOREIGN KEY (user) REFERENCES "User"(name)
+                FOREIGN KEY (user_name) REFERENCES "User"(name)
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Settings" (

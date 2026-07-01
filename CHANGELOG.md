@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.33] - 2026-07-01
+
+### Fixed
+- **Social-login table crashed startup on PostgreSQL.** The new
+  `User OAuth Identity` table (0.1.32) had a column named `user`, which is a
+  reserved word in PostgreSQL — `CREATE TABLE` failed at boot on Postgres
+  deployments (SQLite accepts it, so it slipped through local testing). Renamed
+  the column to `user_name`. SQLite-only deployments were unaffected. Verified
+  against the PostgreSQL validation suite.
+
 ## [0.1.32] - 2026-07-01
 
 ### Added
