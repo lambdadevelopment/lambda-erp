@@ -6,6 +6,10 @@ export interface User {
   email: string;
   full_name: string;
   role: "admin" | "manager" | "viewer" | "public_manager";
+  // Whether the account has a real email+password. Social-login-only users have
+  // none (they can set a first one from Settings). Undefined on older sessions
+  // until the next /me refresh.
+  has_password?: boolean;
 }
 
 interface AuthContextValue {
@@ -14,6 +18,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<User>;
   register: (email: string, fullName: string, password: string, inviteToken?: string) => Promise<User>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -46,8 +51,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const u = await api.authMe();
+      setUser(u);
+    } catch { /* ignore — session check failures are handled elsewhere */ }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

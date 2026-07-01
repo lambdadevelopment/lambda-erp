@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.35] - 2026-07-01
+
+### Added
+- **"Set a password" for social-login-only accounts.** A user created via Google
+  (or Apple) has no password; Settings now shows a "Set a Password" card (no
+  "current password" field) so they can add an email+password fallback in case
+  they lose access to their provider. New `POST /auth/set-password` (authenticated;
+  refuses if a real password already exists — that's change-password — or for the
+  demo account). `/auth/me`, `/auth/login`, and `/auth/register` now return
+  `has_password`, and Settings shows "Set a Password" when it's false, otherwise
+  the usual "Change Password". i18n en/de/fr.
+
 ## [0.1.34] - 2026-07-01
 
 ### Changed

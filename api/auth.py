@@ -96,6 +96,13 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
+def has_usable_password(hashed: str | None) -> bool:
+    """True if the stored hash is a real bcrypt password. Social-login-only
+    users carry a non-matchable sentinel that fails this check — they have no
+    password to change (they can set a first one via /auth/set-password)."""
+    return bool(hashed) and hashed.startswith(PASSWORD_HASH_PREFIX)
+
+
 # ---------------------------------------------------------------------------
 # JWT helpers
 # ---------------------------------------------------------------------------
@@ -175,6 +182,10 @@ class ChangeRoleRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
+    new_password: str
+
+
+class SetPasswordRequest(BaseModel):
     new_password: str
 
 
@@ -321,7 +332,7 @@ def register(data: RegisterRequest, request: Request, response: Response):
     token = create_access_token(user_name)
     set_auth_cookie(request, response, token)
 
-    return {"name": user_name, "email": data.email.lower(), "full_name": data.full_name, "role": role}
+    return {"name": user_name, "email": data.email.lower(), "full_name": data.full_name, "role": role, "has_password": True}
 
 
 @router.post("/login")
@@ -345,7 +356,8 @@ def login(data: LoginRequest, request: Request, response: Response):
     token = create_access_token(user["name"])
     set_auth_cookie(request, response, token)
 
-    return {"name": user["name"], "email": user["email"], "full_name": user["full_name"], "role": user["role"]}
+    return {"name": user["name"], "email": user["email"], "full_name": user["full_name"], "role": user["role"],
+            "has_password": has_usable_password(user["hashed_password"])}
 
 
 @router.post("/logout")
@@ -356,7 +368,11 @@ def logout(response: Response):
 
 @router.get("/me")
 def me(user: dict = Depends(get_current_user)):
-    return {"name": user["name"], "email": user["email"], "full_name": user["full_name"], "role": user["role"]}
+    db = get_db()
+    row = db.get_value("User", user["name"], ["hashed_password"])
+    has_password = has_usable_password(row["hashed_password"]) if row else False
+    return {"name": user["name"], "email": user["email"], "full_name": user["full_name"],
+            "role": user["role"], "has_password": has_password}
 
 
 @router.post("/change-password")
@@ -375,6 +391,31 @@ def change_password(data: ChangePasswordRequest, user: dict = Depends(get_curren
         raise HTTPException(status_code=404, detail="User not found")
     if not verify_password(data.current_password, rows[0]["hashed_password"]):
         raise HTTPException(status_code=403, detail="Current password is incorrect")
+
+    db.set_value("User", user["name"],
+                 {"hashed_password": hash_password(data.new_password), "modified": now()})
+    return {"ok": True}
+
+
+@router.post("/set-password")
+def set_password(data: SetPasswordRequest, user: dict = Depends(get_current_user)):
+    """Set a first password for an account that has none — e.g. a user created
+    via social login who wants an email+password fallback. Requires an
+    authenticated session; refuses if a usable password already exists (that
+    path is change-password, which verifies the current one) or for the shared
+    demo account."""
+    if user["role"] == "public_manager":
+        raise HTTPException(status_code=403, detail="Demo accounts cannot set a password")
+
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=422, detail="Password must be at least 6 characters")
+
+    db = get_db()
+    row = db.get_value("User", user["name"], ["hashed_password"])
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    if has_usable_password(row["hashed_password"]):
+        raise HTTPException(status_code=409, detail="A password is already set; use change password instead")
 
     db.set_value("User", user["name"],
                  {"hashed_password": hash_password(data.new_password), "modified": now()})

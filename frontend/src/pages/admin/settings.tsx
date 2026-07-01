@@ -348,6 +348,87 @@ function ChangePasswordCard() {
   );
 }
 
+function SetPasswordCard() {
+  const { t } = useTranslation();
+  const { user, refreshUser } = useAuth();
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const mut = useMutation({
+    mutationFn: () => api.authSetPassword(next),
+    onSuccess: async () => {
+      setDone(true);
+      setError("");
+      setNext("");
+      setConfirm("");
+      // Flip the card to "Change Password" now that a password exists.
+      await refreshUser();
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : t("login.registrationFailed")),
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setDone(false);
+    if (next !== confirm) {
+      setError(t("login.passwordsNoMatch"));
+      return;
+    }
+    if (next.length < 6) {
+      setError(t("login.passwordTooShort"));
+      return;
+    }
+    mut.mutate();
+  };
+
+  return (
+    <Card title={t("settings.setPasswordTitle")}>
+      <p className="mb-3 max-w-lg text-sm text-gray-600">{t("settings.setPasswordBody")}</p>
+      <form onSubmit={submit} className="max-w-sm space-y-3">
+        {/* Hidden username anchor so password managers save against the account. */}
+        <input
+          type="text"
+          name="username"
+          autoComplete="username"
+          value={user?.email || ""}
+          readOnly
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ display: "none" }}
+        />
+        <Input
+          label={t("settings.newPassword")}
+          id="new-password"
+          name="new-password"
+          type="password"
+          autoComplete="new-password"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          required
+        />
+        <Input
+          label={t("settings.confirmNewPassword")}
+          id="confirm-password"
+          name="confirm-password"
+          type="password"
+          autoComplete="new-password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          required
+        />
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {done && <p className="text-sm text-green-700">{t("settings.passwordSet")}</p>}
+        <Button type="submit" disabled={mut.isPending || !next || !confirm}>
+          {mut.isPending ? t("settings.changingPassword") : t("settings.setPassword")}
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
 function LinkedAccountsCard() {
   const { t } = useTranslation();
 
@@ -448,7 +529,11 @@ export default function SettingsPage() {
 
       {/* Personal account — every signed-in user can change their own password
           (the shared public_manager demo account has none). */}
-      {user?.role !== "public_manager" && <ChangePasswordCard />}
+      {/* Password-less (social-login-only) users get "Set a password"; everyone
+          else keeps "Change Password". has_password === false is the only case
+          that hides Change Password, so an unknown value stays safe. */}
+      {user?.role !== "public_manager" &&
+        (user?.has_password === false ? <SetPasswordCard /> : <ChangePasswordCard />)}
       {user?.role !== "public_manager" && <LinkedAccountsCard />}
 
       <Card title={t("settings.pdfTitle")}>

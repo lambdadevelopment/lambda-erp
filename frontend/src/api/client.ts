@@ -424,6 +424,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ current_password, new_password }),
     }),
+  authSetPassword: (new_password: string) =>
+    request<any>("/auth/set-password", {
+      method: "POST",
+      body: JSON.stringify({ new_password }),
+    }),
   authInvite: (email: string, role: string) =>
     request<any>("/auth/invite", { method: "POST", body: JSON.stringify({ email, role }) }),
   authListUsers: () => request<any[]>("/auth/users"),
