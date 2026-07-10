@@ -1,3 +1,13 @@
+/* Self-host Inter so every consumer of this stylesheet inherits the font the
+   Tailwind preset's `fontFamily.sans` asks for. Shipped via exports["./styles.css"]
+   → src/index.css, with @fontsource/inter as a runtime dependency, so downstream
+   apps (e.g. lambda-erp-internal) get Inter without adding their own <link>.
+   Must precede the @tailwind directives (CSS requires @import before other rules). */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
