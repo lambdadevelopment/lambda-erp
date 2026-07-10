@@ -73,6 +73,9 @@ def check_chat_api():
         r = client.post("/api/v1/chat", json={"message": "hi"},
                         headers={"Authorization": "Bearer sk_erp_whatever"})
         assert r.status_code == 404, f"disabled chat -> {r.status_code}: {r.text[:200]}"
+        # The document read surface is gated by the same flag.
+        assert client.get("/api/v1/documents/sales-invoice/X/pdf",
+                          headers={"Authorization": "Bearer sk_erp_whatever"}).status_code == 404
 
         # --- Become admin (first registrant) + turn the API on. -------------
         r = client.post("/api/auth/register",
@@ -145,9 +148,24 @@ def check_chat_api():
         r = client.post("/api/v1/chat", json={"message": "new"}, headers=auth_h)
         assert r.status_code == 200 and r.json()["session_id"] != sid, "deleted session was reused"
 
+        # --- Document read surface (Bearer-gated PDF + JSON). ---------------
+        # No key -> 401 (enabled, but unauthenticated).
+        assert client.get("/api/v1/documents/sales-invoice/SINV-0001/pdf").status_code == 401
+        # Valid key + unknown doctype -> 422 (ValueError). This proves the route is
+        # wired and auth passed — a missing *route* would 404 instead — without
+        # rendering a real PDF (WeasyPrint never runs: generate_pdf resolves the
+        # doctype/loads the doc first).
+        assert client.get("/api/v1/documents/not-a-doctype/X/pdf", headers=auth_h).status_code == 422
+        assert client.get("/api/v1/documents/not-a-doctype/X", headers=auth_h).status_code == 422
+        # Valid key + known doctype but missing document -> 404 (ValidationError).
+        assert client.get("/api/v1/documents/sales-invoice/NOPE-9999/pdf", headers=auth_h).status_code == 404
+        assert client.get("/api/v1/documents/sales-invoice/NOPE-9999", headers=auth_h).status_code == 404
+
         # --- Revoke -> the key stops working. -------------------------------
         assert client.post(f"/api/auth/api-keys/{key_id}/revoke").status_code == 200
         assert client.post("/api/v1/chat", json={"message": "hi"}, headers=auth_h).status_code == 401
+        # revoked key also can't read documents
+        assert client.get("/api/v1/documents/sales-invoice/X/pdf", headers=auth_h).status_code == 401
 
     print(f"  [chat api] gating/auth/keys/sessions/stateless-replay OK on {backend}")
 

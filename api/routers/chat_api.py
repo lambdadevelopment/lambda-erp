@@ -16,6 +16,7 @@ Statefulness (see docs/chat-api-plan.md):
     caller-owned, ephemeral working memory for a single multi-step ERP task.
 """
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from api.auth import get_api_caller
@@ -27,6 +28,8 @@ from api.chat import (
     run_session_turn,
     save_chat_message,
 )
+from api.pdf import generate_pdf
+from api.services import load_document
 
 router = APIRouter(prefix="/v1", tags=["chat-api"])
 
@@ -90,6 +93,31 @@ async def chat(payload: ChatApiRequest, request: Request, caller: dict = Depends
         "session_id": target_session_id,
         "title": session["title"] if session else None,
     }
+
+
+@router.get("/documents/{doctype_slug}/{name}/pdf")
+def document_pdf(doctype_slug: str, name: str, caller: dict = Depends(get_api_caller)):
+    """Render a document's PDF for a Bearer-key caller.
+
+    The chat agent's replies link to `/api/documents/{slug}/{name}/pdf`, but that
+    route is cookie-gated (require_role) and so unreachable by an API caller. This
+    mirrors it for the programmatic surface so an orchestrator (lambda-web → the
+    iPhone app) can fetch the actual bytes. A missing document raises
+    ValidationError("… not found") → 404, an unknown doctype ValueError → 422, via
+    the global handlers.
+    """
+    pdf_bytes = generate_pdf(doctype_slug, name)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{name}.pdf"'},
+    )
+
+
+@router.get("/documents/{doctype_slug}/{name}")
+def document_json(doctype_slug: str, name: str, caller: dict = Depends(get_api_caller)):
+    """Return a document's structured data for a Bearer-key caller (read-only)."""
+    return load_document(doctype_slug, name)
 
 
 @router.get("/chat/sessions")

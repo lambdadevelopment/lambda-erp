@@ -79,6 +79,27 @@ curl -X DELETE https://erp.example.com/api/v1/chat/sessions/a1b2c3d4 \
 
 Sessions are isolated per key — a key can only see/continue its own.
 
+### Fetching documents
+
+A chat reply often links to a document, e.g.
+`[Download PDF](/api/documents/sales-invoice/SINV-0001/pdf)`. Those `/api/documents/…`
+routes are cookie-gated (the ERP web UI), so a Bearer caller can't open them. The
+chat API mirrors them so an orchestrator can fetch the actual bytes with its key:
+
+```bash
+# the rendered PDF (application/pdf)
+curl https://erp.example.com/api/v1/documents/sales-invoice/SINV-0001/pdf \
+  -H "Authorization: Bearer sk_erp_…" -o invoice.pdf
+
+# the document's structured data (JSON)
+curl https://erp.example.com/api/v1/documents/sales-invoice/SINV-0001 \
+  -H "Authorization: Bearer sk_erp_…"
+```
+
+Read-only; `viewer` role is enough. A missing document → `404`, an unknown doctype
+→ `422`. (lambda-web's connector fetches these and re-attaches the PDF to the chat,
+so it reaches the iOS app / websocket.)
+
 ## Responses
 
 | Status | Meaning |
