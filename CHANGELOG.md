@@ -13,6 +13,25 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.37] - 2026-07-10
+
+### Added
+- **Document read endpoints on the chat API.**
+  `GET /api/v1/documents/{doctype-slug}/{name}/pdf` (rendered PDF) and
+  `GET /api/v1/documents/{doctype-slug}/{name}` (structured JSON), Bearer-key-gated
+  like the rest of the chat API (inherit the `chat_api_enabled` flag + key role).
+  Chat replies link to a document's PDF, but the web `/api/documents/...` route is
+  cookie-gated and unreachable by an API caller — these mirror it so an
+  orchestrator (and the iOS app) can fetch the bytes with its key. Read-only
+  (`viewer` role suffices); missing document → 404, unknown doctype → 422.
+
+### Fixed
+- **Self-host the Inter font.** The Tailwind preset asks for `Inter`, but the font
+  was only loaded by the demo's Google Fonts `<link>` (not part of the published
+  package), so consumer apps fell back to system-ui. `@fontsource/inter` is now a
+  runtime dependency and `@import`ed in `src/index.css` (shipped via
+  `exports["./styles.css"]`), so every consumer inherits Inter with no extra setup.
+
 ## [0.1.36] - 2026-07-10
 
 ### Added
