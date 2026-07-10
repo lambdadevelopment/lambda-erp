@@ -445,6 +445,17 @@ export const api = {
   getSettings: () => request<Record<string, string>>("/auth/settings"),
   updateSettings: (data: Record<string, string>) =>
     request<Record<string, string>>("/auth/settings", { method: "PUT", body: JSON.stringify(data) }),
+  getApiKeys: () =>
+    request<Array<{
+      id: string; name: string; role: string; key_prefix: string;
+      created_by?: string; created_at?: string; last_used_at?: string | null; revoked: boolean;
+    }>>("/auth/api-keys"),
+  createApiKey: (name: string, role: string) =>
+    request<{ id: string; name: string; role: string; key_prefix: string; token: string }>(
+      "/auth/api-keys", { method: "POST", body: JSON.stringify({ name, role }) }),
+  revokeApiKey: (id: string) =>
+    request<{ id: string; revoked: boolean }>(
+      `/auth/api-keys/${encodeURIComponent(id)}/revoke`, { method: "POST" }),
 
   getDemoSpend: () =>
     request<{

@@ -1308,6 +1308,25 @@ class Database:
                 value TEXT
             )""",
 
+            # Bearer API keys for the programmatic chat API (off by default via
+            # the `chat_api_enabled` Settings flag). Tokens are stored hashed
+            # (sha256); `key_prefix` is a display-only fragment. `role` bounds the
+            # agent's tool access; `session_owner` is the user_id the key's chat
+            # sessions are owned under (isolated from human users). See
+            # docs/chat-api-plan.md.
+            """CREATE TABLE IF NOT EXISTS "Api Key" (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                key_hash TEXT UNIQUE,
+                key_prefix TEXT,
+                role TEXT DEFAULT 'manager',
+                session_owner TEXT,
+                created_by TEXT,
+                created_at TEXT,
+                last_used_at TEXT,
+                revoked INTEGER DEFAULT 0
+            )""",
+
             # Exchange rates for multi-currency. A lookup carries forward the
             # most recent rate on/before a transaction's date; the rate is then
             # snapshotted onto the document, so editing this table never changes

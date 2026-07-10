@@ -2557,6 +2557,101 @@ def transcribe_audio(audio_bytes: bytes, audio_format: str, api_key: str) -> str
 
 
 # ---------------------------------------------------------------------------
+# Shared agent-turn driver (used by both the WebSocket chat and the REST API)
+# ---------------------------------------------------------------------------
+
+
+async def run_session_turn(
+    session_id: str,
+    user_content: str,
+    user_info: dict | None,
+    on_event,
+    *,
+    attachment_ids: list | None = None,
+    attachments_user_id: str | None = None,
+    client_ip: str | None = None,
+    replay_history: bool = True,
+    on_assistant_message=None,
+    on_title=None,
+) -> str | None:
+    """Run one agent turn for a session; return the assistant's reply text.
+
+    Wraps the transport-agnostic ``run_thinking_loop`` with message building,
+    persistence, and first-reply title generation, so the WebSocket chat and the
+    REST chat API share one code path.
+
+    ``replay_history`` is the single statefulness knob:
+      - True  -> LLM context is the session's recent history (normal chat).
+      - False -> context is ONLY the current user message; prior turns are not
+        replayed (stateless REST default). The turn is still persisted by the
+        caller for audit — it just isn't fed back to the model.
+
+    Hooks (all optional, async):
+      - ``on_event(event)``            streamed loop events (WS -> socket; REST -> no-op)
+      - ``on_assistant_message(sid, content)``  fired after the reply is persisted
+      - ``on_title(sid, title)``       fired after a first-reply title is generated
+    """
+    is_first_reply = count_assistant_messages(session_id) == 0
+
+    messages = [{"role": "system", "content": build_system_prompt(user_info)}]
+
+    if replay_history:
+        conversation = build_conversation(session_id, limit=20)
+    else:
+        # Stateless: only the current user message, no prior turns replayed.
+        conversation = [{"role": "user", "content": user_content}]
+
+    # Multimodal attachments: replace the last user message with an image/PDF-
+    # bearing content array so the LLM can see them directly.
+    if attachment_ids and attachments_user_id:
+        from api.attachments import get_attachments_by_ids, build_multimodal_content
+        atts = get_attachments_by_ids(attachment_ids, attachments_user_id)
+        if atts and conversation and conversation[-1].get("role") == "user":
+            parts = []
+            text = conversation[-1].get("content") or ""
+            if text:
+                parts.append({"type": "text", "text": text})
+            for att in atts:
+                parts.append(build_multimodal_content(att))
+            conversation[-1] = {"role": "user", "content": parts}
+
+    messages.extend(conversation)
+
+    await run_thinking_loop(
+        messages, on_event,
+        session_id=session_id,
+        user_info=user_info,
+        client_ip=client_ip,
+    )
+
+    assistant_content = None
+    for msg in reversed(messages):
+        if msg.get("role") == "assistant" and msg.get("content"):
+            assistant_content = msg["content"]
+            save_chat_message(session_id, "assistant", assistant_content)
+            if on_assistant_message:
+                await on_assistant_message(session_id, assistant_content)
+            break
+
+    if is_first_reply and assistant_content:
+        async def _gen_and_notify():
+            await generate_title(
+                session_id,
+                user_content,
+                assistant_content,
+                client_ip=client_ip,
+                user_role=(user_info or {}).get("role"),
+            )
+            if on_title:
+                session = get_session(session_id)
+                if session:
+                    await on_title(session_id, session["title"])
+        asyncio.create_task(_gen_and_notify())
+
+    return assistant_content
+
+
+# ---------------------------------------------------------------------------
 # WebSocket endpoint
 # ---------------------------------------------------------------------------
 
@@ -2666,66 +2761,26 @@ async def chat_websocket(
 
     async def process_session_message(target_session_id: str, user_content: str, attachment_ids: list | None = None):
         try:
-            is_first_reply = count_assistant_messages(target_session_id) == 0
-
-            messages = [{"role": "system", "content": build_system_prompt(user_info)}]
-            conversation = build_conversation(target_session_id, limit=20)
-
-            # If the user attached files with this message, replace the last user
-            # message in the conversation with a multimodal content array so the
-            # LLM can see the images/PDFs directly.
-            if attachment_ids and ws_user_id:
-                from api.attachments import get_attachments_by_ids, build_multimodal_content
-                atts = get_attachments_by_ids(attachment_ids, ws_user_id)
-                if atts and conversation and conversation[-1].get("role") == "user":
-                    parts = []
-                    text = conversation[-1].get("content") or ""
-                    if text:
-                        parts.append({"type": "text", "text": text})
-                    for att in atts:
-                        parts.append(build_multimodal_content(att))
-                    conversation[-1] = {"role": "user", "content": parts}
-
-            messages.extend(conversation)
-
             async def on_event(event: dict):
                 await send_event(event["type"], session_id=target_session_id, **{
                     key: value for key, value in event.items() if key != "type"
                 })
 
-            await run_thinking_loop(
-                messages, on_event,
-                session_id=target_session_id,
-                user_info=user_info,
+            async def on_assistant_message(sid: str, content: str):
+                await send_message_added(sid, "assistant", content)
+
+            async def on_title(sid: str, title: str):
+                await send_event("session_title_updated", session_id=sid, title=title)
+
+            await run_session_turn(
+                target_session_id, user_content, user_info, on_event,
+                attachment_ids=attachment_ids,
+                attachments_user_id=ws_user_id,
                 client_ip=client_ip,
+                replay_history=True,
+                on_assistant_message=on_assistant_message,
+                on_title=on_title,
             )
-
-            assistant_content = None
-            for msg in reversed(messages):
-                if msg.get("role") == "assistant" and msg.get("content"):
-                    assistant_content = msg["content"]
-                    save_chat_message(target_session_id, "assistant", assistant_content)
-                    await send_message_added(target_session_id, "assistant", assistant_content)
-                    break
-
-            if is_first_reply and assistant_content:
-                async def _gen_and_notify():
-                    await generate_title(
-                        target_session_id,
-                        user_content,
-                        assistant_content,
-                        client_ip=client_ip,
-                        user_role=ws_user_role,
-                    )
-                    session = get_session(target_session_id)
-                    if session:
-                        await send_event(
-                            "session_title_updated",
-                            session_id=target_session_id,
-                            title=session["title"],
-                        )
-
-                asyncio.create_task(_gen_and_notify())
         except asyncio.CancelledError:
             raise
         except Exception as e:

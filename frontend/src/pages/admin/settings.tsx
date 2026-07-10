@@ -478,6 +478,130 @@ function LinkedAccountsCard() {
   );
 }
 
+function ChatApiCard({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("manager");
+  const [newToken, setNewToken] = useState<string | null>(null);
+
+  const { data: keys } = useQuery({
+    queryKey: ["api-keys"],
+    queryFn: () => api.getApiKeys(),
+    enabled,
+  });
+
+  const createMut = useMutation({
+    mutationFn: () => api.createApiKey(name.trim(), role),
+    onSuccess: (res) => {
+      setNewToken(res.token);
+      setName("");
+      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+    },
+  });
+
+  const revokeMut = useMutation({
+    mutationFn: (id: string) => api.revokeApiKey(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["api-keys"] }),
+  });
+
+  return (
+    <Card title={t("settings.chatApiTitle")}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-700">{t("settings.chatApiBody")}</p>
+          <p className="mt-1 text-xs text-gray-400">
+            {enabled ? t("settings.chatApiEnabled") : t("settings.chatApiDisabled")}
+          </p>
+        </div>
+        <button
+          onClick={onToggle}
+          className={`ml-4 shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
+            enabled
+              ? "bg-red-50 text-red-700 hover:bg-red-100"
+              : "bg-green-50 text-green-700 hover:bg-green-100"
+          }`}
+        >
+          {enabled ? t("common.disable") : t("common.enable")}
+        </button>
+      </div>
+
+      {enabled && (
+        <div className="mt-4 border-t border-gray-100 pt-4">
+          <div className="mb-2 text-xs font-medium text-gray-500">{t("settings.chatApiKeysTitle")}</div>
+
+          {newToken && (
+            <div className="mb-3 rounded-md bg-amber-50 p-3">
+              <p className="text-xs text-amber-800">{t("settings.chatApiTokenOnce")}</p>
+              <code className="mt-1 block break-all rounded bg-white px-2 py-1 font-mono text-xs text-gray-900">
+                {newToken}
+              </code>
+              <button
+                className="mt-2 text-xs text-blue-600 hover:underline"
+                onClick={() => navigator.clipboard?.writeText(newToken)}
+              >
+                {t("settings.chatApiCopy")}
+              </button>
+              <button
+                className="ml-3 mt-2 text-xs text-gray-500 hover:underline"
+                onClick={() => setNewToken(null)}
+              >
+                {t("settings.chatApiDismiss")}
+              </button>
+            </div>
+          )}
+
+          {keys && keys.length > 0 ? (
+            <ul className="mb-4 divide-y divide-gray-100">
+              {keys.map((k) => (
+                <li key={k.id} className="flex items-center justify-between py-2 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-900">{k.name}</span>
+                    <span className="ml-2 font-mono text-xs text-gray-400">{k.key_prefix}… · {k.role}</span>
+                    {k.revoked && <span className="ml-2 text-xs text-red-600">{t("settings.chatApiRevoked")}</span>}
+                  </div>
+                  {!k.revoked && (
+                    <button
+                      className="text-xs text-red-600 hover:underline"
+                      onClick={() => revokeMut.mutate(k.id)}
+                      disabled={revokeMut.isPending}
+                    >
+                      {t("settings.chatApiRevoke")}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mb-4 text-xs text-gray-400">{t("settings.chatApiNoKeys")}</p>
+          )}
+
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-48">
+              <Input
+                label={t("settings.chatApiName")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="lambda-web"
+              />
+            </div>
+            <Select
+              label={t("settings.chatApiRole")}
+              options={["viewer", "manager", "admin"]}
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+            />
+            <Button onClick={() => createMut.mutate()} disabled={!name.trim() || createMut.isPending}>
+              {t("settings.chatApiCreate")}
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-gray-400">{t("settings.chatApiWarn")}</p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -614,6 +738,17 @@ export default function SettingsPage() {
           )}
         </div>
       </Card>
+
+      {isAdmin && (
+        <ChatApiCard
+          enabled={settings?.chat_api_enabled === "1"}
+          onToggle={() =>
+            settingsMut.mutate({
+              chat_api_enabled: settings?.chat_api_enabled === "1" ? "0" : "1",
+            })
+          }
+        />
+      )}
 
       {isAdmin && <TokenSpendCard demoActive={!!pubStatus?.active} />}
 

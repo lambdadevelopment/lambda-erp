@@ -582,6 +582,10 @@ DEFAULTS = {
     # When "1", anyone may self-register (as viewer) without an invite. Default
     # off: after the first user (admin), registration is invite-only.
     "allow_public_signup": "0",
+    # When "1", the programmatic chat API (POST /api/v1/chat, Bearer API keys) is
+    # active. Default off — an admin turns it on and issues keys. See
+    # docs/chat-api-plan.md.
+    "chat_api_enabled": "0",
 }
 
 
@@ -621,3 +625,134 @@ def update_settings(data: dict, user: dict = Depends(require_admin)):
         if k not in settings:
             settings[k] = v
     return settings
+
+
+# ---------------------------------------------------------------------------
+# Programmatic chat API — Bearer API keys
+# ---------------------------------------------------------------------------
+
+API_KEY_PREFIX = "sk_erp_"
+API_KEY_ROLES = ("viewer", "manager", "admin")
+
+
+def hash_api_key(token: str) -> str:
+    """Hash an API token for storage/lookup. Tokens are high-entropy, so a fast
+    sha256 is sufficient (unlike user passwords, which use bcrypt)."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def generate_api_key() -> tuple[str, str, str]:
+    """Return (token, key_prefix, key_hash) for a fresh API key.
+
+    The full token is shown to the admin exactly once; only the hash + a short
+    display prefix are stored.
+    """
+    token = API_KEY_PREFIX + secrets.token_hex(24)
+    return token, token[: len(API_KEY_PREFIX) + 4], hash_api_key(token)
+
+
+def get_api_caller(request: Request) -> dict:
+    """FastAPI dependency for the programmatic chat API.
+
+    Gated by the `chat_api_enabled` Settings flag — when off the whole surface
+    404s (never advertised on instances that don't use it). Otherwise validates
+    the `Authorization: Bearer <token>` header against a non-revoked Api Key and
+    returns a `user_info`-shaped dict the chat agent already consumes (role gates
+    it; `name` == the key's session_owner so it can access its own sessions).
+    """
+    db = get_db()
+    if not _setting_enabled(db, "chat_api_enabled"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    header = request.headers.get("authorization", "")
+    if not header.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
+    token = header[7:].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Empty bearer token")
+
+    rows = db.sql(
+        'SELECT id, name, role, session_owner FROM "Api Key" WHERE key_hash = ? AND revoked = 0',
+        [hash_api_key(token)],
+    )
+    if not rows:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    key = dict(rows[0])
+
+    db.sql('UPDATE "Api Key" SET last_used_at = ? WHERE id = ?', [now(), key["id"]])
+    db.conn.commit()
+
+    return {
+        "name": key["session_owner"],
+        "full_name": key.get("name") or "API",
+        "role": key["role"],
+        "api_key_id": key["id"],
+    }
+
+
+class ApiKeyCreate(BaseModel):
+    name: str
+    role: str = "manager"
+
+
+def _serialize_api_key(row: dict) -> dict:
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "role": row["role"],
+        "key_prefix": row["key_prefix"],
+        "created_by": row.get("created_by"),
+        "created_at": row.get("created_at"),
+        "last_used_at": row.get("last_used_at"),
+        "revoked": bool(row.get("revoked")),
+    }
+
+
+@router.get("/api-keys")
+def list_api_keys(user: dict = Depends(require_admin)):
+    """List API keys (metadata only — the token is never returned)."""
+    db = get_db()
+    rows = db.sql(
+        'SELECT id, name, role, key_prefix, created_by, created_at, last_used_at, revoked '
+        'FROM "Api Key" ORDER BY created_at DESC'
+    )
+    return [_serialize_api_key(dict(r)) for r in rows]
+
+
+@router.post("/api-keys")
+def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_admin)):
+    """Create an API key. Returns the full token exactly once."""
+    name = (data.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="A name is required.")
+    role = data.role if data.role in API_KEY_ROLES else "manager"
+
+    db = get_db()
+    key_id = str(uuid.uuid4())
+    token, key_prefix, key_hash = generate_api_key()
+    db.sql(
+        'INSERT INTO "Api Key" '
+        '(id, name, key_hash, key_prefix, role, session_owner, created_by, created_at, last_used_at, revoked) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
+        [key_id, name, key_hash, key_prefix, role, f"apikey:{key_id}", user["name"], now(), None],
+    )
+    db.conn.commit()
+    row = {
+        "id": key_id, "name": name, "role": role, "key_prefix": key_prefix,
+        "created_by": user["name"], "created_at": now(), "last_used_at": None, "revoked": 0,
+    }
+    result = _serialize_api_key(row)
+    result["token"] = token  # shown once
+    return result
+
+
+@router.post("/api-keys/{key_id}/revoke")
+def revoke_api_key(key_id: str, user: dict = Depends(require_admin)):
+    """Revoke (soft-disable) an API key without deleting its history."""
+    db = get_db()
+    rows = db.sql('SELECT id FROM "Api Key" WHERE id = ?', [key_id])
+    if not rows:
+        raise HTTPException(status_code=404, detail="API key not found")
+    db.sql('UPDATE "Api Key" SET revoked = 1 WHERE id = ?', [key_id])
+    db.conn.commit()
+    return {"id": key_id, "revoked": True}

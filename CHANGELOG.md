@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.36] - 2026-07-10
+
+### Added
+- **Programmatic chat API (opt-in).** A synchronous REST surface over the chat
+  agent so an external application can hold a conversation with an ERP instance.
+  Off by default — an admin enables it (Settings → Chat API, `chat_api_enabled`)
+  and issues **Bearer API keys** (hashed at rest, shown once, per-key role
+  `viewer`/`manager`/`admin`, revocable). New `POST /api/v1/chat` plus
+  `GET`/`DELETE /api/v1/chat/sessions`, and admin `GET`/`POST /auth/api-keys`
+  (+ `.../revoke`). Conversations are **stateless by default** — each call answers
+  from the current message only (persisted to a rolling session for audit, not
+  replayed); passing a `session_id` opts into replaying that session's history.
+  The WebSocket chat and the REST API now share one `run_session_turn` driver
+  (the agent loop is unchanged). Disabled instances 404 the whole surface. New
+  `Api Key` table (SQLite + Postgres); CI covers the API on both backends. i18n
+  en/de/fr. See [`docs/chat-api.md`](docs/chat-api.md).
+
 ## [0.1.35] - 2026-07-01
 
 ### Added
