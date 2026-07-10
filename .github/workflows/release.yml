@@ -78,6 +78,11 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Publish (trusted publishing, no token)
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Completing a partially-published release (e.g. re-running after an
+          # npm-side failure) must not fail because this version already exists
+          # on PyPI. skip-existing makes this a no-op when 0.1.36 is already up.
+          skip-existing: true
 
   publish-npm:
     name: Publish to npm (@lambda-development/erp-core)
@@ -100,7 +105,11 @@ jobs:
       # older npm, so upgrade. No NODE_AUTH_TOKEN is set — the CLI authenticates
       # via the id-token once the package's trusted publisher is configured.
       - name: Ensure npm supports trusted publishing
-        run: npm install -g npm@latest
+        # Pin to npm 11.x. npm@latest briefly shipped 12.0.0, whose self-upgrade
+        # global install left `sigstore` unresolved and crashed provenance
+        # generation ("Cannot find module 'sigstore'"), breaking the 0.1.36 npm
+        # publish. 11.x (>= 11.5.1) supports OIDC trusted publishing + provenance.
+        run: npm install -g npm@11
       - name: Install + build library
         run: |
           npm ci
