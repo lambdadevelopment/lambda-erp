@@ -45,7 +45,16 @@ def _install_llm_stubs():
                         user_info=None, client_ip=None):
         _LAST["messages"] = [dict(m) for m in messages]
         _LAST["user_info"] = user_info
-        messages.append({"role": "assistant", "content": "stub-reply"})
+        _LAST["system"] = messages[0]["content"] if messages and messages[0].get("role") == "system" else ""
+        last_user = next((m.get("content") for m in reversed(messages)
+                          if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+        # Emit a document PDF link on demand so the structured-`documents` extraction
+        # can be exercised; otherwise the canonical "stub-reply" other checks assert on.
+        if "pdf" in (last_user or "").lower():
+            reply = "Here is the latest quotation: /api/documents/quotation/QTN-2298/pdf — I've attached it."
+        else:
+            reply = "stub-reply"
+        messages.append({"role": "assistant", "content": reply})
 
     async def fake_title(*args, **kwargs):
         return None
@@ -119,6 +128,22 @@ def check_chat_api():
         assert len(msgs) == 2 and msgs[0]["role"] == "system", msgs
         assert msgs[1] == {"role": "user", "content": "hello"}, msgs  # no history replayed
         assert _LAST["user_info"]["role"] == "manager", _LAST["user_info"]
+        # channel="api": the system prompt drops web-UI link guidance and tells the
+        # agent its reply is relayed to an external app.
+        sysprompt = _LAST["system"]
+        assert "external application" in sysprompt, "api-channel prompt not applied"
+        assert "Always use markdown links" not in sysprompt, "web-channel link guidance leaked into api reply"
+        # No document referenced -> empty structured list.
+        assert body.get("documents") == [], body
+
+        # --- Structured documents: a PDF reference becomes a fetchable ref. --
+        r = client.post("/api/v1/chat", json={"message": "give me the pdf of the latest offer"}, headers=auth_h)
+        assert r.status_code == 200, r.text[:300]
+        docs = r.json().get("documents")
+        assert docs and len(docs) == 1, docs
+        assert docs[0]["doctype"] == "quotation" and docs[0]["name"] == "QTN-2298", docs
+        assert docs[0]["pdf_url"].endswith("/api/v1/documents/quotation/QTN-2298/pdf"), docs
+        assert docs[0]["pdf_url"].startswith("http"), docs  # absolute, caller-fetchable
 
         # --- Rolling audit session: a second stateless call reuses it. ------
         r = client.post("/api/v1/chat", json={"message": "again"}, headers=auth_h)

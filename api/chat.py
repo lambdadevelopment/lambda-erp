@@ -1623,11 +1623,46 @@ def _prompt_analytics_context() -> str:
     )
 
 
-def build_system_prompt(user_info: dict | None = None):
+def build_system_prompt(user_info: dict | None = None, channel: str = "web"):
     user_name = user_info.get("full_name", "User") if user_info else "User"
     user_role = user_info.get("role", "viewer") if user_info else "viewer"
     company_context = _prompt_company_context()
     analytics_context = _prompt_analytics_context()
+
+    # Channel-aware link guidance. On the "web" channel the reader is a browser
+    # inside the ERP, so web-relative links are clickable. On the "api" channel the
+    # reply is relayed to an EXTERNAL app (lambda-web / the Lambda app) that is not
+    # logged into the ERP web UI — `/app` and `/masters` links are dead there, so we
+    # tell the agent to name records by their identifier instead. The one link we
+    # DO keep is the canonical `/api/documents/{slug}/{name}/pdf` PDF link: the
+    # calling platform detects it, fetches the bytes over the Bearer document API,
+    # and re-delivers the PDF as a native attachment. See docs/chat-api.md.
+    if channel == "api":
+        markdown_links_section = """## Referring to records
+Your reply is relayed to an external application (the user's Lambda assistant / app), NOT the ERP web interface. Links into the ERP web UI are NOT clickable there, so refer to every record by its human identifier in plain text — e.g. "Quotation **QTN-2298**", "Sales Invoice **SINV-0012**". Do not paste `/app/...`, `/masters/...`, or `/reports/...` URLs; they do not work outside the ERP."""
+        document_links_section = """## Delivering document PDFs
+When the user wants a document as a file (an invoice, quotation, delivery note, etc.), include exactly one canonical PDF reference in the form `/api/documents/{doctype-slug}/{name}/pdf` — e.g. `/api/documents/sales-invoice/SINV-0001/pdf`. The platform detects this reference, fetches the PDF, and delivers it to the user as a downloadable attachment. So phrase it as the file being provided ("I've attached the PDF of QTN-2298"), NOT as a link to click. Do not include `/app/...` view links or `/masters/...` links — name the record instead."""
+    else:
+        markdown_links_section = """## Always use markdown links
+Every URL you mention in chat MUST be written as a markdown link `[label](url)` — never a bare URL on its own. The chat UI only turns `[label](url)` into a proper clickable link. A bare `/reports/analytics?report_id=...` still works (a fallback linkifier catches it), but markdown form is the expected shape.
+
+Examples:
+- Correct: `[Open report](/reports/analytics?report_id=RPT-AB12CD34)`
+- Correct: `[SINV-0012](/app/sales-invoice/SINV-0012)`
+- Avoid:   `/reports/analytics?report_id=RPT-AB12CD34` (bare URL)"""
+        document_links_section = """## Document & Master Links
+When referencing records, always use clickable markdown links so the user can open them directly.
+
+**Documents** (quotations, invoices, orders, deliveries, receipts, payments, journal entries, stock entries):
+- **View/edit link:** `/app/{doctype-slug}/{name}` — e.g. [SINV-0001](/app/sales-invoice/SINV-0001)
+- **PDF link:** `/api/documents/{doctype-slug}/{name}/pdf` — e.g. [Download PDF](/api/documents/sales-invoice/SINV-0001/pdf)
+The doctype slug is the lowercase, hyphenated form: sales-invoice, purchase-order, delivery-note, etc.
+
+**Master records** (customer, supplier, item, warehouse, company):
+- **View/edit link:** `/masters/{master-type}/{name}` — e.g. [SUPP-001](/masters/supplier/SUPP-001), [CUST-003](/masters/customer/CUST-003), [ITEM-001](/masters/item/ITEM-001)
+- NEVER use `/app/...` for masters — that path is only for transactional documents.
+
+Always include the view link after creating, submitting, converting, or updating a record. Include the PDF link when the user asks for a printable version or when sharing an invoice/quotation."""
 
     if user_role == "admin":
         role_desc = "You have **admin** access — full permissions to create, edit, submit, cancel documents, manage master data, run reports, and manage users."
@@ -1654,13 +1689,7 @@ Important constraint on the analytics report tool: the JS transform runs **clien
 
 When you do build a custom report, pass a plain-language `intent` to `create_custom_analytics_report` (a specialist model writes the code for you) and reply with the returned `/reports/analytics?report_id=…` link as a markdown link. The draft appears under **Custom Analytics** in the sidebar so the user can reopen or share it.
 
-## Always use markdown links
-Every URL you mention in chat MUST be written as a markdown link `[label](url)` — never a bare URL on its own. The chat UI only turns `[label](url)` into a proper clickable link. A bare `/reports/analytics?report_id=...` still works (a fallback linkifier catches it), but markdown form is the expected shape.
-
-Examples:
-- Correct: `[Open report](/reports/analytics?report_id=RPT-AB12CD34)`
-- Correct: `[SINV-0012](/app/sales-invoice/SINV-0012)`
-- Avoid:   `/reports/analytics?report_id=RPT-AB12CD34` (bare URL)
+{markdown_links_section}
 
 ## Current User
 You are speaking with **{user_name}** (role: **{user_role}**).
@@ -1903,19 +1932,7 @@ If a `create_document` / `update_document` call fails with an "item not found" /
 - Be concise but helpful
 - If a tool call fails, explain the error clearly and suggest how to fix it
 
-## Document & Master Links
-When referencing records, always use clickable markdown links so the user can open them directly.
-
-**Documents** (quotations, invoices, orders, deliveries, receipts, payments, journal entries, stock entries):
-- **View/edit link:** `/app/{{doctype-slug}}/{{name}}` — e.g. [SINV-0001](/app/sales-invoice/SINV-0001)
-- **PDF link:** `/api/documents/{{doctype-slug}}/{{name}}/pdf` — e.g. [Download PDF](/api/documents/sales-invoice/SINV-0001/pdf)
-The doctype slug is the lowercase, hyphenated form: sales-invoice, purchase-order, delivery-note, etc.
-
-**Master records** (customer, supplier, item, warehouse, company):
-- **View/edit link:** `/masters/{{master-type}}/{{name}}` — e.g. [SUPP-001](/masters/supplier/SUPP-001), [CUST-003](/masters/customer/CUST-003), [ITEM-001](/masters/item/ITEM-001)
-- NEVER use `/app/...` for masters — that path is only for transactional documents.
-
-Always include the view link after creating, submitting, converting, or updating a record. Include the PDF link when the user asks for a printable version or when sharing an invoice/quotation.
+{document_links_section}
 
 ## File Attachments
 Users can attach PDFs and images (receipts, bills, contracts, screenshots) to their messages using the paperclip button in the chat input. When attachments are sent, they appear as multimodal content in the current message and you can directly see their contents.
@@ -2571,6 +2588,7 @@ async def run_session_turn(
     attachments_user_id: str | None = None,
     client_ip: str | None = None,
     replay_history: bool = True,
+    channel: str = "web",
     on_assistant_message=None,
     on_title=None,
 ) -> str | None:
@@ -2586,6 +2604,13 @@ async def run_session_turn(
         replayed (stateless REST default). The turn is still persisted by the
         caller for audit — it just isn't fed back to the model.
 
+    ``channel`` selects the link/formatting guidance in the system prompt:
+      - "web" (default) -> the reader is a browser inside the ERP; clickable
+        web-relative links (`/app/…`, `/masters/…`) are used.
+      - "api"           -> the reply is relayed to an external app (the chat API);
+        the agent names records in plain text and only emits the canonical PDF
+        reference the caller re-delivers as an attachment.
+
     Hooks (all optional, async):
       - ``on_event(event)``            streamed loop events (WS -> socket; REST -> no-op)
       - ``on_assistant_message(sid, content)``  fired after the reply is persisted
@@ -2593,7 +2618,7 @@ async def run_session_turn(
     """
     is_first_reply = count_assistant_messages(session_id) == 0
 
-    messages = [{"role": "system", "content": build_system_prompt(user_info)}]
+    messages = [{"role": "system", "content": build_system_prompt(user_info, channel=channel)}]
 
     if replay_history:
         conversation = build_conversation(session_id, limit=20)

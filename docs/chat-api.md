@@ -42,11 +42,37 @@ curl -X POST https://erp.example.com/api/v1/chat \
 ```json
 { "reply": "There are 3 open sales orders totalling …",
   "session_id": "a1b2c3d4",
-  "title": "Open sales orders" }
+  "title": "Open sales orders",
+  "documents": [] }
 ```
 
 The call **blocks** until the agent finishes (it may run several tool calls
 internally).
+
+**The reply is written for an external caller, not the ERP web UI.** On this
+programmatic surface the agent is told its answer is relayed to another app, so it
+refers to records by their identifier (e.g. "Quotation QTN-2298") in plain text
+instead of emitting `/app/…` or `/masters/…` links that only resolve inside the
+ERP. The one exception is document PDFs — see below.
+
+### `documents` — referenced PDFs, ready to fetch
+
+When the reply refers to a document the user may want as a file, the response
+carries a structured `documents` array so you don't have to parse the prose:
+
+```json
+{ "reply": "The latest offer is QTN-2298 — I've prepared the PDF.",
+  "session_id": "a1b2c3d4",
+  "title": "Latest offer",
+  "documents": [
+    { "doctype": "quotation", "name": "QTN-2298",
+      "pdf_url": "https://erp.example.com/api/v1/documents/quotation/QTN-2298/pdf" } ] }
+```
+
+Each `pdf_url` is absolute and points at the **Bearer-gated** document endpoint
+(below), so you fetch it directly with your key — no cookie session needed. An
+orchestrator turns these into native chat attachments. The array is empty when the
+reply references no documents.
 
 ### Sessions & history
 
@@ -81,10 +107,10 @@ Sessions are isolated per key — a key can only see/continue its own.
 
 ### Fetching documents
 
-A chat reply often links to a document, e.g.
-`[Download PDF](/api/documents/sales-invoice/SINV-0001/pdf)`. Those `/api/documents/…`
-routes are cookie-gated (the ERP web UI), so a Bearer caller can't open them. The
-chat API mirrors them so an orchestrator can fetch the actual bytes with its key:
+The chat response's `documents[].pdf_url` (above) already points here, but the
+endpoints are also directly addressable. The ERP web UI serves PDFs at cookie-gated
+`/api/documents/…` routes a Bearer caller can't open; the chat API mirrors them so
+an orchestrator can fetch the actual bytes with its key:
 
 ```bash
 # the rendered PDF (application/pdf)

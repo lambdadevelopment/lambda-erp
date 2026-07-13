@@ -15,6 +15,8 @@ Statefulness (see docs/chat-api-plan.md):
   - with `session_id` -> stateful: that session's history is replayed —
     caller-owned, ephemeral working memory for a single multi-step ERP task.
 """
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -37,6 +39,31 @@ router = APIRouter(prefix="/v1", tags=["chat-api"])
 class ChatApiRequest(BaseModel):
     message: str
     session_id: str | None = None
+
+
+# The agent references document PDFs as `/api/documents/{slug}/{name}/pdf` (a
+# cookie-gated web path). An API caller can't open that, so we surface each one as
+# a structured `documents` entry whose `pdf_url` points at the Bearer-gated v1
+# document endpoint the caller CAN fetch. This is the machine-readable contract the
+# orchestrator uses to attach PDFs, instead of re-parsing the prose itself.
+_PDF_LINK_RE = re.compile(r"/api/documents/([^/()\s]+)/([^/()\s]+)/pdf")
+
+
+def _extract_documents(reply: str, request: Request) -> list[dict]:
+    """Pull referenced document PDFs out of a reply as absolute, fetchable refs."""
+    base = str(request.base_url).rstrip("/")
+    seen: set[tuple[str, str]] = set()
+    documents: list[dict] = []
+    for doctype_slug, name in _PDF_LINK_RE.findall(reply or ""):
+        if (doctype_slug, name) in seen:
+            continue
+        seen.add((doctype_slug, name))
+        documents.append({
+            "doctype": doctype_slug,
+            "name": name,
+            "pdf_url": f"{base}/api/v1/documents/{doctype_slug}/{name}/pdf",
+        })
+    return documents
 
 
 async def _noop_event(event: dict) -> None:
@@ -85,6 +112,7 @@ async def chat(payload: ChatApiRequest, request: Request, caller: dict = Depends
         _noop_event,
         client_ip=_client_ip(request),
         replay_history=replay_history,
+        channel="api",
     )
 
     session = get_session(target_session_id)
@@ -92,6 +120,7 @@ async def chat(payload: ChatApiRequest, request: Request, caller: dict = Depends
         "reply": reply or "",
         "session_id": target_session_id,
         "title": session["title"] if session else None,
+        "documents": _extract_documents(reply or "", request),
     }
 
 
