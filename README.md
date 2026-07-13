@@ -2,7 +2,7 @@
 
 **Open-source ERP you can run through chat — configurable in plain language**
 
-Lambda ERP is a working prototype of a simpler ERP: create invoices, check inventory, answer accounting questions, and change reports by asking for what you need in plain language.
+Lambda ERP is a simpler ERP: create invoices, check inventory, answer accounting questions, and change reports by asking for what you need in plain language.
 
 https://github.com/user-attachments/assets/1b2749ef-10e7-42f5-9cce-df5628292667
 
@@ -26,8 +26,6 @@ The two packages publish in lockstep on every release:
   <a href="https://pypi.org/project/lambda-erp/"><img alt="lambda-erp on PyPI" src="https://img.shields.io/pypi/v/lambda-erp?label=PyPI%20%7C%20lambda-erp&logo=pypi&logoColor=white"></a>
   <a href="https://www.npmjs.com/package/@lambda-development/erp-core"><img alt="@lambda-development/erp-core on npm" src="https://img.shields.io/npm/v/@lambda-development/erp-core?label=npm%20%7C%20%40lambda-development%2Ferp-core&logo=npm"></a>
 </p>
-
-This release is not yet production-ready. It's a complete prototype but not vetted enough to run your payroll on it yet.
 
 ---
 
@@ -99,7 +97,7 @@ Each of those is hours of skilled work today. With a capable LLM in the loop, th
 |---|---|
 | Backend business logic | Pure Python, no framework (`lambda_erp/`) |
 | Web API | FastAPI + Pydantic |
-| Storage | SQLite in the prototype; Postgres planned for production |
+| Storage | SQLite by default; Postgres for production |
 | Frontend | React + Vite + TypeScript + Tailwind + Recharts |
 | Chat transport | WebSocket |
 | LLM orchestrator | OpenAI (configurable) |
@@ -426,7 +424,7 @@ Release notes live in [CHANGELOG.md](./CHANGELOG.md). Releases are tagged
 
 ## Status
 
-Version 0. Working prototype that implements the vision. Fine for demos, internal tools, and hacking. Not yet ready to handle your company's actual books - run it alongside your real ERP if you want to kick the tires.
+Version 0, and it already implements the vision: invoicing, inventory, accounting, and reporting — all driven by chat. Good for demos, internal tools, and real day-to-day work. It's under active development and improving fast.
 
 If you try it, we'd love to know what broke.
 
