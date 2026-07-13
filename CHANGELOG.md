@@ -13,6 +13,25 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.1.38] - 2026-07-13
+
+### Changed
+- **Channel-aware chat replies.** `run_session_turn` now takes a `channel`
+  (`web` | `api`); `POST /api/v1/chat` runs as `api`. On that channel the agent is
+  told its reply is relayed to an external application (not the ERP web UI), so it
+  names records in plain text and stops emitting `/app`, `/masters`, and
+  `/reports` links that are dead outside the ERP. It still emits the canonical
+  `/api/documents/{slug}/{name}/pdf` reference for documents (phrased as an
+  attachment, not a link to click). The web/WebSocket channel is unchanged.
+
+### Added
+- **Structured `documents` in the chat API response.** `POST /api/v1/chat` now
+  returns a `documents` array — each referenced PDF as
+  `{doctype, name, pdf_url}`, where `pdf_url` is an absolute, Bearer-gated
+  `/api/v1/documents/.../pdf` URL the caller can fetch directly. This is the
+  machine-readable contract an orchestrator uses to attach PDFs, instead of
+  re-parsing the reply prose.
+
 ## [0.1.37] - 2026-07-10
 
 ### Added
