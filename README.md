@@ -27,6 +27,8 @@ The two packages publish in lockstep on every release:
   <a href="https://www.npmjs.com/package/@lambda-development/erp-core"><img alt="@lambda-development/erp-core on npm" src="https://img.shields.io/npm/v/@lambda-development/erp-core?label=npm%20%7C%20%40lambda-development%2Ferp-core&logo=npm"></a>
 </p>
 
+Want to see them wired together? **[lambda-erp-example](https://github.com/lambdadevelopment/lambda-erp-example)** is a minimal reference deployment that consumes both packages via version pins (no fork, no vendoring) — a ready-made template for your own deployment.
+
 ---
 
 ## Why another ERP?
