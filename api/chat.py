@@ -2271,7 +2271,7 @@ async def run_thinking_loop(
 ):
     """Run the agentic reasoning loop.
 
-    The orchestrator is always OpenAI (gpt-5.4). When GPT decides to call
+    The orchestrator is always OpenAI (gpt-5.6-terra). When GPT decides to call
     `create_custom_analytics_report` or `update_custom_analytics_report`
     with an intent/feedback hint, the tool handler itself delegates the
     code-generation step to Anthropic (ANTHROPIC_CODE_MODEL). We emit an
@@ -2368,7 +2368,7 @@ async def run_thinking_loop(
         # on ANY exit path — including asyncio.CancelledError raised after
         # the SDK call has already returned but before settle() ran.
         settled = False
-        model_name = "gpt-5.4"
+        model_name = "gpt-5.6-terra"
         try:
             print(f"[chat_llm] provider=openai model={model_name} session_id={session_id or '-'} iter={iteration + 1}", flush=True)
             await on_event({"type": "llm_provider", "provider": "openai", "model": model_name})
