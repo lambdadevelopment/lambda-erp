@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -64,7 +65,9 @@ const MASTER_FIELDS: Record<string, FieldDef[]> = {
   ],
   company: [
     { name: "company_name", label: "Company Name", type: "text", required: true },
-    { name: "default_currency", label: "Currency", type: "text", default: "USD" },
+    // No static default — a new record's currency is pre-filled with the
+    // company base currency by the effect in the form component below.
+    { name: "default_currency", label: "Currency", type: "text" },
     { name: "email", label: "Email", type: "text" },
     { name: "phone", label: "Phone", type: "text" },
     { name: "address", label: "Address", type: "textarea" },
@@ -121,6 +124,22 @@ export default function MasterFormPage() {
       setFormData(existing);
     }
   }, [isNew, existing, fields]);
+
+  // New masters with a default_currency field are pre-filled with the COMPANY
+  // base currency (a hardcoded "USD" default gave new customers USD in a CHF
+  // shop). Separate effect so the base-currency query resolving doesn't wipe
+  // other fields the user already typed; it only fills an untouched currency.
+  const companyCurrency = useBaseCurrency();
+  useEffect(() => {
+    if (!isNew || !companyCurrency) return;
+    if (!fields.some((f) => f.name === "default_currency")) return;
+    setFormData((prev: Record<string, any>) => {
+      const current = prev.default_currency;
+      if (current && current !== "USD") return prev; // user already chose one
+      if (current === companyCurrency) return prev;
+      return { ...prev, default_currency: companyCurrency };
+    });
+  }, [isNew, fields, companyCurrency]);
 
   // Mutations
   const createMut = useMutation({
