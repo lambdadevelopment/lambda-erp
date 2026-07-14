@@ -1,6 +1,6 @@
 [project]
 name = "lambda-erp"
-version = "0.1.47"
+version = "0.1.48"
 description = "Core ERP logic - accounting, sales, purchasing, inventory"
 readme = "README.md"
 license = "MIT"
