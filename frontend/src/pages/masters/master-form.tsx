@@ -243,11 +243,21 @@ export default function MasterFormPage() {
             const isRequired = field.required && !(isNew && field.name === "name" && AUTO_NAME_TYPES.has(type ?? ""));
 
             if (field.type === "select" && field.options) {
+              // A value saved through the API/chat can lie outside the hardcoded
+              // option list (e.g. stock_uom "Stück") — a controlled <select> would
+              // then silently render the "Select..." placeholder as if the field
+              // were unset. Surface the stored value as an extra option so the GUI
+              // shows what the backend actually holds.
+              const current = formData[field.name];
+              const options =
+                typeof current === "string" && current !== "" && !field.options.includes(current)
+                  ? [...field.options, current]
+                  : field.options;
               return (
                 <div key={field.name}>
                   <Select
                     label={fieldLabel(field)}
-                    options={field.options}
+                    options={options}
                     value={formData[field.name] ?? ""}
                     required={isRequired}
                     disabled={isReadOnly}

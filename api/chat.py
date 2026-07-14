@@ -622,7 +622,7 @@ TOOLS = [
                 "Every record's id is `name`. Customer/Supplier/Item/Warehouse auto-generate it (CUST-/SUPP-/ITEM-/WH-NNN) when omitted; Company/Account/Cost Center have NO auto-id, so `name` is required for them.\n\n"
                 "**Customer fields:** name (optional custom id; auto CUST-NNN), customer_name (required), customer_group, territory, default_currency, credit_limit, email, phone, address, city, zip_code, country, tax_id, contact_person (named contact at the customer), contact_email, contact_phone.\n"
                 "**Supplier fields:** name (optional custom id; auto SUPP-NNN), supplier_name (required), supplier_group, default_currency, email, phone, address, city, zip_code, country, tax_id.\n"
-                "**Item fields:** item_code (the unique item code/id, e.g. \"SVC-SPARK\" — optional, may use ANY prefix, not just ITEM; auto-generated as ITEM-NNN if omitted), item_name (required, the human-readable name), item_group, stock_uom, standard_rate, is_stock_item, default_warehouse, description.\n"
+                "**Item fields:** item_code (the unique item code/id, e.g. \"SVC-SPARK\" — optional, may use ANY prefix, not just ITEM; auto-generated as ITEM-NNN if omitted), item_name (required, the human-readable name), item_group, stock_uom (prefer one of the units listed under 'Item Units' in the system context — exact spelling; a new unit is allowed when none fits), standard_rate, is_stock_item, default_warehouse, description.\n"
                 "**Warehouse fields:** name (optional custom id; auto WH-NNN), warehouse_name (required), company, parent_warehouse (omit or null when not needed), address, city, zip_code, country.\n"
                 "**Company fields:** name (the company id — optional, defaults to company_name), company_name (required), default_currency, email, phone, address, city, zip_code, country, tax_id.\n"
                 "**Account fields:** name (REQUIRED — full account id, conventionally \"<account_name> - <company abbr>\", e.g. \"Marketing Expenses - LAMB\"), account_name (required), company (required), root_type (Asset/Liability/Equity/Income/Expense), report_type (\"Balance Sheet\" or \"Profit and Loss\"), account_type (e.g. Receivable, Payable, Bank, Cash, Stock, Tax), parent_account, account_currency, is_group (0/1).\n"
@@ -1623,11 +1623,37 @@ def _prompt_analytics_context() -> str:
     )
 
 
+def _prompt_uom_context() -> str:
+    """Dynamic list of the item units (stock_uom) currently in use.
+
+    The unit list is NOT a fixed vocabulary — users add new units simply by
+    using them — so the guidance is rebuilt from the Item table on every turn
+    rather than hardcoded. Nudging the agent toward existing spellings keeps
+    items consistent (and matching the GUI's dropdown), while still allowing a
+    genuinely new unit when none fits.
+    """
+    try:
+        rows = get_db().get_all("Item", fields=["stock_uom"], limit=1000)
+    except Exception:
+        return ""
+    uoms = sorted({(row.get("stock_uom") or "").strip() for row in rows} - {""})
+    if not uoms:
+        return ""
+    return (
+        "## Item Units (stock_uom)\n"
+        f"Units currently in use in this ERP: {', '.join(uoms)}.\n"
+        "When creating or editing items, PREFER one of these exact spellings so "
+        "items stay consistent. A new unit is allowed when none of them fits — "
+        "use a short singular noun (e.g. \"Stück\", \"Bottle\", \"Hour\").\n"
+    )
+
+
 def build_system_prompt(user_info: dict | None = None, channel: str = "web"):
     user_name = user_info.get("full_name", "User") if user_info else "User"
     user_role = user_info.get("role", "viewer") if user_info else "viewer"
     company_context = _prompt_company_context()
     analytics_context = _prompt_analytics_context()
+    uom_context = _prompt_uom_context()
 
     # Channel-aware link guidance. On the "web" channel the reader is a browser
     # inside the ERP, so web-relative links are clickable. On the "api" channel the
@@ -1697,7 +1723,7 @@ You are speaking with **{user_name}** (role: **{user_role}**).
 
 {company_context}
 {analytics_context}
-
+{uom_context}
 ## User Roles
 Lambda ERP has four roles:
 - **admin**: Full access to everything — documents, masters, reports, company setup, and user management (inviting team members, changing roles).
