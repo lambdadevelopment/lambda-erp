@@ -1321,7 +1321,7 @@ class Database:
             """CREATE TABLE IF NOT EXISTS "Api Key" (
                 id TEXT PRIMARY KEY,
                 name TEXT,
-                user TEXT NOT NULL,
+                owner TEXT NOT NULL,
                 key_hash TEXT UNIQUE,
                 key_prefix TEXT,
                 role TEXT DEFAULT 'manager',
@@ -1907,14 +1907,14 @@ def _m019_api_keys_per_user(db: "Database") -> None:
     owner's live role). Existing v1 rows are DROPPED, not migrated — decided
     2026-07-14: no legacy rules; holders simply re-issue their keys.
     """
-    if "user" in db._get_table_columns("Api Key"):
+    if "owner" in db._get_table_columns("Api Key"):
         return  # fresh install — table already has the v2 shape
     db.conn.execute('DROP TABLE "Api Key"')
     db.conn.execute(
         """CREATE TABLE "Api Key" (
             id TEXT PRIMARY KEY,
             name TEXT,
-            user TEXT NOT NULL,
+            owner TEXT NOT NULL,
             key_hash TEXT UNIQUE,
             key_prefix TEXT,
             role TEXT DEFAULT 'manager',

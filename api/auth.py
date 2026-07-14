@@ -680,14 +680,14 @@ def get_api_caller(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Empty bearer token")
 
     rows = db.sql(
-        'SELECT id, name, user, role, session_owner FROM "Api Key" WHERE key_hash = ? AND revoked = 0',
+        'SELECT id, name, owner, role, session_owner FROM "Api Key" WHERE key_hash = ? AND revoked = 0',
         [hash_api_key(token)],
     )
     if not rows:
         raise HTTPException(status_code=401, detail="Invalid API key")
     key = dict(rows[0])
 
-    owner = db.get_value("User", key["user"], ["name", "full_name", "role", "enabled"])
+    owner = db.get_value("User", key["owner"], ["name", "full_name", "role", "enabled"])
     if not owner or not owner.get("enabled"):
         raise HTTPException(status_code=401, detail="Invalid API key")
     effective_role = (
@@ -699,10 +699,10 @@ def get_api_caller(request: Request) -> dict:
 
     return {
         "name": key["session_owner"],
-        "full_name": f"{owner.get('full_name') or key['user']} (API)",
+        "full_name": f"{owner.get('full_name') or key['owner']} (API)",
         "role": effective_role,
         "api_key_id": key["id"],
-        "api_key_user": key["user"],
+        "api_key_user": key["owner"],
     }
 
 
@@ -717,7 +717,7 @@ def _serialize_api_key(row: dict) -> dict:
     return {
         "id": row["id"],
         "name": row["name"],
-        "user": row.get("user"),
+        "user": row.get("owner"),
         "role": row["role"],
         "key_prefix": row["key_prefix"],
         "created_at": row.get("created_at"),
@@ -727,7 +727,7 @@ def _serialize_api_key(row: dict) -> dict:
 
 
 def _get_key_or_404(db, key_id: str) -> dict:
-    rows = db.sql('SELECT id, user, revoked FROM "Api Key" WHERE id = ?', [key_id])
+    rows = db.sql('SELECT id, owner, revoked FROM "Api Key" WHERE id = ?', [key_id])
     if not rows:
         raise HTTPException(status_code=404, detail="API key not found")
     return dict(rows[0])
@@ -735,7 +735,7 @@ def _get_key_or_404(db, key_id: str) -> dict:
 
 def _require_key_access(key: dict, user: dict) -> None:
     """A key is managed by its owner; admins can manage every key."""
-    if key["user"] != user["name"] and user["role"] != "admin":
+    if key["owner"] != user["name"] and user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Not your API key")
 
 
@@ -748,13 +748,13 @@ def list_api_keys(user: dict = Depends(require_viewer)):
     db = get_db()
     if user["role"] == "admin":
         rows = db.sql(
-            'SELECT id, name, user, role, key_prefix, created_at, last_used_at, revoked '
+            'SELECT id, name, owner, role, key_prefix, created_at, last_used_at, revoked '
             'FROM "Api Key" ORDER BY created_at DESC'
         )
     else:
         rows = db.sql(
-            'SELECT id, name, user, role, key_prefix, created_at, last_used_at, revoked '
-            'FROM "Api Key" WHERE user = ? ORDER BY created_at DESC',
+            'SELECT id, name, owner, role, key_prefix, created_at, last_used_at, revoked '
+            'FROM "Api Key" WHERE owner = ? ORDER BY created_at DESC',
             [user["name"]],
         )
     return [_serialize_api_key(dict(r)) for r in rows]
@@ -789,13 +789,13 @@ def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_viewer)):
     created_at = now()
     db.sql(
         'INSERT INTO "Api Key" '
-        '(id, name, user, key_hash, key_prefix, role, session_owner, created_at, last_used_at, revoked) '
+        '(id, name, owner, key_hash, key_prefix, role, session_owner, created_at, last_used_at, revoked) '
         'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
         [key_id, name, user["name"], key_hash, key_prefix, role, f"api:{user['name']}", created_at, None],
     )
     db.conn.commit()
     row = {
-        "id": key_id, "name": name, "user": user["name"], "role": role, "key_prefix": key_prefix,
+        "id": key_id, "name": name, "owner": user["name"], "role": role, "key_prefix": key_prefix,
         "created_at": created_at, "last_used_at": None, "revoked": 0,
     }
     result = _serialize_api_key(row)
