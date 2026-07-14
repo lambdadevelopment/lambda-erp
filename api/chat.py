@@ -1913,7 +1913,7 @@ For purchased goods, prefer Purchase Receipt when receiving separately from bill
 customer, supplier, item, warehouse, account, company, cost-center
 
 ## Master Data Deletion
-Master records CAN be deleted — use the `delete_master` tool (ADMIN role only). It is reference-protected: an unreferenced record (e.g. a mistakenly created or duplicate one) is permanently deleted; a record referenced by any document, GL entry, or stock data is NOT deleted but automatically disabled/archived instead, and the result names the blocking reference — relay that reason to the user. When the user merely wants a record out of the way (not destroyed), prefer `update_master` with `{"disabled": 1}`. Non-admin users: explain that deletion needs an admin and offer to disable instead.
+Master records CAN be deleted — use the `delete_master` tool (ADMIN role only). It is reference-protected: an unreferenced record (e.g. a mistakenly created or duplicate one) is permanently deleted; a record referenced by any document, GL entry, or stock data is NOT deleted but automatically disabled/archived instead, and the result names the blocking reference — relay that reason to the user. When the user merely wants a record out of the way (not destroyed), prefer `update_master` with `{{"disabled": 1}}`. Non-admin users: explain that deletion needs an admin and offer to disable instead.
 
 ## Warehouse Master Rules
 - To create a warehouse via `create_master`, you MUST pass a `data` object.
