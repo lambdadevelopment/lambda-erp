@@ -651,14 +651,22 @@ def generate_api_key() -> tuple[str, str, str]:
     return token, token[: len(API_KEY_PREFIX) + 4], hash_api_key(token)
 
 
+def _role_rank(role: str) -> int:
+    return ROLE_HIERARCHY.get(role, 0)
+
+
 def get_api_caller(request: Request) -> dict:
     """FastAPI dependency for the programmatic chat API.
 
     Gated by the `chat_api_enabled` Settings flag — when off the whole surface
     404s (never advertised on instances that don't use it). Otherwise validates
-    the `Authorization: Bearer <token>` header against a non-revoked Api Key and
-    returns a `user_info`-shaped dict the chat agent already consumes (role gates
-    it; `name` == the key's session_owner so it can access its own sessions).
+    the `Authorization: Bearer <token>` header against a non-revoked Api Key.
+
+    Keys are per-user credentials: the effective role is resolved LIVE as
+    min(key's role cap, owner's current role), and a disabled or deleted owner
+    kills every one of their keys immediately. `name` is the key's
+    session_owner (``api:<username>``) — all of one user's keys share a session
+    space, separate from their interactive web chats.
     """
     db = get_db()
     if not _setting_enabled(db, "chat_api_enabled"):
@@ -672,74 +680,123 @@ def get_api_caller(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Empty bearer token")
 
     rows = db.sql(
-        'SELECT id, name, role, session_owner FROM "Api Key" WHERE key_hash = ? AND revoked = 0',
+        'SELECT id, name, user, role, session_owner FROM "Api Key" WHERE key_hash = ? AND revoked = 0',
         [hash_api_key(token)],
     )
     if not rows:
         raise HTTPException(status_code=401, detail="Invalid API key")
     key = dict(rows[0])
 
+    owner = db.get_value("User", key["user"], ["name", "full_name", "role", "enabled"])
+    if not owner or not owner.get("enabled"):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    effective_role = (
+        key["role"] if _role_rank(key["role"]) <= _role_rank(owner["role"]) else owner["role"]
+    )
+
     db.sql('UPDATE "Api Key" SET last_used_at = ? WHERE id = ?', [now(), key["id"]])
     db.conn.commit()
 
     return {
         "name": key["session_owner"],
-        "full_name": key.get("name") or "API",
-        "role": key["role"],
+        "full_name": f"{owner.get('full_name') or key['user']} (API)",
+        "role": effective_role,
         "api_key_id": key["id"],
+        "api_key_user": key["user"],
     }
 
 
 class ApiKeyCreate(BaseModel):
     name: str
-    role: str = "manager"
+    # Optional role CAP. Defaults to the creator's own role; may only be equal
+    # or lower — a key can never out-rank its owner.
+    role: str | None = None
 
 
 def _serialize_api_key(row: dict) -> dict:
     return {
         "id": row["id"],
         "name": row["name"],
+        "user": row.get("user"),
         "role": row["role"],
         "key_prefix": row["key_prefix"],
-        "created_by": row.get("created_by"),
         "created_at": row.get("created_at"),
         "last_used_at": row.get("last_used_at"),
         "revoked": bool(row.get("revoked")),
     }
 
 
+def _get_key_or_404(db, key_id: str) -> dict:
+    rows = db.sql('SELECT id, user, revoked FROM "Api Key" WHERE id = ?', [key_id])
+    if not rows:
+        raise HTTPException(status_code=404, detail="API key not found")
+    return dict(rows[0])
+
+
+def _require_key_access(key: dict, user: dict) -> None:
+    """A key is managed by its owner; admins can manage every key."""
+    if key["user"] != user["name"] and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Not your API key")
+
+
 @router.get("/api-keys")
-def list_api_keys(user: dict = Depends(require_admin)):
-    """List API keys (metadata only — the token is never returned)."""
+def list_api_keys(user: dict = Depends(require_viewer)):
+    """List API keys (metadata only — the token is never returned).
+
+    Users see their own keys; admins see everyone's.
+    """
     db = get_db()
-    rows = db.sql(
-        'SELECT id, name, role, key_prefix, created_by, created_at, last_used_at, revoked '
-        'FROM "Api Key" ORDER BY created_at DESC'
-    )
+    if user["role"] == "admin":
+        rows = db.sql(
+            'SELECT id, name, user, role, key_prefix, created_at, last_used_at, revoked '
+            'FROM "Api Key" ORDER BY created_at DESC'
+        )
+    else:
+        rows = db.sql(
+            'SELECT id, name, user, role, key_prefix, created_at, last_used_at, revoked '
+            'FROM "Api Key" WHERE user = ? ORDER BY created_at DESC',
+            [user["name"]],
+        )
     return [_serialize_api_key(dict(r)) for r in rows]
 
 
 @router.post("/api-keys")
-def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_admin)):
-    """Create an API key. Returns the full token exactly once."""
+def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_viewer)):
+    """Create an API key for YOURSELF. Returns the full token exactly once.
+
+    Self-service: any logged-in (non-demo) user can mint keys, because a key
+    can never exceed its owner's live role — the optional `role` is a cap that
+    must be equal or lower.
+    """
+    if user["role"] == "public_manager":
+        raise HTTPException(status_code=403, detail="Demo mode cannot create API keys.")
     name = (data.name or "").strip()
     if not name:
         raise HTTPException(status_code=422, detail="A name is required.")
-    role = data.role if data.role in API_KEY_ROLES else "manager"
+
+    role = data.role or user["role"]
+    if role not in API_KEY_ROLES:
+        raise HTTPException(status_code=422, detail=f"Invalid role: {role}")
+    if _role_rank(role) > _role_rank(user["role"]):
+        raise HTTPException(
+            status_code=403,
+            detail=f"A key cannot out-rank its owner (your role: {user['role']}).",
+        )
 
     db = get_db()
     key_id = str(uuid.uuid4())
     token, key_prefix, key_hash = generate_api_key()
+    created_at = now()
     db.sql(
         'INSERT INTO "Api Key" '
-        '(id, name, key_hash, key_prefix, role, session_owner, created_by, created_at, last_used_at, revoked) '
+        '(id, name, user, key_hash, key_prefix, role, session_owner, created_at, last_used_at, revoked) '
         'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
-        [key_id, name, key_hash, key_prefix, role, f"apikey:{key_id}", user["name"], now(), None],
+        [key_id, name, user["name"], key_hash, key_prefix, role, f"api:{user['name']}", created_at, None],
     )
     db.conn.commit()
     row = {
-        "id": key_id, "name": name, "role": role, "key_prefix": key_prefix,
-        "created_by": user["name"], "created_at": now(), "last_used_at": None, "revoked": 0,
+        "id": key_id, "name": name, "user": user["name"], "role": role, "key_prefix": key_prefix,
+        "created_at": created_at, "last_used_at": None, "revoked": 0,
     }
     result = _serialize_api_key(row)
     result["token"] = token  # shown once
@@ -747,12 +804,29 @@ def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_admin)):
 
 
 @router.post("/api-keys/{key_id}/revoke")
-def revoke_api_key(key_id: str, user: dict = Depends(require_admin)):
-    """Revoke (soft-disable) an API key without deleting its history."""
+def revoke_api_key(key_id: str, user: dict = Depends(require_viewer)):
+    """Revoke (soft-disable) an API key. Owner or admin."""
     db = get_db()
-    rows = db.sql('SELECT id FROM "Api Key" WHERE id = ?', [key_id])
-    if not rows:
-        raise HTTPException(status_code=404, detail="API key not found")
+    key = _get_key_or_404(db, key_id)
+    _require_key_access(key, user)
     db.sql('UPDATE "Api Key" SET revoked = 1 WHERE id = ?', [key_id])
     db.conn.commit()
     return {"id": key_id, "revoked": True}
+
+
+@router.delete("/api-keys/{key_id}")
+def delete_api_key(key_id: str, user: dict = Depends(require_viewer)):
+    """Hard-delete a REVOKED API key. Owner or admin.
+
+    Two-step by design: a live key must be revoked first (409 otherwise), so a
+    key can't vanish while still usable. Past sessions keep their session_owner
+    string, so historical attribution survives the row's deletion.
+    """
+    db = get_db()
+    key = _get_key_or_404(db, key_id)
+    _require_key_access(key, user)
+    if not key.get("revoked"):
+        raise HTTPException(status_code=409, detail="Revoke the key first, then delete it.")
+    db.sql('DELETE FROM "Api Key" WHERE id = ?', [key_id])
+    db.conn.commit()
+    return {"id": key_id, "deleted": True}

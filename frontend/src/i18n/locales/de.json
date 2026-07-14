@@ -282,7 +282,7 @@
     "chatApiName": "Name",
     "chatApiRole": "Rolle",
     "chatApiCreate": "Schlüssel erstellen",
-    "chatApiWarn": "Ein Schlüssel handelt mit seiner gewählten Rolle. Ein Manager-Schlüssel kann per Chat Belege erstellen und stornieren — behandeln Sie ihn wie ein Passwort.",
+    "chatApiWarn": "Ein Key handelt mit Ihrer Identität und höchstens Ihrer Rolle — wie ein Passwort behandeln. Erst widerrufen, dann löschen.",
     "publicTitle": "Öffentlicher Zugriff (Demomodus)",
     "publicActive": "Aktiv",
     "publicActiveBody": "Der öffentliche Zugriff ist aktiviert. Jeder kann die Anwendung ohne Anmeldung nutzen. Alle Besucher erhalten Manager-Rechte.",
@@ -293,7 +293,9 @@
     "enableWarning": "Dadurch kann jeder ohne Anmeldung auf die Anwendung zugreifen. Besucher können Dokumente erstellen, bearbeiten und buchen. Ihr Administratorkonto erfordert weiterhin eine Anmeldung.",
     "yesEnable": "Ja, aktivieren",
     "enabling": "Wird aktiviert...",
-    "tokenSpendTitle": "Token-Ausgaben"
+    "tokenSpendTitle": "Token-Ausgaben",
+    "chatApiDelete": "Löschen",
+    "chatApiPersonal": "Persönliche Bearer-Keys für die programmatische Chat-API. Ein Key handelt als SIE: begrenzt auf Ihre Rolle, folgt Rollenänderungen live und erlischt mit Ihrem Konto. Setzt voraus, dass der Admin die Chat-API aktiviert hat."
   },
   "status": {
     "Draft": "Entwurf",

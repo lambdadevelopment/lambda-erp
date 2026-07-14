@@ -478,17 +478,25 @@ function LinkedAccountsCard() {
   );
 }
 
-function ChatApiCard({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+const ROLE_RANK: Record<string, number> = { viewer: 1, manager: 2, admin: 3 };
+
+// Self-service API keys: every key belongs to its creator and can never act
+// above the owner's live role (the picked role is only a CAP). Non-admins see
+// and manage their own keys; admins see everyone's.
+function ApiKeysSection({ ownRole }: { ownRole: string }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
-  const [role, setRole] = useState("manager");
+  const [role, setRole] = useState(ownRole in ROLE_RANK ? ownRole : "viewer");
   const [newToken, setNewToken] = useState<string | null>(null);
+
+  const roleOptions = ["viewer", "manager", "admin"].filter(
+    (r) => ROLE_RANK[r] <= (ROLE_RANK[ownRole] ?? 1),
+  );
 
   const { data: keys } = useQuery({
     queryKey: ["api-keys"],
     queryFn: () => api.getApiKeys(),
-    enabled,
   });
 
   const createMut = useMutation({
@@ -504,6 +512,105 @@ function ChatApiCard({ enabled, onToggle }: { enabled: boolean; onToggle: () => 
     mutationFn: (id: string) => api.revokeApiKey(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["api-keys"] }),
   });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => api.deleteApiKey(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["api-keys"] }),
+  });
+
+  return (
+    <div>
+      {newToken && (
+            <div className="mb-3 rounded-md bg-amber-50 p-3">
+              <p className="text-xs text-amber-800">{t("settings.chatApiTokenOnce")}</p>
+              <code className="mt-1 block break-all rounded bg-white px-2 py-1 font-mono text-xs text-gray-900">
+                {newToken}
+              </code>
+              <button
+                className="mt-2 text-xs text-blue-600 hover:underline"
+                onClick={() => navigator.clipboard?.writeText(newToken)}
+              >
+                {t("settings.chatApiCopy")}
+              </button>
+              <button
+                className="ml-3 mt-2 text-xs text-gray-500 hover:underline"
+                onClick={() => setNewToken(null)}
+              >
+                {t("settings.chatApiDismiss")}
+              </button>
+            </div>
+          )}
+
+      {keys && keys.length > 0 ? (
+        <ul className="mb-4 divide-y divide-gray-100">
+          {keys.map((k) => (
+            <li key={k.id} className="flex items-center justify-between py-2 text-sm">
+              <div>
+                <span className="font-medium text-gray-900">{k.name}</span>
+                <span className="ml-2 font-mono text-xs text-gray-400">
+                  {k.key_prefix}… · {k.role}
+                  {k.user ? ` · ${k.user}` : ""}
+                </span>
+                {k.revoked && <span className="ml-2 text-xs text-red-600">{t("settings.chatApiRevoked")}</span>}
+              </div>
+              {k.revoked ? (
+                <button
+                  className="text-xs text-red-600 hover:underline"
+                  onClick={() => deleteMut.mutate(k.id)}
+                  disabled={deleteMut.isPending}
+                >
+                  {t("settings.chatApiDelete")}
+                </button>
+              ) : (
+                <button
+                  className="text-xs text-red-600 hover:underline"
+                  onClick={() => revokeMut.mutate(k.id)}
+                  disabled={revokeMut.isPending}
+                >
+                  {t("settings.chatApiRevoke")}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mb-4 text-xs text-gray-400">{t("settings.chatApiNoKeys")}</p>
+      )}
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-48">
+          <Input
+            label={t("settings.chatApiName")}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="lambda-web"
+          />
+        </div>
+        <Select
+          label={t("settings.chatApiRole")}
+          options={roleOptions}
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+        />
+        <Button onClick={() => createMut.mutate()} disabled={!name.trim() || createMut.isPending}>
+          {t("settings.chatApiCreate")}
+        </Button>
+      </div>
+      <p className="mt-2 text-xs text-gray-400">{t("settings.chatApiWarn")}</p>
+    </div>
+  );
+}
+
+function ChatApiCard({
+  enabled,
+  onToggle,
+  ownRole,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+  ownRole: string;
+}) {
+  const { t } = useTranslation();
 
   return (
     <Card title={t("settings.chatApiTitle")}>
@@ -529,73 +636,7 @@ function ChatApiCard({ enabled, onToggle }: { enabled: boolean; onToggle: () => 
       {enabled && (
         <div className="mt-4 border-t border-gray-100 pt-4">
           <div className="mb-2 text-xs font-medium text-gray-500">{t("settings.chatApiKeysTitle")}</div>
-
-          {newToken && (
-            <div className="mb-3 rounded-md bg-amber-50 p-3">
-              <p className="text-xs text-amber-800">{t("settings.chatApiTokenOnce")}</p>
-              <code className="mt-1 block break-all rounded bg-white px-2 py-1 font-mono text-xs text-gray-900">
-                {newToken}
-              </code>
-              <button
-                className="mt-2 text-xs text-blue-600 hover:underline"
-                onClick={() => navigator.clipboard?.writeText(newToken)}
-              >
-                {t("settings.chatApiCopy")}
-              </button>
-              <button
-                className="ml-3 mt-2 text-xs text-gray-500 hover:underline"
-                onClick={() => setNewToken(null)}
-              >
-                {t("settings.chatApiDismiss")}
-              </button>
-            </div>
-          )}
-
-          {keys && keys.length > 0 ? (
-            <ul className="mb-4 divide-y divide-gray-100">
-              {keys.map((k) => (
-                <li key={k.id} className="flex items-center justify-between py-2 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-900">{k.name}</span>
-                    <span className="ml-2 font-mono text-xs text-gray-400">{k.key_prefix}… · {k.role}</span>
-                    {k.revoked && <span className="ml-2 text-xs text-red-600">{t("settings.chatApiRevoked")}</span>}
-                  </div>
-                  {!k.revoked && (
-                    <button
-                      className="text-xs text-red-600 hover:underline"
-                      onClick={() => revokeMut.mutate(k.id)}
-                      disabled={revokeMut.isPending}
-                    >
-                      {t("settings.chatApiRevoke")}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mb-4 text-xs text-gray-400">{t("settings.chatApiNoKeys")}</p>
-          )}
-
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-48">
-              <Input
-                label={t("settings.chatApiName")}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="lambda-web"
-              />
-            </div>
-            <Select
-              label={t("settings.chatApiRole")}
-              options={["viewer", "manager", "admin"]}
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-            />
-            <Button onClick={() => createMut.mutate()} disabled={!name.trim() || createMut.isPending}>
-              {t("settings.chatApiCreate")}
-            </Button>
-          </div>
-          <p className="mt-2 text-xs text-gray-400">{t("settings.chatApiWarn")}</p>
+          <ApiKeysSection ownRole={ownRole} />
         </div>
       )}
     </Card>
@@ -742,12 +783,23 @@ export default function SettingsPage() {
       {isAdmin && (
         <ChatApiCard
           enabled={settings?.chat_api_enabled === "1"}
+          ownRole={user?.role ?? "viewer"}
           onToggle={() =>
             settingsMut.mutate({
               chat_api_enabled: settings?.chat_api_enabled === "1" ? "0" : "1",
             })
           }
         />
+      )}
+
+      {/* Self-service API keys for non-admins: keys are personal (bound to the
+          creator, capped at their role), so every real user manages their own
+          here. Admins get the same section inside the Chat API card above. */}
+      {!isAdmin && user?.role !== "public_manager" && (
+        <Card title={t("settings.chatApiKeysTitle")}>
+          <p className="mb-3 text-sm text-gray-700">{t("settings.chatApiPersonal")}</p>
+          <ApiKeysSection ownRole={user?.role ?? "viewer"} />
+        </Card>
       )}
 
       {isAdmin && <TokenSpendCard demoActive={!!pubStatus?.active} />}

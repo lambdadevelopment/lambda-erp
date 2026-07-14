@@ -1314,14 +1314,18 @@ class Database:
             # agent's tool access; `session_owner` is the user_id the key's chat
             # sessions are owned under (isolated from human users). See
             # docs/chat-api-plan.md.
+            # Per-user API keys (v2): a key BELONGS to a User and can never act
+            # above its owner — `role` is only a CAP; the effective role is
+            # min(cap, owner's current role) resolved live at auth time, so a
+            # demotion or disable applies to existing keys immediately.
             """CREATE TABLE IF NOT EXISTS "Api Key" (
                 id TEXT PRIMARY KEY,
                 name TEXT,
+                user TEXT NOT NULL,
                 key_hash TEXT UNIQUE,
                 key_prefix TEXT,
                 role TEXT DEFAULT 'manager',
                 session_owner TEXT,
-                created_by TEXT,
                 created_at TEXT,
                 last_used_at TEXT,
                 revoked INTEGER DEFAULT 0
@@ -1894,6 +1898,36 @@ def _m018_quotation_item_frequency(db: "Database") -> None:
     db._add_column_if_missing("Quotation Item", "frequency", "TEXT")
 
 
+def _m019_api_keys_per_user(db: "Database") -> None:
+    """API keys v2 — per-user credentials (clean break, deliberate).
+
+    v1 keys were org-global objects minted by admins with a free-standing role
+    and a synthetic identity; anyone holding the token WAS the key. v2 binds
+    every key to a User (self-service creation, effective role capped by the
+    owner's live role). Existing v1 rows are DROPPED, not migrated — decided
+    2026-07-14: no legacy rules; holders simply re-issue their keys.
+    """
+    if "user" in db._get_table_columns("Api Key"):
+        return  # fresh install — table already has the v2 shape
+    db.conn.execute('DROP TABLE "Api Key"')
+    db.conn.execute(
+        """CREATE TABLE "Api Key" (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            user TEXT NOT NULL,
+            key_hash TEXT UNIQUE,
+            key_prefix TEXT,
+            role TEXT DEFAULT 'manager',
+            session_owner TEXT,
+            created_at TEXT,
+            last_used_at TEXT,
+            revoked INTEGER DEFAULT 0
+        )"""
+    )
+    db._col_cache.pop("Api Key", None)
+    db._text_col_cache.pop("Api Key", None)
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -1913,6 +1947,7 @@ Database.MIGRATIONS = [
     (16, "customer_contact_person", _m016_customer_contact_person),
     (17, "proposal_cover_template", _m017_proposal_cover_template),
     (18, "quotation_item_frequency", _m018_quotation_item_frequency),
+    (19, "api_keys_per_user", _m019_api_keys_per_user),
 ]
 
 

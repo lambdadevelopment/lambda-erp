@@ -282,7 +282,7 @@
     "chatApiName": "Name",
     "chatApiRole": "Role",
     "chatApiCreate": "Create key",
-    "chatApiWarn": "A key acts with its chosen role. A manager key can create and cancel documents through chat — treat it like a password.",
+    "chatApiWarn": "A key acts with your identity and at most your role — treat it like a password. Revoke first, then delete.",
     "publicTitle": "Public Access (Demo Mode)",
     "publicActive": "Active",
     "publicActiveBody": "Public access is enabled. Anyone can use the application without logging in. All visitors get manager-level permissions.",
@@ -293,7 +293,9 @@
     "enableWarning": "This will allow anyone to access the application without logging in. They will be able to create, edit, and submit documents. Your admin account still requires login.",
     "yesEnable": "Yes, Enable",
     "enabling": "Enabling...",
-    "tokenSpendTitle": "Token Spend"
+    "tokenSpendTitle": "Token Spend",
+    "chatApiDelete": "Delete",
+    "chatApiPersonal": "Personal Bearer keys for the programmatic chat API. A key acts as YOU: it is capped at your role, follows role changes live, and dies with your account. Requires the admin to have enabled the Chat API."
   },
   "status": {
     "Draft": "Draft",

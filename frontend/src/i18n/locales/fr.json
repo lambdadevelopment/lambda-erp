@@ -282,7 +282,7 @@
     "chatApiName": "Nom",
     "chatApiRole": "Rôle",
     "chatApiCreate": "Créer une clé",
-    "chatApiWarn": "Une clé agit avec le rôle choisi. Une clé « manager » peut créer et annuler des documents via le chat — traitez-la comme un mot de passe.",
+    "chatApiWarn": "Une clé agit avec votre identité et au plus votre rôle — à traiter comme un mot de passe. Révoquer d'abord, puis supprimer.",
     "publicTitle": "Accès public (mode démo)",
     "publicActive": "Actif",
     "publicActiveBody": "L'accès public est activé. N'importe qui peut utiliser l'application sans se connecter. Tous les visiteurs obtiennent des autorisations de niveau gestionnaire.",
@@ -293,7 +293,9 @@
     "enableWarning": "Cela permettra à quiconque d'accéder à l'application sans se connecter. Ils pourront créer, modifier et valider des documents. Votre compte administrateur nécessite toujours une connexion.",
     "yesEnable": "Oui, activer",
     "enabling": "Activation...",
-    "tokenSpendTitle": "Dépenses de jetons"
+    "tokenSpendTitle": "Dépenses de jetons",
+    "chatApiDelete": "Supprimer",
+    "chatApiPersonal": "Clés Bearer personnelles pour l'API de chat programmatique. Une clé agit en VOTRE nom : plafonnée à votre rôle, elle suit les changements de rôle en direct et expire avec votre compte. Nécessite que l'admin ait activé l'API de chat."
   },
   "status": {
     "Draft": "Brouillon",

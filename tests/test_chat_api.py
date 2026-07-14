@@ -114,9 +114,10 @@ def check_chat_api():
         listed = client.get("/api/auth/api-keys").json()
         assert any(k["id"] == key_id for k in listed) and all("token" not in k for k in listed)
 
-        # invalid role coerces to manager
+        # role validation: an unknown role is rejected (v2 keys are per-user
+        # with the role acting as a cap — no silent coercion).
         r2 = client.post("/api/auth/api-keys", json={"name": "x", "role": "superuser"})
-        assert r2.status_code == 200 and r2.json()["role"] == "manager", r2.text[:200]
+        assert r2.status_code == 422, r2.text[:200]
 
         # --- Stateless turn: only the current message is in LLM context. ----
         r = client.post("/api/v1/chat", json={"message": "hello"}, headers=auth_h)
@@ -162,16 +163,20 @@ def check_chat_api():
         sessions = client.get("/api/v1/chat/sessions", headers=auth_h).json()
         assert any(s["id"] == sid for s in sessions), sessions
 
-        # --- Per-owner isolation: another key can't touch this session. -----
+        # --- Same-user keys share ONE session space (api:<user>): a second key
+        # of the same user continues the session — key rotation keeps chat
+        # continuity. Cross-USER isolation is asserted further below.
         other = client.post("/api/auth/api-keys", json={"name": "other"}).json()
+        assert other["role"] == "admin", other  # omitted role -> creator's own role
         other_h = {"Authorization": f"Bearer {other['token']}"}
         r = client.post("/api/v1/chat", json={"message": "peek", "session_id": sid}, headers=other_h)
-        assert r.status_code == 404, f"cross-owner session -> {r.status_code}"
+        assert r.status_code == 200, f"same-user session share -> {r.status_code}: {r.text[:200]}"
 
         # --- Delete -> the next stateless call opens a fresh session. -------
         assert client.delete(f"/api/v1/chat/sessions/{sid}", headers=auth_h).status_code == 200
         r = client.post("/api/v1/chat", json={"message": "new"}, headers=auth_h)
         assert r.status_code == 200 and r.json()["session_id"] != sid, "deleted session was reused"
+        sid2 = r.json()["session_id"]
 
         # --- Document read surface (Bearer-gated PDF + JSON). ---------------
         # No key -> 401 (enabled, but unauthenticated).
@@ -191,6 +196,38 @@ def check_chat_api():
         assert client.post("/api/v1/chat", json={"message": "hi"}, headers=auth_h).status_code == 401
         # revoked key also can't read documents
         assert client.get("/api/v1/documents/sales-invoice/X/pdf", headers=auth_h).status_code == 401
+
+        # --- Two-step delete: a LIVE key 409s; a revoked key deletes. --------
+        live = client.post("/api/auth/api-keys", json={"name": "todelete"}).json()
+        assert client.delete(f"/api/auth/api-keys/{live['id']}").status_code == 409
+        assert client.post(f"/api/auth/api-keys/{live['id']}/revoke").status_code == 200
+        assert client.delete(f"/api/auth/api-keys/{live['id']}").status_code == 200
+        assert all(k["id"] != live["id"] for k in client.get("/api/auth/api-keys").json())
+
+        # --- Per-USER keys: a second (viewer) user self-serves their own key,
+        # capped at their own role and fully isolated from the admin's. -------
+        assert client.put("/api/auth/settings", json={"allow_public_signup": "1"}).status_code == 200
+        r = client.post("/api/auth/register",
+                        json={"email": "viewer@example.com", "full_name": "Viewer",
+                              "password": "test-password-123"})
+        assert r.status_code == 200 and r.json()["role"] == "viewer", r.text[:200]
+        # (the client cookie is now the viewer's session)
+        # cap: a key can never out-rank its owner
+        assert client.post("/api/auth/api-keys",
+                           json={"name": "too-big", "role": "admin"}).status_code == 403
+        vkey = client.post("/api/auth/api-keys", json={"name": "mine"}).json()
+        assert vkey["role"] == "viewer" and vkey.get("user"), vkey
+        v_h = {"Authorization": f"Bearer {vkey['token']}"}
+        # cross-user: the viewer's key cannot touch the admin's session
+        r = client.post("/api/v1/chat", json={"message": "peek", "session_id": sid2}, headers=v_h)
+        assert r.status_code == 404, f"cross-user session -> {r.status_code}"
+        # the effective role comes from the key's OWNER at call time
+        r = client.post("/api/v1/chat", json={"message": "hi"}, headers=v_h)
+        assert r.status_code == 200 and _LAST["user_info"]["role"] == "viewer", _LAST["user_info"]
+        # a non-admin lists only their own keys and can't manage someone else's
+        listed = client.get("/api/auth/api-keys").json()
+        assert listed and all(k["user"] == vkey["user"] for k in listed), listed
+        assert client.post(f"/api/auth/api-keys/{other['id']}/revoke").status_code == 403
 
     print(f"  [chat api] gating/auth/keys/sessions/stateless-replay OK on {backend}")
 

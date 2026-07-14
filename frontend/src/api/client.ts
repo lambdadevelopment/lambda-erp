@@ -452,15 +452,18 @@ export const api = {
     request<Record<string, string>>("/auth/settings", { method: "PUT", body: JSON.stringify(data) }),
   getApiKeys: () =>
     request<Array<{
-      id: string; name: string; role: string; key_prefix: string;
-      created_by?: string; created_at?: string; last_used_at?: string | null; revoked: boolean;
+      id: string; name: string; user?: string; role: string; key_prefix: string;
+      created_at?: string; last_used_at?: string | null; revoked: boolean;
     }>>("/auth/api-keys"),
   createApiKey: (name: string, role: string) =>
-    request<{ id: string; name: string; role: string; key_prefix: string; token: string }>(
+    request<{ id: string; name: string; user?: string; role: string; key_prefix: string; token: string }>(
       "/auth/api-keys", { method: "POST", body: JSON.stringify({ name, role }) }),
   revokeApiKey: (id: string) =>
     request<{ id: string; revoked: boolean }>(
       `/auth/api-keys/${encodeURIComponent(id)}/revoke`, { method: "POST" }),
+  deleteApiKey: (id: string) =>
+    request<{ id: string; deleted: boolean }>(
+      `/auth/api-keys/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   getDemoSpend: () =>
     request<{
