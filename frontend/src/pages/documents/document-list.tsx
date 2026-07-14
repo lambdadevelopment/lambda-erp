@@ -9,6 +9,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useDocumentList } from "@/hooks/use-document-list";
+import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import { getDoctypeConfig } from "@/lib/doctypes";
 import { linkRefHref } from "@/pages/documents/document-form";
@@ -64,6 +65,9 @@ const PAGE_SIZE_OPTIONS = ["25", "50", "100", "200"];
 
 export default function DocumentListPage() {
   const { t } = useTranslation();
+  // Rows without a per-document currency (Stock Entry, …) hold base-currency
+  // values — format them with the company currency, not a hardcoded USD.
+  const baseCurrency = useBaseCurrency();
   const { doctype } = useParams<{ doctype: string }>();
   const config = getDoctypeConfig(doctype ?? "");
 
@@ -147,7 +151,7 @@ export default function DocumentListPage() {
       if (CURRENCY_FIELDS.has(col)) {
         return helper.accessor(col, {
           header: headerLabel(col),
-          cell: (info) => formatCurrency(info.getValue(), (info.row.original as any)?.currency || "USD"),
+          cell: (info) => formatCurrency(info.getValue(), (info.row.original as any)?.currency || baseCurrency),
         });
       }
 
@@ -206,7 +210,7 @@ export default function DocumentListPage() {
         header: headerLabel(col),
       });
     });
-  }, [config, t]);
+  }, [config, t, baseCurrency]);
 
   const table = useReactTable({
     data: rows,

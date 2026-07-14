@@ -25,6 +25,7 @@ import { useChat } from "@/components/chat/chat-provider";
 // to find. Inlining keeps the package consumer-buildable.
 import ReportRuntimeWorker from "@/workers/report-runtime.worker.ts?worker&inline";
 import { flt, formatCurrency, formatDate, formatNumber } from "@/lib/utils";
+import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { api } from "@/api/client";
 
 type RuntimeDatasetResult = {
@@ -409,6 +410,9 @@ export default function AnalyticsPage() {
 }
 
 function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
+  // Custom-report currency values are base-currency numbers; format them with
+  // the company currency instead of the util's hardcoded USD default.
+  const baseCurrency = useBaseCurrency();
   const tables = (output.tables ?? []).map((table, idx) => ({
     ...table,
     id: table.id || `table_${idx + 1}`,
@@ -429,7 +433,7 @@ function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
               <div key={`${kpi.label}-${idx}`} className="rounded-md border border-gray-200 p-4">
                 <div className="text-sm text-gray-500">{kpi.label}</div>
                 <div className="mt-1 text-2xl font-semibold text-gray-900">
-                  {formatRuntimeValue(kpi.value, kpi.format)}
+                  {formatRuntimeValue(kpi.value, kpi.format, baseCurrency)}
                 </div>
               </div>
             ))}
@@ -469,12 +473,12 @@ function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
                       height={layout.axisHeight}
                     />
                     <YAxis tick={{ fill: "#6b7280", fontSize: 12 }} tickFormatter={shortNum} />
-                    <Tooltip formatter={(v) => formatRuntimeValue(v, inferFormat(table, chart.y))} />
+                    <Tooltip formatter={(v) => formatRuntimeValue(v, inferFormat(table, chart.y), baseCurrency)} />
                     <Line type="monotone" dataKey={chart.y} stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
                   </LineChart>
                 ) : chart.type === "pie" ? (
                   <PieChart>
-                    <Tooltip formatter={(v) => formatRuntimeValue(v, inferFormat(table, chart.y))} />
+                    <Tooltip formatter={(v) => formatRuntimeValue(v, inferFormat(table, chart.y), baseCurrency)} />
                     <Pie data={rows} dataKey={chart.y} nameKey={chart.x} outerRadius={110}>
                       {rows.map((_, rowIdx) => (
                         <Cell key={rowIdx} fill={PIE_COLORS[rowIdx % PIE_COLORS.length]} />
@@ -493,7 +497,7 @@ function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
                       height={layout.axisHeight}
                     />
                     <YAxis tick={{ fill: "#6b7280", fontSize: 12 }} tickFormatter={shortNum} />
-                    <Tooltip formatter={(v) => formatRuntimeValue(v, inferFormat(table, chart.y))} />
+                    <Tooltip formatter={(v) => formatRuntimeValue(v, inferFormat(table, chart.y), baseCurrency)} />
                     <Bar dataKey={chart.y} fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 )}
@@ -521,7 +525,7 @@ function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
                   <tr key={idx} className="hover:bg-gray-50">
                     {table.columns.map((column) => (
                       <td key={column.key} className="px-4 py-1.5 text-gray-900">
-                        {formatRuntimeValue(row[column.key], column.type)}
+                        {formatRuntimeValue(row[column.key], column.type, baseCurrency)}
                       </td>
                     ))}
                   </tr>
@@ -808,8 +812,8 @@ function inferFormat(table: RuntimeReportTable | undefined, key: string) {
   return table?.columns.find((column) => column.key === key)?.type || table?.columns.find((column) => column.key === key)?.format;
 }
 
-function formatRuntimeValue(value: unknown, type?: string) {
-  if (type === "currency") return formatCurrency(flt(value));
+function formatRuntimeValue(value: unknown, type?: string, currency?: string) {
+  if (type === "currency") return formatCurrency(flt(value), currency);
   if (type === "percent") return `${(flt(value) * 100).toFixed(1)}%`;
   if (type === "number") return formatNumber(flt(value));
   if (type === "date") return formatDate(String(value ?? ""));

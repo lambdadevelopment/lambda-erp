@@ -816,7 +816,10 @@ export default function DocumentFormPage() {
   const readOnly = docstatus >= 1 || discarded;
 
   // The document's currency drives how amounts are formatted (€/£/¥ vs $).
-  const docCurrency: string = formData.currency || "USD";
+  // Documents without a currency field (Stock Entry, …) store their values in
+  // the company BASE currency — falling back to a hardcoded USD stamped $ on
+  // CHF numbers. Fall back to the company currency instead.
+  const docCurrency: string = formData.currency || companyCurrency;
   const docRate: number = flt(formData.conversion_rate ?? 1);
 
   // Separate editable parent fields from computed/totals fields. Textareas
