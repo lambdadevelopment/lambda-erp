@@ -2380,6 +2380,11 @@ async def run_thinking_loop(
                     tools=TOOLS,
                     tool_choice="auto",
                     max_completion_tokens=max_completion,
+                    # gpt-5.6-terra rejects function tools on /v1/chat/completions
+                    # unless reasoning_effort is "none" (400 otherwise). Tool
+                    # calls run without hidden reasoning until this loop migrates
+                    # to the Responses API.
+                    reasoning_effort="none",
                 )
             except Exception as e:
                 await on_event({"type": "error", "content": f"Error calling LLM: {e}"})
