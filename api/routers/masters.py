@@ -353,11 +353,19 @@ def update_master(master_type: str, name: str, data: dict, _user: dict = _manage
     return update_master_record(master_type, name, data)
 
 
-@router.delete("/{master_type}/{name}")
-def delete_master(master_type: str, name: str, _user: dict = _admin):
+def delete_master_record(master_type: str, name: str) -> dict:
+    """Delete a master record with reference protection — the ONLY sanctioned
+    delete path (the tables have no FK constraints, so every caller — the REST
+    route below AND the chat agent's delete_master tool — must go through here).
+
+    Unreferenced record → hard delete. Referenced record → auto-disabled instead
+    (when the doctype has a `disabled` column) with the blocking reference named,
+    else a 409. Raising HTTPException keeps route behavior; the chat handler
+    catches it and surfaces `detail` as the tool error.
+    """
     doctype, _ = _get_table(master_type)
     if not doctype:
-        return {"detail": f"Unknown master type: {master_type}"}
+        raise HTTPException(status_code=422, detail=f"Unknown master type: {master_type}")
     db = get_db()
     if not db.exists(doctype, name):
         raise HTTPException(status_code=404, detail=f"{doctype} {name} not found")
@@ -372,6 +380,11 @@ def delete_master(master_type: str, name: str, _user: dict = _admin):
 
     db.delete(doctype, name=name)
     return {"ok": True, "status": "deleted"}
+
+
+@router.delete("/{master_type}/{name}")
+def delete_master(master_type: str, name: str, _user: dict = _admin):
+    return delete_master_record(master_type, name)
 
 
 @router.get("/account/tree")

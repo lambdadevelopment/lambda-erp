@@ -34,7 +34,7 @@ from api.demo_limits import (
     limiter as demo_limiter,
 )
 from api.providers import cost_of_anthropic_call, cost_of_openai_call, cost_of_transcription
-from api.routers.masters import create_master_record, update_master_record, MASTER_IDENTITY_ALIAS
+from api.routers.masters import create_master_record, update_master_record, delete_master_record, MASTER_IDENTITY_ALIAS
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt, now, nowdate
 
@@ -658,6 +658,29 @@ TOOLS = [
                     "data": {"type": "object", "description": "REQUIRED. Fields to change on the existing master record."},
                 },
                 "required": ["master_type", "name", "data"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_master",
+            "description": (
+                "Delete a master record (customer, supplier, item, ...). ADMIN role only. "
+                "Reference-protected and safe by design: an UNREFERENCED record is permanently deleted; "
+                "a record referenced anywhere (documents, GL, stock, ...) is NOT deleted — it is automatically "
+                "disabled/archived instead and the result names the blocking reference (status='disabled'). "
+                "Use when the user explicitly asks to delete/remove a master record (e.g. a mistakenly created "
+                "or duplicate one). If they merely want it out of the way, prefer update_master with "
+                "{\"disabled\": 1}. Example: {\"master_type\":\"customer\",\"name\":\"CUST-007\"}"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "master_type": {"type": "string", "enum": MASTER_TYPES},
+                    "name": {"type": "string", "description": "Existing master record ID/name to delete."},
+                },
+                "required": ["master_type", "name"],
             },
         },
     },
@@ -1304,6 +1327,31 @@ def _handle_update_master(args):
     return result
 
 
+def _handle_delete_master(args, user_info=None):
+    """Reference-protected master deletion, gated to the admin role.
+
+    Registered per-run (run_thinking_loop scopes it with the caller's
+    user_info) — NOT in the base TOOL_HANDLERS dict, whose handlers are
+    called with (args) only.
+    """
+    role = (user_info or {}).get("role")
+    if role != "admin":
+        return {
+            "error": (
+                "Deleting master records requires the admin role. Ask an ERP admin to do it, "
+                "or disable the record instead: update_master with {\"disabled\": 1}."
+            )
+        }
+    name = args.get("name")
+    if not name:
+        return {"error": "You must pass the existing master record 'name' to delete. Example: {\"master_type\":\"customer\",\"name\":\"CUST-007\"}"}
+    try:
+        return dict(delete_master_record(args["master_type"], name))
+    except Exception as exc:
+        detail = getattr(exc, "detail", None)
+        return {"error": detail or str(exc)}
+
+
 def _handle_get_current_time(args):
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
@@ -1855,7 +1903,7 @@ For purchased goods, prefer Purchase Receipt when receiving separately from bill
 - **Draft (docstatus=0):** Document is editable. Has NO financial impact — no GL entries, no stock movement. Can be updated freely.
 - **Submitted (docstatus=1):** Document is locked. GL entries and stock ledger entries are posted. Cannot be edited — only cancelled.
 - **Cancelled (docstatus=2):** GL and stock entries are reversed. Document is permanently archived. Cannot be reused or edited.
-- **There is NO delete operation.** Documents are permanent records. This is by design for audit integrity.
+- **DOCUMENTS have NO delete operation.** Documents are permanent records — by design for audit integrity. This rule applies to DOCUMENTS ONLY; never claim master records can't be deleted "for audit integrity" (see Master Data Deletion below).
 - **To void a draft you no longer need:** submit it first (docstatus 0→1), then cancel it (docstatus 1→2). Do NOT tell the user to "delete" anything.
 - **To correct a submitted document:** cancel it and create a new one with the correct values.
 - Only submitted documents can be converted (e.g. Sales Order → Sales Invoice). Draft or cancelled documents cannot.
@@ -1863,6 +1911,9 @@ For purchased goods, prefer Purchase Receipt when receiving separately from bill
 
 ## Master Data Types
 customer, supplier, item, warehouse, account, company, cost-center
+
+## Master Data Deletion
+Master records CAN be deleted — use the `delete_master` tool (ADMIN role only). It is reference-protected: an unreferenced record (e.g. a mistakenly created or duplicate one) is permanently deleted; a record referenced by any document, GL entry, or stock data is NOT deleted but automatically disabled/archived instead, and the result names the blocking reference — relay that reason to the user. When the user merely wants a record out of the way (not destroyed), prefer `update_master` with `{"disabled": 1}`. Non-admin users: explain that deletion needs an admin and offer to disable instead.
 
 ## Warehouse Master Rules
 - To create a warehouse via `create_master`, you MUST pass a `data` object.
@@ -2325,6 +2376,9 @@ async def run_thinking_loop(
     )
 
     tool_handlers = dict(TOOL_HANDLERS)
+    # delete_master needs the caller's role (admin-only) — scoped here rather
+    # than in TOOL_HANDLERS, whose handlers are called with (args) only.
+    tool_handlers["delete_master"] = lambda args: _handle_delete_master(args, user_info)
 
     user_role = user_info.get("role") if user_info else None
     demo_mode = is_demo_role(user_role)
@@ -2333,9 +2387,10 @@ async def run_thinking_loop(
     max_completion = demo_max_completion_tokens() if demo_mode else 4096
 
     if demo_mode:
-        denied = lambda _args: {"error": "Demo mode cannot create or update master data."}
+        denied = lambda _args: {"error": "Demo mode cannot create, update, or delete master data."}
         tool_handlers["create_master"] = denied
         tool_handlers["update_master"] = denied
+        tool_handlers["delete_master"] = denied
 
     # Scope session-aware tools without mutating globals.
     if session_id:
