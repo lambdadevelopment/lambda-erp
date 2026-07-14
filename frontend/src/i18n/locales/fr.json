@@ -58,32 +58,96 @@
     "balance-sheet": "Bilan",
     "ar-aging": "Balance âgée clients",
     "ap-aging": "Balance âgée fournisseurs",
-    "analytics": "Analyses"
+    "analytics": "Analyses",
+    "chart-of-accounts": "Plan comptable"
   },
   "doctypes": {
-    "quotation": { "one": "Devis", "other": "Devis" },
-    "proposal": { "one": "Offre groupée", "other": "Offres groupées" },
-    "sales-order": { "one": "Commande client", "other": "Commandes client" },
-    "sales-invoice": { "one": "Facture de vente", "other": "Factures de vente" },
-    "pos-invoice": { "one": "Ticket de caisse", "other": "Tickets de caisse" },
-    "purchase-order": { "one": "Bon de commande", "other": "Bons de commande" },
-    "purchase-invoice": { "one": "Facture d'achat", "other": "Factures d'achat" },
-    "payment-entry": { "one": "Paiement", "other": "Paiements" },
-    "journal-entry": { "one": "Écriture comptable", "other": "Écritures comptables" },
-    "bank-transaction": { "one": "Transaction bancaire", "other": "Transactions bancaires" },
-    "budget": { "one": "Budget", "other": "Budgets" },
-    "subscription": { "one": "Abonnement", "other": "Abonnements" },
-    "stock-entry": { "one": "Mouvement de stock", "other": "Mouvements de stock" },
-    "delivery-note": { "one": "Bon de livraison", "other": "Bons de livraison" },
-    "purchase-receipt": { "one": "Bon de réception", "other": "Bons de réception" },
-    "pricing-rule": { "one": "Règle de prix", "other": "Règles de prix" }
+    "quotation": {
+      "one": "Devis",
+      "other": "Devis"
+    },
+    "proposal": {
+      "one": "Offre groupée",
+      "other": "Offres groupées"
+    },
+    "sales-order": {
+      "one": "Commande client",
+      "other": "Commandes client"
+    },
+    "sales-invoice": {
+      "one": "Facture de vente",
+      "other": "Factures de vente"
+    },
+    "pos-invoice": {
+      "one": "Ticket de caisse",
+      "other": "Tickets de caisse"
+    },
+    "purchase-order": {
+      "one": "Bon de commande",
+      "other": "Bons de commande"
+    },
+    "purchase-invoice": {
+      "one": "Facture d'achat",
+      "other": "Factures d'achat"
+    },
+    "payment-entry": {
+      "one": "Paiement",
+      "other": "Paiements"
+    },
+    "journal-entry": {
+      "one": "Écriture comptable",
+      "other": "Écritures comptables"
+    },
+    "bank-transaction": {
+      "one": "Transaction bancaire",
+      "other": "Transactions bancaires"
+    },
+    "budget": {
+      "one": "Budget",
+      "other": "Budgets"
+    },
+    "subscription": {
+      "one": "Abonnement",
+      "other": "Abonnements"
+    },
+    "stock-entry": {
+      "one": "Mouvement de stock",
+      "other": "Mouvements de stock"
+    },
+    "delivery-note": {
+      "one": "Bon de livraison",
+      "other": "Bons de livraison"
+    },
+    "purchase-receipt": {
+      "one": "Bon de réception",
+      "other": "Bons de réception"
+    },
+    "pricing-rule": {
+      "one": "Règle de prix",
+      "other": "Règles de prix"
+    }
   },
   "masters": {
-    "company": { "one": "Société", "other": "Sociétés" },
-    "customer": { "one": "Client", "other": "Clients" },
-    "supplier": { "one": "Fournisseur", "other": "Fournisseurs" },
-    "item": { "one": "Article", "other": "Articles" },
-    "warehouse": { "one": "Entrepôt", "other": "Entrepôts" }
+    "company": {
+      "one": "Société",
+      "other": "Sociétés"
+    },
+    "customer": {
+      "one": "Client",
+      "other": "Clients"
+    },
+    "supplier": {
+      "one": "Fournisseur",
+      "other": "Fournisseurs"
+    },
+    "item": {
+      "one": "Article",
+      "other": "Articles"
+    },
+    "warehouse": {
+      "one": "Entrepôt",
+      "other": "Entrepôts"
+    }
   },
   "nav": {
     "chats": "Discussions",
@@ -136,7 +200,8 @@
       "Warehouse": "Entrepôt",
       "General": "Général",
       "Pricing Rule": "Règle de prix",
-      "Users & Team": "Utilisateurs et équipe"
+      "Users & Team": "Utilisateurs et équipe",
+      "Chart of Accounts": "Plan comptable"
     }
   },
   "login": {
@@ -609,5 +674,19 @@
     "rule": "ligne de séparation horizontale",
     "price": "prix aligné à droite à côté du texte ci-dessus (p. ex. Mensuel | CHF 380.—)",
     "block": "Séparez les blocs par une ligne vide."
+  },
+  "coa": {
+    "period": "Période",
+    "allTime": "Toute la période",
+    "semantics": "Comptes de bilan : solde à la fin de la période. Comptes de résultat : mouvement de la période. Cliquez sur un compte pour son grand livre.",
+    "empty": "Aucun compte trouvé. Terminez d'abord la configuration de l'entreprise.",
+    "disabled": "désactivé",
+    "rootType": {
+      "Asset": "Actifs",
+      "Liability": "Passifs",
+      "Equity": "Capitaux propres",
+      "Income": "Produits",
+      "Expense": "Charges"
+    }
   }
 }

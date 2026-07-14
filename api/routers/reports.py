@@ -121,6 +121,112 @@ def trial_balance(
                     company, presentation_currency, to_date)
 
 
+def _chart_of_accounts(db, company=None, from_date=None, to_date=None):
+    """Chart of accounts (every account, incl. groups and zero-balance ones)
+    with period balances — the tree the GUI renders.
+
+    Balance semantics follow standard presentation:
+      - Balance Sheet accounts: CLOSING balance as of ``to_date`` (all postings
+        up to and including it; ``from_date`` is ignored for them).
+      - P&L accounts: movement WITHIN [from_date, to_date].
+    Values are natural-signed per root_type (Asset/Expense: debit − credit;
+    Liability/Equity/Income: credit − debit) so revenue reads positive.
+    Group accounts roll up every descendant's balance (plus any postings of
+    their own, though entries normally land on leaves).
+    """
+    acc_filters = {}
+    if company:
+        acc_filters["company"] = company
+    accounts = db.get_all(
+        "Account", filters=acc_filters,
+        fields=["name", "account_name", "parent_account", "root_type",
+                "report_type", "account_type", "is_group", "disabled"],
+        order_by="name",
+    )
+
+    def _movement(where_extra, params_extra):
+        clause = "is_cancelled = 0" + where_extra
+        params = list(params_extra)
+        if company:
+            clause += " AND company = ?"
+            params.append(company)
+        found = db.sql(
+            f"""SELECT account,
+                       COALESCE(SUM(debit), 0) AS d,
+                       COALESCE(SUM(credit), 0) AS c
+                FROM "GL Entry" WHERE {clause} GROUP BY account""",
+            params,
+        )
+        return {r["account"]: (flt(r["d"], 2), flt(r["c"], 2)) for r in found}
+
+    bs_where, bs_params = "", []
+    if to_date:
+        bs_where, bs_params = " AND posting_date <= ?", [to_date]
+    bs_map = _movement(bs_where, bs_params)
+
+    if from_date or to_date:
+        pl_where, pl_params = "", []
+        if from_date:
+            pl_where += " AND posting_date >= ?"
+            pl_params.append(from_date)
+        if to_date:
+            pl_where += " AND posting_date <= ?"
+            pl_params.append(to_date)
+        pl_map = _movement(pl_where, pl_params)
+    else:
+        pl_map = bs_map
+
+    rows = []
+    by_name = {}
+    for acc in accounts:
+        is_pl = acc.get("report_type") == "Profit and Loss"
+        d, c = (pl_map if is_pl else bs_map).get(acc["name"], (0.0, 0.0))
+        if acc.get("root_type") in ("Liability", "Equity", "Income"):
+            natural = c - d
+        else:
+            natural = d - c
+        row = {
+            "name": acc["name"],
+            "account_name": acc.get("account_name"),
+            "parent_account": acc.get("parent_account") or None,
+            "root_type": acc.get("root_type"),
+            "account_type": acc.get("account_type"),
+            "is_group": bool(acc.get("is_group")),
+            "disabled": bool(acc.get("disabled")),
+            "balance": flt(natural, 2),
+            "has_entries": bool(d or c),
+        }
+        rows.append(row)
+        by_name[row["name"]] = row
+
+    # Roll every account's own balance up its ancestor chain so group rows
+    # show subtree totals.
+    subtree_extra = {r["name"]: 0.0 for r in rows}
+    for row in rows:
+        parent = row["parent_account"]
+        while parent and parent in by_name:
+            subtree_extra[parent] += row["balance"]
+            parent = by_name[parent]["parent_account"]
+    for row in rows:
+        if row["is_group"]:
+            row["balance"] = flt(row["balance"] + subtree_extra[row["name"]], 2)
+            row["has_entries"] = row["has_entries"] or bool(subtree_extra[row["name"]])
+
+    return {"accounts": rows, "from_date": from_date, "to_date": to_date}
+
+
+@router.get("/chart-of-accounts")
+def chart_of_accounts(
+    company: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    presentation_currency: str | None = None,
+):
+    db = get_db()
+    return _present(db, _chart_of_accounts(db, company, from_date, to_date),
+                    company, presentation_currency, to_date)
+
+
 def _general_ledger(db, filters=None):
     filters = filters or {}
     where = ["is_cancelled = 0"]

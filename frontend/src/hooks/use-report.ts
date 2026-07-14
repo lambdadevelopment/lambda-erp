@@ -9,6 +9,14 @@ export function useTrialBalance(params?: Record<string, string>) {
   return { data, isLoading, error, refetch };
 }
 
+export function useChartOfAccounts(params?: Record<string, string>) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["report", "chart-of-accounts", params],
+    queryFn: () => api.chartOfAccounts(params),
+  });
+  return { data, isLoading, error, refetch };
+}
+
 export function useGeneralLedger(params?: Record<string, string>) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["report", "general-ledger", params],

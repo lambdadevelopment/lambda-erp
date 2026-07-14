@@ -58,32 +58,96 @@
     "balance-sheet": "Bilanz",
     "ar-aging": "Offene Posten Debitoren",
     "ap-aging": "Offene Posten Kreditoren",
-    "analytics": "Analysen"
+    "analytics": "Analysen",
+    "chart-of-accounts": "Kontenplan"
   },
   "doctypes": {
-    "quotation": { "one": "Angebot", "other": "Angebote" },
-    "proposal": { "one": "Sammelofferte", "other": "Sammelofferten" },
-    "sales-order": { "one": "Kundenauftrag", "other": "Kundenaufträge" },
-    "sales-invoice": { "one": "Ausgangsrechnung", "other": "Ausgangsrechnungen" },
-    "pos-invoice": { "one": "Kassenbeleg", "other": "Kassenbelege" },
-    "purchase-order": { "one": "Bestellung", "other": "Bestellungen" },
-    "purchase-invoice": { "one": "Eingangsrechnung", "other": "Eingangsrechnungen" },
-    "payment-entry": { "one": "Zahlung", "other": "Zahlungen" },
-    "journal-entry": { "one": "Buchungssatz", "other": "Buchungssätze" },
-    "bank-transaction": { "one": "Banktransaktion", "other": "Banktransaktionen" },
-    "budget": { "one": "Budget", "other": "Budgets" },
-    "subscription": { "one": "Abonnement", "other": "Abonnements" },
-    "stock-entry": { "one": "Lagerbuchung", "other": "Lagerbuchungen" },
-    "delivery-note": { "one": "Lieferschein", "other": "Lieferscheine" },
-    "purchase-receipt": { "one": "Wareneingang", "other": "Wareneingänge" },
-    "pricing-rule": { "one": "Preisregel", "other": "Preisregeln" }
+    "quotation": {
+      "one": "Angebot",
+      "other": "Angebote"
+    },
+    "proposal": {
+      "one": "Sammelofferte",
+      "other": "Sammelofferten"
+    },
+    "sales-order": {
+      "one": "Kundenauftrag",
+      "other": "Kundenaufträge"
+    },
+    "sales-invoice": {
+      "one": "Ausgangsrechnung",
+      "other": "Ausgangsrechnungen"
+    },
+    "pos-invoice": {
+      "one": "Kassenbeleg",
+      "other": "Kassenbelege"
+    },
+    "purchase-order": {
+      "one": "Bestellung",
+      "other": "Bestellungen"
+    },
+    "purchase-invoice": {
+      "one": "Eingangsrechnung",
+      "other": "Eingangsrechnungen"
+    },
+    "payment-entry": {
+      "one": "Zahlung",
+      "other": "Zahlungen"
+    },
+    "journal-entry": {
+      "one": "Buchungssatz",
+      "other": "Buchungssätze"
+    },
+    "bank-transaction": {
+      "one": "Banktransaktion",
+      "other": "Banktransaktionen"
+    },
+    "budget": {
+      "one": "Budget",
+      "other": "Budgets"
+    },
+    "subscription": {
+      "one": "Abonnement",
+      "other": "Abonnements"
+    },
+    "stock-entry": {
+      "one": "Lagerbuchung",
+      "other": "Lagerbuchungen"
+    },
+    "delivery-note": {
+      "one": "Lieferschein",
+      "other": "Lieferscheine"
+    },
+    "purchase-receipt": {
+      "one": "Wareneingang",
+      "other": "Wareneingänge"
+    },
+    "pricing-rule": {
+      "one": "Preisregel",
+      "other": "Preisregeln"
+    }
   },
   "masters": {
-    "company": { "one": "Unternehmen", "other": "Unternehmen" },
-    "customer": { "one": "Kunde", "other": "Kunden" },
-    "supplier": { "one": "Lieferant", "other": "Lieferanten" },
-    "item": { "one": "Artikel", "other": "Artikel" },
-    "warehouse": { "one": "Lager", "other": "Lager" }
+    "company": {
+      "one": "Unternehmen",
+      "other": "Unternehmen"
+    },
+    "customer": {
+      "one": "Kunde",
+      "other": "Kunden"
+    },
+    "supplier": {
+      "one": "Lieferant",
+      "other": "Lieferanten"
+    },
+    "item": {
+      "one": "Artikel",
+      "other": "Artikel"
+    },
+    "warehouse": {
+      "one": "Lager",
+      "other": "Lager"
+    }
   },
   "nav": {
     "chats": "Chats",
@@ -136,7 +200,8 @@
       "Warehouse": "Lager",
       "General": "Allgemein",
       "Pricing Rule": "Preisregel",
-      "Users & Team": "Benutzer & Team"
+      "Users & Team": "Benutzer & Team",
+      "Chart of Accounts": "Kontenplan"
     }
   },
   "login": {
@@ -609,5 +674,19 @@
     "rule": "horizontale Trennlinie",
     "price": "rechtsbündiger Preis neben dem Text darüber (z. B. Monatlich | CHF 380.—)",
     "block": "Trennen Sie Blöcke durch eine Leerzeile."
+  },
+  "coa": {
+    "period": "Periode",
+    "allTime": "Gesamter Zeitraum",
+    "semantics": "Bilanzkonten: Saldo per Periodenende. Erfolgskonten: Bewegung innerhalb der Periode. Konto anklicken für den Kontoauszug.",
+    "empty": "Keine Konten gefunden. Zuerst die Firmeneinrichtung abschliessen.",
+    "disabled": "deaktiviert",
+    "rootType": {
+      "Asset": "Aktiven",
+      "Liability": "Passiven",
+      "Equity": "Eigenkapital",
+      "Income": "Ertrag",
+      "Expense": "Aufwand"
+    }
   }
 }

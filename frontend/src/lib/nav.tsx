@@ -63,6 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Accounting",
     icon: <FileText className="h-4 w-4" />,
     items: [
+      { label: "Chart of Accounts", path: "/reports/chart-of-accounts" },
       { label: "Payment Entry", path: "/app/payment-entry" },
       { label: "Journal Entry", path: "/app/journal-entry" },
       { label: "Bank Transaction", path: "/app/bank-transaction" },

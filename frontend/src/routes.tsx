@@ -8,6 +8,7 @@ import ProposalForm from "@/pages/proposals/proposal-form";
 import MasterList from "@/pages/masters/master-list";
 import MasterForm from "@/pages/masters/master-form";
 import TrialBalance from "@/pages/reports/trial-balance";
+import ChartOfAccounts from "@/pages/reports/chart-of-accounts";
 import GeneralLedger from "@/pages/reports/general-ledger";
 import StockBalance from "@/pages/reports/stock-balance";
 import ProfitLoss from "@/pages/reports/profit-loss";
@@ -62,6 +63,7 @@ const baseChildRoutes: RouteObject[] = [
   { path: "masters/:type/:name", element: <MasterForm /> },
 
   // Reports
+  { path: "reports/chart-of-accounts", element: <ChartOfAccounts /> },
   { path: "reports/trial-balance", element: <TrialBalance /> },
   { path: "reports/general-ledger", element: <GeneralLedger /> },
   { path: "reports/stock-balance", element: <StockBalance /> },

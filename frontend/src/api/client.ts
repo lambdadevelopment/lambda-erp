@@ -226,6 +226,11 @@ export const api = {
       `/reports/trial-balance${qs(params)}`,
     ),
 
+  chartOfAccounts: (params?: Record<string, string>) =>
+    request<{ accounts: any[]; from_date: string | null; to_date: string | null }>(
+      `/reports/chart-of-accounts${qs(params)}`,
+    ),
+
   generalLedger: (params?: Record<string, string>) =>
     request<{
       rows: any[];

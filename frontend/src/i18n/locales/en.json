@@ -58,7 +58,8 @@
     "balance-sheet": "Balance Sheet",
     "ar-aging": "Accounts Receivable Aging",
     "ap-aging": "Accounts Payable Aging",
-    "analytics": "Analytics"
+    "analytics": "Analytics",
+    "chart-of-accounts": "Chart of Accounts"
   },
   "doctypes": {
     "quotation": {
@@ -199,7 +200,8 @@
       "Warehouse": "Warehouse",
       "General": "General",
       "Pricing Rule": "Pricing Rule",
-      "Users & Team": "Users & Team"
+      "Users & Team": "Users & Team",
+      "Chart of Accounts": "Chart of Accounts"
     }
   },
   "login": {
@@ -672,5 +674,19 @@
     "rule": "horizontal divider line",
     "price": "right-aligned price beside the text above (e.g. Monthly | CHF 380.—)",
     "block": "Separate blocks with a blank line."
+  },
+  "coa": {
+    "period": "Period",
+    "allTime": "All time",
+    "semantics": "Balance-sheet accounts: closing balance at period end. P&L accounts: movement within the period. Click an account for its ledger.",
+    "empty": "No accounts found. Complete the company setup first.",
+    "disabled": "disabled",
+    "rootType": {
+      "Asset": "Assets",
+      "Liability": "Liabilities",
+      "Equity": "Equity",
+      "Income": "Income",
+      "Expense": "Expenses"
+    }
   }
 }
