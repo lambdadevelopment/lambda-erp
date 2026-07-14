@@ -58,11 +58,23 @@ def _extract_documents(reply: str, request: Request) -> list[dict]:
         if (doctype_slug, name) in seen:
             continue
         seen.add((doctype_slug, name))
-        documents.append({
+        entry = {
             "doctype": doctype_slug,
             "name": name,
             "pdf_url": f"{base}/api/v1/documents/{doctype_slug}/{name}/pdf",
-        })
+        }
+        # Version stamp: a document can change after an earlier turn fetched its
+        # PDF, making that attachment stale. `modified` lets the caller tell v1
+        # from v2 (e.g. timestamped attachment filenames) and reason about which
+        # is current. Best-effort — a vanished doc still gets its pdf_url.
+        try:
+            doc = load_document(doctype_slug, name)
+            modified = doc.get("modified") if isinstance(doc, dict) else None
+            if modified:
+                entry["modified"] = str(modified)
+        except Exception:
+            pass
+        documents.append(entry)
     return documents
 
 

@@ -1788,6 +1788,13 @@ When you parse a supplier invoice PDF that has both products and a shipping line
 
 If multiple charges stack (freight + VAT on total incl. freight), put freight first as `Actual`, then VAT second as `On Previous Row Total` referencing the freight row's `idx`.
 
+### Adding VAT to a SALES document (quotation / sales order / sales invoice)
+
+"Add 8.1% VAT / MwSt" needs exactly ONE `taxes[]` row — do it directly with update_document:
+- `charge_type`: `"On Net Total"`, `rate`: the percentage (e.g. 8.1), `description`: the label (e.g. "MwSt. 8.1%").
+- `account_head` is OPTIONAL on draft sales documents. If a Tax Payable-like account is already known, use it — but do NOT go hunting for one: if it isn't found in a single lookup, ADD THE ROW WITHOUT `account_head`. Totals still compute (net → tax amount → grand total). NEVER refuse or stall the request because no tax account exists; add the rate-only row and mention the missing account in one sentence.
+- Then verify with one get_document call and report net / tax amount / gross.
+
 ### Returns (Credit Notes / Debit Notes)
 Returns use the SAME document type with negative quantities and `is_return=1`. Create them by "converting" a document to a return of the same type.
 
@@ -2260,12 +2267,16 @@ async def generate_title(
 # Reasoning loop
 # ---------------------------------------------------------------------------
 
+# The agentic orchestrator model. Function tools on /v1/chat/completions
+# require reasoning_effort="none" for the gpt-5.6 family (400 otherwise).
+ORCHESTRATOR_MODEL = "gpt-5.6-terra"
+
 
 async def run_thinking_loop(
     messages: list[dict],
     on_event,
     session_id: str = None,
-    max_iterations: int = 8,
+    max_iterations: int = 12,
     user_info: dict | None = None,
     client_ip: str | None = None,
 ):
@@ -2368,7 +2379,7 @@ async def run_thinking_loop(
         # on ANY exit path — including asyncio.CancelledError raised after
         # the SDK call has already returned but before settle() ran.
         settled = False
-        model_name = "gpt-5.6-terra"
+        model_name = ORCHESTRATOR_MODEL
         try:
             print(f"[chat_llm] provider=openai model={model_name} session_id={session_id or '-'} iter={iteration + 1}", flush=True)
             await on_event({"type": "llm_provider", "provider": "openai", "model": model_name})
@@ -2514,7 +2525,36 @@ async def run_thinking_loop(
                 ],
             })
 
+    # Step cap reached. The canned "check the results above" is a dead end on the
+    # API channel — the REST surface returns only this final text, so there is no
+    # "above" for a headless orchestrator. Ask the model for ONE tool-free wrap-up
+    # that states concretely what was and wasn't changed, so the caller can react.
+    # Demo visitors keep the canned text (no spend outside the per-iteration
+    # reservations); any failure falls back to the canned text.
     content = "I've reached the maximum number of reasoning steps. Here's what I've done so far — please check the results above."
+    if not demo_mode:
+        try:
+            wrap = await asyncio.to_thread(
+                openai_client.chat.completions.create,
+                model=ORCHESTRATOR_MODEL,
+                messages=messages + [{
+                    "role": "user",
+                    "content": (
+                        "You hit the step limit before finishing. In the user's language, state "
+                        "concretely: (1) what you changed (which documents/records, with amounts), "
+                        "(2) what you did NOT get done and why, (3) the current state of the affected "
+                        "record(s) as far as you know it. Be specific — names and numbers. This text "
+                        "stands alone: do NOT refer to 'the results above' or to earlier messages."
+                    ),
+                }],
+                max_completion_tokens=600,
+                reasoning_effort="none",
+            )
+            wrap_text = (wrap.choices[0].message.content or "").strip()
+            if wrap_text:
+                content = wrap_text
+        except Exception:
+            pass
     messages.append({"role": "assistant", "content": content})
     await on_event({"type": "complete", "content": content})
 
