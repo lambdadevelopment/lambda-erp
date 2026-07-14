@@ -25,13 +25,13 @@ OPENAI_PRICING: dict[str, dict[str, Any]] = {
             {"max_input_tokens": None,    "input": 5.00, "cached_input": 0.50, "output": 22.50},
         ],
     },
-    # GPT-5.6 Terra — tiered like gpt-5.4 (official model page: requests above
-    # 272K input tokens incur 2x input / 1.5x output).
+    # GPT-5.6 Terra — tiered like gpt-5.4 (official pricing: 2x input, 1.5x
+    # output above 272K input; the 5.6 family also prices cache writes).
     "gpt-5.6-terra": {
         "tiered": True,
         "tiers": [
-            {"max_input_tokens": 272_000, "input": 2.50, "cached_input": 0.25, "output": 15.00},
-            {"max_input_tokens": None,    "input": 5.00, "cached_input": 0.50, "output": 22.50},
+            {"max_input_tokens": 272_000, "input": 2.50, "cached_input": 0.25, "cache_write": 3.125, "output": 15.00},
+            {"max_input_tokens": None,    "input": 5.00, "cached_input": 0.50, "cache_write": 6.25,  "output": 22.50},
         ],
     },
     "gpt-4.1-nano": {"input": 0.10, "cached_input": 0.025, "output": 0.40},
