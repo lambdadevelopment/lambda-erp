@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-07-15
+
+### Fixed
+- **Chart of Accounts report also hides disabled accounts.** 0.2.4 hid disabled
+  accounts in `/account/tree`, but the CoA page the GUI renders is the
+  `/reports/chart-of-accounts` report, which still listed them (shown as
+  "disabled"). It now hides disabled accounts by default too — same rule: balances
+  still roll up over disabled descendants, and a disabled group with an enabled
+  descendant is kept so nothing active is orphaned. `include_disabled=true` shows
+  them.
+
 ## [0.2.4] - 2026-07-15
 
 ### Changed

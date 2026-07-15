@@ -121,9 +121,13 @@ def trial_balance(
                     company, presentation_currency, to_date)
 
 
-def _chart_of_accounts(db, company=None, from_date=None, to_date=None):
-    """Chart of accounts (every account, incl. groups and zero-balance ones)
-    with period balances — the tree the GUI renders.
+def _chart_of_accounts(db, company=None, from_date=None, to_date=None,
+                       include_disabled=False):
+    """Chart of accounts (groups and zero-balance ones included) with period
+    balances — the tree the GUI renders. Disabled accounts are hidden by default
+    (``include_disabled=True`` to show them); balances still roll up over every
+    descendant (incl. disabled), and a disabled group with an enabled descendant
+    is kept so no active account is orphaned.
 
     Balance semantics follow standard presentation:
       - Balance Sheet accounts: CLOSING balance as of ``to_date`` (all postings
@@ -212,6 +216,19 @@ def _chart_of_accounts(db, company=None, from_date=None, to_date=None):
             row["balance"] = flt(row["balance"] + subtree_extra[row["name"]], 2)
             row["has_entries"] = row["has_entries"] or bool(subtree_extra[row["name"]])
 
+    # Hide disabled accounts by default, but keep any disabled ancestor of an
+    # enabled account so the enabled one isn't orphaned in the rendered tree.
+    if not include_disabled:
+        keep = set()
+        for row in rows:
+            if not row["disabled"]:
+                keep.add(row["name"])
+                parent = row["parent_account"]
+                while parent and parent in by_name and parent not in keep:
+                    keep.add(parent)
+                    parent = by_name[parent]["parent_account"]
+        rows = [r for r in rows if r["name"] in keep]
+
     return {"accounts": rows, "from_date": from_date, "to_date": to_date}
 
 
@@ -221,10 +238,14 @@ def chart_of_accounts(
     from_date: str | None = None,
     to_date: str | None = None,
     presentation_currency: str | None = None,
+    include_disabled: bool = False,
 ):
     db = get_db()
-    return _present(db, _chart_of_accounts(db, company, from_date, to_date),
-                    company, presentation_currency, to_date)
+    return _present(
+        db,
+        _chart_of_accounts(db, company, from_date, to_date,
+                           include_disabled=include_disabled),
+        company, presentation_currency, to_date)
 
 
 def _general_ledger(db, filters=None):
