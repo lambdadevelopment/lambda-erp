@@ -43,20 +43,32 @@ Surfaces: the chat wizard (`api/chat.py` tools `plan_company_setup` /
 field selects the jurisdiction; `sector` applies the overlay). With neither, both
 paths are byte-identical to the legacy `setup_chart_of_accounts`.
 
-`packs/ch.py` is the worked example — a hand-authored Swiss KMU chart with a
-German anchor map, CHF, `CH_DEFAULTS` covering every posting default, and an
-MWST `setup_tax` hook building Sales/Purchase `Tax Template`s. Copy its shape for
-the next country.
+`packs/ch.py` is the single-chart worked example — a hand-authored Swiss KMU
+chart with a German anchor map, CHF, `CH_DEFAULTS` covering every posting
+default, and an MWST `setup_tax` hook building Sales/Purchase `Tax Template`s.
+Copy its shape for the next country.
+
+`packs/de_skr03.py` + `packs/de_skr04.py` are the **multi-variant** worked
+example: one country, two registered charts (`country="de"` with
+`variant="skr03"`/`"skr04"`), so `resolve_pack("de")` lands on the
+alphabetically-first variant (SKR03) and `resolve_pack("de", "skr04")` selects
+the other. Their identical VAT mechanics factor into `packs/de_common.py`
+(`make_de_setup_tax(sales, purchase)`), which each variant calls with its own
+tax-account leaf names — copy that split when a country's variants share a tax
+regime but differ in numbering.
 
 ## Adding a jurisdiction (the whole point)
 
-1. Create `packs/<country>.py` (or `<country>_<variant>.py`). Hand-author the
-   base chart tree (or adapt reference data — mind the license), map every
-   `spine.ANCHORS` entry to a real group account in that tree, set the company
-   `defaults`, and — if the jurisdiction has a standard VAT/GST regime — write a
-   `setup_tax(company, currency)` hook (Python; flat data can't express
-   reverse-charge / fiscal positions — that's the "hybrid" half).
-2. `register_pack(LocalizationPack(country="ch", ...))`.
+1. Create `packs/<country>.py` (or `packs/<country>_<variant>.py`, one module per
+   variant — see the German pair). Hand-author the base chart tree (or adapt
+   reference data — mind the license), map every `spine.ANCHORS` entry to a real
+   group account in that tree, set the company `defaults`, and — if the
+   jurisdiction has a standard VAT/GST regime — write a `setup_tax(company,
+   currency)` hook (Python; flat data can't express reverse-charge / fiscal
+   positions — that's the "hybrid" half).
+2. `register_pack(LocalizationPack(country="de", variant="skr03", ...))`. Register
+   one pack per chart; a bare `country` (no variant) is the default, else the
+   first variant by key wins for a bare `resolve_pack(country)`.
 3. Import it in `packs/__init__.py`.
 
 No change to the engine, the profiles, or the chat. That's the invariant to

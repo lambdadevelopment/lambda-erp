@@ -106,9 +106,15 @@ def test_unknown_country_falls_back_to_generic():
 
 
 def test_variant_key_resolution():
-    """country[.variant] keying: de.skr03 falls back to generic today but the
-    key parses (no crash), proving the variant axis is wired."""
-    assert resolve_pack("de", "skr03").country == "generic"  # none registered yet
+    """country[.variant] keying: both German variants register, an exact
+    de.skr04 wins, and a bare `de` resolves to the alphabetically-first variant
+    (skr03) — the default-variant fallback."""
+    assert resolve_pack("de", "skr04").key == "de.skr04"
+    assert resolve_pack("de", "skr03").key == "de.skr03"
+    assert resolve_pack("de").key == "de.skr03"          # bare de -> default variant
+    assert resolve_pack("DE", "SKR04").key == "de.skr04"  # case-insensitive
+    # an unregistered variant of a known country falls back to the country default
+    assert resolve_pack("de", "skr99").key == "de.skr03"
     print("PASS variant_key_resolution")
 
 
@@ -268,6 +274,62 @@ def test_swiss_overlay_names_localized_and_service_default_resolves():
     print("PASS swiss_overlay_names_localized_and_service_default_resolves")
 
 
+def test_german_packs_apply_with_resolvable_defaults_and_tax():
+    """Both DATEV variants resolve, use EUR, create Umsatzsteuer/Vorsteuer
+    templates (19 / 7 %), and every company default + tax head points at a real
+    created account. A bare `de` lands on SKR03; `de.skr04` on SKR04."""
+    from lambda_erp.accounting.setup.packs.de_skr03 import DE_SKR03_DEFAULTS
+    from lambda_erp.accounting.setup.packs.de_skr04 import DE_SKR04_DEFAULTS
+
+    cases = [
+        ("Muster GmbH", None, "de.skr03", DE_SKR03_DEFAULTS),   # bare de -> skr03
+        ("Beispiel AG", "skr04", "de.skr04", DE_SKR04_DEFAULTS),
+    ]
+    for company, variant, want_key, want_defaults in cases:
+        res = apply_company_setup(company, country="DE", variant=variant)
+        assert res["ok"] and res["jurisdiction"] == want_key, (want_key, res)
+        assert res["currency"] == "EUR", res["currency"]
+        assert res["accounts_created"] > 40, res["accounts_created"]
+        # 2 sales (19/7) + 2 purchase (19/7)
+        assert len(res["tax_summary"]) == 4, res["tax_summary"]
+
+        db = get_db()
+        abbr = account_abbr(company)
+        comp = db.get_all("Company", filters={"name": company},
+                          fields=list(want_defaults.keys()))[0]
+        for field, leaf in want_defaults.items():
+            want = f"{leaf} - {abbr}"
+            assert comp[field] == want, (company, field, comp[field], want)
+            assert db.get_all("Account", filters={"name": want}, fields=["name"]), \
+                f"{company}: default {field} points at missing account {want}"
+
+        details = db.get_all("Tax Template Detail", fields=["account_head", "rate"])
+        for d in details:
+            assert db.get_all("Account", filters={"name": d["account_head"]}, fields=["name"]), \
+                f"tax head missing: {d['account_head']}"
+
+    # SKR03 numbers a receivable in the class-1 finance band; it is still an Asset
+    abbr = account_abbr("Muster GmbH")
+    rec = _account_row(f"1400 Forderungen aus Lieferungen und Leistungen - {abbr}")
+    assert rec and rec["root_type"] == "Asset" and rec["account_type"] == "Receivable"
+    print("PASS german_packs_apply_with_resolvable_defaults_and_tax")
+
+
+def test_german_overlay_names_localized():
+    """Sector overlays render in German on the DATEV chart (pack.language='de')."""
+    res = apply_company_setup("Beraterhaus GmbH", country="de", sector="services")
+    assert res["ok"], res
+    assert res["jurisdiction"] == "de.skr03"
+    assert "Beratungserlöse" in res["sector_added_accounts"], res["sector_added_accounts"]
+    assert "Consulting Revenue" not in res["sector_added_accounts"]
+    abbr = account_abbr("Beraterhaus GmbH")
+    assert _account_row(f"Beratungserlöse - {abbr}") is not None
+    comp = get_db().get_all("Company", filters={"name": "Beraterhaus GmbH"},
+                            fields=["default_income_account"])[0]
+    assert comp["default_income_account"] == f"Beratungserlöse - {abbr}"
+    print("PASS german_overlay_names_localized")
+
+
 def main():
     setup(":memory:")
     test_profiles_are_portable()
@@ -284,6 +346,8 @@ def main():
     test_swiss_pack_applies_with_resolvable_defaults_and_tax()
     test_swiss_pack_accepts_sector_overlay()
     test_swiss_overlay_names_localized_and_service_default_resolves()
+    test_german_packs_apply_with_resolvable_defaults_and_tax()
+    test_german_overlay_names_localized()
     print("\nALL COMPANY-SETUP TESTS PASSED")
 
 

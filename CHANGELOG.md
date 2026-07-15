@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- **German localization packs (DATEV).** Two new `country="de"` variants —
+  `de.skr03` (process-ordered, the most widely used German SME chart) and
+  `de.skr04` (balance-sheet-ordered, DATEV's recommendation for new companies).
+  Each hand-authored from the published DATEV standard (cross-checked against the
+  LGPL Odoo `l10n_de` data): a curated ~70-account core with German titles
+  carrying their SKR number, EUR, and an Umsatzsteuer/Vorsteuer tax hook at the
+  federal rates (19 % Regelsteuersatz, 7 % ermäßigt). A bare `country="de"`
+  resolves to SKR03; `de.skr04` selects the modern chart. This is the first use
+  of the `country[.variant]` key axis the pack registry was built for — no engine
+  change, the shared VAT builder lives in `packs/de_common.py`. Sector overlays
+  render in German on the DATEV chart, same as the Swiss pack.
+
 ## [0.2.2] - 2026-07-15
 
 ### Changed

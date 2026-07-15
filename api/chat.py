@@ -1089,10 +1089,14 @@ TOOLS = [
                 "`sector` is one of: services, retail_pos, hospitality, distribution, "
                 "import_export, manufacturing, construction. If you're unsure which fits, "
                 "ASK the user about their business rather than guessing. `country` selects "
-                "the jurisdiction chart. Available: 'generic' (international, USD) and 'CH' "
+                "the jurisdiction chart. Available: 'generic' (international, USD); 'CH' "
                 "(Switzerland — Kontenrahmen KMU, German account names, CHF, with MWST tax "
-                "templates). Any other country falls back to the generic chart — tell the "
-                "user when `jurisdiction.is_fallback` is true."
+                "templates); and 'DE' (Germany — DATEV chart, German account names, EUR, with "
+                "Umsatzsteuer/Vorsteuer tax templates at 19 %/7 %). Germany has two chart "
+                "`variant`s: 'skr03' (process-ordered, the most common — the default for a bare "
+                "'DE') and 'skr04' (balance-sheet-ordered, DATEV's recommendation for newly "
+                "founded companies); ask which they use if it matters. Any other country falls "
+                "back to the generic chart — tell the user when `jurisdiction.is_fallback` is true."
             ),
             "parameters": {
                 "type": "object",
@@ -1104,8 +1108,8 @@ TOOLS = [
                                  "import_export", "manufacturing", "construction"],
                         "description": "Operating-mode profile. Omit if the business is generic/unknown.",
                     },
-                    "country": {"type": "string", "description": "Jurisdiction code, e.g. 'CH'. Defaults to generic."},
-                    "variant": {"type": "string", "description": "Sub-chart variant, e.g. 'skr03' (rarely needed)."},
+                    "country": {"type": "string", "description": "Jurisdiction code, e.g. 'CH' or 'DE'. Defaults to generic."},
+                    "variant": {"type": "string", "description": "Sub-chart variant. For 'DE': 'skr03' (default) or 'skr04'. Omit otherwise."},
                     "currency": {"type": "string", "description": "Base currency, e.g. 'USD', 'CHF'. Defaults to the pack currency."},
                 },
                 "required": ["name"],

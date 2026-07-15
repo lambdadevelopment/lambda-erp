@@ -6,11 +6,11 @@ imported. Adding a jurisdiction = drop a module here and import it below.
 
     generic   the jurisdiction-neutral / international pack (and fallback)
     ch        Switzerland (Kontenrahmen KMU)
-    # de      Germany (SKR03/04)   — later
+    de.skr03  Germany, DATEV SKR03 (process-ordered) — default for a bare `de`
+    de.skr04  Germany, DATEV SKR04 (balance-sheet-ordered)
 """
 
 from lambda_erp.accounting.setup.packs import generic  # noqa: F401
 from lambda_erp.accounting.setup.packs import ch  # noqa: F401
-
-# Future packs register on import — add them here, e.g.:
-# from lambda_erp.accounting.setup.packs import de_skr03  # noqa: F401
+from lambda_erp.accounting.setup.packs import de_skr03  # noqa: F401
+from lambda_erp.accounting.setup.packs import de_skr04  # noqa: F401
