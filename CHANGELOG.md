@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-15
+
 ### Added
 - **German localization packs (DATEV).** Two new `country="de"` variants —
   `de.skr03` (process-ordered, the most widely used German SME chart) and
