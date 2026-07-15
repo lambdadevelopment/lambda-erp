@@ -13,6 +13,38 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-15
+
+### Added
+- **Guided, sector-aware company setup.** New `lambda_erp/accounting/setup/`
+  package builds a company's chart of accounts through a three-layer design:
+  a universal `account_type` spine, pluggable **localization packs** keyed
+  `country[.variant]` (a registry with a permanent generic/international
+  fallback), and seven jurisdiction-independent **sector profiles** (services,
+  retail/POS, hospitality, distribution, import/export, manufacturing,
+  construction) that attach accounts to pack *anchors* — never to literal codes,
+  so they carry across every jurisdiction unchanged. Adding a country is a new
+  pack module with no engine change. Exposed as `plan_company_setup` (preview,
+  no writes) and `apply_company_setup` (creates chart + defaults + tax + cost
+  center). The registries and profiles are semver-governed extension seams.
+- **Switzerland localization pack.** First jurisdiction pack beyond generic: the
+  Swiss *Kontenrahmen KMU* (German account names with KMU numbers, CHF), with an
+  MWST tax hook that builds Sales/Purchase tax templates at the current rates
+  (8.1 % / 2.6 % / 3.8 %, from 2024). Selected via `country="CH"`; the seven
+  sector profiles apply on it unchanged.
+- **Chat setup wizard.** Admin-only `plan_company_setup` / `apply_company_setup`
+  chat tools walk the user through the plan, surface each sector "big decision"
+  for explicit confirmation, and only create anything on approval. `POST
+  /api/setup/company` now routes through the engine (the company `country`
+  selects the jurisdiction, an optional `sector` applies the overlay); with
+  neither it is byte-identical to the previous chart. Added `GET
+  /api/setup/profiles` and `POST /api/setup/plan`.
+- **Tutorial "Get started".** A prominent guided-setup card on `/tutorial` with a
+  "Get started in chat" button that launches the wizard (en/de/fr).
+- **API keys grouped by owner.** The admin API-keys page now groups keys by the
+  user they belong to (your own first, clearly labelled), with an in-page
+  confirmation dialog before revoking or deleting another user's key.
+
 ## [0.1.38] - 2026-07-13
 
 ### Changed

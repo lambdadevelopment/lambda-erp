@@ -673,7 +673,15 @@
     "manualIntro": "If you want to fully understand how things work under the hood, or prefer to do things manually, here’s a full business cycle step by step.",
     "readyTitle": "You're Ready",
     "readyBody1": "You now understand the full cycle. A typical real-world scenario looks like this: you receive a customer order (Quotation → Sales Order), check stock, buy what you need (Purchase Order → Purchase Receipt → Purchase Invoice → Payment), deliver to the customer (Delivery Note), bill them (Sales Invoice), and collect payment (Payment Entry). If something comes back, create a Credit Note and Delivery Note return to reverse the financials and stock. The Trial Balance confirms everything is balanced.",
-    "readyBody2": "You can also use the AI chat to do all of this through natural conversation — just describe what you need and it will create the right documents for you."
+    "readyBody2": "You can also use the AI chat to do all of this through natural conversation — just describe what you need and it will create the right documents for you.",
+    "setupTitle": "Set Up Your Company — Guided by AI",
+    "setupBadge": "Start Here",
+    "setupBody": "Tell the assistant what kind of business you run, and it builds your chart of accounts for you — tailored to your sector, with the right accounts and sensible defaults already wired up. It explains each decision and only creates anything once you approve.",
+    "setupSectors": "Tailored for services, retail & POS, hospitality, wholesale & distribution, import/export, manufacturing, and construction.",
+    "setupGetStarted": "Get started in chat",
+    "setupManual": "Prefer a manual form? Use the classic setup.",
+    "setupManualLink": "Classic setup",
+    "setupPrompt": "I'd like to set up my company. Can you guide me through it?"
   },
   "notesMarkup": {
     "title": "Formatting help",

@@ -171,12 +171,12 @@ const STEPS: Step[] = [
   },
 ];
 
-function CustomAnalyticsHighlight() {
+// Launch the chat with a prefilled message (reuses an existing session or
+// creates one), mirroring the analytics "try in chat" flow.
+function useTryInChat() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const { sessions, createSession } = useChat();
-
-  const tryInChat = async (prefill: string) => {
+  return async (prefill: string) => {
     let targetSessionId = sessions[0]?.id || "";
     if (!targetSessionId) {
       try {
@@ -189,6 +189,57 @@ function CustomAnalyticsHighlight() {
     }
     navigate(`/chat/${targetSessionId}`, { state: { prefillMessage: prefill } });
   };
+}
+
+function CompanySetupHighlight() {
+  const { t } = useTranslation();
+  const tryInChat = useTryInChat();
+
+  return (
+    <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-white">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg font-bold text-emerald-700">
+          ▶
+        </div>
+        <div className="flex-1 space-y-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-emerald-700">
+              {t("tutorial.setupBadge")}
+            </p>
+            <h3 className="mt-0.5 text-lg font-semibold text-gray-900">
+              {t("tutorial.setupTitle")}
+            </h3>
+          </div>
+          <p className="text-sm leading-relaxed text-gray-700">
+            {t("tutorial.setupBody")}
+          </p>
+          <p className="text-xs leading-relaxed text-gray-500">
+            {t("tutorial.setupSectors")}
+          </p>
+          <div className="flex flex-wrap items-center gap-4 pt-1">
+            <button
+              type="button"
+              onClick={() => tryInChat(t("tutorial.setupPrompt"))}
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
+            >
+              {t("tutorial.setupGetStarted")} &rarr;
+            </button>
+            <span className="text-xs text-gray-500">
+              {t("tutorial.setupManual")}{" "}
+              <Link to="/setup" className="font-medium text-emerald-700 hover:text-emerald-900">
+                {t("tutorial.setupManualLink")} &rarr;
+              </Link>
+            </span>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function CustomAnalyticsHighlight() {
+  const { t } = useTranslation();
+  const tryInChat = useTryInChat();
 
   const samplePrompts = [
     t("tutorial.caPrompt1"),
@@ -372,6 +423,7 @@ export default function TutorialPage() {
         </p>
       </div>
 
+      <CompanySetupHighlight />
       <CustomAnalyticsHighlight />
       <FlowDiagram />
       <LifecycleCard />

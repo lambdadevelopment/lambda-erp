@@ -1067,6 +1067,75 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "plan_company_setup",
+            "description": (
+                "PREVIEW a new company's chart of accounts — creates NOTHING. Use this "
+                "when the user asks to set up a company / get started / create their books. "
+                "Returns the proposed jurisdiction, currency, the full account tree, the "
+                "sector-specific accounts that would be added, the company default-account "
+                "wiring, and — importantly — `sector.guidance` (why the chart looks this way) "
+                "and `sector.big_decisions` (points you MUST confirm with the user before "
+                "applying). Call this first, walk the user through the plan and the big "
+                "decisions in plain language, and only call `apply_company_setup` once they "
+                "confirm.\n\n"
+                "`sector` is one of: services, retail_pos, hospitality, distribution, "
+                "import_export, manufacturing, construction. If you're unsure which fits, "
+                "ASK the user about their business rather than guessing. `country` selects "
+                "the jurisdiction chart. Available: 'generic' (international, USD) and 'CH' "
+                "(Switzerland — Kontenrahmen KMU, German account names, CHF, with MWST tax "
+                "templates). Any other country falls back to the generic chart — tell the "
+                "user when `jurisdiction.is_fallback` is true."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The company name"},
+                    "sector": {
+                        "type": "string",
+                        "enum": ["services", "retail_pos", "hospitality", "distribution",
+                                 "import_export", "manufacturing", "construction"],
+                        "description": "Operating-mode profile. Omit if the business is generic/unknown.",
+                    },
+                    "country": {"type": "string", "description": "Jurisdiction code, e.g. 'CH'. Defaults to generic."},
+                    "variant": {"type": "string", "description": "Sub-chart variant, e.g. 'skr03' (rarely needed)."},
+                    "currency": {"type": "string", "description": "Base currency, e.g. 'USD', 'CHF'. Defaults to the pack currency."},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "apply_company_setup",
+            "description": (
+                "CREATE the company, its chart of accounts (base + sector overlay), the "
+                "company default accounts, any jurisdiction tax accounts, and the default "
+                "cost center — in one step. Only call this AFTER `plan_company_setup` and "
+                "AFTER the user has explicitly confirmed the plan and any big decisions. "
+                "Refuses if the company already has accounts (admin-only). Pass the SAME "
+                "arguments you used for the plan the user approved."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The company name (must match the approved plan)"},
+                    "sector": {
+                        "type": "string",
+                        "enum": ["services", "retail_pos", "hospitality", "distribution",
+                                 "import_export", "manufacturing", "construction"],
+                    },
+                    "country": {"type": "string"},
+                    "variant": {"type": "string"},
+                    "currency": {"type": "string"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -1583,6 +1652,34 @@ def _handle_update_custom_analytics_report(args, user_info: dict | None = None, 
     return row
 
 
+def _handle_plan_company_setup(args):
+    from lambda_erp.accounting.setup import plan_company_setup
+    name = (args.get("name") or "").strip()
+    if not name:
+        return {"error": "A company name is required to plan the setup."}
+    return plan_company_setup(
+        name,
+        country=(args.get("country") or None),
+        variant=(args.get("variant") or None),
+        sector=(args.get("sector") or None),
+        currency=(args.get("currency") or None),
+    )
+
+
+def _handle_apply_company_setup(args):
+    from lambda_erp.accounting.setup import apply_company_setup
+    name = (args.get("name") or "").strip()
+    if not name:
+        return {"error": "A company name is required to apply the setup."}
+    return apply_company_setup(
+        name,
+        country=(args.get("country") or None),
+        variant=(args.get("variant") or None),
+        sector=(args.get("sector") or None),
+        currency=(args.get("currency") or None),
+    )
+
+
 TOOL_HANDLERS = {
     "list_documents": _handle_list_documents,
     "get_document": _handle_get_document,
@@ -1606,6 +1703,8 @@ TOOL_HANDLERS = {
     "create_custom_analytics_report": lambda args: _handle_create_custom_analytics_report(args),
     "get_custom_analytics_report": lambda args: _handle_get_custom_analytics_report(args),
     "update_custom_analytics_report": lambda args: _handle_update_custom_analytics_report(args),
+    "plan_company_setup": _handle_plan_company_setup,
+    "apply_company_setup": _handle_apply_company_setup,
 }
 
 # ---------------------------------------------------------------------------
@@ -1747,6 +1846,21 @@ Always include the view link after creating, submitting, converting, or updating
     else:
         role_desc = "You have **viewer** access — you can view documents, master data, and reports, but you cannot create or modify data. If the user asks you to create or change something, let them know they need a manager or admin to do that."
 
+    # Only admins can run setup, so only they get the wizard playbook (keeps the
+    # prompt lean for everyone else). Triggered from chat OR the Tutorial page's
+    # "Get started" button, which sends a set-up-my-company message.
+    if user_role == "admin":
+        company_setup_section = """## Guided company setup (chart of accounts)
+When the user wants to **set up a new company**, get started, or create their books/chart of accounts, run the guided setup — do NOT hand-create accounts one by one:
+1. **Identify the business type.** Which of these fits: services/consulting, retail/POS, hospitality/F&B, distribution/wholesale, import/export, manufacturing, or construction? If the conversation doesn't make it obvious, ASK — never guess the sector.
+2. **Preview with `plan_company_setup`** (company name + sector + country/currency if known). This creates NOTHING; it returns the proposed chart.
+3. **Walk them through the plan** in plain language: the sector-specific accounts (`sector_added_accounts`) and the `sector.guidance` (why the chart is shaped this way). Present every item in `sector.big_decisions` and get an explicit yes/no on each — these are the decisions you must not make for them.
+4. **Only after they confirm, call `apply_company_setup`** with the SAME arguments to create the company, accounts, defaults, and cost center.
+If `jurisdiction.is_fallback` is true, tell the user their country isn't localized yet and you're using the generic international chart for now.
+"""
+    else:
+        company_setup_section = ""
+
     return f"""You are an ERP assistant for Lambda ERP. Today's date is {date.today().isoformat()}.
 
 You help users manage their business by creating documents, looking up data, and running reports — all through natural conversation.
@@ -1768,7 +1882,7 @@ When you do build a custom report, pass a plain-language `intent` to `create_cus
 ## Current User
 You are speaking with **{user_name}** (role: **{user_role}**).
 {role_desc}
-
+{company_setup_section}
 {company_context}
 {analytics_context}
 {uom_context}
@@ -2391,6 +2505,17 @@ async def run_thinking_loop(
         tool_handlers["create_master"] = denied
         tool_handlers["update_master"] = denied
         tool_handlers["delete_master"] = denied
+
+    # Company setup (chart of accounts, defaults, cost center) is admin-only,
+    # mirroring POST /api/setup/company. Non-admins can still be *shown* a plan?
+    # No — even the preview reveals structure they can't act on, so deny both.
+    if user_role != "admin":
+        setup_denied = lambda _args: {
+            "error": "Setting up a company is an admin task. Ask an administrator "
+                     "to run the guided setup, or open it yourself from the Tutorial."
+        }
+        tool_handlers["plan_company_setup"] = setup_denied
+        tool_handlers["apply_company_setup"] = setup_denied
 
     # Scope session-aware tools without mutating globals.
     if session_id:

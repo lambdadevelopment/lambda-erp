@@ -7,6 +7,12 @@ from fastapi import APIRouter, Depends
 from lambda_erp.database import get_db
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.accounting.chart_of_accounts import setup_chart_of_accounts, setup_cost_center
+from lambda_erp.accounting.setup import (
+    plan_company_setup,
+    apply_company_setup,
+    list_profiles,
+    list_packs,
+)
 from api.auth import require_role
 
 # Sample US corporate addresses (streets, cities, states) used to auto-fill
@@ -94,15 +100,69 @@ def create_company(data: dict, _user: dict = Depends(require_role("admin"))):
         **contact,
     ))
 
-    setup_chart_of_accounts(name, currency)
-    cost_center = setup_cost_center(name)
+    # Route the chart through the localization-pack engine. The jurisdiction is
+    # taken from the company `country` (falls back to the generic pack for any
+    # unlocalized country), and an optional `sector` applies an operating-mode
+    # overlay. With neither, this is byte-identical to the legacy
+    # setup_chart_of_accounts + setup_cost_center path.
+    result = apply_company_setup(
+        name,
+        country=(contact.get("country") or None),
+        variant=(data.get("variant") or None),
+        sector=(data.get("sector") or None),
+        currency=currency,
+    )
+    if not result.get("ok"):
+        return {"detail": result.get("error", "setup failed")}
 
     return {
         "ok": True,
         "company": name,
-        "cost_center": cost_center,
+        "cost_center": result["cost_center"],
         "currency": currency,
+        "jurisdiction": result["jurisdiction"],
+        "sector": result["sector"],
+        "accounts_created": result["accounts_created"],
+        "sector_added_accounts": result["sector_added_accounts"],
     }
+
+
+@router.get("/profiles")
+def setup_profiles(_user: dict = Depends(require_role("viewer"))):
+    """List the available sector profiles and jurisdiction packs for setup."""
+    return {
+        "sectors": [
+            {
+                "key": p.key,
+                "label": p.label,
+                "summary": p.summary,
+                "big_decisions": p.big_decisions,
+            }
+            for p in list_profiles()
+        ],
+        "jurisdictions": [
+            {"key": p.key, "label": p.label, "currency": p.currency,
+             "has_standard_tax": p.setup_tax is not None}
+            for p in list_packs()
+        ],
+    }
+
+
+@router.post("/plan")
+def setup_plan(data: dict, _user: dict = Depends(require_role("admin"))):
+    """Preview a company's chart of accounts without creating anything.
+
+    Expects: {"name": "...", "country": "CH"?, "variant": "skr03"?,
+              "sector": "manufacturing"?, "currency": "USD"?}
+    """
+    name = data.get("name") or "New Company"
+    return plan_company_setup(
+        name,
+        country=(data.get("country") or None),
+        variant=(data.get("variant") or None),
+        sector=(data.get("sector") or None),
+        currency=(data.get("currency") or None),
+    )
 
 
 @router.post("/seed-demo")
@@ -229,7 +289,13 @@ def import_account_balances(data: dict, _user: dict = Depends(require_role("admi
 
     db = get_db()
     abbr = company[:4].upper()
-    equity_account = f"Opening Balance Equity - {abbr}"
+    # Read the balancing account from the company default rather than hardcoding
+    # the English name — localization packs use their own (e.g. the Swiss pack's
+    # "2990 Eröffnungsbilanz"). Mirrors the Opening Stock path in stock_entry.py.
+    equity_account = (
+        db.get_value("Company", company, "default_opening_balance_equity")
+        or f"Opening Balance Equity - {abbr}"
+    )
 
     accounts = []
     total_debit = 0

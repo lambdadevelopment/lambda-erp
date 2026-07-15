@@ -111,21 +111,50 @@ STANDARD_CHART = {
 }
 
 
-def setup_chart_of_accounts(company_name, currency="USD"):
-    """Create all accounts for a company from the standard chart.
+# Company default-account wiring for the standard/generic chart, keyed
+# {company_field: leaf_account_name} (un-suffixed). The company abbreviation
+# suffix (" - ABBR") is appended at write time by apply_company_defaults. The
+# generic localization pack reuses this so the new setup engine and this legacy
+# path stay in lockstep.
+STANDARD_DEFAULTS = {
+    "default_receivable_account": "Accounts Receivable",
+    "default_payable_account": "Accounts Payable",
+    "default_income_account": "Sales Revenue",
+    "default_expense_account": "Cost of Goods Sold",
+    "round_off_account": "Round Off",
+    "stock_in_hand_account": "Stock In Hand",
+    "stock_received_but_not_billed": "Stock Received But Not Billed",
+    "stock_adjustment_account": "Stock Adjustment",
+    "default_opening_balance_equity": "Opening Balance Equity",
+    "default_freight_in_account": "Freight In",
+    "default_customs_account": "Customs & Duties",
+    "default_exchange_gain_loss_account": "Exchange Gain/Loss",
+    "default_unrealized_exchange_account": "Unrealized Exchange Gain/Loss",
+}
 
-    This mirrors the reference implementation's setup wizard step that creates the Chart of Accounts
-    from a template when a new company is created.
+
+def account_abbr(company_name):
+    """The 4-char company suffix used across the chart (e.g. 'Lambda' -> 'LAMB')."""
+    return company_name[:4].upper()
+
+
+def create_accounts_from_tree(company_name, tree, currency="USD"):
+    """Write an account tree for a company. Shared by the legacy setup and the
+    localization-pack engine so there is exactly one account writer.
+
+    ``tree`` is ``{account_name: {root_type?, report_type?, account_type?,
+    children?}}``. root_type / report_type inherit from the parent when omitted.
+    Does NOT commit — the caller owns the transaction boundary.
     """
     db = get_db()
 
-    def _create_accounts(tree, parent=None, root_type=None, report_type=None):
-        for account_name, details in tree.items():
+    def _create(subtree, parent=None, root_type=None, report_type=None):
+        for account_name, details in subtree.items():
             rt = details.get("root_type", root_type)
             rpt = details.get("report_type", report_type)
             has_children = "children" in details
 
-            name = f"{account_name} - {company_name[:4].upper()}"
+            name = f"{account_name} - {account_abbr(company_name)}"
 
             account = _dict(
                 name=name,
@@ -141,28 +170,35 @@ def setup_chart_of_accounts(company_name, currency="USD"):
             db.insert("Account", account)
 
             if has_children:
-                _create_accounts(details["children"], parent=name, root_type=rt, report_type=rpt)
+                _create(details["children"], parent=name, root_type=rt, report_type=rpt)
 
-    _create_accounts(STANDARD_CHART)
+    _create(tree)
 
-    # Set up company defaults
-    abbr = company_name[:4].upper()
-    db.set_value("Company", company_name, {
-        "default_receivable_account": f"Accounts Receivable - {abbr}",
-        "default_payable_account": f"Accounts Payable - {abbr}",
-        "default_income_account": f"Sales Revenue - {abbr}",
-        "default_expense_account": f"Cost of Goods Sold - {abbr}",
-        "round_off_account": f"Round Off - {abbr}",
-        "stock_in_hand_account": f"Stock In Hand - {abbr}",
-        "stock_received_but_not_billed": f"Stock Received But Not Billed - {abbr}",
-        "stock_adjustment_account": f"Stock Adjustment - {abbr}",
-        "default_opening_balance_equity": f"Opening Balance Equity - {abbr}",
-        "default_freight_in_account": f"Freight In - {abbr}",
-        "default_customs_account": f"Customs & Duties - {abbr}",
-        "default_exchange_gain_loss_account": f"Exchange Gain/Loss - {abbr}",
-        "default_unrealized_exchange_account": f"Unrealized Exchange Gain/Loss - {abbr}",
-    })
 
+def apply_company_defaults(company_name, defaults):
+    """Point Company default-account fields at the created leaf accounts.
+
+    ``defaults`` is ``{company_field: leaf_account_name}`` (un-suffixed); the
+    company suffix is appended here. Does NOT commit.
+    """
+    abbr = account_abbr(company_name)
+    resolved = {field: f"{leaf} - {abbr}" for field, leaf in defaults.items()}
+    if resolved:
+        db = get_db()
+        db.set_value("Company", company_name, resolved)
+
+
+def setup_chart_of_accounts(company_name, currency="USD"):
+    """Create all accounts for a company from the standard chart.
+
+    This mirrors the reference implementation's setup wizard step that creates the Chart of Accounts
+    from a template when a new company is created. It is the jurisdiction-neutral
+    legacy path; the localization-pack engine (``lambda_erp.accounting.setup``)
+    builds on the same writer to support sector overlays and other jurisdictions.
+    """
+    db = get_db()
+    create_accounts_from_tree(company_name, STANDARD_CHART, currency)
+    apply_company_defaults(company_name, STANDARD_DEFAULTS)
     db.commit()
     return True
 

@@ -673,7 +673,15 @@
         "description": "Vos comptes sont tenus dans une seule devise de base (choisie à la configuration de la société), mais vous pouvez effectuer des transactions dans n'importe quelle devise. Définissez une devise sur une facture ou un effet – ou attribuez une devise par défaut à un client ou un fournisseur – et le taux de change de cette date est recherché automatiquement et enregistré sur le document. Le document conserve ses montants dans sa propre devise, tandis que le Grand livre comptabilise toujours dans votre devise de base. Lorsque vous encaissez ou payez ultérieurement à un taux différent, le gain ou la perte de change réalisé est comptabilisé automatiquement sur un compte Gain/Perte de change. Vous pouvez même détenir un solde bancaire en devise étrangère et le convertir plus tard au taux de votre banque – l'écart par rapport à sa valeur comptable est alors réalisé. En fin de mois, vous pouvez réévaluer les soldes en devises ouverts au taux de clôture (un gain/perte latent qui s'inverse à la période suivante), et vous pouvez consulter n'importe quel état financier converti dans une autre devise pour l'affichage.",
         "tip": "Le plus simple est de passer par le chat IA – essayez « Crée une facture de vente pour Lumiere Audio en EUR », « Montre-moi le bilan en EUR » ou « Quelle est notre exposition de change latente en fin de mois ? ». Les données de démonstration incluent déjà un client EUR (Lumiere Audio SARL) dont la facture a été encaissée à un taux différent, ainsi qu'une facture fournisseur EUR ouverte – ouvrez le Grand livre pour voir les écritures de change réalisées."
       }
-    }
+    },
+    "setupTitle": "Configurez votre entreprise — guidé par l'IA",
+    "setupBadge": "Commencez ici",
+    "setupBody": "Dites à l'assistant quel type d'entreprise vous dirigez, et il construit votre plan comptable pour vous — adapté à votre secteur, avec les bons comptes et des valeurs par défaut cohérentes déjà en place. Il explique chaque décision et ne crée quoi que ce soit qu'après votre approbation.",
+    "setupSectors": "Adapté aux services, au commerce de détail & POS, à l'hôtellerie-restauration, au commerce de gros & distribution, à l'import/export, à la fabrication et à la construction.",
+    "setupGetStarted": "Commencer dans le chat",
+    "setupManual": "Vous préférez un formulaire manuel ? Utilisez la configuration classique.",
+    "setupManualLink": "Configuration classique",
+    "setupPrompt": "Je souhaite configurer mon entreprise. Pouvez-vous me guider ?"
   },
   "notesMarkup": {
     "title": "Aide au formatage",

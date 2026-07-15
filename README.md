@@ -108,8 +108,22 @@ Each of those is hours of skilled work today. With a capable LLM in the loop, th
 
 ---
 
+## Set up your books by describing your business
+
+Standing up a new company usually means an accountant hand-building a chart of accounts. In Lambda ERP you do it in the chat: tell the assistant what kind of business you run and which country you're in, and it proposes the exact accounts — explaining the structure and the judgment calls, and creating nothing until you approve. It's the "chart-of-accounts design and mapping" work from above, done in seconds and reviewed by you.
+
+Two dimensions shape the chart, and they compose:
+
+- **Localization packs** bring a country's real chart and tax setup. Today: a **generic / international** chart (also the permanent fallback for anywhere not yet localized) and **Switzerland** — the *Kontenrahmen KMU*, in German, in CHF, with MWST tax templates at the current rates. Each country is a self-contained pack, so more can land without disturbing the ones already there — that's the roadmap, one jurisdiction at a time.
+- **Sector profiles** tailor the chart to how you operate — **services, retail / POS, hospitality, wholesale / distribution, import / export, manufacturing, construction** — adding the accounts that model actually needs (work-in-progress and retention for construction, food-vs-beverage cost lines for hospitality, landed-cost accounts for import/export, and so on). Profiles are country-independent: the same seven apply on top of every localization.
+
+The result is booked in one step — chart of accounts, sensible default accounts, tax templates, and a cost center — ready for opening balances. New here? The in-app **Tutorial** has a one-click **Get started** that opens the wizard in chat.
+
+---
+
 ## What works today
 
+- **Guided company setup through chat** — pick a country (generic or Switzerland, more coming) and business type, preview the exact chart of accounts, confirm, and it's booked
 - Full sales and purchase cycles (Quotation → Sales Order → Delivery Note → Sales Invoice → Payment Entry, and the buying equivalents)
 - Returns / credit notes / debit notes with proper GL and stock reversal
 - Moving-average stock ledger with negative-stock protection
@@ -149,7 +163,7 @@ Four things had to be true for this to work, and they all became true in the las
 
 Every company configuring an ERP runs into the same problems: local tax rules, common workflow patterns, industry-specific accounting quirks. Most of that knowledge isn't a competitive advantage — it's the same ground being re-covered separately at every implementation, by every team, in slightly different ways.
 
-We want Lambda ERP to be where that knowledge lives in public. The base system is MIT-licensed, and we're organizing the repo so that community contributions - a German VAT pack, a U.S. sales-tax-by-state module, an industry template for professional services - can slot in under `docs/` and be picked up by the LLM as reference material. The goal is a true community where running an ERP gets cheaper, faster, and more flexible for everyone, not just the implementer.
+We want Lambda ERP to be where that knowledge lives in public. The base system is MIT-licensed, and the repo has real seams for that knowledge to slot into: a new country's chart of accounts and tax rules is a self-contained **localization pack**, and an industry's way of operating is a **sector profile** — both live in `lambda_erp/accounting/setup/` and are documented for contributors in [`docs/agents/company_setup.md`](docs/agents/company_setup.md). A German VAT pack, a U.S. sales-tax-by-state module, a template for professional services — each is an additive contribution that every deployment picks up. The goal is a true community where running an ERP gets cheaper, faster, and more flexible for everyone, not just the implementer.
 
 ---
 

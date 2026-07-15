@@ -673,7 +673,15 @@
         "description": "Ihre Bücher werden in einer einzigen Basiswährung geführt (bei der Unternehmenseinrichtung gewählt), aber Sie können in jeder Währung buchen. Setzen Sie eine Währung auf einer Rechnung oder einem Beleg – oder geben Sie einem Kunden oder Lieferanten eine Standardwährung – und der Wechselkurs für dieses Datum wird automatisch ermittelt und auf dem Dokument gespeichert. Das Dokument behält seine Beträge in seiner eigenen Währung, während das Hauptbuch stets in Ihrer Basiswährung bucht. Wenn Sie später zu einem anderen Kurs einnehmen oder zahlen, wird der realisierte Währungsgewinn oder -verlust automatisch auf ein Konto Währungsgewinn/-verlust gebucht. Sie können sogar ein Fremdwährungs-Bankguthaben halten und es später zum Kurs Ihrer Bank umrechnen – die Differenz zum Buchwert wird dann realisiert. Zum Monatsende können Sie offene Fremdwährungssalden zum Stichtagskurs neu bewerten (ein unrealisierter Gewinn/Verlust, der in der nächsten Periode storniert wird), und Sie können jeden Jahresabschluss zur Anzeige in eine andere Währung umgerechnet betrachten.",
         "tip": "Am einfachsten geht das über den KI-Chat – probieren Sie „Erstelle eine Ausgangsrechnung für Lumiere Audio in EUR“, „Zeig mir die Bilanz in EUR“ oder „Wie hoch ist unser unrealisiertes Währungsrisiko zum Monatsende?“. Die Demodaten enthalten bereits einen EUR-Kunden (Lumiere Audio SARL), dessen Rechnung zu einem anderen Kurs eingenommen wurde, sowie eine offene EUR-Lieferantenrechnung – öffnen Sie das Hauptbuch, um die realisierten Währungsbuchungen zu sehen."
       }
-    }
+    },
+    "setupTitle": "Richten Sie Ihr Unternehmen ein — KI-geführt",
+    "setupBadge": "Hier starten",
+    "setupBody": "Sagen Sie dem Assistenten, welche Art von Unternehmen Sie führen, und er erstellt Ihren Kontenplan für Sie — zugeschnitten auf Ihre Branche, mit den passenden Konten und sinnvollen Voreinstellungen. Er erklärt jede Entscheidung und legt erst dann etwas an, wenn Sie zustimmen.",
+    "setupSectors": "Zugeschnitten auf Dienstleistungen, Einzelhandel & POS, Gastronomie, Großhandel & Distribution, Import/Export, Fertigung und Bauwesen.",
+    "setupGetStarted": "Im Chat loslegen",
+    "setupManual": "Lieber ein manuelles Formular? Nutzen Sie die klassische Einrichtung.",
+    "setupManualLink": "Klassische Einrichtung",
+    "setupPrompt": "Ich möchte mein Unternehmen einrichten. Können Sie mich durch den Prozess führen?"
   },
   "notesMarkup": {
     "title": "Formatierungshilfe",
