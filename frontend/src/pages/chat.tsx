@@ -1024,8 +1024,11 @@ function MarkdownContent({ content }: { content: string }) {
           {line.slice(3)}
         </h3>,
       );
-    } else if (/^\s*[-*•]\s?/.test(line)) {
-      const content = line.replace(/^\s*[-*•]\s?/, "");
+    } else if (/^\s*[-*•]\s+/.test(line)) {
+      // Require whitespace after the marker so a bold line like `**Heading**`
+      // isn't mistaken for a `*` bullet (which stripped one star and mangled
+      // the bold). Real list items always have a space: `- item`, `* item`.
+      const content = line.replace(/^\s*[-*•]\s+/, "");
       elements.push(
         <div key={i} className="ml-3 flex gap-1">
           <span className="text-fg-muted">&bull;</span>

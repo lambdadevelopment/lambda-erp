@@ -13,6 +13,11 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Fixed
+- **Chat bold headings.** A line the assistant emits as bold (`**Heading**`) is no
+  longer mistaken for a `*` bullet — the chat's list detection now requires
+  whitespace after the marker, so the bold renders instead of leaking stray `*`/`•`.
+
 ## [0.2.1] - 2026-07-15
 
 ### Fixed
