@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-07-15
+
+### Changed
+- **Chart of Accounts hides disabled accounts.** The `/account/tree` endpoint now
+  omits disabled accounts by default (they already drop out of account pickers),
+  so retiring an account removes it from the CoA view instead of leaving it as
+  clutter. A disabled *group* is still shown when it has an enabled descendant, so
+  an active account is never hidden behind a disabled parent. Pass
+  `include_disabled=true` to see them; each node now carries a `disabled` flag.
+
 ## [0.2.3] - 2026-07-15
 
 ### Added

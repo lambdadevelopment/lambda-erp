@@ -388,8 +388,16 @@ def delete_master(master_type: str, name: str, _user: dict = _admin):
 
 
 @router.get("/account/tree")
-def account_tree(company: str | None = None, _user: dict = _viewer):
-    """Return Chart of Accounts as a nested tree."""
+def account_tree(company: str | None = None, include_disabled: bool = False,
+                 _user: dict = _viewer):
+    """Return Chart of Accounts as a nested tree.
+
+    Disabled accounts are hidden by default (they already drop out of account
+    pickers, and a disabled account is one the user retired). Pass
+    ``include_disabled=true`` to show them. A disabled *group* is still shown if
+    it has any enabled descendant, so an active account is never hidden behind a
+    disabled parent. Each node carries a ``disabled`` bool for the UI.
+    """
     db = get_db()
     filters = {}
     if company:
@@ -398,7 +406,7 @@ def account_tree(company: str | None = None, _user: dict = _viewer):
         "Account",
         filters=filters if filters else None,
         fields=["name", "account_name", "parent_account", "root_type",
-                "report_type", "account_type", "is_group"],
+                "report_type", "account_type", "is_group", "disabled"],
     )
 
     by_parent = {}
@@ -411,7 +419,12 @@ def account_tree(company: str | None = None, _user: dict = _viewer):
         result = []
         for acc in children:
             node = dict(acc)
+            node["disabled"] = bool(acc.get("disabled"))
             node["children"] = _build(acc["name"])
+            # Prune a disabled node only when nothing enabled survives beneath it,
+            # so an enabled child is never dropped along with its disabled parent.
+            if not include_disabled and node["disabled"] and not node["children"]:
+                continue
             result.append(node)
         return result
 
