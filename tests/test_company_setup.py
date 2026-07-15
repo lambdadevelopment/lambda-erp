@@ -177,6 +177,37 @@ def test_swiss_pack_accepts_sector_overlay():
     print("PASS swiss_pack_accepts_sector_overlay")
 
 
+def test_swiss_overlay_names_localized_and_service_default_resolves():
+    """On the German Swiss chart, sector-overlay accounts are created in German
+    and the services income default points at a real (German) account — the two
+    bugs the German setup surfaced."""
+    res = apply_company_setup("Beratung AG", country="CH", sector="services")
+    assert res["ok"], res
+    abbr = account_abbr("Beratung AG")
+
+    # overlay accounts are German, not English
+    assert "Beratungserlöse" in res["sector_added_accounts"], res["sector_added_accounts"]
+    assert "Consulting Revenue" not in res["sector_added_accounts"]
+    assert _account_row(f"Beratungserlöse - {abbr}") is not None
+    assert _account_row(f"Consulting Revenue - {abbr}") is None
+
+    # the services income default resolves to the German overlay account, which
+    # exists (the old default 'Service Revenue' does not exist on the CH chart)
+    comp = get_db().get_all("Company", filters={"name": "Beratung AG"},
+                            fields=["default_income_account"])[0]
+    assert comp["default_income_account"] == f"Beratungserlöse - {abbr}"
+    assert _account_row(comp["default_income_account"]) is not None
+
+    # generic stays English and its services default resolves too
+    apply_company_setup("Consult Inc", sector="services")
+    gabbr = account_abbr("Consult Inc")
+    gcomp = get_db().get_all("Company", filters={"name": "Consult Inc"},
+                             fields=["default_income_account"])[0]
+    assert gcomp["default_income_account"] == f"Consulting Revenue - {gabbr}"
+    assert _account_row(gcomp["default_income_account"]) is not None
+    print("PASS swiss_overlay_names_localized_and_service_default_resolves")
+
+
 def main():
     setup(":memory:")
     test_profiles_are_portable()
@@ -189,6 +220,7 @@ def main():
     test_idempotency_guard()
     test_swiss_pack_applies_with_resolvable_defaults_and_tax()
     test_swiss_pack_accepts_sector_overlay()
+    test_swiss_overlay_names_localized_and_service_default_resolves()
     print("\nALL COMPANY-SETUP TESTS PASSED")
 
 

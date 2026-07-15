@@ -13,6 +13,20 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-15
+
+### Fixed
+- **Localized sector accounts.** Sector-profile overlay accounts are now created
+  in the localization pack's language, so on the Swiss (German) chart they read in
+  German — e.g. *Beratungserlöse*, *Aufwand für Fremdleistungen* — instead of the
+  neutral English names, matching the German base chart.
+- **Services income default.** The services profile pointed its income default at
+  *Service Revenue*, an account that exists only in the generic chart; it now
+  points at the profile's own revenue account, so the default resolves on every
+  jurisdiction (it was dangling on the Swiss chart).
+- **Chat line breaks.** Multi-line messages now preserve their line breaks in the
+  user's own message bubble.
+
 ## [0.2.0] - 2026-07-15
 
 ### Added

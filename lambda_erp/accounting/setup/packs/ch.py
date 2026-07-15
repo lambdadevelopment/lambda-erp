@@ -244,6 +244,7 @@ CH_PACK = register_pack(LocalizationPack(
     variant=None,
     label="Switzerland (Kontenrahmen KMU)",
     currency="CHF",
+    language="de",
     base_chart=CH_CHART,
     anchors=CH_ANCHORS,
     defaults=CH_DEFAULTS,

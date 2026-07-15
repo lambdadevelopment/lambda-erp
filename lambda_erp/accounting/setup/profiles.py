@@ -64,8 +64,12 @@ class SectorProfile:
                 )
 
 
-def _acct(anchor, name, account_type=""):
-    return {"anchor": anchor, "name": name, "account_type": account_type}
+def _acct(anchor, name, account_type="", **i18n):
+    """One overlay account. ``name`` is the jurisdiction-neutral English name;
+    ``i18n`` holds localized names keyed by ISO 639-1 (e.g. ``de=..., fr=...``)
+    used when the active pack's language matches, so overlay accounts read in the
+    same language as the base chart."""
+    return {"anchor": anchor, "name": name, "account_type": account_type, "i18n": i18n}
 
 
 # ---------------------------------------------------------------------------
@@ -86,13 +90,21 @@ SERVICES = SectorProfile(
         "tracked separately so they can be re-billed at cost."
     ),
     accounts=[
-        _acct(spine.CURRENT_ASSETS, "Unbilled Revenue / WIP", ""),
-        _acct(spine.CURRENT_LIABILITIES, "Deferred Revenue", ""),
-        _acct(spine.INCOME, "Consulting Revenue", "Income Account"),
-        _acct(spine.OPERATING_EXPENSES, "Subcontractor Costs", ""),
-        _acct(spine.OPERATING_EXPENSES, "Reimbursable Client Expenses", ""),
+        _acct(spine.CURRENT_ASSETS, "Unbilled Revenue / WIP", "",
+              de="Nicht fakturierte Leistungen / Angefangene Arbeiten",
+              fr="Travaux en cours non facturés"),
+        _acct(spine.CURRENT_LIABILITIES, "Deferred Revenue", "",
+              de="Erhaltene Anzahlungen (passive Abgrenzung)",
+              fr="Produits différés"),
+        _acct(spine.INCOME, "Consulting Revenue", "Income Account",
+              de="Beratungserlöse", fr="Produits de conseil"),
+        _acct(spine.OPERATING_EXPENSES, "Subcontractor Costs", "",
+              de="Aufwand für Fremdleistungen", fr="Charges de sous-traitance"),
+        _acct(spine.OPERATING_EXPENSES, "Reimbursable Client Expenses", "",
+              de="Weiterverrechenbare Kundenauslagen",
+              fr="Débours refacturables aux clients"),
     ],
-    defaults={"default_income_account": "Service Revenue"},
+    defaults={"default_income_account": "Consulting Revenue"},
     big_decisions=[
         "Recognise revenue over time (unbilled WIP + deferred revenue) rather "
         "than only at invoice? Recommended for retainers and long engagements.",
@@ -113,11 +125,16 @@ RETAIL_POS = SectorProfile(
         "miscounts) is a normal recurring expense reconciled at stock-take."
     ),
     accounts=[
-        _acct(spine.CURRENT_ASSETS, "Cash Register / Till", "Cash"),
-        _acct(spine.CURRENT_ASSETS, "Merchant Card Clearing", ""),
-        _acct(spine.CURRENT_LIABILITIES, "Sales Tax Payable", "Tax"),
-        _acct(spine.INCOME, "Retail Sales", "Income Account"),
-        _acct(spine.OPERATING_EXPENSES, "Inventory Shrinkage", "Stock Adjustment"),
+        _acct(spine.CURRENT_ASSETS, "Cash Register / Till", "Cash",
+              de="Ladenkasse", fr="Caisse (point de vente)"),
+        _acct(spine.CURRENT_ASSETS, "Merchant Card Clearing", "",
+              de="Kartenzahlungen (Durchlaufkonto)", fr="Compte d'attente cartes"),
+        _acct(spine.CURRENT_LIABILITIES, "Sales Tax Payable", "Tax",
+              de="Geschuldete Umsatzsteuer (MWST)", fr="TVA due sur les ventes"),
+        _acct(spine.INCOME, "Retail Sales", "Income Account",
+              de="Detailhandelserlöse", fr="Produits de la vente au détail"),
+        _acct(spine.OPERATING_EXPENSES, "Inventory Shrinkage", "Stock Adjustment",
+              de="Inventurdifferenzen (Schwund)", fr="Démarque inconnue"),
     ],
     defaults={"default_income_account": "Retail Sales"},
     big_decisions=[
@@ -139,12 +156,18 @@ HOSPITALITY = SectorProfile(
         "and spoilage are expected and tracked."
     ),
     accounts=[
-        _acct(spine.INCOME, "Food Sales", "Income Account"),
-        _acct(spine.INCOME, "Beverage Sales", "Income Account"),
-        _acct(spine.DIRECT_COSTS, "Food Cost", "Cost of Goods Sold"),
-        _acct(spine.DIRECT_COSTS, "Beverage Cost", "Cost of Goods Sold"),
-        _acct(spine.CURRENT_LIABILITIES, "Tips Payable", ""),
-        _acct(spine.OPERATING_EXPENSES, "Spoilage & Waste", "Stock Adjustment"),
+        _acct(spine.INCOME, "Food Sales", "Income Account",
+              de="Küchenumsatz (Speisen)", fr="Ventes de nourriture"),
+        _acct(spine.INCOME, "Beverage Sales", "Income Account",
+              de="Getränkeumsatz", fr="Ventes de boissons"),
+        _acct(spine.DIRECT_COSTS, "Food Cost", "Cost of Goods Sold",
+              de="Warenaufwand Küche (Speisen)", fr="Coût des denrées"),
+        _acct(spine.DIRECT_COSTS, "Beverage Cost", "Cost of Goods Sold",
+              de="Warenaufwand Getränke", fr="Coût des boissons"),
+        _acct(spine.CURRENT_LIABILITIES, "Tips Payable", "",
+              de="Trinkgelder (durchlaufend)", fr="Pourboires à reverser"),
+        _acct(spine.OPERATING_EXPENSES, "Spoilage & Waste", "Stock Adjustment",
+              de="Verderb und Abfall", fr="Pertes et gaspillage"),
     ],
     defaults={"default_income_account": "Food Sales"},
     big_decisions=[
@@ -166,11 +189,16 @@ DISTRIBUTION = SectorProfile(
         "liability and reduce net revenue rather than being an expense."
     ),
     accounts=[
-        _acct(spine.CURRENT_ASSETS, "Inventory - Finished Goods", "Stock"),
-        _acct(spine.CURRENT_ASSETS, "Goods in Transit", "Stock"),
-        _acct(spine.INCOME, "Wholesale Revenue", "Income Account"),
-        _acct(spine.OPERATING_EXPENSES, "Freight Out / Delivery", ""),
-        _acct(spine.CURRENT_LIABILITIES, "Customer Rebates Payable", ""),
+        _acct(spine.CURRENT_ASSETS, "Inventory - Finished Goods", "Stock",
+              de="Vorräte Fertigwaren", fr="Stock de produits finis"),
+        _acct(spine.CURRENT_ASSETS, "Goods in Transit", "Stock",
+              de="Waren unterwegs", fr="Marchandises en transit"),
+        _acct(spine.INCOME, "Wholesale Revenue", "Income Account",
+              de="Grosshandelserlöse", fr="Produits de gros"),
+        _acct(spine.OPERATING_EXPENSES, "Freight Out / Delivery", "",
+              de="Ausgangsfrachten / Versandkosten", fr="Frais de livraison"),
+        _acct(spine.CURRENT_LIABILITIES, "Customer Rebates Payable", "",
+              de="Kundenrückvergütungen (Rückstellung)", fr="Ristournes clients à payer"),
     ],
     defaults={"default_income_account": "Wholesale Revenue"},
     big_decisions=[
@@ -195,11 +223,16 @@ IMPORT_EXPORT = SectorProfile(
         "Gain/Loss accounts already cover these)."
     ),
     accounts=[
-        _acct(spine.CURRENT_ASSETS, "Goods in Transit (Imports)", "Stock"),
-        _acct(spine.DIRECT_COSTS, "Customs Duties & Import Taxes", "Chargeable"),
-        _acct(spine.DIRECT_COSTS, "Inbound Freight & Insurance", "Chargeable"),
-        _acct(spine.CURRENT_LIABILITIES, "Import VAT / GST Payable", "Tax"),
-        _acct(spine.INCOME, "Export Sales", "Income Account"),
+        _acct(spine.CURRENT_ASSETS, "Goods in Transit (Imports)", "Stock",
+              de="Importwaren unterwegs", fr="Marchandises importées en transit"),
+        _acct(spine.DIRECT_COSTS, "Customs Duties & Import Taxes", "Chargeable",
+              de="Zölle und Einfuhrabgaben", fr="Droits de douane et taxes à l'importation"),
+        _acct(spine.DIRECT_COSTS, "Inbound Freight & Insurance", "Chargeable",
+              de="Eingangsfrachten und Versicherung", fr="Fret et assurance à l'import"),
+        _acct(spine.CURRENT_LIABILITIES, "Import VAT / GST Payable", "Tax",
+              de="Einfuhrsteuer (MWST) geschuldet", fr="TVA à l'importation due"),
+        _acct(spine.INCOME, "Export Sales", "Income Account",
+              de="Exporterlöse", fr="Produits d'exportation"),
     ],
     defaults={
         "default_income_account": "Export Sales",
@@ -225,11 +258,16 @@ MANUFACTURING = SectorProfile(
         "when the product is sold, not when it is made."
     ),
     accounts=[
-        _acct(spine.CURRENT_ASSETS, "Raw Materials", "Stock"),
-        _acct(spine.CURRENT_ASSETS, "Work in Progress", "Stock"),
-        _acct(spine.CURRENT_ASSETS, "Finished Goods", "Stock"),
-        _acct(spine.DIRECT_COSTS, "Direct Labour", ""),
-        _acct(spine.DIRECT_COSTS, "Manufacturing Overhead Applied", ""),
+        _acct(spine.CURRENT_ASSETS, "Raw Materials", "Stock",
+              de="Rohstoffe", fr="Matières premières"),
+        _acct(spine.CURRENT_ASSETS, "Work in Progress", "Stock",
+              de="Angefangene Arbeiten", fr="Travaux en cours"),
+        _acct(spine.CURRENT_ASSETS, "Finished Goods", "Stock",
+              de="Fertigerzeugnisse", fr="Produits finis"),
+        _acct(spine.DIRECT_COSTS, "Direct Labour", "",
+              de="Fertigungslöhne (Direktlohn)", fr="Main-d'œuvre directe"),
+        _acct(spine.DIRECT_COSTS, "Manufacturing Overhead Applied", "",
+              de="Verrechnete Fertigungsgemeinkosten", fr="Frais généraux de production imputés"),
     ],
     defaults={},
     big_decisions=[
@@ -254,13 +292,20 @@ CONSTRUCTION = SectorProfile(
         "project."
     ),
     accounts=[
-        _acct(spine.CURRENT_ASSETS, "Costs in Excess of Billings", ""),
-        _acct(spine.CURRENT_ASSETS, "Retention Receivable", "Receivable"),
-        _acct(spine.CURRENT_LIABILITIES, "Billings in Excess of Costs", ""),
-        _acct(spine.CURRENT_LIABILITIES, "Retention Payable", ""),
-        _acct(spine.INCOME, "Contract Revenue", "Income Account"),
-        _acct(spine.DIRECT_COSTS, "Job Costs - Materials", ""),
-        _acct(spine.DIRECT_COSTS, "Job Costs - Subcontractors", ""),
+        _acct(spine.CURRENT_ASSETS, "Costs in Excess of Billings", "",
+              de="Nicht fakturierte Projektleistungen", fr="Travaux en cours excédant la facturation"),
+        _acct(spine.CURRENT_ASSETS, "Retention Receivable", "Receivable",
+              de="Rückbehalte (Forderungen)", fr="Retenues de garantie à recevoir"),
+        _acct(spine.CURRENT_LIABILITIES, "Billings in Excess of Costs", "",
+              de="Fakturierte Leistungen über Baufortschritt", fr="Facturation excédant les travaux"),
+        _acct(spine.CURRENT_LIABILITIES, "Retention Payable", "",
+              de="Rückbehalte (Verbindlichkeiten)", fr="Retenues de garantie à payer"),
+        _acct(spine.INCOME, "Contract Revenue", "Income Account",
+              de="Projekterlöse (Werkverträge)", fr="Produits sur contrats"),
+        _acct(spine.DIRECT_COSTS, "Job Costs - Materials", "",
+              de="Projektkosten Material", fr="Coûts de chantier - matériaux"),
+        _acct(spine.DIRECT_COSTS, "Job Costs - Subcontractors", "",
+              de="Projektkosten Fremdleistungen", fr="Coûts de chantier - sous-traitance"),
     ],
     defaults={"default_income_account": "Contract Revenue"},
     big_decisions=[

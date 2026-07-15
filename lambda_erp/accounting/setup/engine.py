@@ -66,12 +66,27 @@ def _attach(tree: dict, parent_name: str, overlay_acct: dict) -> bool:
     return True
 
 
+def _localize_name(acct: dict, language: str) -> str:
+    """The overlay account's name in the pack's language, English otherwise.
+
+    Profiles carry a jurisdiction-neutral English ``name`` plus an ``i18n`` map
+    ({lang: name}); on a German (Swiss) chart the German name is used so the
+    overlay reads in the same language as the base chart.
+    """
+    if language and language != "en":
+        localized = (acct.get("i18n") or {}).get(language)
+        if localized:
+            return localized
+    return acct["name"]
+
+
 def _merge(pack: LocalizationPack, profile: Optional[SectorProfile]):
     """Return ``(merged_tree, merged_defaults, added_names, skipped)``.
 
-    ``added_names`` are the overlay accounts actually attached; ``skipped`` are
-    overlay accounts whose anchor was unmapped or whose name collided — surfaced
-    so a mis-wired profile/pack pairing is visible rather than silent.
+    ``added_names`` are the overlay accounts actually attached (in the pack's
+    language); ``skipped`` are overlay accounts whose anchor was unmapped or
+    whose name collided — surfaced so a mis-wired profile/pack pairing is visible
+    rather than silent.
     """
     tree = copy.deepcopy(pack.base_chart)
     defaults = dict(pack.defaults)
@@ -79,17 +94,26 @@ def _merge(pack: LocalizationPack, profile: Optional[SectorProfile]):
     skipped: list[dict] = []
 
     if profile is not None:
+        # Map each profile account's neutral English name -> the localized name
+        # actually created, so profile.defaults (which reference the English
+        # name) resolve to the localized account on this pack.
+        name_map: dict[str, str] = {}
         for acct in profile.accounts:
             parent_name = pack.anchor_account(acct["anchor"])
             if parent_name is None:
                 skipped.append({**acct, "reason": "anchor not mapped in pack"})
                 continue
-            if _attach(tree, parent_name, acct):
-                added.append(acct["name"])
+            display = _localize_name(acct, pack.language)
+            localized = {**acct, "name": display}
+            if _attach(tree, parent_name, localized):
+                added.append(display)
+                name_map[acct["name"]] = display
             else:
                 skipped.append({**acct, "reason": "parent missing or name collision"})
-        # Sector default overrides layer on top of the pack's base defaults.
-        defaults.update(profile.defaults)
+        # Sector default overrides layer on top of the pack's base defaults,
+        # remapped to the localized account names created above.
+        for field, val in profile.defaults.items():
+            defaults[field] = name_map.get(val, val)
 
     return tree, defaults, added, skipped
 

@@ -58,6 +58,10 @@ class LocalizationPack:
     defaults: dict
     variant: Optional[str] = None
     currency: str = "USD"
+    # Primary language of the chart's account names (ISO 639-1). Sector-profile
+    # overlay accounts are rendered in this language so they match the base
+    # chart — "en" for the generic pack, "de" for the Swiss KMU pack, etc.
+    language: str = "en"
     setup_tax: Optional[Callable[[str, str], list]] = None
     notes: str = ""
 
