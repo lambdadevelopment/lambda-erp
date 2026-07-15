@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-15
+
+### Changed
+- **Idempotent company setup.** `apply_company_setup` now *converges* toward the
+  desired chart instead of refusing when the company already exists. It creates
+  only the accounts that are missing, fills only the company defaults that are
+  still empty (never overwriting a configured company), and creates the tax
+  templates / cost center only if absent — so setup is safe to run alongside an
+  existing deployment and to re-run. It returns a reconciliation report
+  (`accounts_created` vs `accounts_skipped`, `defaults_set` vs
+  `defaults_left_untouched`). When the company is already configured, or its
+  currency differs from the setup (which would mix two charts), it returns
+  `needs_confirmation` and proceeds only with `confirm_existing` after the user
+  insists; `plan_company_setup` surfaces this up front via an `existing` block.
+  Replaces the previous hard guard / `force` flag.
+
 ### Fixed
 - **Chat bold headings.** A line the assistant emits as bold (`**Heading**`) is no
   longer mistaken for a `*` bullet — the chat's list detection now requires

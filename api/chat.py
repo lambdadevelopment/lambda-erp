@@ -1081,6 +1081,11 @@ TOOLS = [
                 "applying). Call this first, walk the user through the plan and the big "
                 "decisions in plain language, and only call `apply_company_setup` once they "
                 "confirm.\n\n"
+                "It also returns an `existing` block: if `existing.company_exists` is true, tell "
+                "the user up front that the company already exists — setup will only add what's "
+                "missing and leave the rest. If `existing.needs_confirmation` is true (already "
+                "configured, or a currency/jurisdiction mismatch), surface `existing.advisory` as "
+                "a clear warning before proceeding.\n\n"
                 "`sector` is one of: services, retail_pos, hospitality, distribution, "
                 "import_export, manufacturing, construction. If you're unsure which fits, "
                 "ASK the user about their business rather than guessing. `country` selects "
@@ -1112,12 +1117,21 @@ TOOLS = [
         "function": {
             "name": "apply_company_setup",
             "description": (
-                "CREATE the company, its chart of accounts (base + sector overlay), the "
-                "company default accounts, any jurisdiction tax accounts, and the default "
-                "cost center — in one step. Only call this AFTER `plan_company_setup` and "
-                "AFTER the user has explicitly confirmed the plan and any big decisions. "
-                "Refuses if the company already has accounts (admin-only). Pass the SAME "
-                "arguments you used for the plan the user approved."
+                "CREATE/converge the company, its chart of accounts (base + sector overlay), "
+                "the company default accounts, any jurisdiction tax templates, and the default "
+                "cost center — in one step. Only call AFTER `plan_company_setup` and AFTER the "
+                "user has confirmed the plan and any big decisions. Pass the SAME arguments you "
+                "used for the approved plan.\n\n"
+                "This is idempotent and safe to run alongside an existing deployment: it only "
+                "adds accounts that are missing, fills only empty defaults, and never modifies "
+                "or deletes existing data. The result is a reconciliation report "
+                "(accounts_created vs accounts_skipped, defaults_set vs defaults_left_untouched) "
+                "— relay it plainly.\n\n"
+                "GUARDRAIL: if the company is already configured, or its currency differs from "
+                "this setup, the call returns `{ok:false, needs_confirmation:true, advisory}` "
+                "instead of proceeding. In that case, WARN the user clearly using the advisory "
+                "(especially a currency/jurisdiction mismatch, which mixes two charts), and only "
+                "re-call with `confirm_existing=true` if the user explicitly insists."
             ),
             "parameters": {
                 "type": "object",
@@ -1131,6 +1145,11 @@ TOOLS = [
                     "country": {"type": "string"},
                     "variant": {"type": "string"},
                     "currency": {"type": "string"},
+                    "confirm_existing": {
+                        "type": "boolean",
+                        "description": "Set true ONLY to proceed after a needs_confirmation "
+                                       "response and the user has insisted despite the warning.",
+                    },
                 },
                 "required": ["name"],
             },
@@ -1677,6 +1696,7 @@ def _handle_apply_company_setup(args):
         variant=(args.get("variant") or None),
         sector=(args.get("sector") or None),
         currency=(args.get("currency") or None),
+        confirm_existing=bool(args.get("confirm_existing")),
     )
 
 
@@ -1857,6 +1877,8 @@ When the user wants to **set up a new company**, get started, or create their bo
 3. **Walk them through the plan** in plain language: the sector-specific accounts (`sector_added_accounts`) and the `sector.guidance` (why the chart is shaped this way). Present every item in `sector.big_decisions` and get an explicit yes/no on each — these are the decisions you must not make for them.
 4. **Only after they confirm, call `apply_company_setup`** with the SAME arguments to create the company, accounts, defaults, and cost center.
 If `jurisdiction.is_fallback` is true, tell the user their country isn't localized yet and you're using the generic international chart for now.
+
+**Existing companies.** Setup is idempotent — it adds only missing accounts, fills only empty defaults, and never modifies or deletes existing data, so it runs safely alongside an existing deployment. Use the `existing` block the plan returns: if the company already exists, say so up front ("it already exists — I'll add what's missing and leave the rest"). If `apply_company_setup` returns `needs_confirmation` (the company is already configured, or the currency/jurisdiction differs and would mix two charts), do NOT force it — relay the `advisory` as a clear warning and re-call with `confirm_existing: true` only if the user explicitly insists. After applying, relay the reconciliation report plainly (how many accounts were created vs already present).
 """
     else:
         company_setup_section = ""

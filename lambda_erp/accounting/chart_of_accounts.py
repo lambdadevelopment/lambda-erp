@@ -147,6 +147,8 @@ def create_accounts_from_tree(company_name, tree, currency="USD"):
     Does NOT commit — the caller owns the transaction boundary.
     """
     db = get_db()
+    created: list[str] = []
+    skipped: list[str] = []
 
     def _create(subtree, parent=None, root_type=None, report_type=None):
         for account_name, details in subtree.items():
@@ -156,36 +158,59 @@ def create_accounts_from_tree(company_name, tree, currency="USD"):
 
             name = f"{account_name} - {account_abbr(company_name)}"
 
-            account = _dict(
-                name=name,
-                account_name=account_name,
-                parent_account=parent,
-                company=company_name,
-                root_type=rt,
-                report_type=rpt,
-                account_type=details.get("account_type", ""),
-                account_currency=currency,
-                is_group=1 if has_children else 0,
-            )
-            db.insert("Account", account)
+            # Idempotent: skip an account that already exists rather than failing
+            # on the primary key. Lets setup run alongside an existing deployment
+            # and fill in only what's missing. Recursion into children still runs
+            # so a partially-built chart converges to complete.
+            if db.exists("Account", name):
+                skipped.append(name)
+            else:
+                db.insert("Account", _dict(
+                    name=name,
+                    account_name=account_name,
+                    parent_account=parent,
+                    company=company_name,
+                    root_type=rt,
+                    report_type=rpt,
+                    account_type=details.get("account_type", ""),
+                    account_currency=currency,
+                    is_group=1 if has_children else 0,
+                ))
+                created.append(name)
 
             if has_children:
                 _create(details["children"], parent=name, root_type=rt, report_type=rpt)
 
     _create(tree)
+    return {"created": created, "skipped": skipped}
 
 
 def apply_company_defaults(company_name, defaults):
-    """Point Company default-account fields at the created leaf accounts.
+    """Point Company default-account fields at their leaf accounts.
 
     ``defaults`` is ``{company_field: leaf_account_name}`` (un-suffixed); the
-    company suffix is appended here. Does NOT commit.
+    company suffix is appended here. **Fill-only-empty:** a field already set is
+    left untouched (never clobber a configured company). A target account that
+    doesn't exist is skipped (never point a default at a missing account). Does
+    NOT commit. Returns ``{"set", "left", "missing"}``.
     """
     abbr = account_abbr(company_name)
-    resolved = {field: f"{leaf} - {abbr}" for field, leaf in defaults.items()}
-    if resolved:
-        db = get_db()
-        db.set_value("Company", company_name, resolved)
+    db = get_db()
+    to_set: dict[str, str] = {}
+    result = {"set": [], "left": [], "missing": []}
+    for field, leaf in defaults.items():
+        if db.get_value("Company", company_name, field):
+            result["left"].append(field)          # already configured — keep it
+            continue
+        target = f"{leaf} - {abbr}"
+        if not db.exists("Account", target):
+            result["missing"].append((field, target))
+            continue
+        to_set[field] = target
+        result["set"].append(field)
+    if to_set:
+        db.set_value("Company", company_name, to_set)
+    return result
 
 
 def setup_chart_of_accounts(company_name, currency="USD"):
@@ -204,16 +229,23 @@ def setup_chart_of_accounts(company_name, currency="USD"):
 
 
 def setup_cost_center(company_name):
-    """Create default cost center for a company."""
+    """Create the default cost center for a company (idempotent).
+
+    Skips creation if it already exists, and fills the cost-center company
+    defaults only when empty, so it is safe to run alongside an existing setup.
+    """
     db = get_db()
     name = f"Main - {company_name[:4].upper()}"
-    db.insert("Cost Center", _dict(
-        name=name,
-        cost_center_name="Main",
-        company=company_name,
-        is_group=0,
-    ))
-    db.set_value("Company", company_name, "default_cost_center", name)
-    db.set_value("Company", company_name, "round_off_cost_center", name)
+    if not db.exists("Cost Center", name):
+        db.insert("Cost Center", _dict(
+            name=name,
+            cost_center_name="Main",
+            company=company_name,
+            is_group=0,
+        ))
+    if not db.get_value("Company", company_name, "default_cost_center"):
+        db.set_value("Company", company_name, "default_cost_center", name)
+    if not db.get_value("Company", company_name, "round_off_cost_center"):
+        db.set_value("Company", company_name, "round_off_cost_center", name)
     db.commit()
     return name

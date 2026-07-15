@@ -217,6 +217,8 @@ def ch_setup_tax(company_name, currency):
 
     def _template(title, tax_type, rate, account_leaf):
         name = f"{title} - {abbr}"
+        if db.exists("Tax Template", name):
+            return                      # idempotent: leave an existing template
         db.insert("Tax Template", _dict(
             name=name, title=title, company=company_name, tax_type=tax_type,
         ))

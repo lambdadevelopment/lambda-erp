@@ -142,6 +142,56 @@ def _resolved_defaults(company_name: str, defaults: dict) -> dict:
     return {field: f"{leaf} - {abbr}" for field, leaf in defaults.items()}
 
 
+# A company counts as "already configured" if any of its core posting defaults
+# is set — the signal that it has a real, working chart rather than a couple of
+# stray accounts from an abandoned attempt.
+_CORE_DEFAULTS = ("default_income_account", "default_receivable_account",
+                  "default_payable_account")
+
+
+def _existing_state(company_name: str, requested_currency: str) -> dict:
+    """Describe any pre-existing company so setup can warn instead of dead-end.
+
+    Setup is idempotent (it only ever adds missing accounts and fills empty
+    defaults), so an existing company is never a hard error. But two situations
+    warrant an explicit "are you sure": a company already **configured** with its
+    own chart, and a **currency mismatch** (adding a second chart in a different
+    currency mixes two charts). Those set ``needs_confirmation`` — the caller must
+    only proceed when the user insists.
+    """
+    db = get_db()
+    if not db.exists("Company", company_name):
+        return {"company_exists": False, "account_count": 0, "configured": False,
+                "existing_currency": None, "currency_mismatch": False,
+                "needs_confirmation": False, "advisory": ""}
+
+    count = len(db.get_all("Account", filters={"company": company_name}, fields=["name"]))
+    configured = any(db.get_value("Company", company_name, f) for f in _CORE_DEFAULTS)
+    existing_ccy = db.get_value("Company", company_name, "default_currency") or None
+    mismatch = bool(existing_ccy and requested_currency and existing_ccy != requested_currency)
+
+    if mismatch:
+        advisory = (
+            f"'{company_name}' already exists in {existing_ccy}, but this setup is in "
+            f"{requested_currency}. Adding a chart in a different currency mixes two "
+            "charts of accounts — warn the user clearly and proceed only if they insist.")
+    elif configured:
+        advisory = (
+            f"'{company_name}' is already configured ({count} accounts, defaults set). "
+            "Setup will only add accounts that are missing and change nothing else — "
+            "confirm the user wants to add to an already-configured company.")
+    elif count:
+        advisory = (
+            f"'{company_name}' already exists with {count} account(s) but isn't fully "
+            "configured. Setup will fill in the rest and leave the existing accounts alone.")
+    else:
+        advisory = ""
+
+    return {"company_exists": True, "account_count": count, "configured": configured,
+            "existing_currency": existing_ccy, "currency_mismatch": mismatch,
+            "needs_confirmation": bool(mismatch or configured), "advisory": advisory}
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -181,6 +231,7 @@ def plan_company_setup(company_name: str,
         "accounts": _tree_outline(tree),
         "sector_added_accounts": added,
         "defaults": _resolved_defaults(company_name, defaults),
+        "existing": _existing_state(company_name, ccy),
         "warnings": skipped,
     }
     if profile is not None:
@@ -199,25 +250,33 @@ def apply_company_setup(company_name: str,
                         variant: Optional[str] = None,
                         sector: Optional[str] = None,
                         currency: Optional[str] = None,
-                        force: bool = False) -> dict:
-    """Create the company's chart of accounts, defaults, tax, and cost center.
+                        confirm_existing: bool = False) -> dict:
+    """Converge a company toward the desired chart of accounts (idempotent).
 
-    Idempotency guard: refuses if the company already has accounts unless
-    ``force=True``. Creates the Company row if it does not exist yet (so the chat
-    can drive setup end-to-end); an already-created company is left in place.
-    Runs in a single transaction.
+    Runs *alongside* an existing deployment: it creates the company if missing,
+    creates only the accounts that don't already exist, fills only the company
+    defaults that are still empty (never clobbering a configured company), and
+    creates the tax templates / cost center only if absent. Existing data is
+    never modified or deleted, so this is safe to re-run.
+
+    Guardrail (see :func:`_existing_state`): if the company is already configured
+    or the currency mismatches, it returns ``needs_confirmation`` instead of
+    proceeding — the caller must pass ``confirm_existing=True`` (only after the
+    user insists). Runs in a single transaction; returns a reconciliation report.
     """
     db = get_db()
     pack = resolve_pack(country, variant)
     profile = get_profile(sector)
     ccy = currency or pack.currency
 
-    existing = db.get_all("Account", filters={"company": company_name}, fields=["name"])
-    if existing and not force:
+    state = _existing_state(company_name, ccy)
+    if state["needs_confirmation"] and not confirm_existing:
         return {
             "ok": False,
-            "error": f"{company_name} already has {len(existing)} accounts. "
-                     "Pass force=True to rebuild (this does not delete the old ones).",
+            "needs_confirmation": True,
+            "existing": state,
+            "advisory": state["advisory"],
+            "hint": "Warn the user, then re-call with confirm_existing=True only if they insist.",
         }
 
     if not db.exists("Company", company_name):
@@ -230,25 +289,15 @@ def apply_company_setup(company_name: str,
 
     tree, defaults, added, skipped = _merge(pack, profile)
 
-    create_accounts_from_tree(company_name, tree, ccy)
-    apply_company_defaults(company_name, defaults)
+    acct = create_accounts_from_tree(company_name, tree, ccy)          # {created, skipped}
+    dflt = apply_company_defaults(company_name, defaults)              # {set, left, missing}
 
     tax_summary = []
     if pack.setup_tax is not None:
         tax_summary = pack.setup_tax(company_name, ccy) or []
 
-    cost_center = setup_cost_center(company_name)  # commits internally
+    cost_center = setup_cost_center(company_name)  # idempotent, commits internally
     db.commit()
-
-    def _count(nodes):
-        n = 0
-        for _name, d in nodes.items():
-            children = d.get("children")
-            if children:
-                n += _count(children)
-            else:
-                n += 1
-        return n
 
     return {
         "ok": True,
@@ -256,8 +305,13 @@ def apply_company_setup(company_name: str,
         "currency": ccy,
         "jurisdiction": pack.key,
         "sector": profile.key if profile else None,
-        "accounts_created": _count(tree),
+        "added_to_existing": state["company_exists"],
+        "accounts_created": len(acct["created"]),
+        "accounts_skipped": len(acct["skipped"]),   # already present, left alone
         "sector_added_accounts": added,
+        "defaults_set": dflt["set"],
+        "defaults_left_untouched": dflt["left"],     # already configured, kept
+        "defaults_unresolved": dflt["missing"],
         "cost_center": cost_center,
         "tax_summary": tax_summary,
         "warnings": skipped,
