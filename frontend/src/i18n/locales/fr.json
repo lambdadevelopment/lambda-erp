@@ -295,6 +295,13 @@
     "enabling": "Activation...",
     "tokenSpendTitle": "Dépenses de jetons",
     "chatApiDelete": "Supprimer",
+    "chatApiYourKeys": "Vos clés",
+    "chatApiYouBadge": "vous",
+    "chatApiUnknownUser": "Utilisateur inconnu",
+    "chatApiAdminAllNote": "En tant qu'administrateur, la liste ci-dessous inclut les clés de tous les utilisateurs, groupées par propriétaire. Les vôtres apparaissent en premier.",
+    "chatApiConfirmTitle": "Cette clé ne vous appartient pas",
+    "chatApiConfirmRevokeBody": "« {{key}} » appartient à {{name}}. La révoquer coupera immédiatement son accès à l'API. Continuer ?",
+    "chatApiConfirmDeleteBody": "« {{key}} » appartient à {{name}}. La supprimer retire définitivement sa clé. Continuer ?",
     "chatApiPersonal": "Clés Bearer personnelles pour l'API de chat programmatique. Une clé agit en VOTRE nom : plafonnée à votre rôle, elle suit les changements de rôle en direct et expire avec votre compte. Nécessite que l'admin ait activé l'API de chat."
   },
   "status": {

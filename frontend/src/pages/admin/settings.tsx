@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError } from "@/api/client";
@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { LanguageSelect } from "@/components/ui/language-select";
 
 // Map window keys (as returned by /admin/demo-spend) to seconds so we can
@@ -485,10 +486,14 @@ const ROLE_RANK: Record<string, number> = { viewer: 1, manager: 2, admin: 3 };
 // and manage their own keys; admins see everyone's.
 function ApiKeysSection({ ownRole }: { ownRole: string }) {
   const { t } = useTranslation();
+  const { user: me } = useAuth();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [role, setRole] = useState(ownRole in ROLE_RANK ? ownRole : "viewer");
   const [newToken, setNewToken] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<
+    null | { id: string; action: "revoke" | "delete"; owner: string; keyName: string }
+  >(null);
 
   const roleOptions = ["viewer", "manager", "admin"].filter(
     (r) => ROLE_RANK[r] <= (ROLE_RANK[ownRole] ?? 1),
@@ -518,63 +523,121 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["api-keys"] }),
   });
 
+  type Key = NonNullable<typeof keys>[number];
+  const isMine = (k: Key) => k.is_mine ?? (k.user === me?.name);
+  const ownerLabel = (k: Key) =>
+    k.owner_full_name || k.owner_email || k.user || t("settings.chatApiUnknownUser");
+
+  // Group keys by owner: your own first, then each other user alphabetically.
+  const groups = useMemo(() => {
+    const byOwner = new Map<
+      string,
+      { label: string; sublabel?: string; isMine: boolean; keys: Key[] }
+    >();
+    for (const k of keys ?? []) {
+      const mine = k.is_mine ?? (k.user === me?.name);
+      const gid = mine ? "__me__" : k.user ?? "__unknown__";
+      if (!byOwner.has(gid)) {
+        byOwner.set(gid, {
+          label: mine
+            ? t("settings.chatApiYourKeys")
+            : k.owner_full_name || k.owner_email || k.user || t("settings.chatApiUnknownUser"),
+          sublabel: mine ? undefined : k.owner_email ?? undefined,
+          isMine: mine,
+          keys: [],
+        });
+      }
+      byOwner.get(gid)!.keys.push(k);
+    }
+    return Array.from(byOwner.values()).sort((a, b) =>
+      a.isMine ? -1 : b.isMine ? 1 : a.label.localeCompare(b.label),
+    );
+  }, [keys, me, t]);
+
+  const runAction = (id: string, action: "revoke" | "delete") => {
+    if (action === "revoke") revokeMut.mutate(id);
+    else deleteMut.mutate(id);
+  };
+
+  // A destructive action on someone else's key must be confirmed first.
+  const act = (k: Key, action: "revoke" | "delete") => {
+    if (isMine(k)) {
+      runAction(k.id, action);
+    } else {
+      setConfirm({ id: k.id, action, owner: ownerLabel(k), keyName: k.name });
+    }
+  };
+
   return (
     <div>
       {newToken && (
-            <div className="mb-3 rounded-md bg-amber-50 p-3">
-              <p className="text-xs text-amber-800">{t("settings.chatApiTokenOnce")}</p>
-              <code className="mt-1 block break-all rounded bg-white px-2 py-1 font-mono text-xs text-gray-900">
-                {newToken}
-              </code>
-              <button
-                className="mt-2 text-xs text-blue-600 hover:underline"
-                onClick={() => navigator.clipboard?.writeText(newToken)}
-              >
-                {t("settings.chatApiCopy")}
-              </button>
-              <button
-                className="ml-3 mt-2 text-xs text-gray-500 hover:underline"
-                onClick={() => setNewToken(null)}
-              >
-                {t("settings.chatApiDismiss")}
-              </button>
-            </div>
-          )}
+        <div className="mb-3 rounded-lg bg-amber-50 p-3 ring-1 ring-inset ring-amber-200">
+          <p className="text-xs text-amber-800">{t("settings.chatApiTokenOnce")}</p>
+          <code className="mt-1 block break-all rounded bg-surface px-2 py-1 font-mono text-xs text-fg">
+            {newToken}
+          </code>
+          <button
+            className="mt-2 text-xs font-medium text-brand hover:underline"
+            onClick={() => navigator.clipboard?.writeText(newToken)}
+          >
+            {t("settings.chatApiCopy")}
+          </button>
+          <button
+            className="ml-3 mt-2 text-xs text-fg-muted hover:underline"
+            onClick={() => setNewToken(null)}
+          >
+            {t("settings.chatApiDismiss")}
+          </button>
+        </div>
+      )}
 
-      {keys && keys.length > 0 ? (
-        <ul className="mb-4 divide-y divide-gray-100">
-          {keys.map((k) => (
-            <li key={k.id} className="flex items-center justify-between py-2 text-sm">
-              <div>
-                <span className="font-medium text-gray-900">{k.name}</span>
-                <span className="ml-2 font-mono text-xs text-gray-400">
-                  {k.key_prefix}… · {k.role}
-                  {k.user ? ` · ${k.user}` : ""}
-                </span>
-                {k.revoked && <span className="ml-2 text-xs text-red-600">{t("settings.chatApiRevoked")}</span>}
+      {ownRole === "admin" && (
+        <p className="mb-3 text-xs text-fg-muted">{t("settings.chatApiAdminAllNote")}</p>
+      )}
+
+      {groups.length > 0 ? (
+        <div className="mb-4 space-y-4">
+          {groups.map((g) => (
+            <div key={g.label}>
+              <div className="mb-1.5 flex items-baseline gap-2">
+                <span className="text-xs font-semibold text-fg">{g.label}</span>
+                {g.isMine ? (
+                  <Badge variant="default">{t("settings.chatApiYouBadge")}</Badge>
+                ) : (
+                  g.sublabel && <span className="text-xs text-fg-muted">{g.sublabel}</span>
+                )}
               </div>
-              {k.revoked ? (
-                <button
-                  className="text-xs text-red-600 hover:underline"
-                  onClick={() => deleteMut.mutate(k.id)}
-                  disabled={deleteMut.isPending}
-                >
-                  {t("settings.chatApiDelete")}
-                </button>
-              ) : (
-                <button
-                  className="text-xs text-red-600 hover:underline"
-                  onClick={() => revokeMut.mutate(k.id)}
-                  disabled={revokeMut.isPending}
-                >
-                  {t("settings.chatApiRevoke")}
-                </button>
-              )}
-            </li>
+              <ul className="divide-y divide-line rounded-lg ring-1 ring-line">
+                {g.keys.map((k) => (
+                  <li
+                    key={k.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium text-fg">{k.name}</span>
+                        <Badge variant="secondary">{k.role}</Badge>
+                        {k.revoked && (
+                          <Badge variant="danger">{t("settings.chatApiRevoked")}</Badge>
+                        )}
+                      </div>
+                      <span className="font-mono text-xs text-fg-muted">{k.key_prefix}…</span>
+                    </div>
+                    <button
+                      className="shrink-0 text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+                      onClick={() => act(k, k.revoked ? "delete" : "revoke")}
+                      disabled={revokeMut.isPending || deleteMut.isPending}
+                    >
+                      {k.revoked ? t("settings.chatApiDelete") : t("settings.chatApiRevoke")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       ) : (
-        <p className="mb-4 text-xs text-gray-400">{t("settings.chatApiNoKeys")}</p>
+        <p className="mb-4 text-xs text-fg-muted">{t("settings.chatApiNoKeys")}</p>
       )}
 
       <div className="flex flex-wrap items-end gap-3">
@@ -596,7 +659,48 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
           {t("settings.chatApiCreate")}
         </Button>
       </div>
-      <p className="mt-2 text-xs text-gray-400">{t("settings.chatApiWarn")}</p>
+      <p className="mt-2 text-xs text-fg-muted">{t("settings.chatApiWarn")}</p>
+
+      {confirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setConfirm(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-line bg-surface p-5 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-fg">{t("settings.chatApiConfirmTitle")}</h3>
+            <p className="mt-2 text-xs text-fg-muted">
+              {t(
+                confirm.action === "revoke"
+                  ? "settings.chatApiConfirmRevokeBody"
+                  : "settings.chatApiConfirmDeleteBody",
+                { name: confirm.owner, key: confirm.keyName },
+              )}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setConfirm(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  runAction(confirm.id, confirm.action);
+                  setConfirm(null);
+                }}
+              >
+                {confirm.action === "revoke"
+                  ? t("settings.chatApiRevoke")
+                  : t("settings.chatApiDelete")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

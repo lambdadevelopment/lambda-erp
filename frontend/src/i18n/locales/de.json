@@ -295,6 +295,13 @@
     "enabling": "Wird aktiviert...",
     "tokenSpendTitle": "Token-Ausgaben",
     "chatApiDelete": "Löschen",
+    "chatApiYourKeys": "Ihre Schlüssel",
+    "chatApiYouBadge": "Sie",
+    "chatApiUnknownUser": "Unbekannter Benutzer",
+    "chatApiAdminAllNote": "Als Administrator enthält die Liste unten die Schlüssel aller Benutzer, nach Eigentümer gruppiert. Ihre eigenen stehen oben.",
+    "chatApiConfirmTitle": "Dieser Schlüssel gehört nicht Ihnen",
+    "chatApiConfirmRevokeBody": "„{{key}}“ gehört {{name}}. Beim Widerrufen verliert diese Person sofort den API-Zugriff. Fortfahren?",
+    "chatApiConfirmDeleteBody": "„{{key}}“ gehört {{name}}. Beim Löschen wird der Schlüssel dieser Person dauerhaft entfernt. Fortfahren?",
     "chatApiPersonal": "Persönliche Bearer-Keys für die programmatische Chat-API. Ein Key handelt als SIE: begrenzt auf Ihre Rolle, folgt Rollenänderungen live und erlischt mit Ihrem Konto. Setzt voraus, dass der Admin die Chat-API aktiviert hat."
   },
   "status": {

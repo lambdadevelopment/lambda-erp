@@ -718,6 +718,10 @@ def _serialize_api_key(row: dict) -> dict:
         "id": row["id"],
         "name": row["name"],
         "user": row.get("owner"),
+        # Owner's display identity so the UI can group keys per user with a
+        # human name instead of the opaque USR-id (admins see many owners).
+        "owner_full_name": row.get("owner_full_name"),
+        "owner_email": row.get("owner_email"),
         "role": row["role"],
         "key_prefix": row["key_prefix"],
         "created_at": row.get("created_at"),
@@ -743,21 +747,26 @@ def _require_key_access(key: dict, user: dict) -> None:
 def list_api_keys(user: dict = Depends(require_viewer)):
     """List API keys (metadata only — the token is never returned).
 
-    Users see their own keys; admins see everyone's.
+    Users see their own keys; admins see everyone's. Each key carries its
+    owner's display name/email and an `is_mine` flag so the UI can group keys
+    per user (your own first) and warn before touching someone else's.
     """
     db = get_db()
+    base = (
+        'SELECT k.id, k.name, k.owner, k.role, k.key_prefix, k.created_at, '
+        'k.last_used_at, k.revoked, u.full_name AS owner_full_name, u.email AS owner_email '
+        'FROM "Api Key" k LEFT JOIN "User" u ON u.name = k.owner '
+    )
     if user["role"] == "admin":
-        rows = db.sql(
-            'SELECT id, name, owner, role, key_prefix, created_at, last_used_at, revoked '
-            'FROM "Api Key" ORDER BY created_at DESC'
-        )
+        rows = db.sql(base + 'ORDER BY k.created_at DESC')
     else:
-        rows = db.sql(
-            'SELECT id, name, owner, role, key_prefix, created_at, last_used_at, revoked '
-            'FROM "Api Key" WHERE owner = ? ORDER BY created_at DESC',
-            [user["name"]],
-        )
-    return [_serialize_api_key(dict(r)) for r in rows]
+        rows = db.sql(base + 'WHERE k.owner = ? ORDER BY k.created_at DESC', [user["name"]])
+    out = []
+    for r in rows:
+        d = _serialize_api_key(dict(r))
+        d["is_mine"] = d["user"] == user["name"]
+        out.append(d)
+    return out
 
 
 @router.post("/api-keys")
@@ -797,8 +806,10 @@ def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_viewer)):
     row = {
         "id": key_id, "name": name, "owner": user["name"], "role": role, "key_prefix": key_prefix,
         "created_at": created_at, "last_used_at": None, "revoked": 0,
+        "owner_full_name": user.get("full_name"), "owner_email": user.get("email"),
     }
     result = _serialize_api_key(row)
+    result["is_mine"] = True
     result["token"] = token  # shown once
     return result
 

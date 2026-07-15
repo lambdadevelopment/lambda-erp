@@ -454,10 +454,13 @@ export const api = {
     request<Array<{
       id: string; name: string; user?: string; role: string; key_prefix: string;
       created_at?: string; last_used_at?: string | null; revoked: boolean;
+      owner_full_name?: string | null; owner_email?: string | null; is_mine?: boolean;
     }>>("/auth/api-keys"),
   createApiKey: (name: string, role: string) =>
-    request<{ id: string; name: string; user?: string; role: string; key_prefix: string; token: string }>(
-      "/auth/api-keys", { method: "POST", body: JSON.stringify({ name, role }) }),
+    request<{
+      id: string; name: string; user?: string; role: string; key_prefix: string; token: string;
+      owner_full_name?: string | null; owner_email?: string | null; is_mine?: boolean;
+    }>("/auth/api-keys", { method: "POST", body: JSON.stringify({ name, role }) }),
   revokeApiKey: (id: string) =>
     request<{ id: string; revoked: boolean }>(
       `/auth/api-keys/${encodeURIComponent(id)}/revoke`, { method: "POST" }),
