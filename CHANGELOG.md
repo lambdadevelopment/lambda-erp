@@ -13,6 +13,21 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-16
+
+### Changed
+- **Relicensed from MIT to Apache License 2.0.** 0.3.0 is the first
+  Apache-2.0-licensed version of both packages
+  (`lambda-erp` on PyPI, `@lambda-development/erp-core` on npm). Apache-2.0
+  adds an explicit patent grant and contributor patent-license terms, which
+  fits an extensible platform consumed and extended by private customer
+  implementations. All prior code was contributed by the sole copyright
+  holder, so no external relicensing consents were required. Releases up to
+  and including 0.2.6 remain available under MIT. The npm package also gains
+  a `LICENSE` file in its tarball (`frontend/LICENSE`) — previous tarballs
+  shipped none, since npm only auto-includes a license file from the package
+  root, not the repo root.
+
 ## [0.2.6] - 2026-07-16
 
 ### Fixed

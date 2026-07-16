@@ -163,7 +163,7 @@ Four things had to be true for this to work, and they all became true in the las
 
 Every company configuring an ERP runs into the same problems: local tax rules, common workflow patterns, industry-specific accounting quirks. Most of that knowledge isn't a competitive advantage — it's the same ground being re-covered separately at every implementation, by every team, in slightly different ways.
 
-We want Lambda ERP to be where that knowledge lives in public. The base system is MIT-licensed, and the repo has real seams for that knowledge to slot into: a new country's chart of accounts and tax rules is a self-contained **localization pack**, and an industry's way of operating is a **sector profile** — both live in `lambda_erp/accounting/setup/` and are documented for contributors in [`docs/agents/company_setup.md`](docs/agents/company_setup.md). An Austrian or French chart, a U.S. sales-tax-by-state module, a template for professional services — each is an additive contribution that every deployment picks up (the Swiss KMU and German DATEV packs already in the tree are the worked examples). The goal is a true community where running an ERP gets cheaper, faster, and more flexible for everyone, not just the implementer.
+We want Lambda ERP to be where that knowledge lives in public. The base system is Apache-2.0-licensed, and the repo has real seams for that knowledge to slot into: a new country's chart of accounts and tax rules is a self-contained **localization pack**, and an industry's way of operating is a **sector profile** — both live in `lambda_erp/accounting/setup/` and are documented for contributors in [`docs/agents/company_setup.md`](docs/agents/company_setup.md). An Austrian or French chart, a U.S. sales-tax-by-state module, a template for professional services — each is an additive contribution that every deployment picks up (the Swiss KMU and German DATEV packs already in the tree are the worked examples). The goal is a true community where running an ERP gets cheaper, faster, and more flexible for everyone, not just the implementer.
 
 ---
 
@@ -426,7 +426,7 @@ PRs welcome. File an issue first if it's a big change, or drop by our [Discord](
 
 ## License
 
-MIT. See [LICENSE](./LICENSE) for the full text.
+Apache License 2.0. See [LICENSE](./LICENSE) for the full text.
 
 ---
 

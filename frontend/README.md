@@ -81,4 +81,4 @@ for the full extension architecture.
 
 ## License
 
-MIT. See the [repository LICENSE](https://github.com/lambdadevelopment/lambda-erp/blob/master/LICENSE).
+Apache License 2.0. See the [repository LICENSE](https://github.com/lambdadevelopment/lambda-erp/blob/master/LICENSE).

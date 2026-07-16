@@ -1,9 +1,9 @@
 [project]
 name = "lambda-erp"
-version = "0.2.6"
+version = "0.3.0"
 description = "Core ERP logic - accounting, sales, purchasing, inventory"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 authors = [{ name = "TORUS INVESTMENTS AG" }]
 requires-python = ">=3.10"
 dependencies = [

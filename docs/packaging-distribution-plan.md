@@ -122,7 +122,8 @@ The repo is already `pip install -e .`-able, so this is mostly publish-readiness
   includes non-`.py` files under the package dirs). Wheel verified to contain
   only `api/` + `lambda_erp/` (no frontend/tests/docs).
 - [x] Set package `name` (kept `lambda-erp` — confirmed free on PyPI), `version`
-  (`0.1.0`), description, `license = "MIT"`, `readme`, author, `requires-python
+  (`0.1.0`), description, `license = "MIT"` (relicensed to Apache-2.0 after
+  0.2.6), `readme`, author, `requires-python
   >=3.10`, and runtime deps (unchanged list: FastAPI, pydantic, bcrypt, jose,
   weasyprint, jinja2, …).
 - [x] `python -m build` → wheel + sdist; installed into a **clean venv outside
