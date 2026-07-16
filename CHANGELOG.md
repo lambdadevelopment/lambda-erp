@@ -13,6 +13,24 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-07-16
+
+### Fixed
+- **Browser refresh no longer serves a stale app.** The SPA shell
+  (`index.html`) was returned with no `Cache-Control` header, so browsers
+  heuristically cached it and a soft reload could load an old shell pointing at
+  previous-build asset URLs — you had to hard-refresh. It's now served
+  `Cache-Control: no-cache` so the shell is always revalidated (a cheap 304
+  when unchanged, fresh bytes after a deploy). Backend-only, but both packages
+  version together.
+
+### Changed
+- **Content-hashed `/assets` are now served `immutable` with a one-year
+  max-age.** Their URLs change with every build, so the browser can skip
+  revalidation entirely — a reload no longer round-trips a 304 per bundle.
+  Combined with the `no-cache` shell, a reload costs one small shell
+  revalidation instead of re-checking every asset. Net: fewer requests.
+
 ## [0.2.5] - 2026-07-15
 
 ### Fixed

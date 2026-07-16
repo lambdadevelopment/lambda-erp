@@ -158,11 +158,29 @@ async def ws_chat(websocket: WebSocket):
 # semantics: real files (assets, favicon, logos) resolve as-is; anything
 # else falls through to index.html and React Router handles it
 # client-side. API and WebSocket paths keep returning their normal 404s.
+class _ImmutableStaticFiles(StaticFiles):
+    """Serve content-hashed build assets with a long-lived immutable cache.
+
+    Vite fingerprints every file under /assets (index-<hash>.js, etc.), so the
+    bytes at a given URL never change — a new build emits new filenames. The
+    `immutable` directive lets the browser skip revalidation entirely (no 304
+    round-trip on reload), while index.html stays `no-cache` so a new build is
+    still picked up. Net effect vs. the old default: fewer requests, not more.
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers.setdefault(
+            "Cache-Control", "public, max-age=31536000, immutable"
+        )
+        return response
+
+
 frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 if os.path.isdir(frontend_dist):
     assets_dir = os.path.join(frontend_dist, "assets")
     if os.path.isdir(assets_dir):
-        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+        app.mount("/assets", _ImmutableStaticFiles(directory=assets_dir), name="assets")
 
     frontend_root = os.path.realpath(frontend_dist)
     index_html = os.path.join(frontend_root, "index.html")
@@ -183,4 +201,11 @@ if os.path.isdir(frontend_dist):
                 return FileResponse(candidate)
 
         # SPA fallback — React Router takes over from here.
-        return FileResponse(index_html)
+        #
+        # `no-cache` = always revalidate the shell before reuse (a cheap 304
+        # when unchanged, fresh bytes after a deploy). index.html is the only
+        # UNHASHED file and it points at the hashed /assets bundles, so if the
+        # browser heuristically caches it (which it does when no Cache-Control
+        # is set), a soft reload serves a stale shell referencing old asset
+        # URLs — the "refresh doesn't refresh, need a hard-refresh" bug.
+        return FileResponse(index_html, headers={"Cache-Control": "no-cache"})
