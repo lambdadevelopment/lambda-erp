@@ -70,9 +70,32 @@ class JournalEntry(Document):
         if not self.posting_date:
             self.posting_date = nowdate()
 
+        self._normalize_amounts()
         self._validate_debit_credit()
         self._validate_references()
         self._set_totals()
+
+    def _normalize_amounts(self):
+        """Keep each row's base debit/credit and its *_in_account_currency twin in
+        sync. lambda-erp has no per-line exchange rate (base == account currency),
+        so back-fill whichever side is missing. Without this, a row created with
+        the amount ONLY in debit_in_account_currency (as the chat's create path
+        did) leaves base debit/credit at 0 — it passes the 0==0 balance check,
+        submits "successfully", and posts NOTHING (GL is built from the base
+        fields, and _get_gl_entries skips 0/0 rows). Idempotent."""
+        for row in self.get("accounts") or []:
+            debit = flt(row.get("debit"))
+            credit = flt(row.get("credit"))
+            dr_ac = flt(row.get("debit_in_account_currency"))
+            cr_ac = flt(row.get("credit_in_account_currency"))
+            if not debit and dr_ac:
+                row["debit"] = dr_ac
+            if not credit and cr_ac:
+                row["credit"] = cr_ac
+            if not dr_ac and debit:
+                row["debit_in_account_currency"] = debit
+            if not cr_ac and credit:
+                row["credit_in_account_currency"] = credit
 
     def _validate_debit_credit(self):
         """Ensure total debits == total credits.
@@ -100,6 +123,11 @@ class JournalEntry(Document):
     def on_submit(self):
         """Post GL entries directly from account rows."""
         gl_entries = self._get_gl_entries()
+        if not gl_entries:
+            raise ValidationError(
+                "Journal Entry has no non-zero lines to post — every account row is "
+                "0/0. Set a debit or credit amount before submitting."
+            )
         make_gl_entries(gl_entries)
         self._update_referenced_outstanding()
 

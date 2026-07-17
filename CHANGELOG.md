@@ -13,6 +13,26 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-17
+
+### Fixed
+- **Journal entries with amounts only in the account-currency fields now post.**
+  A JE row carrying `debit_in_account_currency`/`credit_in_account_currency` but 0
+  in the base `debit`/`credit` (as the chat's create path produced) passed the
+  0==0 balance check, submitted, and posted **nothing**. The JE now back-fills base
+  ↔ account-currency per row (single-currency: they're equal), and a submit that
+  would post no non-zero GL lines is now rejected instead of silently no-op'ing.
+- **Master flag updates accept booleans.** `create_master`/`update_master` coerce a
+  JSON `true`/`false` to `1`/`0` for integer flag columns (e.g. `disabled`), so
+  re-enabling an account with `{"disabled": false}` actually persists (a bool into
+  an INTEGER column errors on Postgres).
+
+### Changed
+- **Chat: stronger anti-fabrication guardrail.** The assistant must confirm an
+  action from the tool's returned record before claiming success, must not invent
+  capabilities (there is no master rename), and must verify a field/capability
+  exists before asserting it's missing.
+
 ## [0.3.1] - 2026-07-17
 
 ### Changed

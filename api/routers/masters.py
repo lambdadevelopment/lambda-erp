@@ -187,7 +187,14 @@ def _generate_master_name(db, doctype: str, prefix: str) -> str:
 def _normalize_master_data(data: dict) -> dict:
     normalized = _dict(data)
     for key, value in list(normalized.items()):
-        if isinstance(value, str) and value.strip() == "":
+        # Flag columns (disabled, is_group, …) are INTEGER, not boolean. The chat
+        # may send a JSON bool; coerce true/false -> 1/0 so e.g. re-enabling an
+        # account with {"disabled": false} actually persists (on Postgres a bool
+        # into an INTEGER column errors, which then gets narrated as "done"). Check
+        # bool BEFORE int — in Python bool is a subclass of int.
+        if isinstance(value, bool):
+            normalized[key] = int(value)
+        elif isinstance(value, str) and value.strip() == "":
             normalized[key] = None
     return normalized
 
