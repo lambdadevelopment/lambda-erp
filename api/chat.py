@@ -583,7 +583,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_masters",
-            "description": "Search master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). Case-insensitive, with fuzzy fallback for misspellings. By default matches across standard text fields (name, display name, address/city/zip); large free-text columns like description/templates are skipped unless named in `fields`. PREFER passing `fields` whenever you know which attribute you're matching on (e.g. a city, an email, a tax id) — it's faster, more precise, and avoids false hits from other columns. Returns matching records.",
+            "description": "Search master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). Case-insensitive, with fuzzy fallback for misspellings. By default matches across standard text fields (name, display name, address/city/zip); large free-text columns like description/templates are skipped unless named in `fields`. PREFER passing `fields` whenever you know which attribute you're matching on (e.g. a city, an email, a tax id) — it's faster, more precise, and avoids false hits from other columns. Returns ALL matching records by default (no cap); pass `limit` only to bound a large list.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -594,6 +594,7 @@ TOOLS = [
                         "items": {"type": "string"},
                         "description": "Recommended: the column(s) to search, e.g. [\"city\"] or [\"customer_name\"]. Narrowing here is faster and avoids matching unrelated columns. Omit only when you genuinely don't know which field holds the value, to search all standard text fields.",
                     },
+                    "limit": {"type": "integer", "description": "Optional max number of results. OMIT for no cap — returns ALL matches (e.g. to see the entire chart of accounts). Pass a number only to bound a large list."},
                 },
                 "required": ["master_type"],
             },
@@ -1308,6 +1309,17 @@ def _handle_search_masters(args):
     master_type = args["master_type"]
     query = (args.get("query") or "").strip()
 
+    # Optional result cap the caller sets per call; omit for NO cap (return all —
+    # e.g. the whole chart of accounts). Coerced to int so the LIMIT clause below
+    # can't be injected.
+    _raw_limit = args.get("limit")
+    limit = None
+    if _raw_limit not in (None, "", 0):
+        try:
+            limit = max(1, int(_raw_limit))
+        except (TypeError, ValueError):
+            limit = None
+
     entry = services.MASTER_TABLES.get(master_type)
     if not entry:
         return {"error": f"Unknown master type: {master_type}"}
@@ -1317,7 +1329,7 @@ def _handle_search_masters(args):
 
     if not query:
         filters = {"disabled": 0} if has_disabled else None
-        return db.get_all(doctype, filters=filters, fields=["*"], limit=20)
+        return db.get_all(doctype, filters=filters, fields=["*"], limit=limit)
 
     # Optional `fields` narrows the search to specific columns — cheaper, more
     # precise, and the only way to reach bulk columns (description, templates)
@@ -1338,15 +1350,16 @@ def _handle_search_masters(args):
     # silently broke prod search); CAST lets targeted non-text columns match too.
     where = " OR ".join(f'lower(CAST("{col}" AS TEXT)) LIKE ?' for col in search_cols)
     pattern = f"%{query.lower()}%"
+    limit_sql = f" LIMIT {limit}" if limit else ""
     rows = db.sql(
-        f'SELECT * FROM "{doctype}" WHERE {active_prefix}({where}) LIMIT 20',
+        f'SELECT * FROM "{doctype}" WHERE {active_prefix}({where}){limit_sql}',
         [pattern] * len(search_cols),
     )
     if rows:
         return [dict(r) for r in rows]
 
     # Nothing matched literally — try fuzzy matching to catch misspellings.
-    return _fuzzy_master_search(db, doctype, search_cols, query, has_disabled, limit=20)
+    return _fuzzy_master_search(db, doctype, search_cols, query, has_disabled, limit=limit)
 
 
 def _ignored_master_fields(master_type: str, data: dict) -> list[str]:

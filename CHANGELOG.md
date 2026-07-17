@@ -13,6 +13,15 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-17
+
+### Changed
+- **`search_masters` no longer hard-caps results at 20.** The chat can pass an
+  optional `limit` (omit for no cap), so "list all accounts" returns the whole
+  chart of accounts instead of a silently-truncated 20. Applies to the no-query
+  listing, the substring match, and the fuzzy fallback. Backend-only, but both
+  packages version together.
+
 ## [0.3.0] - 2026-07-16
 
 ### Changed
