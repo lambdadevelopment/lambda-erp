@@ -13,6 +13,15 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-17
+
+### Added
+- **Confirmation dialog before deactivating the chat API.** Turning the chat API
+  off in Settings now asks first (enabling stays one click). The dialog makes the
+  reassuring part explicit: the API is gated off and Bearer requests are rejected,
+  but **API keys are not deleted** — they stay saved and work again the moment the
+  API is re-enabled. Previously the toggle fired immediately with no warning.
+
 ## [0.3.3] - 2026-07-17
 
 ### Fixed

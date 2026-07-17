@@ -715,6 +715,7 @@ function ChatApiCard({
   ownRole: string;
 }) {
   const { t } = useTranslation();
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
 
   return (
     <Card title={t("settings.chatApiTitle")}>
@@ -726,7 +727,12 @@ function ChatApiCard({
           </p>
         </div>
         <button
-          onClick={onToggle}
+          onClick={() => {
+            // Enabling is harmless — go straight through. Disabling cuts off every
+            // API caller, so confirm first (keys are preserved; requests just fail).
+            if (enabled) setConfirmDeactivate(true);
+            else onToggle();
+          }}
           className={`ml-4 shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
             enabled
               ? "bg-red-50 text-red-700 hover:bg-red-100"
@@ -741,6 +747,38 @@ function ChatApiCard({
         <div className="mt-4 border-t border-gray-100 pt-4">
           <div className="mb-2 text-xs font-medium text-gray-500">{t("settings.chatApiKeysTitle")}</div>
           <ApiKeysSection ownRole={ownRole} />
+        </div>
+      )}
+
+      {confirmDeactivate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setConfirmDeactivate(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-fg">{t("settings.chatApiDeactivateTitle")}</h3>
+            <p className="mt-3 text-sm text-fg-muted">{t("settings.chatApiDeactivateBody")}</p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setConfirmDeactivate(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  onToggle();
+                  setConfirmDeactivate(false);
+                }}
+              >
+                {t("settings.chatApiDeactivateConfirm")}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </Card>
