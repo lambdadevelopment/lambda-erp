@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-17
+
+### Fixed
+- **Disabled master records are reachable again from the chat.** `search_masters`
+  hides disabled/archived records by default (so you don't book to a retired
+  account), but there was no way to reach them at all — you couldn't find a
+  disabled account to re-enable it (a catch-22), nor ask "what's disabled". Adds an
+  optional `include_disabled` flag (default false) that surfaces disabled records
+  across the no-query, substring, and fuzzy paths; the chat is told to retry with
+  it when a record it expects isn't found.
+
 ## [0.3.2] - 2026-07-17
 
 ### Fixed

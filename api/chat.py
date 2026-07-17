@@ -595,6 +595,7 @@ TOOLS = [
                         "description": "Recommended: the column(s) to search, e.g. [\"city\"] or [\"customer_name\"]. Narrowing here is faster and avoids matching unrelated columns. Omit only when you genuinely don't know which field holds the value, to search all standard text fields.",
                     },
                     "limit": {"type": "integer", "description": "Optional max number of results. OMIT for no cap — returns ALL matches (e.g. to see the entire chart of accounts). Pass a number only to bound a large list."},
+                    "include_disabled": {"type": "boolean", "description": "Default false (active records only). Set true to ALSO return disabled/archived records — needed to find a record you must inspect, re-enable, or reference, or to answer 'what's disabled'. Retry with this if a lookup for a record you know exists comes back empty."},
                 },
                 "required": ["master_type"],
             },
@@ -1326,9 +1327,14 @@ def _handle_search_masters(args):
 
     doctype, _name_field = entry
     has_disabled = "disabled" in db._get_table_columns(doctype)
+    # Active-only by default (retired/archived records are hidden — you shouldn't
+    # book to them or wade through them). Set include_disabled to reach a disabled
+    # record you need to inspect, re-enable, or reference. Only meaningful when the
+    # table has a `disabled` column.
+    filter_disabled = has_disabled and not bool(args.get("include_disabled"))
 
     if not query:
-        filters = {"disabled": 0} if has_disabled else None
+        filters = {"disabled": 0} if filter_disabled else None
         return db.get_all(doctype, filters=filters, fields=["*"], limit=limit)
 
     # Optional `fields` narrows the search to specific columns — cheaper, more
@@ -1343,7 +1349,7 @@ def _handle_search_masters(args):
     else:
         search_cols = _master_search_columns(db, doctype)
 
-    active_prefix = "disabled = 0 AND " if has_disabled else ""
+    active_prefix = "disabled = 0 AND " if filter_disabled else ""
 
     # Case-insensitive substring match. lower() on both sides is portable (bare
     # LIKE is case-insensitive on SQLite but case-sensitive on Postgres, which
@@ -1359,7 +1365,7 @@ def _handle_search_masters(args):
         return [dict(r) for r in rows]
 
     # Nothing matched literally — try fuzzy matching to catch misspellings.
-    return _fuzzy_master_search(db, doctype, search_cols, query, has_disabled, limit=limit)
+    return _fuzzy_master_search(db, doctype, search_cols, query, filter_disabled, limit=limit)
 
 
 def _ignored_master_fields(master_type: str, data: dict) -> list[str]:
@@ -1908,6 +1914,7 @@ You help users manage their business by creating documents, looking up data, and
 Only state that something was done — created, changed, enabled/disabled, booked, repointed — **after a tool call returns a success result that confirms it**, and check the returned record actually reflects the change (after `update_master` with {{"disabled": 0}}, confirm the returned row shows `disabled = 0`; after submitting a journal entry, confirm it posted non-zero GL). If a tool returns an error, a warning, or a record that doesn't reflect your intent, tell the user it did **not** work and why — never smooth it over as success.
 - If a capability doesn't exist, say so plainly. There is **no rename** for accounts or other masters — a master's identifying `name`/number is immutable; you can only edit display fields or create a new record and migrate. Never claim you "renamed" an account.
 - Never assert a field or capability is missing without checking (e.g. an item's income account) — verify with `get_master_fields` / `search_masters` first.
+- A master you can't find via `search_masters` may just be **disabled** (search hides disabled by default). Retry with `include_disabled: true` before concluding it doesn't exist — you need this to re-enable a disabled account.
 - If you can't confirm an action took effect, re-fetch and look, or tell the user you couldn't confirm it — never guess.
 
 ## Answering data questions — three paths
