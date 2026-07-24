@@ -198,20 +198,48 @@ ASSIGNABLE_ROLES = {"admin", "manager", "viewer"}
 
 
 def get_current_user(request: Request) -> dict:
-    """FastAPI dependency: extract and validate JWT from cookie.
-    Falls back to public_manager if one exists and no cookie is set."""
-    token = request.cookies.get(COOKIE_NAME)
+    """FastAPI dependency: resolve the caller for every cookie-gated REST route.
 
+    Resolution order:
+      1. Session cookie (the web app) — a valid JWT wins.
+      2. `Authorization: Bearer <api-key>` — a programmatic caller, gated by the
+         `rest_api_enabled` Settings flag (off by default). The key acts AS its
+         owner with the owner's live role (capped at the key's role — see
+         `_lookup_api_key`), so a document it creates is attributed to the real
+         user and every `require_role` check behaves as if that user logged in.
+         This is the same key type the chat API uses; the two surfaces are
+         gated by independent flags.
+      3. Public manager (demo mode) when no credential is presented.
+
+    A malformed or invalid Bearer credential is a *failed* auth attempt, not a
+    fall-through — it raises 401 rather than silently downgrading to demo
+    access. `_lookup_api_key` / `_bearer_token` / `_setting_enabled` are defined
+    lower in this module and resolved at call time (late binding)."""
+    db = get_db()
+
+    token = request.cookies.get(COOKIE_NAME)
     if token:
         user_name = decode_token(token)
         if user_name:
-            db = get_db()
             user = db.get_value("User", user_name, ["name", "email", "full_name", "role", "enabled"])
             if user and user.get("enabled"):
                 return dict(user)
 
+    bearer = _bearer_token(request)
+    if bearer is not None:
+        if not _setting_enabled(db, "rest_api_enabled"):
+            raise HTTPException(status_code=401, detail="REST API key access is disabled")
+        key, owner, effective_role = _lookup_api_key(db, bearer)
+        return {
+            "name": owner["name"],
+            "email": owner.get("email"),
+            "full_name": owner.get("full_name"),
+            "role": effective_role,
+            "enabled": owner.get("enabled"),
+            "api_key_id": key["id"],
+        }
+
     # Fall back to public manager (demo mode)
-    db = get_db()
     pub = db.sql('SELECT name, email, full_name, role, enabled FROM "User" WHERE role = \'public_manager\' AND enabled = 1')
     if pub:
         return dict(pub[0])
@@ -586,6 +614,12 @@ DEFAULTS = {
     # active. Default off — an admin turns it on and issues keys. See
     # docs/chat-api-plan.md.
     "chat_api_enabled": "0",
+    # When "1", the same Bearer API keys authenticate the regular REST API
+    # (/api/documents, /api/masters, /api/reports, …) in addition to the session
+    # cookie. Default off — an admin turns it on to let connectors/scripts drive
+    # the ERP the way the web app does. Independent of chat_api_enabled. See
+    # docs/rest-api.md.
+    "rest_api_enabled": "0",
 }
 
 
@@ -655,27 +689,32 @@ def _role_rank(role: str) -> int:
     return ROLE_HIERARCHY.get(role, 0)
 
 
-def get_api_caller(request: Request) -> dict:
-    """FastAPI dependency for the programmatic chat API.
+def _bearer_token(request: Request) -> str | None:
+    """The token from an `Authorization: Bearer <token>` header.
 
-    Gated by the `chat_api_enabled` Settings flag — when off the whole surface
-    404s (never advertised on instances that don't use it). Otherwise validates
-    the `Authorization: Bearer <token>` header against a non-revoked Api Key.
-
-    Keys are per-user credentials: the effective role is resolved LIVE as
-    min(key's role cap, owner's current role), and a disabled or deleted owner
-    kills every one of their keys immediately. `name` is the key's
-    session_owner (``api:<username>``) — all of one user's keys share a session
-    space, separate from their interactive web chats.
+    Returns None when the header is absent or not a Bearer scheme (no auth
+    attempt — the caller may still have a cookie). Returns "" for a bare
+    `Bearer ` with no token — a malformed *attempt* that callers treat as a
+    401, distinct from None.
     """
-    db = get_db()
-    if not _setting_enabled(db, "chat_api_enabled"):
-        raise HTTPException(status_code=404, detail="Not Found")
-
     header = request.headers.get("authorization", "")
     if not header.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
-    token = header[7:].strip()
+        return None
+    return header[7:].strip()
+
+
+def _lookup_api_key(db, token: str) -> tuple[dict, dict, str]:
+    """Validate a Bearer API token → (key, owner, effective_role).
+
+    Raises 401 on any failure (empty/unknown/revoked token, or a disabled/
+    deleted owner). Bumps `last_used_at`. Shared by the chat API and the REST
+    API so both resolve a key identically — they differ only in the Settings
+    flag that gates them and the caller identity they build from the result.
+
+    The effective role is resolved LIVE as min(key's role cap, owner's current
+    role): a key can never out-rank its owner, and lowering an owner's role (or
+    disabling them) instantly constrains every one of their keys.
+    """
     if not token:
         raise HTTPException(status_code=401, detail="Empty bearer token")
 
@@ -687,15 +726,37 @@ def get_api_caller(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Invalid API key")
     key = dict(rows[0])
 
-    owner = db.get_value("User", key["owner"], ["name", "full_name", "role", "enabled"])
+    owner = db.get_value("User", key["owner"], ["name", "email", "full_name", "role", "enabled"])
     if not owner or not owner.get("enabled"):
         raise HTTPException(status_code=401, detail="Invalid API key")
+    owner = dict(owner)
     effective_role = (
         key["role"] if _role_rank(key["role"]) <= _role_rank(owner["role"]) else owner["role"]
     )
 
     db.sql('UPDATE "Api Key" SET last_used_at = ? WHERE id = ?', [now(), key["id"]])
     db.conn.commit()
+    return key, owner, effective_role
+
+
+def get_api_caller(request: Request) -> dict:
+    """FastAPI dependency for the programmatic chat API (POST /api/v1/chat).
+
+    Gated by the `chat_api_enabled` Settings flag — when off the whole surface
+    404s (never advertised on instances that don't use it). Otherwise validates
+    the Bearer key via `_lookup_api_key`. The caller's `name` is the key's
+    session_owner (``api:<username>``) — all of one user's keys share a chat
+    session space, separate from their interactive web chats. (The REST API, by
+    contrast, has the key act as the real user — see `get_current_user`.)
+    """
+    db = get_db()
+    if not _setting_enabled(db, "chat_api_enabled"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    token = _bearer_token(request)
+    if token is None:
+        raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
+    key, owner, effective_role = _lookup_api_key(db, token)
 
     return {
         "name": key["session_owner"],

@@ -132,6 +132,7 @@ The result is booked in one step — chart of accounts, sensible default account
 - Custom analytics drafts via chat (persisted, shareable, editable)
 - Server-side aggregation tool for in-chat factual answers across large datasets
 - PDF / image attachment → add invoices, create quotations, etc. all directly by adding them in the chat
+- **Programmatic API** — drive the ERP from external systems with per-user, role-capped Bearer keys: a [chat API](docs/chat-api.md) (converse with the agent) and a [REST API](docs/rest-api.md) (documents, masters, reports — the same endpoints the web app uses, so a connector or sync job can create and submit documents directly). Both off by default; an admin enables each independently and issues keys.
 - Auth with admin/manager/viewer roles plus a public demo mode
 - Full test suite that exercises every cycle against an in-memory SQLite
 
