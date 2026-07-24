@@ -447,6 +447,7 @@ export const api = {
   getPublicManagerStatus: () => request<{ active: boolean; user?: any }>("/auth/public-manager"),
   createPublicManager: () => request<any>("/auth/public-manager", { method: "POST" }),
   removePublicManager: () => request<any>("/auth/public-manager", { method: "DELETE" }),
+  getHealth: () => request<{ status: string; version: string }>("/health"),
   getSettings: () => request<Record<string, string>>("/auth/settings"),
   updateSettings: (data: Record<string, string>) =>
     request<Record<string, string>>("/auth/settings", { method: "PUT", body: JSON.stringify(data) }),

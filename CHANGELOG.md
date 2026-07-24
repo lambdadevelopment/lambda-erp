@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- **App version shown in Settings.** The Settings page now displays the running
+  ERP core version (e.g. "Version 0.4.0") in a small footer. The version is
+  resolved at runtime from `pyproject.toml` (source checkout) or the installed
+  package metadata (wheel), so it's always accurate without a manual bump, and
+  is also exposed on `GET /api/health` (`{status, version}`) and as the FastAPI
+  app version. Replaces the previously hardcoded, stale `__version__`.
+
 ## [0.4.0] - 2026-07-24
 
 ### Added

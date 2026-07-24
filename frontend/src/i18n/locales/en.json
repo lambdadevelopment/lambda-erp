@@ -311,7 +311,8 @@
     "chatApiConfirmTitle": "This key isn't yours",
     "chatApiConfirmRevokeBody": "\"{{key}}\" belongs to {{name}}. Revoking it will immediately break their API access. Continue?",
     "chatApiConfirmDeleteBody": "\"{{key}}\" belongs to {{name}}. Deleting it permanently removes their key. Continue?",
-    "chatApiPersonal": "Personal Bearer keys for the programmatic chat API. A key acts as YOU: it is capped at your role, follows role changes live, and dies with your account. Requires the admin to have enabled the Chat API."
+    "chatApiPersonal": "Personal Bearer keys for the programmatic chat API. A key acts as YOU: it is capped at your role, follows role changes live, and dies with your account. Requires the admin to have enabled the Chat API.",
+    "version": "Version {{version}}"
   },
   "status": {
     "Draft": "Draft",
