@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-24
+
 ### Added
 - **REST API access via Bearer API keys.** The same per-user API keys that drive
   the chat API now authenticate the regular REST API (`/api/documents`,
