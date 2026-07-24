@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- **REST API access via Bearer API keys.** The same per-user API keys that drive
+  the chat API now authenticate the regular REST API (`/api/documents`,
+  `/api/masters`, `/api/reports`, …) when an admin enables the new
+  `rest_api_enabled` Settings flag (off by default, independent of
+  `chat_api_enabled`). A key acts **as its owner** with the owner's live role,
+  capped at the key's role, so a connector or sync job can create and submit
+  documents through the endpoints the web app already uses — role checks,
+  attribution, and instant revocation all behave as if the user logged in. The
+  Settings screen gains a combined **Programmatic API** card with independent
+  Chat/REST toggles over one shared key list. Docs: [`docs/rest-api.md`](docs/rest-api.md);
+  tested in `tests/test_rest_api.py` (SQLite + PostgreSQL).
+
 ## [0.3.4] - 2026-07-17
 
 ### Added

@@ -705,55 +705,93 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
   );
 }
 
-function ChatApiCard({
+function ApiToggleRow({
   enabled,
   onToggle,
-  ownRole,
+  body,
+  statusOn,
+  statusOff,
 }: {
   enabled: boolean;
   onToggle: () => void;
+  body: string;
+  statusOn: string;
+  statusOff: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-gray-700">{body}</p>
+        <p className="mt-1 text-xs text-gray-400">{enabled ? statusOn : statusOff}</p>
+      </div>
+      <button
+        onClick={onToggle}
+        className={`ml-4 shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
+          enabled
+            ? "bg-red-50 text-red-700 hover:bg-red-100"
+            : "bg-green-50 text-green-700 hover:bg-green-100"
+        }`}
+      >
+        {enabled ? t("common.disable") : t("common.enable")}
+      </button>
+    </div>
+  );
+}
+
+// The Chat API (POST /api/v1/chat) and the REST API (/api/documents, /api/masters, …)
+// are two surfaces authenticated by the SAME per-user Bearer keys, toggled
+// independently. The shared keys section shows once EITHER surface is enabled.
+function ApiAccessCard({
+  chatEnabled,
+  restEnabled,
+  onToggleChat,
+  onToggleRest,
+  ownRole,
+}: {
+  chatEnabled: boolean;
+  restEnabled: boolean;
+  onToggleChat: () => void;
+  onToggleRest: () => void;
   ownRole: string;
 }) {
   const { t } = useTranslation();
-  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  // Which surface a pending "turn off" confirm applies to. Enabling is harmless
+  // (go straight through); disabling cuts off live callers, so confirm first —
+  // keys are preserved either way, requests just start failing.
+  const [confirmOff, setConfirmOff] = useState<null | "chat" | "rest">(null);
 
   return (
-    <Card title={t("settings.chatApiTitle")}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-700">{t("settings.chatApiBody")}</p>
-          <p className="mt-1 text-xs text-gray-400">
-            {enabled ? t("settings.chatApiEnabled") : t("settings.chatApiDisabled")}
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            // Enabling is harmless — go straight through. Disabling cuts off every
-            // API caller, so confirm first (keys are preserved; requests just fail).
-            if (enabled) setConfirmDeactivate(true);
-            else onToggle();
-          }}
-          className={`ml-4 shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
-            enabled
-              ? "bg-red-50 text-red-700 hover:bg-red-100"
-              : "bg-green-50 text-green-700 hover:bg-green-100"
-          }`}
-        >
-          {enabled ? t("common.disable") : t("common.enable")}
-        </button>
+    <Card title={t("settings.apiTitle")}>
+      <div className="space-y-4">
+        <ApiToggleRow
+          enabled={chatEnabled}
+          onToggle={() => (chatEnabled ? setConfirmOff("chat") : onToggleChat())}
+          body={t("settings.chatApiBody")}
+          statusOn={t("settings.chatApiEnabled")}
+          statusOff={t("settings.chatApiDisabled")}
+        />
+        <div className="border-t border-gray-100" />
+        <ApiToggleRow
+          enabled={restEnabled}
+          onToggle={() => (restEnabled ? setConfirmOff("rest") : onToggleRest())}
+          body={t("settings.restApiBody")}
+          statusOn={t("settings.restApiEnabled")}
+          statusOff={t("settings.restApiDisabled")}
+        />
       </div>
 
-      {enabled && (
+      {(chatEnabled || restEnabled) && (
         <div className="mt-4 border-t border-gray-100 pt-4">
           <div className="mb-2 text-xs font-medium text-gray-500">{t("settings.chatApiKeysTitle")}</div>
           <ApiKeysSection ownRole={ownRole} />
         </div>
       )}
 
-      {confirmDeactivate && (
+      {confirmOff && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setConfirmDeactivate(false)}
+          onClick={() => setConfirmOff(null)}
         >
           <div
             className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-xl"
@@ -761,18 +799,27 @@ function ChatApiCard({
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold text-fg">{t("settings.chatApiDeactivateTitle")}</h3>
-            <p className="mt-3 text-sm text-fg-muted">{t("settings.chatApiDeactivateBody")}</p>
+            <h3 className="text-base font-semibold text-fg">
+              {confirmOff === "chat"
+                ? t("settings.chatApiDeactivateTitle")
+                : t("settings.restApiDeactivateTitle")}
+            </h3>
+            <p className="mt-3 text-sm text-fg-muted">
+              {confirmOff === "chat"
+                ? t("settings.chatApiDeactivateBody")
+                : t("settings.restApiDeactivateBody")}
+            </p>
             <div className="mt-6 flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setConfirmDeactivate(false)}>
+              <Button variant="secondary" size="sm" onClick={() => setConfirmOff(null)}>
                 {t("common.cancel")}
               </Button>
               <Button
                 variant="danger"
                 size="sm"
                 onClick={() => {
-                  onToggle();
-                  setConfirmDeactivate(false);
+                  if (confirmOff === "chat") onToggleChat();
+                  else onToggleRest();
+                  setConfirmOff(null);
                 }}
               >
                 {t("settings.chatApiDeactivateConfirm")}
@@ -923,12 +970,18 @@ export default function SettingsPage() {
       </Card>
 
       {isAdmin && (
-        <ChatApiCard
-          enabled={settings?.chat_api_enabled === "1"}
+        <ApiAccessCard
+          chatEnabled={settings?.chat_api_enabled === "1"}
+          restEnabled={settings?.rest_api_enabled === "1"}
           ownRole={user?.role ?? "viewer"}
-          onToggle={() =>
+          onToggleChat={() =>
             settingsMut.mutate({
               chat_api_enabled: settings?.chat_api_enabled === "1" ? "0" : "1",
+            })
+          }
+          onToggleRest={() =>
+            settingsMut.mutate({
+              rest_api_enabled: settings?.rest_api_enabled === "1" ? "0" : "1",
             })
           }
         />
