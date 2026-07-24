@@ -311,7 +311,8 @@
     "chatApiConfirmTitle": "Cette clé ne vous appartient pas",
     "chatApiConfirmRevokeBody": "« {{key}} » appartient à {{name}}. La révoquer coupera immédiatement son accès à l'API. Continuer ?",
     "chatApiConfirmDeleteBody": "« {{key}} » appartient à {{name}}. La supprimer retire définitivement sa clé. Continuer ?",
-    "chatApiPersonal": "Clés Bearer personnelles pour l'API de chat programmatique. Une clé agit en VOTRE nom : plafonnée à votre rôle, elle suit les changements de rôle en direct et expire avec votre compte. Nécessite que l'admin ait activé l'API de chat."
+    "chatApiPersonal": "Clés Bearer personnelles pour l'API de chat programmatique. Une clé agit en VOTRE nom : plafonnée à votre rôle, elle suit les changements de rôle en direct et expire avec votre compte. Nécessite que l'admin ait activé l'API de chat.",
+    "version": "Version {{version}}"
   },
   "status": {
     "Draft": "Brouillon",

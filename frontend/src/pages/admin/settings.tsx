@@ -853,6 +853,12 @@ export default function SettingsPage() {
     queryFn: () => api.getPublicManagerStatus(),
   });
 
+  const { data: health } = useQuery({
+    queryKey: ["health"],
+    queryFn: () => api.getHealth(),
+    staleTime: Infinity, // version only changes on deploy
+  });
+
   const [showConfirm, setShowConfirm] = useState(false);
 
   const createPubMut = useMutation({
@@ -1058,6 +1064,12 @@ export default function SettingsPage() {
             </div>
           )}
         </Card>
+      )}
+
+      {health?.version && (
+        <p className="pt-2 text-center text-xs text-gray-400">
+          {t("settings.version", { version: health.version })}
+        </p>
       )}
     </div>
   );

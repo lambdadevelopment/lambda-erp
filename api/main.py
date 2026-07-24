@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from lambda_erp import get_app_version
 from lambda_erp.database import setup
 
 from api.errors import register_exception_handlers
@@ -70,7 +71,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Lambda ERP",
-    version="0.1.0",
+    version=get_app_version(),
     lifespan=lifespan,
 )
 
@@ -105,7 +106,7 @@ app.include_router(chat_api.router, prefix="/api")
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": get_app_version()}
 
 
 @app.websocket("/ws/chat")
