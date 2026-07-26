@@ -193,15 +193,44 @@ register_hook("Sales Invoice:after_submit", push_to_external_system)
 ```
 Hook events: `<DocType>:{before,after}_{save,submit,cancel}`.
 
+### Add a new master type — chat + REST discovery included
+```python
+from api.services import register_master
+
+register_master("gadget", "Gadget", "gadget_name", name_prefix="GAD")
+```
+`register_master(slug, table, name_field, *, name_prefix=None,
+identity_alias=None)` is the master-side counterpart of `register_doctype`.
+One call makes the type first-class on every master surface:
+
+- **REST**: `/api/masters/gadget` CRUD with the standard role guards.
+- **AI chat, from day one**: `search_masters`, `get_master_fields`,
+  `create_master`, `update_master`, `delete_master` all accept the new type.
+  The chat tool schemas and system prompt are built per request from the live
+  registry (`api.chat.build_tools` / `build_system_prompt`), so plugin load
+  order doesn't matter and no prompt editing is needed. Doctypes added via
+  `register_doctype` are likewise folded into the document tools' enums.
+- **No field declarations**: columns are introspected from the live table.
+  Every text column is immediately searchable (minus audit noise and bulk
+  free-text columns like `notes`, which are searched only when named in
+  `fields`), with the same fuzzy-misspelling fallback core masters get.
+
+`name_prefix` enables auto-generated ids (`GAD-001`) when a record is created
+without an explicit `name`. `identity_alias` exposes the `name` PK under a
+friendlier key, like Item's `item_code`. Caveats: chat/REST master writes are
+plain row CRUD (a registered Document class's `validate()` does not run on
+this path), and `delete_master` has no reference checks for registered types.
+
 ### Register everything at startup
 ```python
 # acme/plugin.py
-from api.services import register_doctype, register_converter
+from api.services import register_doctype, register_master, register_converter
 from lambda_erp.hooks import register_hook
 from .sales_invoice import AcmeSalesInvoice
 
 def register():
     register_doctype("Sales Invoice", AcmeSalesInvoice)
+    register_master("gadget", "Gadget", "gadget_name", name_prefix="GAD")
     register_hook("Sales Invoice:after_submit", push_to_external_system)
 ```
 Point the deployment at it: `LAMBDA_ERP_PLUGINS=acme` (comma-separated for

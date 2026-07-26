@@ -14,6 +14,26 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 ## [Unreleased]
 
 ### Added
+- **Plugin masters are discovered by the AI chat and REST API —
+  `register_master` seam.** A deployment plugin can register its own master
+  type (`api.services.register_master(slug, table, name_field,
+  name_prefix=..., identity_alias=...)`) — the master-side counterpart of
+  `register_doctype` — and it works from day one with zero per-type teaching:
+  `/api/masters/{slug}` REST CRUD, and all chat master tools (`search_masters`
+  with fuzzy fallback, `get_master_fields`, `create/update/delete_master`).
+  Chat tool schemas and the system prompt are now built per request from the
+  live registries instead of hardcoded lists, which also makes
+  `register_doctype`-registered doctypes visible to the chat document tools
+  (`list_documents`, `get_document`, …). Fields are introspected from the live
+  table, so every text column of a registered master is immediately
+  searchable. New test suite `tests/test_master_registry.py` (SQLite +
+  Postgres in CI). `MASTER_NAME_PREFIXES` and `MASTER_IDENTITY_ALIAS` moved
+  from `api.routers.masters` to `api.services` (still re-exported from the
+  router).
+- **Back button on detail pages.** The app-shell header shows a back arrow on
+  doctype/master detail and new-record pages (and the opening-balances setup
+  page), navigating to the parent list — using in-app history when available
+  so the list keeps its state.
 - **App version shown in Settings.** The Settings page now displays the running
   ERP core version (e.g. "Version 0.4.0") in a small footer. The version is
   resolved at runtime from `pyproject.toml` (source checkout) or the installed

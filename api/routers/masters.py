@@ -5,7 +5,10 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query
 from lambda_erp.database import get_db
 from lambda_erp.utils import _dict
-from api.services import MASTER_TABLES
+# The per-type registries live in api.services so `register_master` can extend
+# them; imported here (not moved) so existing `from api.routers.masters import
+# MASTER_IDENTITY_ALIAS`-style imports keep working.
+from api.services import MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_IDENTITY_ALIAS
 from api.auth import require_role, require_non_public_manager
 
 router = APIRouter(prefix="/masters", tags=["masters"])
@@ -13,22 +16,6 @@ router = APIRouter(prefix="/masters", tags=["masters"])
 _viewer = Depends(require_role("viewer"))
 _manager = Depends(require_non_public_manager)
 _admin = Depends(require_role("admin"))
-
-MASTER_NAME_PREFIXES = {
-    "customer": "CUST",
-    "supplier": "SUPP",
-    "item": "ITEM",
-    "warehouse": "WH",
-}
-
-# An Item's code is stored in the primary-key column `name`, but every
-# transaction line and report references it as
-# `item_code`. Accept that intuitive alias on the master API so callers
-# (LLM tools, REST clients) can set and read the code under the name they
-# already use everywhere else, instead of silently falling back to ITEM-NNN.
-MASTER_IDENTITY_ALIAS = {
-    "item": "item_code",
-}
 
 
 def _echo_identity_alias(master_type: str, row):

@@ -70,6 +70,25 @@ MASTER_TABLES = {
     "cost-center": ("Cost Center", "cost_center_name"),
 }
 
+# Auto-naming prefixes: masters created without an explicit `name` get a
+# generated PREFIX-NNN id (see masters.create_master_record). Types without an
+# entry require an explicit name (or derive it, like company).
+MASTER_NAME_PREFIXES = {
+    "customer": "CUST",
+    "supplier": "SUPP",
+    "item": "ITEM",
+    "warehouse": "WH",
+}
+
+# An Item's code is stored in the primary-key column `name`, but every
+# transaction line and report references it as `item_code`. Accept that
+# intuitive alias on the master API so callers (LLM tools, REST clients) can
+# set and read the code under the name they already use everywhere else,
+# instead of silently falling back to ITEM-NNN.
+MASTER_IDENTITY_ALIAS = {
+    "item": "item_code",
+}
+
 # Slug <-> doctype name mapping
 SLUG_TO_DOCTYPE = {}
 DOCTYPE_TO_SLUG = {}
@@ -93,6 +112,32 @@ def register_doctype(doctype: str, cls, slug: str | None = None) -> None:
     slug = slug or doctype.lower().replace(" ", "-")
     SLUG_TO_DOCTYPE[slug] = doctype
     DOCTYPE_TO_SLUG[doctype] = slug
+
+
+def register_master(slug: str, table: str, name_field: str, *,
+                    name_prefix: str | None = None,
+                    identity_alias: str | None = None) -> None:
+    """Register (or override) a master type — the master-side counterpart of
+    `register_doctype`.
+
+    A plugin calls this at startup and the master becomes a first-class type
+    everywhere `MASTER_TABLES` is consulted: the REST CRUD surface
+    (`/api/masters/{slug}`) and the chat tools (search_masters,
+    get_master_fields, create/update/delete_master — their schemas and the
+    system prompt are built from the live registry per request). Fields are
+    never declared: they're introspected from the table at call time, so every
+    text column of `table` is immediately searchable.
+
+    `name_field` is the human display column (e.g. "company_name").
+    `name_prefix` enables auto-generated ids (prefix "LEAD" -> LEAD-001) when a
+    record is created without an explicit `name`. `identity_alias` lets callers
+    address the `name` PK under a friendlier key, like item's `item_code`.
+    """
+    MASTER_TABLES[slug] = (table, name_field)
+    if name_prefix:
+        MASTER_NAME_PREFIXES[slug] = name_prefix
+    if identity_alias:
+        MASTER_IDENTITY_ALIAS[slug] = identity_alias
 
 
 def get_document_class(doctype_slug: str):

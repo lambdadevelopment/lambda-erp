@@ -10,6 +10,7 @@ Supports multiple chat sessions, each with their own history and auto-generated 
 
 import asyncio
 import base64
+import copy
 import difflib
 import io
 import json
@@ -1163,6 +1164,44 @@ TOOLS = [
     },
 ]
 
+
+def _extra_document_slugs():
+    """Doctype slugs registered beyond the core list (via register_doctype)."""
+    return sorted(s for s in services.SLUG_TO_DOCTYPE if s not in DOCUMENT_SLUGS)
+
+
+def _extra_master_types():
+    """Master types registered beyond the core list (via register_master)."""
+    return sorted(m for m in services.MASTER_TABLES if m not in MASTER_TYPES)
+
+
+def build_tools():
+    """TOOLS with the doctype/master enums widened from the live registries.
+
+    Plugins register doctypes and masters at startup — after this module is
+    imported — so the static TOOLS constant can't know about them. The tool
+    handlers already resolve through the live registries; the enums in the
+    schemas were the only thing shutting registered types out of chat. Built
+    per request (cheap next to the LLM call), which also makes plugin load
+    order irrelevant. Only enums that exactly match the core lists are
+    widened, so any differently-constrained doctype/master param (e.g. a
+    curated subset) is left alone.
+    """
+    extra_docs = _extra_document_slugs()
+    extra_masters = _extra_master_types()
+    if not extra_docs and not extra_masters:
+        return TOOLS
+    tools = copy.deepcopy(TOOLS)
+    for tool in tools:
+        props = tool["function"].get("parameters", {}).get("properties", {})
+        for schema in props.values():
+            if schema.get("enum") == DOCUMENT_SLUGS:
+                schema["enum"] = DOCUMENT_SLUGS + extra_docs
+            elif schema.get("enum") == MASTER_TYPES:
+                schema["enum"] = MASTER_TYPES + extra_masters
+    return tools
+
+
 # ---------------------------------------------------------------------------
 # Tool handlers — dispatch to existing service functions
 # ---------------------------------------------------------------------------
@@ -1845,6 +1884,21 @@ def build_system_prompt(user_info: dict | None = None, channel: str = "web"):
     analytics_context = _prompt_analytics_context()
     uom_context = _prompt_uom_context()
 
+    # Deployment-registered types (register_doctype / register_master). Folded
+    # into the type lists below so the assistant knows they exist and can act
+    # on them from day one — the tool schemas widen the same way (build_tools).
+    extra_docs = _extra_document_slugs()
+    extra_masters = _extra_master_types()
+    extension_doctypes_line = (
+        f"\n- **Extensions (deployment-specific):** {', '.join(extra_docs)}" if extra_docs else ""
+    )
+    master_types_line = ", ".join(MASTER_TYPES + extra_masters)
+    extension_master_keys = "".join(
+        f"\n- **{services.MASTER_TABLES[m][0]}** (master_type `{m}`): key = `name`, "
+        f"display = `{services.MASTER_TABLES[m][1]}`"
+        for m in extra_masters
+    )
+
     # Channel-aware link guidance. On the "web" channel the reader is a browser
     # inside the ERP, so web-relative links are clickable. On the "api" channel the
     # reply is relayed to an EXTERNAL app (lambda-web / the Lambda app) that is not
@@ -1952,7 +2006,7 @@ When a user asks you to do something they don't have permission for, explain wha
 - **Buying:** purchase-order, purchase-invoice
 - **Accounting:** payment-entry, journal-entry, budget, subscription, bank-transaction
 - **Stock:** stock-entry, delivery-note, purchase-receipt
-- **Settings:** pricing-rule
+- **Settings:** pricing-rule{extension_doctypes_line}
 
 ## Document Workflow & What Each Document Does
 
@@ -2076,7 +2130,7 @@ For purchased goods, prefer Purchase Receipt when receiving separately from bill
 - Cancelled documents cannot be re-submitted or modified.
 
 ## Master Data Types
-customer, supplier, item, warehouse, account, company, cost-center
+{master_types_line}
 
 ## Master Data Deletion
 Master records CAN be deleted — use the `delete_master` tool (ADMIN role only). It is reference-protected: an unreferenced record (e.g. a mistakenly created or duplicate one) is permanently deleted; a record referenced by any document, GL entry, or stock data is NOT deleted but automatically disabled/archived instead, and the result names the blocking reference — relay that reason to the user. When the user merely wants a record out of the way (not destroyed), prefer `update_master` with `{{"disabled": 1}}`. Non-admin users: explain that deletion needs an admin and offer to disable instead.
@@ -2153,7 +2207,7 @@ Every master record has a primary key (the `name` column) and a human-readable d
 - **Item:** key = `item_code` (e.g. `SVC-005`), display = `item_name` (e.g. "Project Management")
 - **Customer:** key = `name` (e.g. `CUST-007`), display = `customer_name` (e.g. "Redstone Automotive")
 - **Supplier:** key = `name` (e.g. `SUPP-003`), display = `supplier_name`
-- **Warehouse / Company / Account / Cost Center:** key = `name`
+- **Warehouse / Company / Account / Cost Center:** key = `name`{extension_master_keys}
 
 When you fill in `item_code`, `customer`, `supplier`, `warehouse`, `company`, etc. in a document or child-table row, you MUST use the **primary key**, never the display name. `"item_code": "Project Management"` is ALWAYS wrong — it's a name, not a code.
 
@@ -2646,7 +2700,7 @@ async def run_thinking_loop(
                     openai_client.chat.completions.create,
                     model=model_name,
                     messages=messages,
-                    tools=TOOLS,
+                    tools=build_tools(),
                     tool_choice="auto",
                     max_completion_tokens=max_completion,
                     # gpt-5.6-terra rejects function tools on /v1/chat/completions
