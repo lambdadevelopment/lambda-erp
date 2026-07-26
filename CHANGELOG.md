@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-26
+
 ### Added
 - **Plugin masters are discovered by the AI chat and REST API —
   `register_master` seam.** A deployment plugin can register its own master
