@@ -40,6 +40,7 @@
     "label": "Language"
   },
   "header": {
+    "back": "Back",
     "logout": "Logout",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",

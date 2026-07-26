@@ -40,6 +40,7 @@
     "label": "Sprache"
   },
   "header": {
+    "back": "Zurück",
     "logout": "Abmelden",
     "openMenu": "Menü öffnen",
     "closeMenu": "Menü schließen",
