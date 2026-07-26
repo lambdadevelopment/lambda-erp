@@ -85,6 +85,7 @@ Each of those is hours of skilled work today. With a capable LLM in the loop, th
 **Key design choices:**
 
 - **Chat-first, not chat-bolted-on.** The chat isn't a copilot sidebar - it's the primary way to interact with the system. Every document type, every report, every master record is reachable from tool-use.
+- **Extensions are first-class to the AI.** A customer deployment registers its own doctypes and master types through plugin seams (`register_doctype`, `register_master`) and the chat discovers them automatically - tool schemas and the system prompt are built per request from the live registries, and fields are introspected from the live table, so there is nothing to teach per type. A CRM lead added by a plugin is searchable in chat from day one, with zero prompt or tool edits.
 - **One shape for every document.** Invoices, sales orders, stock entries, payments - all share a single `Document` base class and the same three-state lifecycle (Draft → Submitted → Cancelled) with `on_submit`/`on_cancel` hooks. The LLM learns the pattern once and drives every doctype the same way. Leading open-source and commercial ERPs have per-model action verbs spread across 150+ core models; each one is a separate tool the model has to get right.
 - **Metadata-driven UI, shared with the LLM.** A single React form component renders every doctype from `frontend/src/lib/doctypes.ts`. The schema the model reasons over and the schema the user sees are literally the same file. Adding a field is two lines - one in the Python class, one in the config - not a new module with hand-written views and inheritance overlays.
 - **Two-model orchestration.** A planner model handles reasoning and tool-use. When it needs to generate code for a custom report, it delegates to a code-specialist sub-agent. This keeps each model doing what it's best at and keeps latency down on simple turns.
@@ -326,12 +327,13 @@ for side-effects/integrations).
 
 ```python
 # acme/plugin.py
-from api.services import register_doctype, register_converter
+from api.services import register_doctype, register_master, register_converter
 from lambda_erp.hooks import register_hook
 from .sales_invoice import AcmeSalesInvoice
 
 def register():
     register_doctype("Sales Invoice", AcmeSalesInvoice)
+    register_master("gadget", "Gadget", "gadget_name", name_prefix="GAD")
     register_hook("Sales Invoice:after_submit", push_to_external_system)
     # register_converter(source, target, fn)   # only to replace conversion *logic*
 ```
@@ -339,6 +341,14 @@ def register():
 Point the deployment at it with `LAMBDA_ERP_PLUGINS=acme` (comma-separated for
 several). On startup the core imports each module and calls `register()`. Unset
 = the core runs unchanged.
+
+A `register_master` type (core 0.5.0+) is served at `/api/masters/{slug}` and
+**discovered by the AI chat automatically**: `search_masters` (with fuzzy
+fallback), `get_master_fields`, and `create/update/delete_master` accept it
+from day one. The chat tool schemas and system prompt are built per request
+from the live registries, and fields are introspected from the live table — no
+per-type declarations. Details and caveats:
+[`docs/core-extension-architecture.md`](docs/core-extension-architecture.md).
 
 **Frontend overrides — the `@lambda-development/erp-core` library**
 
