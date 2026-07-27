@@ -1391,6 +1391,14 @@ class Database:
             self._col_cache.pop(table, None)
             self._text_col_cache.pop(table, None)
 
+    def ensure_column(self, table: str, column: str, definition: str) -> None:
+        """Idempotently add a column if it's missing. Public helper for plugin
+        migrations registered via api.services.register_migration — the same
+        backend-portable, PRAGMA/information_schema-guarded add the core's own
+        migrations use. `definition` is the SQLite-flavoured column type (e.g.
+        "TEXT", "INTEGER DEFAULT 0"); it is translated per dialect via _ddl."""
+        self._add_column_if_missing(table, column, definition)
+
     def _migrate(self):
         """Run each pending migration in order, tracking applied versions."""
         self.conn.execute(

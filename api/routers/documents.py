@@ -1,6 +1,6 @@
 """Generic CRUD routes for all document types."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from api.services import (
     create_document,
@@ -12,6 +12,7 @@ from api.services import (
     convert_document,
     list_documents,
     count_documents,
+    document_columns,
 )
 from api.pdf import generate_pdf
 from api.auth import require_role
@@ -21,16 +22,26 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 _viewer = Depends(require_role("viewer"))
 _manager = Depends(require_role("manager"))
 
+# Query params the list endpoint interprets itself — everything else is treated
+# as an ad-hoc column=value filter (validated against the doctype's columns).
+_LIST_RESERVED = {
+    "status", "party", "from_date", "to_date", "docstatus",
+    "include_discarded", "limit", "offset", "order_by", "order",
+}
+
 
 @router.get("/{doctype_slug}")
 def list_docs(
     doctype_slug: str,
+    request: Request,
     status: str | None = None,
     party: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
     docstatus: int | None = None,
     include_discarded: bool = False,
+    order_by: str | None = None,
+    order: str = "desc",
     limit: int = Query(default=50, le=500),
     offset: int = Query(default=0, ge=0),
     _user: dict = _viewer,
@@ -46,8 +57,25 @@ def list_docs(
         filters["from_date"] = from_date
     if to_date:
         filters["to_date"] = to_date
+
+    # Ad-hoc equality filters: any remaining query param that names a real column
+    # of this doctype (e.g. /documents/activity?lead_id=LEAD-3316). Validate
+    # against the live columns so an unknown field is a 400, never interpolated.
+    columns = document_columns(doctype_slug)
+    for key, value in request.query_params.items():
+        if key in _LIST_RESERVED:
+            continue
+        if key not in columns:
+            raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
+        filters[key] = value
+
+    if order_by is not None and order_by not in columns:
+        raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
+    if order.lower() not in ("asc", "desc"):
+        raise HTTPException(status_code=400, detail="order must be 'asc' or 'desc'")
+
     rows = list_documents(doctype_slug, filters=filters, limit=limit, offset=offset,
-                          include_discarded=include_discarded)
+                          include_discarded=include_discarded, order_by=order_by, order=order)
     total = count_documents(doctype_slug, filters=filters, include_discarded=include_discarded)
     return {"rows": rows, "total": total, "limit": limit, "offset": offset}
 

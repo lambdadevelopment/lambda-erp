@@ -1,6 +1,6 @@
 """Bridge between FastAPI request data and lambda_erp Document classes."""
 
-from lambda_erp.utils import _dict
+from lambda_erp.utils import _dict, now
 from lambda_erp.database import get_db
 
 from lambda_erp.selling.quotation import (
@@ -112,6 +112,82 @@ def register_doctype(doctype: str, cls, slug: str | None = None) -> None:
     slug = slug or doctype.lower().replace(" ", "-")
     SLUG_TO_DOCTYPE[slug] = doctype
     DOCTYPE_TO_SLUG[doctype] = slug
+
+
+# --- Plugin schema seam ---
+#
+# Core tables are created by database.setup(); plugin tables have no home there
+# (setup() runs before plugins load). These two registries let a plugin declare
+# its own tables and one-time migrations from register(); the core applies them
+# via apply_plugin_schema() in the app lifespan, right after load_plugins() and
+# before any document is created. See docs/core-extension-architecture.md.
+
+_PLUGIN_TABLES: list[str] = []
+_PLUGIN_MIGRATIONS: list = []  # list[tuple[str, Callable[[DB], None]]]
+
+
+def register_table(ddl: str) -> None:
+    """Register a CREATE TABLE (use IF NOT EXISTS) for a plugin table. The DDL is
+    the SQLite-flavoured subset the core's own DDL uses; apply_plugin_schema()
+    translates it per backend via db._ddl(). Idempotent — safe on every boot."""
+    _PLUGIN_TABLES.append(ddl)
+
+
+def register_migration(migration_id: str, fn) -> None:
+    """Register a one-shot migration run exactly once per database, recorded in
+    _PluginMigrations by `migration_id` (namespace it, e.g. "internal:0001_x").
+    `fn(db)` receives the DB; use db.ensure_column(...) for idempotent ALTERs
+    and plain db.sql(...) for backfills. Runs after registered tables exist, in
+    registration order. Must be idempotent and self-contained (single logical
+    unit — it commits on success)."""
+    _PLUGIN_MIGRATIONS.append((migration_id, fn))
+
+
+def apply_plugin_schema() -> None:
+    """Create registered plugin tables, then run pending plugin migrations once
+    each. Call from the app lifespan after load_plugins(). Table creation always
+    runs (IF NOT EXISTS); each migration runs only if its id isn't already in
+    _PluginMigrations. A failing migration is rolled back and left unrecorded so
+    it retries next boot; it does not abort startup (mirrors the core migrator)."""
+    db = get_db()
+    for ddl in _PLUGIN_TABLES:
+        db.conn.execute(db._ddl(ddl))
+    db.conn.commit()
+
+    if not _PLUGIN_MIGRATIONS:
+        return
+
+    db.conn.execute(
+        'CREATE TABLE IF NOT EXISTS "_PluginMigrations" '
+        "(migration_id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
+    )
+    db.conn.commit()
+    applied = {r["migration_id"] for r in db.sql('SELECT migration_id FROM "_PluginMigrations"')}
+
+    for migration_id, fn in _PLUGIN_MIGRATIONS:
+        if migration_id in applied:
+            continue
+        try:
+            fn(db)
+            db.sql(
+                'INSERT INTO "_PluginMigrations" (migration_id, applied_at) VALUES (?, ?)',
+                [migration_id, now()],
+            )
+            db.conn.commit()
+            print(f"[plugin-migration] applied {migration_id}", flush=True)
+        except Exception as e:
+            db.conn.rollback()
+            print(f"[plugin-migration] FAILED {migration_id}: {e!r} — will retry next boot", flush=True)
+
+
+def document_columns(doctype_slug: str) -> set:
+    """The real column names of a registered doctype's table, or empty set if the
+    slug is unknown. Used to validate ad-hoc list filters against actual columns
+    (see the documents router) so an unknown field is a 400, never SQL."""
+    doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
+    if not doctype:
+        return set()
+    return get_db()._get_table_columns(doctype)
 
 
 def register_master(slug: str, table: str, name_field: str, *,
@@ -272,8 +348,18 @@ def _exclude_discarded(db, doctype: str, db_filters: dict, include_discarded: bo
         db_filters["discarded"] = 0
 
 
+def _order_clause(order_by: str = None, order: str = "desc") -> str:
+    """ORDER BY clause for list queries. Defaults to newest-created first.
+    `order_by`, when given, must already be a validated column name (the
+    documents router checks it against document_columns) — it is quoted here."""
+    if not order_by:
+        return "creation DESC"
+    direction = "ASC" if str(order).lower() == "asc" else "DESC"
+    return f'"{order_by}" {direction}'
+
+
 def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, offset: int = 0,
-                   include_discarded: bool = False) -> list:
+                   include_discarded: bool = False, order_by: str = None, order: str = "desc") -> list:
     doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     if not doctype:
         raise ValueError(f"Unknown document type: {doctype_slug}")
@@ -315,15 +401,17 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
             db, doctype, doctype_slug, db_filters, date_field, from_date, to_date, limit, offset
         )
 
+    order_clause = _order_clause(order_by, order)
+
     # get_all doesn't support offset, so use raw SQL when needed
     if offset:
-        return _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset)
+        return _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause)
 
     rows = db.get_all(
         doctype,
         filters=db_filters if db_filters else None,
         fields=["*"],
-        order_by="creation DESC",
+        order_by=order_clause,
         limit=limit,
     )
 
@@ -378,7 +466,7 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
     return int(rows[0]["c"]) if rows else 0
 
 
-def _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset):
+def _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause="creation DESC"):
     where_parts = []
     params = []
     for k, v in db_filters.items():
@@ -392,7 +480,7 @@ def _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset):
     query = f'SELECT * FROM "{doctype}"'
     if where_parts:
         query += " WHERE " + " AND ".join(where_parts)
-    query += " ORDER BY creation DESC"
+    query += f" ORDER BY {order_clause}"
     if limit:
         query += f" LIMIT {int(limit)}"
     if offset:

@@ -221,16 +221,66 @@ friendlier key, like Item's `item_code`. Caveats: chat/REST master writes are
 plain row CRUD (a registered Document class's `validate()` does not run on
 this path), and `delete_master` has no reference checks for registered types.
 
+### Give a plugin its own tables and migrations
+```python
+from api.services import register_table, register_migration
+
+GADGET_TABLE = '''CREATE TABLE IF NOT EXISTS "Gadget" (
+    name TEXT PRIMARY KEY, gadget_name TEXT, owner_ref TEXT,
+    docstatus INTEGER DEFAULT 0, creation TEXT, modified TEXT
+)'''
+
+def _add_color(db):
+    db.ensure_column("Gadget", "color", "TEXT")          # idempotent ALTER
+    db.sql('UPDATE "Gadget" SET color = ? WHERE color IS NULL', ["unset"])
+
+def register():
+    register_table(GADGET_TABLE)
+    register_migration("acme:0001_gadget_color", _add_color)
+```
+`register_table(ddl)` declares a table (write the SQLite-flavoured `CREATE TABLE
+IF NOT EXISTS` subset the core uses; it's translated per backend). The core
+creates it in the app lifespan via `apply_plugin_schema()` — after
+`load_plugins()`, before any document is created — so `register_doctype` /
+`register_master` can then attach to it. This replaces the
+`db.conn.execute(db._ddl(...))` hack.
+
+`register_migration(migration_id, fn)` runs `fn(db)` **exactly once per
+database**, recorded in `_PluginMigrations` by id (namespace it,
+`"acme:0001_…"`). Use it for `ALTER`/backfills on an existing table — the thing
+`register_table`'s `IF NOT EXISTS` can't do. `db.ensure_column(table, col, type)`
+is the idempotent column-add for use inside `fn`. Migrations run in registration
+order after tables exist; a failing one is rolled back and left unrecorded so it
+retries next boot (it never aborts startup). Must be idempotent and self-contained.
+
+### Filter a document list by any field
+`GET /api/documents/{slug}` accepts any query param that names a real column of
+the doctype as an equality filter, plus `order_by` + `order` (`asc|desc`):
+```
+GET /api/documents/activity?lead_id=LEAD-3316&order_by=occurred_at&order=desc
+```
+An unknown field name (or `order_by`) is a **400**, never interpolated into SQL
+— names are validated against the live columns (`api.services.document_columns`)
+and values are parameterized. Reserved params (`status`, `party`, `from_date`,
+`to_date`, `docstatus`, `limit`, `offset`, `order_by`, `order`,
+`include_discarded`) keep their meaning. This is what lets a plugin doctype like
+`Activity` be listed by its FK to a parent.
+
 ### Register everything at startup
 ```python
 # acme/plugin.py
-from api.services import register_doctype, register_master, register_converter
+from api.services import (
+    register_doctype, register_master, register_converter,
+    register_table, register_migration,
+)
 from lambda_erp.hooks import register_hook
 from .sales_invoice import AcmeSalesInvoice
 
 def register():
     register_doctype("Sales Invoice", AcmeSalesInvoice)
     register_master("gadget", "Gadget", "gadget_name", name_prefix="GAD")
+    register_table(GADGET_TABLE)
+    register_migration("acme:0001_gadget_color", _add_color)
     register_hook("Sales Invoice:after_submit", push_to_external_system)
 ```
 Point the deployment at it: `LAMBDA_ERP_PLUGINS=acme` (comma-separated for
