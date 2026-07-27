@@ -106,3 +106,11 @@ jobs:
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_seed_admin
+
+      - name: Plugin schema seam — SQLite (temp file)
+        run: python -m tests.test_plugin_schema
+
+      - name: Plugin schema seam — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_plugin_schema

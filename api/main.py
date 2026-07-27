@@ -55,6 +55,12 @@ async def lifespan(app: FastAPI):
     # Load customer extension plugins before anything creates documents.
     load_plugins()
 
+    # Create plugin-registered tables and run their pending migrations. Must be
+    # after load_plugins() (registrations happen in register()) and before any
+    # document is created.
+    from api.services import apply_plugin_schema
+    apply_plugin_schema()
+
     # Ensure the demo spend log table exists before any LLM call happens.
     from api.demo_limits import init_schema as init_demo_spend_schema
     init_demo_spend_schema()

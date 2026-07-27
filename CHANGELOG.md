@@ -14,6 +14,24 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 ## [Unreleased]
 
 ### Added
+- **Plugin schema seam — `register_table` / `register_migration` +
+  `db.ensure_column`.** A plugin can declare its own tables and one-shot
+  migrations from `register()`; the core creates the tables and runs pending
+  migrations in the app lifespan (`apply_plugin_schema()`, after
+  `load_plugins()`, before any document is created). Migrations run **exactly
+  once per database**, recorded in `_PluginMigrations` by a namespaced id; a
+  failure is rolled back and retried next boot without aborting startup.
+  `db.ensure_column(table, col, type)` is the idempotent, backend-portable
+  column-add for use inside a migration. Replaces the
+  `db.conn.execute(db._ddl(...))` hack deployments used to create plugin tables,
+  and finally gives plugins a safe path for `ALTER`/backfills on a live database.
+- **Arbitrary-field filter + ordering on `GET /api/documents/{slug}`.** Any
+  query param naming a real column of the doctype becomes an equality filter
+  (e.g. `?lead_id=LEAD-3316`), and `order_by` + `order` (`asc|desc`) sort by a
+  validated column. Unknown field names are a 400 (validated against the live
+  columns via `api.services.document_columns`; values are parameterized), never
+  interpolated. Lets plugin doctypes be listed by a foreign key — the missing
+  piece for relational plugin data like a CRM activity timeline.
 - **Boot-seeded admin from the environment — `LAMBDA_ERP_ADMIN_EMAIL` +
   `LAMBDA_ERP_ADMIN_PASSWORD`.** When both are set, an enabled admin with that
   email is provisioned at startup (`api.auth.ensure_seed_admin`, called from
