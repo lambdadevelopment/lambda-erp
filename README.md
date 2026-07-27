@@ -233,9 +233,14 @@ Open `http://localhost:5173`. Vite proxies `/api/*` to the backend.
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...    # optional, used for the code-specialist sub-agent
 ANTHROPIC_CODE_MODEL=claude-opus-4-7   # optional, default shown
+LAMBDA_ERP_ADMIN_EMAIL=admin@example.com   # optional, seeds the admin at boot
+LAMBDA_ERP_ADMIN_PASSWORD=...              # optional, required with the line above
+LAMBDA_ERP_ADMIN_NAME=Administrator        # optional, display name for the seeded admin
 ```
 
 Chat needs `OPENAI_API_KEY`. Custom-report code generation uses `ANTHROPIC_API_KEY` when set; otherwise it falls back and the chat will tell you it can't generate reports.
+
+**Seeded admin.** By default the first person to register becomes the admin. Set `LAMBDA_ERP_ADMIN_EMAIL` + `LAMBDA_ERP_ADMIN_PASSWORD` to instead provision that admin automatically at startup — useful when the database is recreated on every deploy, so a redeployed instance can't be claimed by whoever visits first. It's create-if-missing and idempotent (an existing account with that email is promoted to an enabled admin; its password is left untouched), and the password is only ever read from the environment.
 
 ### Run the validation suite
 

@@ -65,6 +65,19 @@ resource "azurerm_container_app" "app" {
         secret_name = "jwt-secret-key"
       }
 
+      # Deterministic admin seeded at boot (api.auth.ensure_seed_admin), so no
+      # visitor to a freshly-redeployed (ephemeral-DB) demo can grab admin by
+      # registering first. Email is non-secret; the password rides a secret.
+      env {
+        name  = "LAMBDA_ERP_ADMIN_EMAIL"
+        value = var.admin_email
+      }
+
+      env {
+        name        = "LAMBDA_ERP_ADMIN_PASSWORD"
+        secret_name = "admin-password"
+      }
+
       env {
         name  = "PORT"
         value = tostring(var.target_port)
@@ -144,6 +157,11 @@ resource "azurerm_container_app" "app" {
   secret {
     name  = "jwt-secret-key"
     value = var.jwt_secret_key
+  }
+
+  secret {
+    name  = "admin-password"
+    value = var.admin_password
   }
 
   lifecycle {

@@ -630,6 +630,65 @@ def _setting_enabled(db, key: str) -> bool:
     return str(value) == "1"
 
 
+def ensure_seed_admin() -> dict | None:
+    """Idempotently provision an admin account from the environment.
+
+    When both LAMBDA_ERP_ADMIN_EMAIL and LAMBDA_ERP_ADMIN_PASSWORD are set,
+    guarantee an enabled admin with that email exists *before* the first
+    visitor can register. This closes the "first user to sign up becomes
+    admin" bootstrap window (see `register`) on any deployment whose
+    database is recreated on every rollout — e.g. the ephemeral-SQLite demo
+    container, where otherwise whichever stranger loads the login page first
+    after a redeploy would silently own the instance.
+
+    Create-if-missing: an existing account with that email is promoted to an
+    enabled admin if needed, but its password is left untouched so a redeploy
+    never clobbers a credential changed inside a live instance. The password
+    is read only from the environment and is never logged.
+
+    No-op (returns None) when either variable is unset — this is a general
+    ops seam, not demo-only.
+    """
+    email = os.environ.get("LAMBDA_ERP_ADMIN_EMAIL")
+    password = os.environ.get("LAMBDA_ERP_ADMIN_PASSWORD")
+    if not email or not password:
+        return None
+
+    email = email.strip().lower()
+    db = get_db()
+
+    existing = db.sql('SELECT name, role, enabled FROM "User" WHERE email = ?', [email])
+    if existing:
+        row = existing[0]
+        updates = {}
+        if row["role"] != "admin":
+            updates["role"] = "admin"
+        if not row["enabled"]:
+            updates["enabled"] = 1
+        if updates:
+            updates["modified"] = now()
+            db.set_value("User", row["name"], updates)
+            print(f"[seed-admin] promoted existing user to enabled admin: {email}", flush=True)
+        else:
+            print(f"[seed-admin] admin already present: {email}", flush=True)
+        return {"name": row["name"], "status": "exists"}
+
+    user_name = f"USR-{uuid.uuid4().hex[:8]}"
+    full_name = os.environ.get("LAMBDA_ERP_ADMIN_NAME", "Administrator")
+    db.insert("User", {
+        "name": user_name,
+        "email": email,
+        "full_name": full_name,
+        "hashed_password": hash_password(password),
+        "role": "admin",
+        "enabled": 1,
+        "creation": now(),
+        "modified": now(),
+    })
+    print(f"[seed-admin] created admin account: {email}", flush=True)
+    return {"name": user_name, "status": "created"}
+
+
 @router.get("/settings")
 def get_settings(user: dict = Depends(get_current_user)):
     db = get_db()

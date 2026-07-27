@@ -93,6 +93,19 @@ variable "jwt_secret_key" {
   default     = "placeholder-will-be-set-by-github-actions"
 }
 
+variable "admin_email" {
+  description = "Email of the admin account seeded at boot (LAMBDA_ERP_ADMIN_EMAIL). Not secret, but set via GitHub Actions alongside the password."
+  type        = string
+  default     = "placeholder-will-be-set-by-github-actions"
+}
+
+variable "admin_password" {
+  description = "Password for the boot-seeded admin account (LAMBDA_ERP_ADMIN_PASSWORD). Sourced from a GitHub Secret."
+  type        = string
+  sensitive   = true
+  default     = "placeholder-will-be-set-by-github-actions"
+}
+
 # --------------------------------------------------------------------------
 # Demo spend guardrails
 #

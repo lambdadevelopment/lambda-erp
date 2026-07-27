@@ -58,6 +58,16 @@ SETTING_DEMO_REDSTONE_SINV_DATE = "demo_chat_redstone_sinv_date"
 SETTING_DEMO_REDSTONE_DUE_DATE = "demo_chat_redstone_due_date"
 
 
+def _seed_setting_on(db, key: str) -> None:
+    """Turn a boolean Settings flag on, but only if it has never been set —
+    so an admin who later toggles it off in a persistent instance isn't
+    overridden on the next boot. On the ephemeral demo DB the key is always
+    absent at boot, so this reliably enables it there."""
+    if not db.sql('SELECT 1 FROM "Settings" WHERE key = ?', [key]):
+        db.sql('INSERT INTO "Settings" (key, value) VALUES (?, ?)', [key, "1"])
+        db.conn.commit()
+
+
 def bootstrap_demo() -> None:
     """Idempotent demo bootstrap. Logs each phase to stdout so a
     `docker compose up` user sees steady progress during the ~3-minute
@@ -131,7 +141,12 @@ def bootstrap_demo() -> None:
         create_public_manager(user=None)
         ensure_demo_chat_records(company)
     else:
-        print("[bootstrap] public demo disabled — first visitor registers as admin via the login page", flush=True)
+        # No public-manager replay: let visitors self-register as viewers so
+        # the demo is still hands-on. Admin is provisioned separately from the
+        # environment (see api.auth.ensure_seed_admin), so open signup here only
+        # ever mints viewers — nobody can grab admin off the login page.
+        _seed_setting_on(db, "allow_public_signup")
+        print("[bootstrap] public demo disabled — open viewer signup enabled; admin comes from LAMBDA_ERP_ADMIN_* env", flush=True)
 
     elapsed = time.monotonic() - t0
     # Recommend 127.0.0.1 — on WSL2 + Docker Desktop, browsers can stall

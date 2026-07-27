@@ -98,3 +98,11 @@ jobs:
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_master_registry
+
+      - name: Seed admin — SQLite (temp file)
+        run: python -m tests.test_seed_admin
+
+      - name: Seed admin — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_seed_admin

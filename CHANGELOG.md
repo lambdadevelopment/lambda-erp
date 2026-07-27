@@ -13,6 +13,30 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- **Boot-seeded admin from the environment — `LAMBDA_ERP_ADMIN_EMAIL` +
+  `LAMBDA_ERP_ADMIN_PASSWORD`.** When both are set, an enabled admin with that
+  email is provisioned at startup (`api.auth.ensure_seed_admin`, called from
+  the app lifespan) *before* anyone can register — closing the "first user to
+  sign up becomes admin" window on deployments whose database is recreated on
+  every rollout (e.g. an ephemeral-SQLite demo container, where otherwise
+  whichever visitor loads the login page first after a redeploy would own the
+  instance). Create-if-missing and idempotent: an existing account with that
+  email is promoted to an enabled admin if needed, but its password is left
+  untouched so a redeploy never clobbers a credential changed in a live
+  instance; the password is read only from the environment and never logged.
+  Optional `LAMBDA_ERP_ADMIN_NAME` sets the display name. No-op when the vars
+  are unset, so nothing changes for deployments that don't use it.
+
+### Changed
+- **Demo container (`LAMBDA_ERP_AUTO_DEMO=1`) without public-demo mode now
+  opens viewer self-registration** instead of leaving the instance on the
+  register-as-admin path. With the boot-seeded admin owning the instance,
+  open signup can only ever mint viewers, so demo visitors get a hands-on
+  (read-mostly) account and nobody can grab admin off the login page. Only
+  seeds `allow_public_signup` when it has never been set, so an admin who
+  toggles it off in a persistent instance isn't overridden on the next boot.
+
 ## [0.5.0] - 2026-07-26
 
 ### Added
