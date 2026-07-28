@@ -42,9 +42,10 @@ def main():
     assert status() == TransactionStatus.IDLE, f"read left txn open: {status()}"
     assert isinstance(rows, list)
 
-    # Read helpers funnel through the same path.
-    db.exists("Settings", filters={"key": "no-such-key"})
-    db.get_all("Settings", limit=1)
+    # Read helpers funnel through the same path (Customer has the standard
+    # name/creation columns; Settings is a bare key/value table).
+    db.exists("Customer", "CUST-does-not-exist")
+    db.get_all("Customer", limit=1)
     assert status() == TransactionStatus.IDLE, f"helper left txn open: {status()}"
 
     # 2. A write keeps its transaction open (atomicity with the later commit),
