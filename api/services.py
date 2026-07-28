@@ -225,12 +225,48 @@ def register_master(slug: str, table: str, name_field: str, *,
 CHAT_DOCTYPES: dict = {}
 
 
-def register_chat_doctype(slug: str, *, description: str, fields: list | None = None) -> None:
+def register_chat_doctype(slug: str, *, description: str, fields: list | None = None,
+                          page: str | None = "self") -> None:
     """Give the AI chat a description (and optional key-field hints) for a doctype
     already registered via `register_doctype`, so build_system_prompt can tell the
     model what it is and how it links (LINK_FIELDS are surfaced automatically).
-    No new tools — the document tools already cover every registered doctype."""
-    CHAT_DOCTYPES[slug] = {"description": description, "fields": fields or []}
+    No new tools — the document tools already cover every registered doctype.
+
+    `page` tells the chat how a record of this doctype is *opened*, so it emits
+    correct view links (and the frontend can auto-register redirects):
+      "self" (default) — its own page at `/app/{slug}/{name}`;
+      "<link_field>"   — no page of its own; it's shown inside the parent that
+                         `link_field` (a LINK_FIELD) references, so it opens at
+                         `/app/{parent-slug}/{value of link_field}` (e.g. a
+                         contact opens via its lead: page="lead_id");
+      None             — no page and no view link at all.
+    """
+    CHAT_DOCTYPES[slug] = {"description": description, "fields": fields or [], "page": page}
+
+
+def chat_doctype_page_info(slug: str) -> dict | None:
+    """Resolve a chat-doctype's `page` config into a link rule, for the system
+    prompt and the /api/chat-doctypes read. Returns one of:
+      {"kind": "self", "slug": slug}
+      {"kind": "via", "link_field": f, "parent_slug": p}   # opens via a parent
+      {"kind": "none"}
+    or None if the slug isn't a registered chat-doctype."""
+    meta = CHAT_DOCTYPES.get(slug)
+    if not meta:
+        return None
+    page = meta.get("page", "self")
+    if page == "self":
+        return {"kind": "self", "slug": slug}
+    if page is None:
+        return {"kind": "none"}
+    # page names a LINK_FIELD -> resolve the parent doctype -> its slug.
+    doctype = SLUG_TO_DOCTYPE.get(slug)
+    cls = DOCUMENT_CLASSES.get(doctype) if doctype else None
+    links = getattr(cls, "LINK_FIELDS", None) or {}
+    parent_slug = DOCTYPE_TO_SLUG.get(links.get(page)) if links.get(page) else None
+    if not parent_slug:
+        return {"kind": "self", "slug": slug}  # misconfigured -> safe fallback
+    return {"kind": "via", "link_field": page, "parent_slug": parent_slug}
 
 
 def get_document_class(doctype_slug: str):

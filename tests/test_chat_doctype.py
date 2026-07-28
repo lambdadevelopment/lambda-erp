@@ -41,16 +41,24 @@ def check_chat_doctype():
     import api.chat as chat
     from api.main import app
 
+    class Gadget(Document):
+        DOCTYPE = "Gadget"; CHILD_TABLES = {}; PREFIX = "GAD"
+        def validate(self):
+            pass
+
     class Widget(Document):
         DOCTYPE = "Widget"; CHILD_TABLES = {}; PREFIX = "WID"
         LINK_FIELDS = {"gadget_id": "Gadget"}
         def validate(self):
             pass
 
-    with TestClient(app):
+    with TestClient(app) as client:
+        services.register_doctype("Gadget", Gadget)
         services.register_doctype("Widget", Widget)
+        services.register_chat_doctype("gadget", description="A gadget.")  # page="self" default
         services.register_chat_doctype(
-            "widget", description="A widget attached to a gadget.", fields=["label", "gadget_id"],
+            "widget", description="A widget attached to a gadget.",
+            fields=["label", "gadget_id"], page="gadget_id",  # page-less, opens via gadget
         )
         prompt = chat.build_system_prompt({"full_name": "Jon", "role": "manager"})
 
@@ -61,8 +69,16 @@ def check_chat_doctype():
         assert "NOT the master tools" in prompt, "document-tools rule missing"
         assert "widget" in prompt, "slug not listed among doctypes"
 
-        # Before registration a different doctype must NOT appear in the section.
-        assert "A widget attached" in prompt  # sanity
+        # Per-doctype link rules (register_chat_doctype `page`).
+        assert "Open a record at `/app/gadget/<name>`." in prompt, "self page-rule missing"
+        assert "open it via its parent: `/app/gadget/<gadget_id>`" in prompt, "via page-rule missing"
+        assert services.chat_doctype_page_info("widget") == {
+            "kind": "via", "link_field": "gadget_id", "parent_slug": "gadget"}
+
+        # /api/chat-doctypes exposes the resolved page info for the frontend.
+        rows = {d["slug"]: d for d in client.get("/api/chat-doctypes").json()["doctypes"]}
+        assert rows["gadget"]["page"]["kind"] == "self"
+        assert rows["widget"]["page"] == {"kind": "via", "link_field": "gadget_id", "parent_slug": "gadget"}
 
         # list_documents chat tool gained order_by/order.
         tool = next(t for t in chat.build_tools() if t["function"]["name"] == "list_documents")

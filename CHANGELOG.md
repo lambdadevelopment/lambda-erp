@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- **`register_chat_doctype` gained a `page` argument**, so the chat emits the
+  right *view link* for a doctype instead of assuming everything has an
+  `/app/{slug}/{name}` page. `page="self"` (default) → its own page;
+  `page="<link_field>"` → no page of its own, opens via that `LINK_FIELD`'s
+  parent (e.g. a contact opens via its lead: `/app/lead/{lead_id}`); `page=None`
+  → no link. `build_system_prompt` now renders a per-doctype "open at …" rule.
+- **`GET /api/chat-doctypes`** — public metadata (description, fields, resolved
+  `page`) for chat-doctypes. The frontend `bootstrap()` reads it and
+  **auto-registers redirects** for page-less doctypes: a `/app/{slug}/{name}`
+  link looks up the record's parent and redirects to the parent's page, so
+  chat-generated links to page-less records resolve with no per-deployment code.
+
 ## [0.6.2] - 2026-07-28
 
 ### Changed

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { AuthProvider } from "./contexts/auth-context";
 import { buildRoutes } from "./routes";
+import { registerChatDoctypeRedirects } from "./lib/chat-doctype-redirects";
 import "./i18n"; // initialize i18next (reads saved language from localStorage)
 
 export function createAppQueryClient() {
@@ -28,12 +29,15 @@ export interface BootstrapOptions {
  * stylesheet first, then calls bootstrap(). Routes are built here, after
  * registration, so overrides take effect.
  */
-export function bootstrap(opts: BootstrapOptions = {}) {
+export async function bootstrap(opts: BootstrapOptions = {}) {
   const root = opts.rootElement ?? document.getElementById("root");
   if (!root) {
     throw new Error('bootstrap: no mount element (pass rootElement or add <div id="root">)');
   }
   const queryClient = opts.queryClient ?? createAppQueryClient();
+  // Auto-register redirects for page-less chat-doctypes (best-effort, bounded)
+  // BEFORE routes are built, so their /app/{slug}/{name} links resolve.
+  await registerChatDoctypeRedirects();
   const router = createBrowserRouter(buildRoutes());
 
   createRoot(root).render(

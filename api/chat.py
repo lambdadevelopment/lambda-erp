@@ -1198,6 +1198,16 @@ def _chat_doctype_section() -> str:
         if links:
             link_str = ", ".join(f"`{f}` → the {t}'s name" for f, t in links.items())
             line += f" Links: {link_str}."
+        # How to open a record of this type (so links resolve).
+        page = services.chat_doctype_page_info(slug)
+        if page and page["kind"] == "self":
+            line += f" Open a record at `/app/{slug}/<name>`."
+        elif page and page["kind"] == "via":
+            line += (f" It has NO page of its own — open it via its parent: "
+                     f"`/app/{page['parent_slug']}/<{page['link_field']}>`; "
+                     f"never link `/app/{slug}/…`.")
+        elif page and page["kind"] == "none":
+            line += " It has no page — do not emit a link for it."
         lines.append(line)
     return (
         "\n\n## Custom record types (deployment-specific)\n"

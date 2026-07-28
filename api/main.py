@@ -121,6 +121,27 @@ def health():
     return {"status": "ok", "version": get_app_version()}
 
 
+@app.get("/api/chat-doctypes")
+def chat_doctypes():
+    """Public metadata for doctypes registered via register_chat_doctype: their
+    description and, for the frontend, how each is opened (`page`). The frontend
+    uses the `page` of kind "via" to auto-register a redirect from the doctype's
+    (chat-generated) `/app/{slug}/{name}` link to its parent's page. Not
+    sensitive — it's the same info the chat system prompt carries."""
+    from api import services
+    out = []
+    for slug, meta in services.CHAT_DOCTYPES.items():
+        if slug not in services.SLUG_TO_DOCTYPE:
+            continue
+        out.append({
+            "slug": slug,
+            "description": meta.get("description"),
+            "fields": meta.get("fields", []),
+            "page": services.chat_doctype_page_info(slug),
+        })
+    return {"doctypes": out}
+
+
 @app.websocket("/ws/chat")
 async def ws_chat(websocket: WebSocket):
     # Authenticate via cookie, fall back to public_manager for demo mode
