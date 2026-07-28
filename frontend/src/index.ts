@@ -44,6 +44,13 @@ export type { NavGroup, NavItem } from "./lib/nav";
 // Component override registry
 export { registerComponent, getComponent } from "./lib/component-registry";
 
+// Prev/next record navigation (works on any doctype; custom detail pages can
+// drop in <DocPager slug=… name=… onSave=… />). The list-context store lets it
+// follow the list the user came from.
+export { DocPager } from "./components/document/doc-pager";
+export { setListContext, getListContext } from "./lib/doc-list-context";
+export type { ListContext } from "./lib/doc-list-context";
+
 // Branding / theme
 export { configureBranding, getBranding } from "./lib/branding";
 export type { Branding } from "./lib/branding";

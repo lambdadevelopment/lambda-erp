@@ -123,6 +123,12 @@ export const api = {
   getDocument: (doctype: string, name: string) =>
     request<any>(`/documents/${doctype}/${encodeURIComponent(name)}`),
 
+  // Prev/next record around `name` in the same order+filters the list uses.
+  adjacentDocument: (doctype: string, name: string, params?: Record<string, string | number | undefined>) =>
+    request<{ prev: string | null; next: string | null }>(
+      `/documents/${doctype}/${encodeURIComponent(name)}/adjacent${qs(params)}`,
+    ),
+
   createDocument: (doctype: string, data: any) =>
     request<any>(`/documents/${doctype}`, { method: "POST", body: JSON.stringify(data) }),
 

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { getDoctypeConfig, type FieldDef, type ChildTableDef } from "@/lib/doctypes";
 import { StatusBadge } from "@/components/document/status-badge";
+import { DocPager } from "@/components/document/doc-pager";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -839,6 +840,7 @@ export default function DocumentFormPage() {
           up, side-by-side again. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
+          {!isNew && <DocPager slug={config.slug} name={name!} onSave={handleSave} />}
           {!isNew && formData.status && (
             <StatusBadge status={formData.status} />
           )}

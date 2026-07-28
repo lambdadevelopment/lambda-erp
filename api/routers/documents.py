@@ -13,6 +13,7 @@ from api.services import (
     list_documents,
     count_documents,
     document_columns,
+    adjacent_documents,
 )
 from api.pdf import generate_pdf
 from api.auth import require_role
@@ -78,6 +79,50 @@ def list_docs(
                           include_discarded=include_discarded, order_by=order_by, order=order)
     total = count_documents(doctype_slug, filters=filters, include_discarded=include_discarded)
     return {"rows": rows, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/{doctype_slug}/{name}/adjacent")
+def adjacent_doc(
+    doctype_slug: str,
+    name: str,
+    request: Request,
+    status: str | None = None,
+    party: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    docstatus: int | None = None,
+    include_discarded: bool = False,
+    order_by: str | None = None,
+    order: str = "desc",
+    _user: dict = _viewer,
+):
+    """Prev/next record around `name` in the same order+filters the list uses.
+    Returns {"prev": name|None, "next": name|None}. Filters mirror the list
+    endpoint so navigation stays within the list the user came from."""
+    filters = {}
+    if status:
+        filters["status"] = status
+    if docstatus is not None:
+        filters["docstatus"] = docstatus
+    if party:
+        filters["customer"] = party
+    if from_date:
+        filters["from_date"] = from_date
+    if to_date:
+        filters["to_date"] = to_date
+    columns = document_columns(doctype_slug)
+    for key, value in request.query_params.items():
+        if key in _LIST_RESERVED:
+            continue
+        if key not in columns:
+            raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
+        filters[key] = value
+    if order_by is not None and order_by not in columns:
+        raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
+    if order.lower() not in ("asc", "desc"):
+        raise HTTPException(status_code=400, detail="order must be 'asc' or 'desc'")
+    return adjacent_documents(doctype_slug, name, filters=filters,
+                              include_discarded=include_discarded, order_by=order_by, order=order)
 
 
 @router.get("/{doctype_slug}/search")

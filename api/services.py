@@ -519,6 +519,76 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
     return int(rows[0]["c"]) if rows else 0
 
 
+def _filter_where(db, doctype: str, filters: dict, include_discarded: bool):
+    """Build (where_parts, params) for a doctype from a list-style `filters` dict
+    (equality filters + from_date/to_date on the doctype's date field + discard
+    exclusion). Same semantics as list_documents/count_documents so prev/next
+    matches exactly what the list shows."""
+    db_filters, from_date, to_date = {}, None, None
+    for key, value in (filters or {}).items():
+        if value is None or value == "":
+            continue
+        if key == "from_date":
+            from_date = value
+        elif key == "to_date":
+            to_date = value
+        else:
+            db_filters[key] = value
+    _exclude_discarded(db, doctype, db_filters, include_discarded)
+
+    date_field = DATE_FIELDS.get(doctype)
+    where_parts, params = [], []
+    if date_field and from_date:
+        where_parts.append(f'"{date_field}" >= ?'); params.append(from_date)
+    if date_field and to_date:
+        where_parts.append(f'"{date_field}" <= ?'); params.append(to_date)
+    for k, v in db_filters.items():
+        if isinstance(v, (list, tuple)) and len(v) == 2:
+            op, val = v
+            where_parts.append(f'"{k}" {op} ?'); params.append(val)
+        else:
+            where_parts.append(f'"{k}" = ?'); params.append(v)
+    return where_parts, params
+
+
+def adjacent_documents(doctype_slug: str, name: str, filters: dict = None,
+                       include_discarded: bool = False, order_by: str = None,
+                       order: str = "desc") -> dict:
+    """The records immediately before/after `name` in the same order+filters the
+    list uses — {"prev": name|None, "next": name|None}. `prev` is one step *up*
+    the list (toward the top), `next` one step *down*. Keyset queries (indexed,
+    not a full scan). Order defaults to creation DESC (the list default), with
+    `name` as a stable tie-break so rows sharing an order value still step 1:1."""
+    doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
+    if not doctype:
+        raise ValueError(f"Unknown document type: {doctype_slug}")
+    db = get_db()
+    cols = db._get_table_columns(doctype)
+    oc = order_by if (order_by and order_by in cols) else "creation"
+    desc = str(order).lower() != "asc"
+
+    cur = db.sql(f'SELECT "{oc}" AS oc FROM "{doctype}" WHERE name = ?', [name])
+    if not cur:
+        return {"prev": None, "next": None}
+    cur_oc = cur[0]["oc"]
+
+    base_where, base_params = _filter_where(db, doctype, filters or {}, include_discarded)
+
+    def neighbor(direction):
+        # DESC list: next = tuple < current, prev = tuple > current (ASC flips).
+        going_less = (direction == "next") == desc
+        cmp = "<" if going_less else ">"
+        dir_sql = "DESC" if going_less else "ASC"
+        keyset = f'(("{oc}" {cmp} ?) OR ("{oc}" = ? AND name {cmp} ?))'
+        query = (f'SELECT name FROM "{doctype}" WHERE '
+                 + " AND ".join(base_where + [keyset])
+                 + f' ORDER BY "{oc}" {dir_sql}, name {dir_sql} LIMIT 1')
+        rows = db.sql(query, base_params + [cur_oc, cur_oc, name])
+        return rows[0]["name"] if rows else None
+
+    return {"prev": neighbor("prev"), "next": neighbor("next")}
+
+
 def _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause="creation DESC"):
     where_parts = []
     params = []
