@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Changed
+- **`db.ensure_column` is now lock-safe, and there's a matching `db.drop_column`.**
+  Plugin migrations `ALTER` tables in the app lifespan, before it serves — and
+  during a rolling deploy the old revision is still querying those tables, so an
+  unbounded `ALTER` blocks on the lock indefinitely and crash-loops the new
+  revision (its startup probe never passes). On Postgres both helpers now bound
+  the wait with `lock_timeout` + retry, so the `ALTER` catches a gap in traffic
+  or **fails fast** (the migration runner retries next boot) instead of hanging;
+  SQLite runs directly. `drop_column` is the idempotent, lock-safe counterpart
+  to `ensure_column`. Existing `ensure_column` callers get the protection for
+  free.
+
 ## [0.6.1] - 2026-07-28
 
 ### Added

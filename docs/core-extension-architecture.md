@@ -249,9 +249,14 @@ creates it in the app lifespan via `apply_plugin_schema()` — after
 database**, recorded in `_PluginMigrations` by id (namespace it,
 `"acme:0001_…"`). Use it for `ALTER`/backfills on an existing table — the thing
 `register_table`'s `IF NOT EXISTS` can't do. `db.ensure_column(table, col, type)`
-is the idempotent column-add for use inside `fn`. Migrations run in registration
-order after tables exist; a failing one is rolled back and left unrecorded so it
-retries next boot (it never aborts startup). Must be idempotent and self-contained.
+(idempotent column-add) and `db.drop_column(table, col)` (idempotent drop) are
+the helpers for use inside `fn`. Both are **lock-safe**: on Postgres the `ALTER`
+is bounded by `lock_timeout` + retry, so a schema change during a rolling deploy
+catches a gap in the live old revision's traffic instead of blocking the boot
+(an unbounded `ALTER` on a hot table hangs the new revision's startup probe and
+crash-loops it). Migrations run in registration order after tables exist; a
+failing one is rolled back and left unrecorded so it retries next boot (it never
+aborts startup). Must be idempotent and self-contained.
 
 ### Filter a document list by any field
 `GET /api/documents/{slug}` accepts any query param that names a real column of
