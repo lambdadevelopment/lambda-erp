@@ -1391,13 +1391,80 @@ class Database:
             self._col_cache.pop(table, None)
             self._text_col_cache.pop(table, None)
 
+    def _alter_table_lock_safe(self, statements, cache_tables, *,
+                               lock_timeout_ms=3000, retries=8, backoff=0.5):
+        """Run ALTER TABLE DDL with a bounded lock wait + retry on Postgres.
+
+        A schema change (ADD/DROP COLUMN) needs an ACCESS EXCLUSIVE lock; during
+        a rolling deploy the OLD app revision is still live and querying the
+        table, so an unbounded ALTER blocks *indefinitely* — and because these
+        migrations run in the app lifespan before it serves, a blocked ALTER
+        fails the container's startup probe and crash-loops the revision (this
+        actually happened in production). Bounding `lock_timeout` turns "hang
+        forever" into "fail fast", and retrying catches a gap between the old
+        revision's queries. If every attempt times out it raises, so the caller
+        (e.g. the plugin migration runner) can retry on the next boot rather
+        than hang. SQLite has no concurrent revision, so it runs directly."""
+        if self.dialect != "postgres":
+            for s in statements:
+                self.conn.execute(self._ddl(s))
+            self.conn.commit()
+            for t in cache_tables:
+                self._col_cache.pop(t, None)
+                self._text_col_cache.pop(t, None)
+            return
+
+        import time as _time
+        last = None
+        try:
+            for _ in range(retries):
+                try:
+                    self.conn.execute(f"SET lock_timeout = '{int(lock_timeout_ms)}ms'")
+                    for s in statements:
+                        self.conn.execute(self._ddl(s))
+                    self.conn.commit()
+                    for t in cache_tables:
+                        self._col_cache.pop(t, None)
+                        self._text_col_cache.pop(t, None)
+                    return
+                except Exception as e:
+                    last = e
+                    self.conn.rollback()
+                    _time.sleep(backoff)
+            raise RuntimeError(
+                f"lock-contended DDL failed after {retries} attempts: {statements!r}: {last!r}"
+            )
+        finally:
+            # lock_timeout is a session setting; restore the default so it
+            # doesn't leak onto later queries on this (pooled) connection.
+            try:
+                self.conn.execute("RESET lock_timeout")
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+
     def ensure_column(self, table: str, column: str, definition: str) -> None:
-        """Idempotently add a column if it's missing. Public helper for plugin
-        migrations registered via api.services.register_migration — the same
-        backend-portable, PRAGMA/information_schema-guarded add the core's own
-        migrations use. `definition` is the SQLite-flavoured column type (e.g.
-        "TEXT", "INTEGER DEFAULT 0"); it is translated per dialect via _ddl."""
-        self._add_column_if_missing(table, column, definition)
+        """Idempotently add a column if it's missing, LOCK-SAFELY. Public helper
+        for plugin migrations registered via api.services.register_migration.
+
+        On Postgres the ADD COLUMN is bounded by `lock_timeout` + retry so a
+        migration can't hang the boot against a live old revision during a
+        rolling deploy (see _alter_table_lock_safe). SQLite adds directly. The
+        `definition` is the SQLite-flavoured column type (e.g. "TEXT",
+        "INTEGER DEFAULT 0"); it is translated per dialect via _ddl."""
+        if column in self._get_table_columns(table):
+            return
+        self._alter_table_lock_safe(
+            [f'ALTER TABLE "{table}" ADD COLUMN {column} {definition}'], [table])
+
+    def drop_column(self, table: str, column: str) -> None:
+        """Idempotently drop a column if present, LOCK-SAFELY (same rolling-deploy
+        protection as ensure_column). No-op if the column is already gone.
+        Requires SQLite >= 3.35 for the SQLite backend (DROP COLUMN support)."""
+        if column not in self._get_table_columns(table):
+            return
+        self._alter_table_lock_safe(
+            [f'ALTER TABLE "{table}" DROP COLUMN "{column}"'], [table])
 
     def _migrate(self):
         """Run each pending migration in order, tracking applied versions."""
