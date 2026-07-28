@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -10,6 +10,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { api } from "@/api/client";
+import { setListContext } from "@/lib/doc-list-context";
 import { Button } from "@/components/ui/button";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -28,6 +29,12 @@ export default function MasterListPage() {
   const location = useLocation();
   const label = TYPE_LABELS[type ?? ""] ?? type ?? "";
   const notice = (location.state as { notice?: string } | null)?.notice;
+
+  // Stash the list URL so the detail page's DocPager can come "back" to this
+  // exact page (Esc/u). Masters have no filter UI, so filters stays empty.
+  useEffect(() => {
+    if (type) setListContext(`master:${type}`, { filters: {}, search: location.search });
+  }, [type, location.search]);
 
   const [pageSize] = useUrlState<number>("per_page", 50);
   // URL page is 1-indexed; internal 0-indexed for offset math.

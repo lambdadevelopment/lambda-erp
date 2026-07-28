@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { Button } from "@/components/ui/button";
+import { DocPager } from "@/components/document/doc-pager";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -216,8 +217,13 @@ export default function MasterFormPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-end">
+      {/* Header: prev/next through the master list on the left, actions right */}
+      <div className="flex items-center justify-between">
+        {!isNew ? (
+          <DocPager kind="master" slug={type!} name={name!} onSave={handleSave} />
+        ) : (
+          <div />
+        )}
         <div className="flex gap-2">
           <Button onClick={handleSave} disabled={saving || missingRequiredFields.length > 0}>
             {saving ? t("common.saving") : t("common.save")}

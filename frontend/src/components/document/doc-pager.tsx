@@ -13,26 +13,35 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/api/client";
 import { getListContext } from "@/lib/doc-list-context";
 
-export function DocPager({ slug, name, onSave }: {
+export function DocPager({ slug, name, onSave, kind = "document" }: {
   slug: string;
   name: string;
   /** Called on Cmd/Ctrl+S. Omit if the page has nothing to save. */
   onSave?: () => void;
+  /** "master" pages through /masters/{slug} (name ASC) instead of /app/{slug}. */
+  kind?: "document" | "master";
 }) {
   const navigate = useNavigate();
-  const ctx = getListContext(slug);
+  const isMaster = kind === "master";
+  // Masters get their own context namespace so e.g. a "lead" master and a
+  // "lead" doctype list don't clobber each other's stashed URL.
+  const ctx = getListContext(isMaster ? `master:${slug}` : slug);
+  const base = isMaster ? `/masters/${slug}` : `/app/${slug}`;
 
   const { data } = useQuery({
-    queryKey: ["adjacent", slug, name, ctx?.filters ?? null],
-    queryFn: () => api.adjacentDocument(slug, name, ctx?.filters as any),
+    queryKey: ["adjacent", kind, slug, name, ctx?.filters ?? null],
+    queryFn: () =>
+      isMaster
+        ? api.adjacentMaster(slug, name)
+        : api.adjacentDocument(slug, name, ctx?.filters as any),
   });
   const prev = data?.prev ?? null;
   const next = data?.next ?? null;
 
   useEffect(() => {
-    const goPrev = () => prev && navigate(`/app/${slug}/${prev}`);
-    const goNext = () => next && navigate(`/app/${slug}/${next}`);
-    const back = () => navigate(`/app/${slug}${ctx?.search || ""}`);
+    const goPrev = () => prev && navigate(`${base}/${prev}`);
+    const goNext = () => next && navigate(`${base}/${next}`);
+    const back = () => navigate(`${base}${ctx?.search || ""}`);
 
     const onKey = (e: KeyboardEvent) => {
       // Save works even mid-edit.
@@ -49,7 +58,7 @@ export function DocPager({ slug, name, onSave }: {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [prev, next, slug, ctx?.search, onSave, navigate]);
+  }, [prev, next, base, ctx?.search, onSave, navigate]);
 
   const btn =
     "rounded-md border border-line bg-surface p-1.5 text-fg-muted transition hover:bg-surface-subtle hover:text-fg disabled:cursor-default disabled:opacity-40";
@@ -60,7 +69,7 @@ export function DocPager({ slug, name, onSave }: {
         type="button"
         disabled={!prev}
         title="Previous record (k / ←)"
-        onClick={() => prev && navigate(`/app/${slug}/${prev}`)}
+        onClick={() => prev && navigate(`${base}/${prev}`)}
         className={btn}
       >
         <ChevronLeft className="h-4 w-4" />
@@ -69,7 +78,7 @@ export function DocPager({ slug, name, onSave }: {
         type="button"
         disabled={!next}
         title="Next record (j / →)"
-        onClick={() => next && navigate(`/app/${slug}/${next}`)}
+        onClick={() => next && navigate(`${base}/${next}`)}
         className={btn}
       >
         <ChevronRight className="h-4 w-4" />

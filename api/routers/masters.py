@@ -299,7 +299,9 @@ def list_masters(
     query = f'SELECT * FROM "{doctype}"'
     if where_parts:
         query += " WHERE " + " AND ".join(where_parts)
-    query += f" LIMIT {int(limit)}"
+    # Deterministic order: without it Postgres returns pages in arbitrary order,
+    # which breaks OFFSET pagination and the /adjacent prev/next contract.
+    query += f" ORDER BY name LIMIT {int(limit)}"
     if offset:
         query += f" OFFSET {int(offset)}"
     rows = db.sql(query, params)
@@ -323,6 +325,29 @@ def search_masters(master_type: str, q: str = "", _user: dict = _viewer):
         [f"%{q}%", f"%{q}%"],
     )
     return rows
+
+
+@router.get("/{master_type}/{name}/adjacent")
+def adjacent_master(master_type: str, name: str, include_disabled: bool = True,
+                    _user: dict = _viewer):
+    """The records immediately before/after `name` in the list's order (name
+    ASC) — {"prev": name|None, "next": name|None}. Keyset queries on the
+    primary key. include_disabled defaults True to step 1:1 with the master
+    list, which shows disabled records too."""
+    doctype, _ = _get_table(master_type)
+    if not doctype:
+        raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
+    db = get_db()
+    active = ("" if include_disabled or "disabled" not in db._get_table_columns(doctype)
+              else "disabled = 0 AND ")
+
+    def neighbor(cmp: str, direction: str):
+        rows = db.sql(
+            f'SELECT name FROM "{doctype}" WHERE {active}name {cmp} ? '
+            f"ORDER BY name {direction} LIMIT 1", [name])
+        return rows[0]["name"] if rows else None
+
+    return {"prev": neighbor("<", "DESC"), "next": neighbor(">", "ASC")}
 
 
 @router.get("/{master_type}/{name}")

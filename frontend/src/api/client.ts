@@ -129,6 +129,12 @@ export const api = {
       `/documents/${doctype}/${encodeURIComponent(name)}/adjacent${qs(params)}`,
     ),
 
+  // Prev/next master record around `name` in the master list's order (name ASC).
+  adjacentMaster: (masterType: string, name: string) =>
+    request<{ prev: string | null; next: string | null }>(
+      `/masters/${masterType}/${encodeURIComponent(name)}/adjacent`,
+    ),
+
   createDocument: (doctype: string, data: any) =>
     request<any>(`/documents/${doctype}`, { method: "POST", body: JSON.stringify(data) }),
 
