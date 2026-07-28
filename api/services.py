@@ -216,6 +216,23 @@ def register_master(slug: str, table: str, name_field: str, *,
         MASTER_IDENTITY_ALIAS[slug] = identity_alias
 
 
+# Chat guidance for registered doctypes: slug -> {"description", "fields"}. The
+# document tools (create/update/list/get_document) already accept any registered
+# doctype and run its validate(); this registry only teaches the AI chat WHAT a
+# custom doctype is and HOW it links, so it uses the validated document path
+# instead of, say, scribbling on a parent's fields. Relationships are read
+# automatically from the Document class's LINK_FIELDS — not declared here.
+CHAT_DOCTYPES: dict = {}
+
+
+def register_chat_doctype(slug: str, *, description: str, fields: list | None = None) -> None:
+    """Give the AI chat a description (and optional key-field hints) for a doctype
+    already registered via `register_doctype`, so build_system_prompt can tell the
+    model what it is and how it links (LINK_FIELDS are surfaced automatically).
+    No new tools — the document tools already cover every registered doctype."""
+    CHAT_DOCTYPES[slug] = {"description": description, "fields": fields or []}
+
+
 def get_document_class(doctype_slug: str):
     """Get document class from URL slug."""
     doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
