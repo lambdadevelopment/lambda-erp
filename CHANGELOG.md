@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-07-28
+
+### Fixed
+- **Postgres connections no longer sit "idle in transaction" after reads.**
+  With `autocommit=False`, even a plain SELECT opens a transaction, and nothing
+  ended it — so every pooled request thread (and the chat websocket) left an
+  open transaction pinning `ACCESS SHARE` locks on each table it had read.
+  Those idle locks starved the lock-safe plugin migrations (`ensure_column`/
+  `drop_column`) of their `ACCESS EXCLUSIVE` lock on **every** boot: the ALTERs
+  timed out forever, columns were never added, and — because `_persist()` only
+  writes columns that exist — the UI's saves returned 200 while silently
+  dropping edits to the missing fields (observed in production). `_PgConn` now
+  rolls back immediately after a read when no write is pending and no explicit
+  transaction (submit/cancel) is active, so connections never idle inside a
+  transaction. Write atomicity is unchanged. Regression-tested in
+  `tests/test_txn_release.py`, including the migration-starvation scenario.
+
 ## [0.6.4] - 2026-07-28
 
 ### Added

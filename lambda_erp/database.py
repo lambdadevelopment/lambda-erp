@@ -99,10 +99,38 @@ def _pg_row_factory(cursor):
 class _PgConn:
     """Adapts a psycopg (v3) connection to the sqlite3 connection API the code
     uses. autocommit is off so the existing `_in_transaction` + single commit()
-    / rollback() flow gives the same atomicity as SQLite's implicit transaction."""
+    / rollback() flow gives the same atomicity as SQLite's implicit transaction.
 
-    def __init__(self, raw):
+    With autocommit off, even a plain SELECT opens a transaction that stays
+    open until commit/rollback — and these thread-local connections live as
+    long as their (pooled) thread, so a request whose last statement was a read
+    left the connection 'idle in transaction' forever, pinning ACCESS SHARE
+    locks on every table it touched. That starves any ALTER TABLE of its
+    ACCESS EXCLUSIVE lock, which made lock-safe plugin migrations time out on
+    every boot in production. The fix: after a read, when there is no pending
+    write and no explicit transaction, end the implicit transaction right away
+    (_maybe_release), so connections never idle inside one."""
+
+    def __init__(self, raw, in_explicit_txn=None):
         self._raw = raw
+        self._dirty = False  # uncommitted write on this connection
+        self._in_explicit_txn = in_explicit_txn or (lambda: False)
+
+    @staticmethod
+    def _is_read(sql):
+        s = sql.lstrip().lower()
+        return s.startswith("select") and "for update" not in s and "for share" not in s
+
+    def _maybe_release(self, sql):
+        if self._in_explicit_txn():
+            return
+        if self._is_read(sql):
+            # psycopg's default cursor has already buffered the full result set
+            # client-side, so the caller can still fetch after the rollback.
+            if not self._dirty:
+                self._safe_rollback()
+        else:
+            self._dirty = True
 
     def execute(self, sql, params=None):
         try:
@@ -114,7 +142,6 @@ class _PgConn:
                 cur.execute(sql.replace("%", "%%").replace("?", "%s"), list(params))
             else:
                 cur.execute(sql.replace("?", "%s"))
-            return cur
         except Exception:
             # A failed statement leaves the connection in an aborted transaction
             # (autocommit=False); every later query on this pooled/thread-local
@@ -122,28 +149,34 @@ class _PgConn:
             # so the connection stays usable, then re-raise the real error.
             self._safe_rollback()
             raise
+        self._maybe_release(sql)
+        return cur
 
     def executemany(self, sql, seq_params):
         try:
             cur = self._raw.cursor()
             cur.executemany(sql.replace("%", "%%").replace("?", "%s"),
                             [list(p) for p in seq_params])
-            return cur
         except Exception:
             self._safe_rollback()
             raise
+        self._dirty = True
+        return cur
 
     def _safe_rollback(self):
         try:
             self._raw.rollback()
+            self._dirty = False
         except Exception:
             pass
 
     def commit(self):
         self._raw.commit()
+        self._dirty = False
 
     def rollback(self):
         self._raw.rollback()
+        self._dirty = False
 
     def close(self):
         self._raw.close()
@@ -224,9 +257,11 @@ class Database:
 
         # autocommit off: matches SQLite's implicit transaction so the existing
         # _in_transaction + commit()/rollback() atomicity (GL submit/cancel) is
-        # preserved exactly.
+        # preserved exactly. in_explicit_txn lets the wrapper see the
+        # thread-local flag so reads inside submit/cancel keep their snapshot.
         return _PgConn(psycopg.connect(self.db_path, autocommit=False,
-                                       row_factory=_pg_row_factory))
+                                       row_factory=_pg_row_factory),
+                       in_explicit_txn=lambda: self._in_transaction)
 
     @property
     def conn(self):
