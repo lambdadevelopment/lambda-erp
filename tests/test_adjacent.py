@@ -81,7 +81,33 @@ def check_adjacent():
         # unknown filter field -> 400
         assert client.get(f"/api/documents/widget/{names[2]}/adjacent?bogus=1").status_code == 400
 
-    print(f"  [adjacent] prev/next + filter-following + ends OK on {backend}")
+        # --- Masters: /masters/{type}/{name}/adjacent, name ASC (list order).
+        cust = []
+        for label in ("Aster Trading AG", "Borea Logistik GmbH", "Cirrus Metall AG"):
+            r = client.post("/api/masters/customer", json={"customer_name": label})
+            assert r.status_code == 200, r.text
+            cust.append(r.json()["name"])
+        cust.sort()
+
+        def madj(name, **params):
+            qs = "&".join(f"{k}={v}" for k, v in params.items())
+            return client.get(f"/api/masters/customer/{name}/adjacent" + (f"?{qs}" if qs else "")).json()
+
+        assert madj(cust[1]) == {"prev": cust[0], "next": cust[2]}, madj(cust[1])
+        assert madj(cust[0])["prev"] is None
+        assert madj(cust[2])["next"] is None
+        # disabled records are included by default (list parity), excludable
+        client.put(f"/api/masters/customer/{cust[2]}", json={"disabled": 1})
+        assert madj(cust[1])["next"] == cust[2]
+        assert madj(cust[1], include_disabled="false")["next"] is None
+        # the list itself pages in the same deterministic order
+        rows = client.get("/api/masters/customer?include_disabled=1").json()["rows"]
+        listed = [r["name"] for r in rows if r["name"] in set(cust)]
+        assert listed == cust, f"list order != name ASC: {listed}"
+        # unknown master type -> 404
+        assert client.get(f"/api/masters/nope/{cust[0]}/adjacent").status_code == 404
+
+    print(f"  [adjacent] documents + masters prev/next OK on {backend}")
 
     if not url:
         for suffix in ("", "-wal", "-shm"):

@@ -13,9 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
-## [0.6.5] - 2026-07-28
+## [0.6.5] - 2026-07-29
+
+### Added
+- **Prev/next navigation (`DocPager`) on master detail pages.** The same ‹ / ›
+  buttons + keyboard shortcuts documents got in 0.6.4 now work on Customer /
+  Supplier / Item / Warehouse / Company (and any plugin-registered master):
+  `DocPager` takes `kind="master"`, backed by a new
+  `GET /masters/{type}/{name}/adjacent` keyset endpoint (name ASC — the list's
+  order; `include_disabled` defaults true for 1:1 stepping with the list).
+  The master list stashes its URL (`master:{type}` context) so Esc/`u` returns
+  to the exact page you left.
 
 ### Fixed
+- **Master lists are now deterministically ordered (`ORDER BY name`).** The
+  list endpoint had no ORDER BY, so Postgres returned pages in arbitrary
+  order — OFFSET pagination could repeat/skip rows.
 - **Postgres connections no longer sit "idle in transaction" after reads.**
   With `autocommit=False`, even a plain SELECT opens a transaction, and nothing
   ended it — so every pooled request thread (and the chat websocket) left an
