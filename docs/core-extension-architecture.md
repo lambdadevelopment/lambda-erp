@@ -266,6 +266,26 @@ and values are parameterized. Reserved params (`status`, `party`, `from_date`,
 `include_discarded`) keep their meaning. This is what lets a plugin doctype like
 `Activity` be listed by its FK to a parent.
 
+### Make a doctype chat-manageable
+```python
+from api.services import register_chat_doctype
+
+register_chat_doctype("contact", description=(
+    "A person at a Lead — the buying centre. Set buying_role."))
+```
+The chat's document tools (`create_document`/`update_document`/`list_documents`/
+`get_document`) already accept **any** registered doctype and run its
+`validate()`. `register_chat_doctype(slug, *, description, fields=None)` only
+**teaches the model** what the type is: `build_system_prompt` gains a "Custom
+record types" section with the description, the (optional) `fields` hint, and
+the Document class's **`LINK_FIELDS`** relationships (read live — e.g. a
+contact's `lead_id → Lead`), plus the rule to drive these with the document
+tools and attach a child by setting its link field to the parent's `name`.
+
+This is the validated, first-class way to expose a whole module (a CRM's lead /
+contact / activity) to chat — no need to also `register_master` it (the master
+path does plain-row writes that skip `validate()`).
+
 ### Register everything at startup
 ```python
 # acme/plugin.py

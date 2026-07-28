@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- **`register_chat_doctype` — teach the AI chat about a plugin doctype.** The
+  document tools (`create_document`/`update_document`/`list_documents`/
+  `get_document`) already accept any registered doctype and run its `validate()`,
+  but the chat had no idea what a custom doctype *is* or how it links.
+  `api.services.register_chat_doctype(slug, *, description, fields=None)` makes
+  `build_system_prompt` surface a "Custom record types" section: the
+  description, key fields, and the Document class's `LINK_FIELDS` relationships
+  (e.g. a contact's `lead_id → Lead`), plus the rule to drive these with the
+  document tools and attach a child by setting its link field to the parent's
+  `name`. Lets a deployment expose a whole module (e.g. a CRM: lead/contact/
+  activity) to chat through the validated write path — no master overlay needed.
+- **`list_documents` chat tool gained `order_by` + `order`** (`asc`/`desc`), so
+  the assistant can list a timeline newest-first (e.g. activities by
+  `occurred_at`) instead of always `creation DESC`.
+
 ## [0.6.0] - 2026-07-27
 
 ### Added

@@ -463,7 +463,9 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "doctype": {"type": "string", "enum": DOCUMENT_SLUGS, "description": "Document type slug"},
-                    "filters": {"type": "object", "description": "Optional filters like {\"status\": \"Draft\", \"customer\": \"CUST-001\"}", "default": {}},
+                    "filters": {"type": "object", "description": "Optional equality filters on any column, e.g. {\"status\": \"Draft\", \"customer\": \"CUST-001\", \"lead_id\": \"LEAD-3316\"}", "default": {}},
+                    "order_by": {"type": "string", "description": "Optional column to sort by (e.g. \"occurred_at\" for a timeline). Defaults to creation."},
+                    "order": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction (default desc)", "default": "desc"},
                     "limit": {"type": "integer", "description": "Max results (default 20, max 500)", "default": 20},
                 },
                 "required": ["doctype"],
@@ -1175,6 +1177,38 @@ def _extra_master_types():
     return sorted(m for m in services.MASTER_TABLES if m not in MASTER_TYPES)
 
 
+def _chat_doctype_section() -> str:
+    """A '## Custom record types' block for doctypes registered via
+    register_chat_doctype: each type's description, key fields, and its
+    LINK_FIELDS relationships (read live from the Document class). Tells the
+    model these are driven with the DOCUMENT tools and how they attach to a
+    parent (e.g. a contact links to a lead via `lead_id`). Empty when none."""
+    slugs = [s for s in services.CHAT_DOCTYPES if s in services.SLUG_TO_DOCTYPE]
+    if not slugs:
+        return ""
+    lines = []
+    for slug in slugs:
+        meta = services.CHAT_DOCTYPES[slug]
+        doctype = services.SLUG_TO_DOCTYPE[slug]
+        cls = services.DOCUMENT_CLASSES.get(doctype)
+        links = getattr(cls, "LINK_FIELDS", None) or {}
+        line = f"- **{doctype}** (slug `{slug}`): {meta['description']}"
+        if meta.get("fields"):
+            line += f" Key fields: {', '.join('`' + f + '`' for f in meta['fields'])}."
+        if links:
+            link_str = ", ".join(f"`{f}` → the {t}'s name" for f, t in links.items())
+            line += f" Links: {link_str}."
+        lines.append(line)
+    return (
+        "\n\n## Custom record types (deployment-specific)\n"
+        "Manage these with the DOCUMENT tools (`create_document`, `update_document`, "
+        "`list_documents`, `get_document`) — NOT the master tools — so their `validate()` "
+        "runs. To attach one to a parent, set its link field to the parent record's `name` "
+        "(find the parent first, e.g. with `search_masters` or `list_documents`). Do not put "
+        "child data on the parent's own fields.\n" + "\n".join(lines)
+    )
+
+
 def build_tools():
     """TOOLS with the doctype/master enums widened from the live registries.
 
@@ -1217,6 +1251,8 @@ def _handle_list_documents(args):
         args["doctype"],
         filters=args.get("filters"),
         limit=args.get("limit", 20),
+        order_by=args.get("order_by"),
+        order=args.get("order", "desc"),
     )
     for row in rows:
         for key in child_keys:
@@ -1898,6 +1934,7 @@ def build_system_prompt(user_info: dict | None = None, channel: str = "web"):
         f"display = `{services.MASTER_TABLES[m][1]}`"
         for m in extra_masters
     )
+    chat_doctype_section = _chat_doctype_section()
 
     # Channel-aware link guidance. On the "web" channel the reader is a browser
     # inside the ERP, so web-relative links are clickable. On the "api" channel the
@@ -2006,7 +2043,7 @@ When a user asks you to do something they don't have permission for, explain wha
 - **Buying:** purchase-order, purchase-invoice
 - **Accounting:** payment-entry, journal-entry, budget, subscription, bank-transaction
 - **Stock:** stock-entry, delivery-note, purchase-receipt
-- **Settings:** pricing-rule{extension_doctypes_line}
+- **Settings:** pricing-rule{extension_doctypes_line}{chat_doctype_section}
 
 ## Document Workflow & What Each Document Does
 
