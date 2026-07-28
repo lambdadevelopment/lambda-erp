@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-07-28
+
 ### Added
 - **Prev/next record navigation (`DocPager`) on every document detail page.**
   ‹ / › buttons step to the adjacent record, following the **same order and
@@ -923,7 +925,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.4...HEAD
+[0.6.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.0...v0.6.1
