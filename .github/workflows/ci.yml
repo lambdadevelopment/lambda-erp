@@ -130,3 +130,11 @@ jobs:
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_lock_safe_ddl
+
+      - name: Adjacent (prev/next) — SQLite (temp file)
+        run: python -m tests.test_adjacent
+
+      - name: Adjacent (prev/next) — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_adjacent

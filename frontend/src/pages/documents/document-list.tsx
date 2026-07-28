@@ -1,5 +1,6 @@
-import { useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo } from "react";
+import { Link, useParams, useLocation } from "react-router-dom";
+import { setListContext } from "@/lib/doc-list-context";
 import { useTranslation } from "react-i18next";
 import {
   useReactTable,
@@ -109,6 +110,15 @@ export default function DocumentListPage() {
   const { data, isLoading } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
+
+  // Remember this list's filters + URL so a detail page's prev/next (DocPager)
+  // follows it, and "back to list" returns here. Pagination is dropped — it's
+  // not a record filter.
+  const location = useLocation();
+  useEffect(() => {
+    const { limit, offset, ...ctxFilters } = filters;
+    setListContext(doctype ?? "", { filters: ctxFilters, search: location.search });
+  }, [doctype, filters, location.search]);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const rangeStart = total === 0 ? 0 : page * pageSize + 1;
   const rangeEnd = Math.min(total, (page + 1) * pageSize);

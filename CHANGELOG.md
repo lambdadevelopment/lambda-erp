@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- **Prev/next record navigation (`DocPager`) on every document detail page.**
+  ‹ / › buttons step to the adjacent record, following the **same order and
+  filters as the list you came from** (v2): a new `GET /documents/{slug}/{name}/
+  adjacent` endpoint does indexed keyset queries (default creation DESC, `name`
+  tie-break), and `DocumentList` stashes its filters/URL per doctype (a
+  sessionStorage-backed `doc-list-context` store) for the detail page to read.
+  Keyboard: `j`/`→` next, `k`/`←` prev, `Esc`/`u` back to the list (gated so
+  they don't fire while typing), `Cmd/Ctrl+S` save. `DocPager`, `setListContext`,
+  `getListContext`, and `api.adjacentDocument` are exported so a deployment's
+  custom detail page reuses the exact same behavior.
+
 ## [0.6.3] - 2026-07-28
 
 ### Added
