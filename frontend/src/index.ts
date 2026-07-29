@@ -55,6 +55,10 @@ export type { ListContext } from "./lib/doc-list-context";
 export { configureBranding, getBranding } from "./lib/branding";
 export type { Branding } from "./lib/branding";
 
+// Date display locale (default: viewer's browser locale). Pin per deployment,
+// e.g. setDateLocale("de-CH").
+export { setDateLocale, formatDate } from "./lib/utils";
+
 // API client
 export { api, request, ApiError, configureApiBase } from "./api/client";
 

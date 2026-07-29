@@ -20,13 +20,24 @@ export function formatNumber(value: number | null | undefined, decimals = 2) {
   }).format(value ?? 0);
 }
 
-/** Format a date string for display. */
+// Display locale for dates. Default: the viewer's browser locale — the old
+// hardcoded "en-US" forced US month/day order (and English month names) on
+// every deployment. A deployment can pin it, e.g. setDateLocale("de-CH") for
+// DD.MM.YYYY everywhere, regardless of the viewer's browser.
+let dateLocale: string | undefined;
+
+/** Pin the locale used by formatDate (undefined = the viewer's browser locale). */
+export function setDateLocale(locale: string | undefined) {
+  dateLocale = locale;
+}
+
+/** Format a date string for display (numeric, day-first per the locale). */
 export function formatDate(value: string | null | undefined) {
   if (!value) return "";
-  return new Date(value).toLocaleDateString("en-US", {
+  return new Date(value).toLocaleDateString(dateLocale, {
     year: "numeric",
-    month: "short",
-    day: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   });
 }
 
