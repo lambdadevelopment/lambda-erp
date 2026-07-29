@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-07-29
+
+### Added
+- **Free-text search on the document list.** A doctype config may declare
+  `searchFields: string[]` — columns matched case-insensitively (substring)
+  by a **debounced** search box above the list (commits to the URL `q` after a
+  pause, so it doesn't refetch on every keystroke). The list/count/adjacent
+  endpoints take `search` + `search_fields` (a CSV validated to real columns);
+  search is ANDed with the other filters, and prev/next (`DocPager`) steps
+  through the searched result set too. Omit `searchFields` for no search box.
+- **`register_search_expansion(doctype_slug, fn)` seam.** Lets a plugin match a
+  doctype by a **related table the core doesn't know** — `fn(query, db)` returns
+  the PK names to also include, OR-ed into the search (`name IN (...)`). E.g. the
+  internal CRM finds a Lead by one of its Contacts. `tests/test_search.py`
+  covers same-table search, the expansion seam, count parity, and adjacent.
+
 ## [0.6.7] - 2026-07-29
 
 ### Fixed

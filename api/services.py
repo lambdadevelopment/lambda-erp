@@ -403,6 +403,57 @@ def _resolve_date_field(db, doctype: str, override: str | None) -> str | None:
     return DATE_FIELDS.get(doctype)
 
 
+# --- List search seam ---
+#
+# The generic list can free-text search across a doctype's own columns (the
+# frontend passes `search` + the config's `search_fields`). A plugin doctype
+# often also wants to match on a *related* table the core knows nothing about
+# (e.g. find a Lead by one of its Contacts). register_search_expansion lets it:
+# fn(query, db) returns the primary-key names to also include, and the core ORs
+# `name IN (...)` into the search clause. See docs/core-extension-architecture.md.
+
+_SEARCH_EXPANSIONS: dict[str, list] = {}  # slug -> [fn(query: str, db) -> Iterable[str]]
+
+
+def register_search_expansion(doctype_slug: str, fn) -> None:
+    """Register a related-table search for a doctype's list. `fn(query, db)`
+    returns an iterable of this doctype's PK names whose related records match
+    `query` (e.g. Lead names that have a matching Contact). Those names are
+    OR-ed into the list/count/adjacent search alongside the same-table column
+    matches. Keep it bounded and indexed — it runs on every search keystroke."""
+    _SEARCH_EXPANSIONS.setdefault(doctype_slug, []).append(fn)
+
+
+def _search_clause(db, doctype: str, doctype_slug: str, search, search_fields):
+    """A parenthesized OR-group matching `search` (case-insensitive substring)
+    across `search_fields` (kept to real columns) plus any PK names a registered
+    search expansion returns. Returns (clause, params), or (None, []) when
+    there's nothing to match on. Same shape for list/count/adjacent so prev/next
+    tracks the searched list exactly."""
+    if not search:
+        return None, []
+    cols = db._get_table_columns(doctype)
+    like = f"%{search}%"
+    parts, params = [], []
+    for f in (search_fields or []):
+        if f in cols:
+            parts.append(f'LOWER("{f}") LIKE LOWER(?)')
+            params.append(like)
+    extra = []
+    seen = set()
+    for fn in _SEARCH_EXPANSIONS.get(doctype_slug, []):
+        for pk in (fn(search, db) or []):
+            if pk and pk not in seen:
+                seen.add(pk)
+                extra.append(pk)
+    if extra:
+        parts.append(f'name IN ({",".join("?" for _ in extra)})')
+        params.extend(extra)
+    if not parts:
+        return None, []
+    return "(" + " OR ".join(parts) + ")", params
+
+
 def _exclude_discarded(db, doctype: str, db_filters: dict, include_discarded: bool) -> None:
     """Hide voided drafts (discarded=1) unless explicitly requested. Guarded on
     the column existing so non-submittable doctypes are unaffected."""
@@ -433,6 +484,8 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
     from_date = None
     to_date = None
     date_field_override = None
+    search = None
+    search_fields = None
     if filters:
         for key, value in filters.items():
             if value is None or value == "":
@@ -443,6 +496,10 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
                 to_date = value
             elif key == "date_field":
                 date_field_override = value
+            elif key == "search":
+                search = value
+            elif key == "search_fields":
+                search_fields = value
             else:
                 db_filters[key] = value
 
@@ -461,18 +518,23 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
             else:
                 db_filters[date_field] = ("<=", to_date)
 
+    search_where, search_params = _search_clause(db, doctype, doctype_slug, search, search_fields)
+
     # If both from and to are set, the dict can only hold one constraint per key
     # Fall through to a raw SQL query for that case
     if date_field and from_date and to_date:
         return _list_with_date_range(
-            db, doctype, doctype_slug, db_filters, date_field, from_date, to_date, limit, offset
+            db, doctype, doctype_slug, db_filters, date_field, from_date, to_date, limit, offset,
+            extra_where=search_where, extra_params=search_params,
         )
 
     order_clause = _order_clause(order_by, order)
 
-    # get_all doesn't support offset, so use raw SQL when needed
-    if offset:
-        return _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause)
+    # get_all can't express OFFSET or a free-text OR-group, so drop to raw SQL
+    # whenever either is in play.
+    if offset or search_where:
+        return _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause,
+                                 extra_where=search_where, extra_params=search_params)
 
     rows = db.get_all(
         doctype,
@@ -496,6 +558,8 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
     from_date = None
     to_date = None
     date_field_override = None
+    search = None
+    search_fields = None
     if filters:
         for key, value in filters.items():
             if value is None or value == "":
@@ -506,6 +570,10 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
                 to_date = value
             elif key == "date_field":
                 date_field_override = value
+            elif key == "search":
+                search = value
+            elif key == "search_fields":
+                search_fields = value
             else:
                 db_filters[key] = value
 
@@ -529,6 +597,11 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
             where_parts.append(f'"{k}" = ?')
             params.append(v)
 
+    search_where, search_params = _search_clause(db, doctype, doctype_slug, search, search_fields)
+    if search_where:
+        where_parts.append(search_where)
+        params.extend(search_params)
+
     query = f'SELECT COUNT(*) as c FROM "{doctype}"'
     if where_parts:
         query += " WHERE " + " AND ".join(where_parts)
@@ -536,12 +609,13 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
     return int(rows[0]["c"]) if rows else 0
 
 
-def _filter_where(db, doctype: str, filters: dict, include_discarded: bool):
+def _filter_where(db, doctype: str, doctype_slug: str, filters: dict, include_discarded: bool):
     """Build (where_parts, params) for a doctype from a list-style `filters` dict
-    (equality filters + from_date/to_date on the doctype's date field + discard
-    exclusion). Same semantics as list_documents/count_documents so prev/next
-    matches exactly what the list shows."""
+    (equality filters + from_date/to_date on the doctype's date field + free-text
+    search + discard exclusion). Same semantics as list_documents/count_documents
+    so prev/next matches exactly what the list shows."""
     db_filters, from_date, to_date, date_field_override = {}, None, None, None
+    search = search_fields = None
     for key, value in (filters or {}).items():
         if value is None or value == "":
             continue
@@ -551,6 +625,10 @@ def _filter_where(db, doctype: str, filters: dict, include_discarded: bool):
             to_date = value
         elif key == "date_field":
             date_field_override = value
+        elif key == "search":
+            search = value
+        elif key == "search_fields":
+            search_fields = value
         else:
             db_filters[key] = value
     _exclude_discarded(db, doctype, db_filters, include_discarded)
@@ -567,6 +645,10 @@ def _filter_where(db, doctype: str, filters: dict, include_discarded: bool):
             where_parts.append(f'"{k}" {op} ?'); params.append(val)
         else:
             where_parts.append(f'"{k}" = ?'); params.append(v)
+    search_where, search_params = _search_clause(db, doctype, doctype_slug, search, search_fields)
+    if search_where:
+        where_parts.append(search_where)
+        params.extend(search_params)
     return where_parts, params
 
 
@@ -591,7 +673,7 @@ def adjacent_documents(doctype_slug: str, name: str, filters: dict = None,
         return {"prev": None, "next": None}
     cur_oc = cur[0]["oc"]
 
-    base_where, base_params = _filter_where(db, doctype, filters or {}, include_discarded)
+    base_where, base_params = _filter_where(db, doctype, doctype_slug, filters or {}, include_discarded)
 
     def neighbor(direction):
         # DESC list: next = tuple < current, prev = tuple > current (ASC flips).
@@ -608,7 +690,8 @@ def adjacent_documents(doctype_slug: str, name: str, filters: dict = None,
     return {"prev": neighbor("prev"), "next": neighbor("next")}
 
 
-def _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause="creation DESC"):
+def _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause="creation DESC",
+                      extra_where=None, extra_params=None):
     where_parts = []
     params = []
     for k, v in db_filters.items():
@@ -619,6 +702,9 @@ def _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, orde
         else:
             where_parts.append(f'"{k}" = ?')
             params.append(v)
+    if extra_where:
+        where_parts.append(extra_where)
+        params.extend(extra_params or [])
     query = f'SELECT * FROM "{doctype}"'
     if where_parts:
         query += " WHERE " + " AND ".join(where_parts)
@@ -649,7 +735,8 @@ def _attach_children(db, doctype_slug: str, rows: list) -> list:
     return result
 
 
-def _list_with_date_range(db, doctype, doctype_slug, extra_filters, date_field, from_date, to_date, limit, offset=0):
+def _list_with_date_range(db, doctype, doctype_slug, extra_filters, date_field, from_date, to_date, limit,
+                          offset=0, extra_where=None, extra_params=None):
     """List documents when both from_date and to_date are set."""
     where_parts = [f'"{date_field}" >= ?', f'"{date_field}" <= ?']
     params = [from_date, to_date]
@@ -661,6 +748,9 @@ def _list_with_date_range(db, doctype, doctype_slug, extra_filters, date_field, 
         else:
             where_parts.append(f'"{k}" = ?')
             params.append(v)
+    if extra_where:
+        where_parts.append(extra_where)
+        params.extend(extra_params or [])
     query = (
         f'SELECT * FROM "{doctype}" WHERE ' + " AND ".join(where_parts)
         + " ORDER BY creation DESC"

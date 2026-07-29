@@ -28,7 +28,7 @@ _manager = Depends(require_role("manager"))
 _LIST_RESERVED = {
     "status", "party", "from_date", "to_date", "docstatus",
     "include_discarded", "limit", "offset", "order_by", "order",
-    "date_field",
+    "date_field", "search", "search_fields",
 }
 
 
@@ -45,6 +45,8 @@ def list_docs(
     order_by: str | None = None,
     order: str = "desc",
     date_field: str | None = None,
+    search: str | None = None,
+    search_fields: str | None = None,
     limit: int = Query(default=50, le=500),
     offset: int = Query(default=0, ge=0),
     _user: dict = _viewer,
@@ -80,6 +82,18 @@ def list_docs(
     if date_field:
         filters["date_field"] = date_field
 
+    # Free-text search across the doctype's declared search_fields (+ any
+    # registered related-table expansion). search_fields is a CSV validated to
+    # real columns, mirroring the arbitrary-filter / order_by contract.
+    if search:
+        filters["search"] = search
+        fields = [f.strip() for f in (search_fields or "").split(",") if f.strip()]
+        bad = [f for f in fields if f not in columns]
+        if bad:
+            raise HTTPException(status_code=400, detail=f"Unknown search field(s): {', '.join(bad)}")
+        if fields:
+            filters["search_fields"] = fields
+
     if order_by is not None and order_by not in columns:
         raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
     if order.lower() not in ("asc", "desc"):
@@ -105,6 +119,8 @@ def adjacent_doc(
     order_by: str | None = None,
     order: str = "desc",
     date_field: str | None = None,
+    search: str | None = None,
+    search_fields: str | None = None,
     _user: dict = _viewer,
 ):
     """Prev/next record around `name` in the same order+filters the list uses.
@@ -130,6 +146,14 @@ def adjacent_doc(
         filters[key] = value
     if date_field:
         filters["date_field"] = date_field
+    if search:
+        filters["search"] = search
+        fields = [f.strip() for f in (search_fields or "").split(",") if f.strip()]
+        bad = [f for f in fields if f not in columns]
+        if bad:
+            raise HTTPException(status_code=400, detail=f"Unknown search field(s): {', '.join(bad)}")
+        if fields:
+            filters["search_fields"] = fields
     if order_by is not None and order_by not in columns:
         raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
     if order.lower() not in ("asc", "desc"):

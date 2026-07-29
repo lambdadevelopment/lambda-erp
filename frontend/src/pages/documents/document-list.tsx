@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useLocation } from "react-router-dom";
 import { setListContext } from "@/lib/doc-list-context";
 import { useTranslation } from "react-i18next";
@@ -93,6 +93,12 @@ export default function DocumentListPage() {
   const [toDate] = useUrlState<string>("to", "");
   const [showDiscarded] = useUrlState<string>("discarded", "");
   const [pageSize] = useUrlState<number>("per_page", 50);
+  // Free-text search (opt-in via config.searchFields). The committed query lives
+  // in the URL (`q`); a local input debounces into it so we don't refetch on
+  // every keystroke.
+  const searchFields = config?.searchFields ?? [];
+  const [urlQ] = useUrlState<string>("q", "");
+  const [searchInput, setSearchInput] = useState(urlQ);
   // URL is human-friendly 1-indexed; internal state stays 0-indexed for
   // offset calculation. setPage accepts the 0-indexed value.
   const [urlPage] = useUrlState<number>("page", 1);
@@ -109,6 +115,15 @@ export default function DocumentListPage() {
   const setShowDiscarded = (on: boolean) => patchUrl({ discarded: on ? "1" : null, page: null });
   const setPageSize = (n: number) => patchUrl({ per_page: n, page: null });
 
+  // Keep the box in sync when `q` changes from outside typing (back/forward, a
+  // cleared filter), then debounce local edits back into the URL after a pause.
+  useEffect(() => { setSearchInput(urlQ); }, [urlQ]);
+  useEffect(() => {
+    if (searchInput === urlQ) return; // idle — nothing to commit, no timer
+    const t = setTimeout(() => patchUrl({ q: searchInput || null, page: null }), 300);
+    return () => clearTimeout(t);
+  }, [searchInput, urlQ]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const filters = useMemo(() => {
     const f: Record<string, string | number | undefined> = {};
     // The default status dropdown is hidden when a doctype opts into its own
@@ -123,11 +138,16 @@ export default function DocumentListPage() {
     for (const key of configFilters) {
       if (filterValues[key]) f[key] = filterValues[key];
     }
+    // Free-text search across the config's searchFields (the committed URL `q`).
+    if (searchFields.length > 0 && urlQ) {
+      f.search = urlQ;
+      f.search_fields = searchFields.join(",");
+    }
     if (showDiscarded) f.include_discarded = "true";
     f.limit = pageSize;
     f.offset = page * pageSize;
     return f;
-  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues]);
+  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, searchFields, urlQ]);
 
   const { data, isLoading } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
@@ -266,6 +286,16 @@ export default function DocumentListPage() {
       </div>
 
       <div className="flex flex-wrap items-end gap-4">
+        {searchFields.length > 0 && (
+          <Input
+            label={t("common.search", { defaultValue: "Search" })}
+            type="search"
+            placeholder={t("common.searchPlaceholder", { defaultValue: "Search…" })}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="min-w-[16rem]"
+          />
+        )}
         {configFilters.length === 0 ? (
           <Select
             label={t("fields.Status", { defaultValue: "Status" })}
