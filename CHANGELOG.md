@@ -13,6 +13,29 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-07-29
+
+### Added
+- **Config-driven list filters (`listFilters`).** A doctype config may now
+  declare `listFilters: string[]` — field names (each a `type: "select"`
+  field) rendered as dropdowns above the list, their selection sent as a plain
+  column filter (`status=Contacted`, `fit=A`). When set, these replace the
+  built-in Draft/Submitted/Cancelled status dropdown — the right call for
+  non-submittable doctypes whose `status` is a business field, not a docstatus.
+  Omit it to keep the default status filter (every existing doctype unchanged).
+  Uses the ad-hoc column-filter path added in 0.6.0; no backend change needed.
+
+### Fixed
+- **Date-range filters now work on any doctype with a declared `dateField`.**
+  The list/count/adjacent endpoints filtered `from_date`/`to_date` against a
+  hardcoded server-side `DATE_FIELDS` map that only knew the built-in core
+  doctypes, so a plugin doctype's date pickers were silently ignored. The
+  frontend now sends its declared `dateField` as a `date_field` query param;
+  the backend honors it when it names a real column (falling back to the map
+  otherwise, and degrading to *no* date filter — never a 400 — for a synthetic
+  `dateField`). `date_field` is validated against live columns before it ever
+  touches SQL. Covers list, count, and prev/next (`DocPager`) alike.
+
 ## [0.6.5] - 2026-07-29
 
 ### Added

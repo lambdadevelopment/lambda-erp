@@ -46,6 +46,13 @@ export interface DoctypeConfig {
   fields: FieldDef[];
   childTables: ChildTableDef[];
   listColumns: string[];
+  // Field names to expose as dropdown filters above the list. Each must name a
+  // `type: "select"` field in `fields`; its options drive the dropdown and the
+  // selection is sent as a plain column filter (status=Contacted, fit=A). When
+  // set, these replace the built-in Draft/Submitted/Cancelled status dropdown —
+  // the right call for non-submittable doctypes whose `status` is a business
+  // field, not a docstatus. Omit to keep the default status filter.
+  listFilters?: string[];
   canSubmit: boolean;
   canCancel: boolean;
   conversions: ConversionDef[];
