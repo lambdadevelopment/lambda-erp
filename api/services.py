@@ -392,6 +392,17 @@ DATE_FIELDS = {
 }
 
 
+def _resolve_date_field(db, doctype: str, override: str | None) -> str | None:
+    """The column that from_date/to_date range-filter against. An explicit
+    override (the frontend's declared `dateField`, passed as the `date_field`
+    filter) wins when it names a real column; otherwise fall back to the
+    built-in DATE_FIELDS map for core doctypes. Guarded so the override is never
+    interpolated into SQL unless it's an actual column."""
+    if override and override in db._get_table_columns(doctype):
+        return override
+    return DATE_FIELDS.get(doctype)
+
+
 def _exclude_discarded(db, doctype: str, db_filters: dict, include_discarded: bool) -> None:
     """Hide voided drafts (discarded=1) unless explicitly requested. Guarded on
     the column existing so non-submittable doctypes are unaffected."""
@@ -421,6 +432,7 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
     db_filters = {}
     from_date = None
     to_date = None
+    date_field_override = None
     if filters:
         for key, value in filters.items():
             if value is None or value == "":
@@ -429,13 +441,15 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
                 from_date = value
             elif key == "to_date":
                 to_date = value
+            elif key == "date_field":
+                date_field_override = value
             else:
                 db_filters[key] = value
 
     _exclude_discarded(db, doctype, db_filters, include_discarded)
 
     # Date range filtering via the doctype's primary date field
-    date_field = DATE_FIELDS.get(doctype)
+    date_field = _resolve_date_field(db, doctype, date_field_override)
     if date_field:
         if from_date:
             db_filters[date_field] = (">=", from_date)
@@ -481,6 +495,7 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
     db_filters = {}
     from_date = None
     to_date = None
+    date_field_override = None
     if filters:
         for key, value in filters.items():
             if value is None or value == "":
@@ -489,12 +504,14 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
                 from_date = value
             elif key == "to_date":
                 to_date = value
+            elif key == "date_field":
+                date_field_override = value
             else:
                 db_filters[key] = value
 
     _exclude_discarded(db, doctype, db_filters, include_discarded)
 
-    date_field = DATE_FIELDS.get(doctype)
+    date_field = _resolve_date_field(db, doctype, date_field_override)
     where_parts = []
     params = []
     if date_field and from_date:
@@ -524,7 +541,7 @@ def _filter_where(db, doctype: str, filters: dict, include_discarded: bool):
     (equality filters + from_date/to_date on the doctype's date field + discard
     exclusion). Same semantics as list_documents/count_documents so prev/next
     matches exactly what the list shows."""
-    db_filters, from_date, to_date = {}, None, None
+    db_filters, from_date, to_date, date_field_override = {}, None, None, None
     for key, value in (filters or {}).items():
         if value is None or value == "":
             continue
@@ -532,11 +549,13 @@ def _filter_where(db, doctype: str, filters: dict, include_discarded: bool):
             from_date = value
         elif key == "to_date":
             to_date = value
+        elif key == "date_field":
+            date_field_override = value
         else:
             db_filters[key] = value
     _exclude_discarded(db, doctype, db_filters, include_discarded)
 
-    date_field = DATE_FIELDS.get(doctype)
+    date_field = _resolve_date_field(db, doctype, date_field_override)
     where_parts, params = [], []
     if date_field and from_date:
         where_parts.append(f'"{date_field}" >= ?'); params.append(from_date)

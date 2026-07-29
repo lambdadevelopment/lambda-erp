@@ -28,6 +28,7 @@ _manager = Depends(require_role("manager"))
 _LIST_RESERVED = {
     "status", "party", "from_date", "to_date", "docstatus",
     "include_discarded", "limit", "offset", "order_by", "order",
+    "date_field",
 }
 
 
@@ -43,6 +44,7 @@ def list_docs(
     include_discarded: bool = False,
     order_by: str | None = None,
     order: str = "desc",
+    date_field: str | None = None,
     limit: int = Query(default=50, le=500),
     offset: int = Query(default=0, ge=0),
     _user: dict = _viewer,
@@ -70,6 +72,14 @@ def list_docs(
             raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
         filters[key] = value
 
+    # Which column from_date/to_date filter on. The frontend passes its declared
+    # dateField so plugin doctypes get working date filters without a server-side
+    # map. Passed through untouched here; list_documents ignores it unless it's a
+    # real column (so a config with a synthetic dateField degrades to no date
+    # filter rather than 400-ing the whole list), and never interpolates it blind.
+    if date_field:
+        filters["date_field"] = date_field
+
     if order_by is not None and order_by not in columns:
         raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
     if order.lower() not in ("asc", "desc"):
@@ -94,6 +104,7 @@ def adjacent_doc(
     include_discarded: bool = False,
     order_by: str | None = None,
     order: str = "desc",
+    date_field: str | None = None,
     _user: dict = _viewer,
 ):
     """Prev/next record around `name` in the same order+filters the list uses.
@@ -117,6 +128,8 @@ def adjacent_doc(
         if key not in columns:
             raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
         filters[key] = value
+    if date_field:
+        filters["date_field"] = date_field
     if order_by is not None and order_by not in columns:
         raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
     if order.lower() not in ("asc", "desc"):

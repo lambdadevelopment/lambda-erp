@@ -12,7 +12,8 @@ import os
 import sys
 
 WIDGET_TABLE = """CREATE TABLE IF NOT EXISTS "Widget" (
-    name TEXT PRIMARY KEY, label TEXT, kind TEXT, discarded INTEGER DEFAULT 0,
+    name TEXT PRIMARY KEY, label TEXT, kind TEXT, made_on TEXT,
+    discarded INTEGER DEFAULT 0,
     docstatus INTEGER DEFAULT 0, creation TEXT, modified TEXT
 )"""
 
@@ -64,7 +65,8 @@ def check_adjacent():
         for i in range(5):
             n = client.post("/api/documents/widget",
                             json={"label": f"W{i}", "kind": "A" if i % 2 == 0 else "B"}).json()["name"]
-            db.set_value("Widget", n, {"creation": f"2026-07-2{i}T00:00:00"})
+            db.set_value("Widget", n, {"creation": f"2026-07-2{i}T00:00:00",
+                                       "made_on": f"2026-07-2{i}"})
             names.append(n)
 
         def adj(name, **params):
@@ -80,6 +82,28 @@ def check_adjacent():
         assert adj(names[2], kind="A") == {"prev": names[4], "next": names[0]}, adj(names[2], kind="A")
         # unknown filter field -> 400
         assert client.get(f"/api/documents/widget/{names[2]}/adjacent?bogus=1").status_code == 400
+
+        # --- date_field override. Widget isn't in the server's built-in
+        # DATE_FIELDS map, so date filtering only kicks in when the caller passes
+        # its declared dateField (the frontend sends config.dateField).
+        def wlist(**params):
+            qs = "&".join(f"{k}={v}" for k, v in params.items())
+            return client.get("/api/documents/widget" + (f"?{qs}" if qs else "")).json()
+
+        # no date_field -> range silently ignored (unmapped doctype, all 5)
+        assert wlist(from_date="2026-07-22", to_date="2026-07-23")["total"] == 5
+        # with date_field -> filters + counts on made_on (w2,w3,w4 >= the 22nd)
+        r = wlist(date_field="made_on", from_date="2026-07-22")
+        assert r["total"] == 3, r
+        assert {row["name"] for row in r["rows"]} == {names[2], names[3], names[4]}, r
+        # both bounds
+        assert wlist(date_field="made_on", from_date="2026-07-22", to_date="2026-07-23")["total"] == 2
+        # a date_field that isn't a real column degrades to no date filter (not a
+        # 400 — a config with a synthetic dateField must not break the whole list)
+        assert wlist(date_field="not_a_column", from_date="2026-07-22")["total"] == 5
+        # adjacent honors the same window: inside [22..24] (w4,w3,w2), w3 steps w4/w2
+        assert adj(names[3], date_field="made_on", from_date="2026-07-22", to_date="2026-07-24") \
+            == {"prev": names[4], "next": names[2]}, "date_field window not respected by adjacent"
 
         # --- Masters: /masters/{type}/{name}/adjacent, name ASC (list order).
         cust = []

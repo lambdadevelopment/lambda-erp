@@ -71,6 +71,19 @@ export default function DocumentListPage() {
   const baseCurrency = useBaseCurrency();
   const { doctype } = useParams<{ doctype: string }>();
   const config = getDoctypeConfig(doctype ?? "");
+  const location = useLocation();
+
+  // Config-driven filter dropdowns (opt-in via config.listFilters). Their values
+  // live in the URL like every other filter; read them generically since the
+  // field names are dynamic. Each names a select field whose options drive the
+  // dropdown; the selection is sent as a plain column filter.
+  const configFilters = config?.listFilters ?? [];
+  const filterValues = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const out: Record<string, string> = {};
+    for (const f of configFilters) out[f] = params.get(f) ?? "";
+    return out;
+  }, [location.search, configFilters]);
 
   // All user-facing filter state lives in the URL. The param names are the
   // short human-readable form (`from` / `to` / `per_page`); the backend still
@@ -98,14 +111,23 @@ export default function DocumentListPage() {
 
   const filters = useMemo(() => {
     const f: Record<string, string | number | undefined> = {};
-    if (status !== "All") f.status = status;
+    // The default status dropdown is hidden when a doctype opts into its own
+    // filters, so only apply it in that default case.
+    if (configFilters.length === 0 && status !== "All") f.status = status;
     if (fromDate) f.from_date = fromDate;
     if (toDate) f.to_date = toDate;
+    // Tell the backend which column the date range filters on. Without this the
+    // server only knows the built-in core doctypes; plugin doctypes' date
+    // pickers would be silently ignored.
+    if (config?.dateField) f.date_field = config.dateField;
+    for (const key of configFilters) {
+      if (filterValues[key]) f[key] = filterValues[key];
+    }
     if (showDiscarded) f.include_discarded = "true";
     f.limit = pageSize;
     f.offset = page * pageSize;
     return f;
-  }, [status, fromDate, toDate, showDiscarded, pageSize, page]);
+  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues]);
 
   const { data, isLoading } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
@@ -114,7 +136,6 @@ export default function DocumentListPage() {
   // Remember this list's filters + URL so a detail page's prev/next (DocPager)
   // follows it, and "back to list" returns here. Pagination is dropped — it's
   // not a record filter.
-  const location = useLocation();
   useEffect(() => {
     const { limit, offset, ...ctxFilters } = filters;
     setListContext(doctype ?? "", { filters: ctxFilters, search: location.search });
@@ -245,15 +266,33 @@ export default function DocumentListPage() {
       </div>
 
       <div className="flex flex-wrap items-end gap-4">
-        <Select
-          label={t("fields.Status", { defaultValue: "Status" })}
-          options={STATUS_OPTIONS.map((s) => ({
-            value: s,
-            label: s === "All" ? t("common.all") : t(`status.${s}`, { defaultValue: s }),
-          }))}
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        />
+        {configFilters.length === 0 ? (
+          <Select
+            label={t("fields.Status", { defaultValue: "Status" })}
+            options={STATUS_OPTIONS.map((s) => ({
+              value: s,
+              label: s === "All" ? t("common.all") : t(`status.${s}`, { defaultValue: s }),
+            }))}
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          />
+        ) : (
+          configFilters.map((key) => {
+            const field = config.fields.find((f) => f.name === key);
+            const opts = (field?.options ?? []).map((o) =>
+              typeof o === "string" ? { value: o, label: o } : o,
+            );
+            return (
+              <Select
+                key={key}
+                label={t(`fields.${field?.label ?? key}`, { defaultValue: field?.label ?? key })}
+                options={[{ value: "", label: t("common.all") }, ...opts]}
+                value={filterValues[key]}
+                onChange={(e) => patchUrl({ [key]: e.target.value || null, page: null })}
+              />
+            );
+          })
+        )}
         <Input
           label={t("fields.From Date", { defaultValue: "From Date" })}
           type="date"
