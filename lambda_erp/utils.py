@@ -6,7 +6,7 @@ throughout the the reference implementation business logic.
 """
 
 import math
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
 def flt(value, precision=None):
@@ -54,8 +54,15 @@ def nowdate():
     return date.today().isoformat()
 
 def now():
-    """Return current datetime as string."""
-    return datetime.now().isoformat()
+    """Return the current instant as a timezone-aware UTC ISO string
+    (e.g. "2026-07-29T09:57:00.123456+00:00").
+
+    The offset is deliberate: a naive isoformat() (no zone) is ambiguous, and a
+    client parsing it (JS `new Date(...)`) reads it as *browser-local*, so a
+    timestamp stamped on a UTC server renders shifted by the viewer's UTC
+    offset. Stamping the zone makes every stored timestamp (creation, modified,
+    occurred_at, …) an unambiguous instant that round-trips correctly."""
+    return datetime.now(timezone.utc).isoformat()
 
 def add_days(dt, days):
     """Add days to a date."""

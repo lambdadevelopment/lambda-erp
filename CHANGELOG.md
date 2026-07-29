@@ -13,6 +13,21 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-07-29
+
+### Fixed
+- **Timestamps are now timezone-aware UTC (`now()`).** `now()` returned a naive
+  ISO string (no zone), so a client parsing it (`new Date(...)`) read it as
+  *browser-local* and rendered a UTC-server timestamp shifted by the viewer's
+  offset — e.g. a note stamped server-side showed ~2h behind in Zürich, while a
+  record whose timestamp the frontend set via `toISOString()` (with `Z`) showed
+  correctly. `now()` now returns `datetime.now(timezone.utc).isoformat()`
+  (`…+00:00`), making every stored `creation`/`modified`/`occurred_at` an
+  unambiguous instant that round-trips correctly. `nowdate()` is unchanged
+  (date-only fields stay zone-free). Existing rows keep their stored (naive)
+  value — only newly written timestamps carry the zone. `tests/test_utils_now.py`
+  guards the format.
+
 ## [0.6.6] - 2026-07-29
 
 ### Added
