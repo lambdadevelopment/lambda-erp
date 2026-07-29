@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-07-29
+
+### Fixed
+- **Dates no longer force US format.** `formatDate` hardcoded the `"en-US"`
+  locale (and an English short month), so every deployment showed US-style
+  dates regardless of the viewer. It now formats numeric, day/month per the
+  configured locale, defaulting to the **viewer's browser locale**. A
+  deployment can pin it with the new **`setDateLocale(locale)`** (e.g.
+  `setDateLocale("de-CH")` for `DD.MM.YYYY` everywhere). `setDateLocale` and
+  `formatDate` are exported from the package.
+  Note: native `<input type="date">` pickers still render in the browser/OS
+  locale — that's the platform, not this formatter.
+
 ## [0.6.8] - 2026-07-29
 
 ### Added
