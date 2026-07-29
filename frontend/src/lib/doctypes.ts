@@ -53,6 +53,12 @@ export interface DoctypeConfig {
   // the right call for non-submittable doctypes whose `status` is a business
   // field, not a docstatus. Omit to keep the default status filter.
   listFilters?: string[];
+  // Column names the list's free-text search box matches against (case-
+  // insensitive substring), e.g. ["company_name", "uid", "town"]. When set, the
+  // list shows a debounced search box; the backend can also match via a
+  // registered related-table expansion (register_search_expansion). Omit for no
+  // search box.
+  searchFields?: string[];
   canSubmit: boolean;
   canCancel: boolean;
   conversions: ConversionDef[];
