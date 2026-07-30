@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-07-30
+
+### Added
+- **`ConfirmButton` gains `size` and `cancelSide` props.** For a right-aligned
+  trigger (e.g. a toolbar delete button) the armed group keeps its right edge,
+  so Cancel must sit on the **right** to land under a double-click — pass
+  `cancelSide="right"`. `size="md"` renders normal-height armed buttons to match
+  a full-size labelled trigger (default `size="sm"` keeps the compact style for
+  icon triggers). Defaults are unchanged, so existing usages render identically.
+
 ## [0.6.10] - 2026-07-30
 
 ### Added
