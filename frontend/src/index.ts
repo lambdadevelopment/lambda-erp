@@ -47,6 +47,12 @@ export { registerComponent, getComponent } from "./lib/component-registry";
 // Prev/next record navigation (works on any doctype; custom detail pages can
 // drop in <DocPager slug=… name=… onSave=… />). The list-context store lets it
 // follow the list the user came from.
+// Shared confirm/prompt dialogs (replace window.confirm/prompt). DialogProvider
+// is mounted by AppShell; call useConfirm()/usePrompt() anywhere below it.
+// ConfirmButton is the inline arm-to-confirm variant for in-row actions.
+export { DialogProvider, useConfirm, usePrompt } from "./components/ui/dialog";
+export { ConfirmButton } from "./components/ui/confirm-button";
+
 export { DocPager } from "./components/document/doc-pager";
 export { setListContext, getListContext } from "./lib/doc-list-context";
 export type { ListContext } from "./lib/doc-list-context";

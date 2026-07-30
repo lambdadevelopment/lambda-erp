@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { usePrompt } from "@/components/ui/dialog";
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
@@ -50,6 +51,7 @@ export default function UsersPage() {
   });
 
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const prompt = usePrompt();
   const inviteLink = (token: string) => `${window.location.origin}/login?invite=${token}`;
   const copyInviteLink = async (token: string) => {
     try {
@@ -57,9 +59,9 @@ export default function UsersPage() {
       setCopiedToken(token);
       setTimeout(() => setCopiedToken((t) => (t === token ? null : t)), 2000);
     } catch {
-      // Clipboard API unavailable (e.g. non-HTTPS): fall back to a prompt so
-      // the admin can still grab the link.
-      window.prompt("Invite link", inviteLink(token));
+      // Clipboard API unavailable (e.g. non-HTTPS): show the link in a dialog
+      // (a selectable field) so the admin can still copy it manually.
+      void prompt({ title: "Invite link", body: "Copy this link:", defaultValue: inviteLink(token) });
     }
   };
 

@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.10] - 2026-07-30
+
+### Added
+- **Shared confirm/prompt dialogs — no more `window.confirm`/`prompt`.**
+  `<DialogProvider>` (mounted by `AppShell`) + the `useConfirm()` / `usePrompt()`
+  hooks give styled, on-brand modals in place of the browser's native dialogs;
+  all core submit/cancel/delete/discard prompts now use them. Also
+  **`<ConfirmButton>`** — an inline arm-to-confirm for low-stakes in-row actions:
+  first click splits the control into *Cancel | Confirm* with Cancel taking the
+  trigger's spot, so an accidental double-click cancels (nothing happens); it
+  auto-collapses. All exported from the package.
+- **Pagination on top of the list too, with a typeable page number.** The
+  `DocumentList` pager now renders above *and* below the table (no scrolling to
+  the bottom to page long lists), and the current page is an editable field —
+  type a number + Enter to jump (clamped to 1..last).
+
 ## [0.6.9] - 2026-07-29
 
 ### Fixed
