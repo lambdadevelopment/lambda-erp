@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/dialog";
 
 interface ConversionAction {
   label: string;
@@ -22,14 +23,25 @@ export function DocumentActions({
   conversions = [],
   saving,
 }: DocumentActionsProps) {
-  const handleSubmit = () => {
-    if (window.confirm("Are you sure you want to submit this document? Once submitted it cannot be edited.")) {
+  const confirm = useConfirm();
+
+  const handleSubmit = async () => {
+    if (await confirm({
+      title: "Submit document?",
+      body: "Once submitted it cannot be edited.",
+      confirmLabel: "Submit",
+    })) {
       onSubmit();
     }
   };
 
-  const handleCancel = () => {
-    if (window.confirm("Are you sure you want to cancel this document? This action cannot be undone.")) {
+  const handleCancel = async () => {
+    if (await confirm({
+      title: "Cancel document?",
+      body: "This action cannot be undone.",
+      confirmLabel: "Cancel document",
+      danger: true,
+    })) {
       onCancel();
     }
   };

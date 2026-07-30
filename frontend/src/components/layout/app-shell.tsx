@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ArrowLeft } from "lucide-react";
 import { ChatProvider, useChat } from "@/components/chat/chat-provider";
+import { DialogProvider } from "@/components/ui/dialog";
 import { Sidebar, FLASH_STYLES } from "@/components/layout/sidebar";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
@@ -62,9 +63,11 @@ function deriveBackPath(pathname: string): string | null {
 
 export function AppShell() {
   return (
-    <ChatProvider>
-      <AppShellContent />
-    </ChatProvider>
+    <DialogProvider>
+      <ChatProvider>
+        <AppShellContent />
+      </ChatProvider>
+    </DialogProvider>
   );
 }
 

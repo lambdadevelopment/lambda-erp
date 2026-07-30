@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { LinkField } from "@/components/document/link-field";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
@@ -35,6 +36,7 @@ export default function ProposalForm() {
   const qc = useQueryClient();
   const { t } = useTranslation();
   const tr = (k: string, dflt: string) => t(k, { defaultValue: dflt });
+  const confirm = useConfirm();
 
   const [form, setForm] = useState<Record<string, string>>({
     title: "Offerte",
@@ -180,8 +182,12 @@ export default function ProposalForm() {
             <Button
               variant="danger"
               disabled={discardMut.isPending}
-              onClick={() => {
-                if (window.confirm(tr("proposal.discardConfirm", "Discard this proposal? It will be hidden from the list."))) {
+              onClick={async () => {
+                if (await confirm({
+                  title: tr("proposal.discardConfirm", "Discard this proposal? It will be hidden from the list."),
+                  confirmLabel: tr("common.discard", "Discard"),
+                  danger: true,
+                })) {
                   discardMut.mutate();
                 }
               }}

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/dialog";
 import { DocPager } from "@/components/document/doc-pager";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -193,8 +194,13 @@ export default function MasterFormPage() {
     }
   };
 
-  const handleDelete = () => {
-    if (window.confirm(t("masterForm.deleteConfirm", { label: labelTr }))) {
+  const confirm = useConfirm();
+  const handleDelete = async () => {
+    if (await confirm({
+      title: t("masterForm.deleteConfirm", { label: labelTr }),
+      confirmLabel: t("common.delete", { defaultValue: "Delete" }),
+      danger: true,
+    })) {
       deleteMut.mutate();
     }
   };
