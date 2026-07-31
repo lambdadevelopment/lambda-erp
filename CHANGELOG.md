@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.12] - 2026-07-31
+
+### Added
+- **MCP endpoint (`POST /api/mcp`)** — the ERP's fine-grained tool surface for
+  LLM agents (Claude, Codex, …) over MCP's Streamable HTTP (JSON-RPC 2.0). It
+  reuses the chat's `build_tools()` schemas and `TOOL_HANDLERS` (so every write
+  runs `validate()`), and authenticates with the **same Bearer API keys as REST**
+  via `get_current_user` — the key acts as its user at the key's role (viewer =
+  read-only, manager = writes, admin = deletes), gated by the same
+  `rest_api_enabled` flag. No separate credential. Chat-session-only tools are
+  excluded. Because the tool list is built from the live registries, a plugin's
+  doctypes/masters (e.g. the internal CRM) are exposed automatically — the MCP
+  surface is modular by construction. The API-keys settings page shows the MCP
+  URL and ready-to-paste Claude/Codex config right after a key is created.
+  `tests/test_mcp.py` covers it (SQLite + Postgres in CI).
+
 ## [0.6.11] - 2026-07-30
 
 ### Added

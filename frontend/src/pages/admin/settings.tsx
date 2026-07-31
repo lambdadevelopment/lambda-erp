@@ -499,6 +499,16 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
     (r) => ROLE_RANK[r] <= (ROLE_RANK[ownRole] ?? 1),
   );
 
+  // The same key doubles as MCP auth (POST <origin>/api/mcp). Show ready-to-paste
+  // config for the common agents right after the token, while it's still visible.
+  const mcpUrl = `${window.location.origin}/api/mcp`;
+  const claudeSnippet = newToken
+    ? `claude mcp add --transport http lambda-erp ${mcpUrl} \\\n  --header "Authorization: Bearer ${newToken}"`
+    : "";
+  const codexSnippet = newToken
+    ? `# ~/.codex/config.toml\n[mcp_servers.lambda-erp]\nurl = "${mcpUrl}"\nhttp_headers = { Authorization = "Bearer ${newToken}" }`
+    : "";
+
   const { data: keys } = useQuery({
     queryKey: ["api-keys"],
     queryFn: () => api.getApiKeys(),
@@ -588,6 +598,27 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
           >
             {t("settings.chatApiDismiss")}
           </button>
+
+          {/* The same key is also an MCP endpoint — reuses this key's role. */}
+          <div className="mt-3 border-t border-amber-200 pt-3">
+            <p className="text-xs text-amber-800">
+              {t("settings.mcpNote", {
+                defaultValue:
+                  "This key is also an MCP endpoint — connect an AI agent (Claude, Codex) to it. It reuses this key's role (a viewer key = read-only).",
+              })}
+            </p>
+            <code className="mt-1 block break-all rounded bg-surface px-2 py-1 font-mono text-xs text-fg">
+              {mcpUrl}
+            </code>
+            <details className="mt-2 text-xs text-amber-900">
+              <summary className="cursor-pointer font-medium">Claude</summary>
+              <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 font-mono text-[11px] leading-relaxed text-fg">{claudeSnippet}</pre>
+            </details>
+            <details className="mt-1 text-xs text-amber-900">
+              <summary className="cursor-pointer font-medium">Codex</summary>
+              <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 font-mono text-[11px] leading-relaxed text-fg">{codexSnippet}</pre>
+            </details>
+          </div>
         </div>
       )}
 
