@@ -142,6 +142,14 @@ jobs:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_adjacent
 
+      - name: MCP endpoint — SQLite (temp file)
+        run: python -m tests.test_mcp
+
+      - name: MCP endpoint — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_mcp
+
       - name: List search — SQLite (temp file)
         run: python -m tests.test_search
 
