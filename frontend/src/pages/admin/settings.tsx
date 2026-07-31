@@ -503,7 +503,7 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
   // config for the common agents right after the token, while it's still visible.
   const mcpUrl = `${window.location.origin}/api/mcp`;
   const claudeSnippet = newToken
-    ? `claude mcp add --transport http lambda-erp ${mcpUrl} \\\n  --header "Authorization: Bearer ${newToken}"`
+    ? `claude mcp add --transport http --scope user lambda-erp ${mcpUrl} \\\n  --header "Authorization: Bearer ${newToken}"`
     : "";
   const codexSnippet = newToken
     ? `# ~/.codex/config.toml\n[mcp_servers.lambda-erp]\nurl = "${mcpUrl}"\nhttp_headers = { Authorization = "Bearer ${newToken}" }`
