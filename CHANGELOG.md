@@ -13,6 +13,15 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.13] - 2026-07-31
+
+### Changed
+- **MCP settings snippet: default the Claude `mcp add` to `--scope user`.** The
+  API-keys page suggested a bare `claude mcp add`, which registers the server in
+  the **local** (this-project-only) scope. The recommended command is now
+  `--scope user` so the ERP MCP server is available across all the user's
+  projects, not just where they ran it.
+
 ## [0.6.12] - 2026-07-31
 
 ### Added
