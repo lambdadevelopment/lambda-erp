@@ -402,6 +402,15 @@ def build_multimodal_content(attachment: dict) -> dict:
             },
         }
     if mime in OFFICE_MIME_TYPES:
+        # Office bytes are read via the Files API (file_id) — but ONLY the
+        # Responses API accepts non-PDF file inputs. On the default Chat
+        # Completions backend, degrade gracefully instead of triggering a hard
+        # 400 (flip ERP_CHAT_API=responses to actually read Office files).
+        if os.environ.get("ERP_CHAT_API", "chat").strip().lower() != "responses":
+            return {"type": "text",
+                    "text": (f"[Attachment “{filename}” is an Office document; the current chat "
+                             "backend can only read PDFs and images. Convert it to PDF, or ask an "
+                             "admin to enable the Responses backend.]")}
         file_id = ensure_openai_file(attachment)
         if file_id:
             return {"type": "file", "file": {"file_id": file_id}}

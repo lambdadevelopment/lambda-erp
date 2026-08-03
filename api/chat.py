@@ -2698,6 +2698,204 @@ async def generate_title(
 ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 
 
+# ---------------------------------------------------------------------------
+# LLM API selector: Chat Completions (default) vs Responses API
+#
+# The Responses API (/v1/responses) is what accepts non-PDF file inputs
+# (Office documents via input_file), and it does reasoning natively (no
+# reasoning_effort="none" hack). Migrating the whole loop is risky, so it's
+# behind a flag and OFF by default. To keep the blast radius tiny, ALL
+# conversation state stays Chat-Completions-shaped; we translate to/from the
+# Responses shape only at the single orchestrator call boundary
+# (_orchestrator_turn), and shim the Responses output back into the
+# Chat-shaped objects the loop and providers.py already expect.
+# ---------------------------------------------------------------------------
+
+def _use_responses_api() -> bool:
+    return os.environ.get("ERP_CHAT_API", "chat").strip().lower() == "responses"
+
+
+# Reasoning effort for the Responses path (native; the Chat path uses "none").
+_RESPONSES_REASONING_EFFORT = "low"
+
+
+class _ShimFn:
+    def __init__(self, name, arguments):
+        self.name = name
+        self.arguments = arguments
+
+
+class _ShimToolCall:
+    def __init__(self, call_id, name, arguments):
+        self.id = call_id
+        self.type = "function"
+        self.function = _ShimFn(name, arguments)
+
+
+class _ShimMessage:
+    """Quacks like a Chat Completions `choice.message`."""
+    def __init__(self, content, tool_calls):
+        self.content = content
+        self.tool_calls = tool_calls or None
+
+
+class _ShimUsageDetails:
+    def __init__(self, cached_tokens):
+        self.cached_tokens = cached_tokens
+
+
+class _ShimUsage:
+    """Quacks like a Chat Completions `response.usage` (so cost_of_openai_call
+    and demo_limiter.settle read it unchanged)."""
+    def __init__(self, prompt_tokens, completion_tokens, cached_tokens):
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+        self.prompt_tokens_details = _ShimUsageDetails(cached_tokens)
+
+
+def _responses_tools_from_chat(tools: list) -> list:
+    """Chat tool schema {"type":"function","function":{name,...}} -> the flatter
+    Responses shape {"type":"function","name",...}."""
+    out = []
+    for t in tools or []:
+        fn = t.get("function") if isinstance(t, dict) else None
+        if t.get("type") == "function" and fn:
+            out.append({
+                "type": "function",
+                "name": fn["name"],
+                "description": fn.get("description", ""),
+                "parameters": fn.get("parameters") or {"type": "object", "properties": {}},
+            })
+        else:
+            out.append(t)
+    return out
+
+
+def _responses_msg_content(content):
+    """A Chat message `content` -> Responses message content: a plain string
+    passes through unchanged; a multimodal parts list becomes input_* parts
+    (input_text/input_image/input_file). Only user messages carry lists."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    parts = []
+    for p in content:
+        ptype = p.get("type")
+        if ptype == "text":
+            parts.append({"type": "input_text", "text": p.get("text", "")})
+        elif ptype == "image_url":
+            url = (p.get("image_url") or {}).get("url")
+            parts.append({"type": "input_image", "image_url": url})
+        elif ptype == "file":
+            f = p.get("file") or {}
+            item = {"type": "input_file"}
+            if f.get("file_id"):
+                item["file_id"] = f["file_id"]
+            else:
+                if f.get("filename"):
+                    item["filename"] = f["filename"]
+                if f.get("file_data"):
+                    item["file_data"] = f["file_data"]
+            parts.append(item)
+        else:
+            parts.append({"type": "input_text", "text": json.dumps(p, default=str)})
+    return parts
+
+
+def _responses_request_from_chat(messages: list) -> tuple:
+    """Translate Chat `messages` into (instructions, input_items) for Responses.
+    The first system message becomes `instructions`; assistant tool_calls become
+    `function_call` items and tool results become `function_call_output` items."""
+    instructions = None
+    input_items: list = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content")
+        if role == "system":
+            flat = content if isinstance(content, str) else " ".join(
+                p.get("text", "") for p in (content or []) if isinstance(p, dict)
+            )
+            if instructions is None:
+                instructions = flat
+            else:
+                input_items.append({"role": "developer", "content": _responses_msg_content(content)})
+        elif role == "assistant":
+            if content:
+                input_items.append({"role": "assistant", "content": _responses_msg_content(content)})
+            for tc in m.get("tool_calls") or []:
+                input_items.append({
+                    "type": "function_call",
+                    "call_id": tc["id"],
+                    "name": tc["function"]["name"],
+                    "arguments": tc["function"]["arguments"],
+                })
+        elif role == "tool":
+            input_items.append({
+                "type": "function_call_output",
+                "call_id": m.get("tool_call_id"),
+                "output": m.get("content") or "",
+            })
+        else:  # user
+            input_items.append({"role": "user", "content": _responses_msg_content(content)})
+    return instructions, input_items
+
+
+def _shim_message_from_responses(response) -> _ShimMessage:
+    """Map a Responses result's output items into a Chat-shaped message."""
+    text_parts, tool_calls = [], []
+    for item in (getattr(response, "output", None) or []):
+        itype = getattr(item, "type", None)
+        if itype == "function_call":
+            tool_calls.append(_ShimToolCall(item.call_id, item.name, item.arguments))
+        elif itype == "message":
+            for c in (getattr(item, "content", None) or []):
+                if getattr(c, "type", None) in ("output_text", "text"):
+                    text_parts.append(getattr(c, "text", "") or "")
+        # reasoning items are not echoed back (state is rebuilt from history each turn)
+    text = "".join(text_parts) or (getattr(response, "output_text", "") or "")
+    return _ShimMessage(text, tool_calls)
+
+
+def _shim_usage_from_responses(usage):
+    if usage is None:
+        return None
+    inp = int(getattr(usage, "input_tokens", 0) or 0)
+    out = int(getattr(usage, "output_tokens", 0) or 0)
+    details = getattr(usage, "input_tokens_details", None)
+    cached = int(getattr(details, "cached_tokens", 0) or 0) if details else 0
+    return _ShimUsage(inp, out, cached)
+
+
+def _orchestrator_turn(client, messages, tools, max_tokens):
+    """One orchestrator LLM turn. Returns (message, usage) shaped like Chat
+    Completions, using either the Chat or Responses API per ERP_CHAT_API.
+    Blocking — call via asyncio.to_thread."""
+    if _use_responses_api():
+        instructions, input_items = _responses_request_from_chat(messages)
+        resp = client.responses.create(
+            model=ORCHESTRATOR_MODEL,
+            instructions=instructions,
+            input=input_items,
+            tools=_responses_tools_from_chat(tools),
+            tool_choice="auto",
+            max_output_tokens=max_tokens,
+            reasoning={"effort": _RESPONSES_REASONING_EFFORT},
+        )
+        return _shim_message_from_responses(resp), _shim_usage_from_responses(getattr(resp, "usage", None))
+    resp = client.chat.completions.create(
+        model=ORCHESTRATOR_MODEL,
+        messages=messages,
+        tools=tools,
+        tool_choice="auto",
+        max_completion_tokens=max_tokens,
+        # gpt-5.6-terra rejects function tools on /v1/chat/completions unless
+        # reasoning_effort is "none" (400 otherwise).
+        reasoning_effort="none",
+    )
+    return resp.choices[0].message, getattr(resp, "usage", None)
+
+
 async def run_thinking_loop(
     messages: list[dict],
     on_event,
@@ -2825,24 +3023,16 @@ async def run_thinking_loop(
             print(f"[chat_llm] provider=openai model={model_name} session_id={session_id or '-'} iter={iteration + 1}", flush=True)
             await on_event({"type": "llm_provider", "provider": "openai", "model": model_name})
             try:
-                response = await asyncio.to_thread(
-                    openai_client.chat.completions.create,
-                    model=model_name,
-                    messages=messages,
-                    tools=build_tools(),
-                    tool_choice="auto",
-                    max_completion_tokens=max_completion,
-                    # gpt-5.6-terra rejects function tools on /v1/chat/completions
-                    # unless reasoning_effort is "none" (400 otherwise). Tool
-                    # calls run without hidden reasoning until this loop migrates
-                    # to the Responses API.
-                    reasoning_effort="none",
+                # One orchestrator turn via Chat Completions (default) or the
+                # Responses API (ERP_CHAT_API=responses). Returns Chat-shaped
+                # (message, usage) either way, so everything below is unchanged.
+                message, usage = await asyncio.to_thread(
+                    _orchestrator_turn, openai_client, messages, build_tools(), max_completion,
                 )
             except Exception as e:
                 await on_event({"type": "error", "content": f"Error calling LLM: {e}"})
                 return
 
-            usage = getattr(response, "usage", None)
             demo_limiter.settle(
                 reservation_id,
                 actual_cost_usd=cost_of_openai_call(model_name, usage),
@@ -2858,9 +3048,6 @@ async def run_thinking_loop(
         finally:
             if not settled:
                 demo_limiter.release(reservation_id)
-
-        choice = response.choices[0]
-        message = choice.message
 
         if not message.tool_calls:
             content = message.content or ""
