@@ -1,6 +1,6 @@
 [project]
 name = "lambda-erp"
-version = "0.6.15"
+version = "0.6.16"
 description = "Core ERP logic - accounting, sales, purchasing, inventory"
 readme = "README.md"
 license = "Apache-2.0"
@@ -22,6 +22,7 @@ dependencies = [
     "weasyprint>=62.0",
     "pypdf>=4.0",
     "holidays>=0.40",
+    "openpyxl>=3.1",
 ]
 
 # Postgres backend is opt-in: `pip install lambda-erp[postgres]`. SQLite (the

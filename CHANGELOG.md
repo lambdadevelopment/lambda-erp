@@ -13,6 +13,25 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.16] - 2026-08-03
+
+### Changed
+- **Office chat attachments now reach the model via the OpenAI Files API** (upload
+  → `file_id`) instead of an inline base64 `file_data`. OpenAI only accepts PDF
+  inline, but reads Excel/Word/PowerPoint/OpenDocument fine by `file_id` — this
+  fixes the `400 unsupported MIME type` on `.xlsx`/`.docx`. The upload is cached
+  per attachment and **reused across turns**, and carries a **30-day
+  `expires_after`** so OpenAI reclaims the file automatically (re-uploaded on
+  demand if referenced after expiry — the bytes stay in our storage). No separate
+  file fee: the per-use cost is the file's tokens, already billed.
+- **Upload returns a non-blocking `warning`** when a spreadsheet has a sheet over
+  ~1,000 rows (the model's per-sheet augmentation limit), surfaced in the chat UI
+  so the user knows results may be partial.
+
+### Added
+- `Chat Attachment.openai_file_id` / `openai_file_expires_at` columns (migration 20).
+- `openpyxl` dependency (read-only spreadsheet row-count for the warning).
+
 ## [0.6.15] - 2026-08-03
 
 ### Fixed
