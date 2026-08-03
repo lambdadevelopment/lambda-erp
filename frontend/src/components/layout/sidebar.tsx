@@ -117,19 +117,24 @@ function ChatGroup() {
         )}
       </button>
       {open && (
-        <ul className="mb-1">
-          {/* New Chat button */}
-          <li>
-            <button
-              onClick={handleNewChat}
-              className="flex w-full items-center gap-2 px-4 py-1.5 pl-10 text-sm text-brand transition-colors hover:bg-brand/5"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t("nav.newChat")}
-            </button>
-          </li>
-          {/* Existing sessions */}
-          {sessions.map((session) => {
+        <div className="mb-1">
+          {/* New Chat button — pinned above the scrollable session list */}
+          <ul>
+            <li>
+              <button
+                onClick={handleNewChat}
+                className="flex w-full items-center gap-2 px-4 py-1.5 pl-10 text-sm text-brand transition-colors hover:bg-brand/5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("nav.newChat")}
+              </button>
+            </li>
+          </ul>
+          {/* Existing sessions — once the list grows past ~15 chats it scrolls
+              inside this capped area instead of pushing the nav groups below it
+              further down the sidebar. */}
+          <ul className="max-h-[30rem] overflow-y-auto overscroll-contain">
+            {sessions.map((session) => {
             const active = location.pathname === `/chat/${session.id}`;
             return (
               <li key={session.id} className="group relative">
@@ -155,7 +160,8 @@ function ChatGroup() {
               </li>
             );
           })}
-        </ul>
+          </ul>
+        </div>
       )}
     </div>
   );
