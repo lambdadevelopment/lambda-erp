@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.15] - 2026-08-03
+
+### Fixed
+- **Chat attachment uploads 500'd in a containerized deploy** (`[Errno 13]
+  Permission denied .../site-packages/uploads`). `UPLOAD_ROOT` was computed
+  relative to the module file, which resolves under read-only `site-packages`
+  when the package is pip-installed — so *every* upload (PDF included) failed.
+  It now defaults to the OS temp dir and honors `LAMBDA_ERP_UPLOAD_DIR` for a
+  persistent/mounted location.
+
 ## [0.6.14] - 2026-08-03
 
 ### Added
