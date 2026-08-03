@@ -2,6 +2,7 @@
 
 import base64
 import os
+import tempfile
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -66,7 +67,17 @@ _EXT_TO_MIME = {
 }
 _MIME_TO_EXT = {m: e for e, m in _EXT_TO_MIME.items()}
 
-UPLOAD_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+# Where uploaded files are stored. Must be a WRITABLE path — a package-relative
+# location (e.g. next to this module) resolves under site-packages when the
+# package is pip-installed in a container, which is read-only for the non-root
+# app user, so every upload 500s with "[Errno 13] Permission denied". Default to
+# the OS temp dir (always writable; chat attachments are session-scoped and
+# get_attachments_by_ids tolerates a missing file). Deployments that need the
+# files to survive a restart set LAMBDA_ERP_UPLOAD_DIR to a mounted volume.
+UPLOAD_ROOT = (
+    os.environ.get("LAMBDA_ERP_UPLOAD_DIR")
+    or os.path.join(tempfile.gettempdir(), "lambda-erp-uploads")
+)
 
 
 def _ensure_upload_dir(user_id: str) -> str:
