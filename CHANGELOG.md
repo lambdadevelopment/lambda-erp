@@ -13,6 +13,13 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.19] - 2026-08-03
+
+### Changed
+- **Chat sidebar: the chat list scrolls within a capped height** (~15 chats)
+  instead of growing unbounded and pushing the nav groups below it down the
+  sidebar. "New chat" stays pinned above the scrollable list.
+
 ## [0.6.18] - 2026-08-03
 
 ### Changed
