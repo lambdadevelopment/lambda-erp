@@ -13,6 +13,34 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.14] - 2026-08-03
+
+### Added
+- **`batch_update_documents` tool** (MCP + chat) — update many documents of the
+  SAME doctype in one call instead of one `update_document` per record. Pass
+  `updates: [{name, data}]` (max 200). Best-effort and per-item: each record is
+  saved independently (its own hooks fire), so one failure doesn't undo the
+  rest; returns `{updated, failed, results:[{name, ok, error?}]}`. Manager+ only.
+  Because it reuses `update_document`, plugin save-hooks still run — e.g. a lead
+  update carrying a transient `_note` logs its timeline Activity here too.
+- **`list_documents` filter operators** — a filter value may now be an operator
+  array for comparisons and NULL checks: `{"grand_total": [">", 100]}`,
+  `{"fit": ["!=", "A"]}`, `{"fit": ["is null"]}`, `{"main_email": ["is not null"]}`.
+  Operators are whitelisted (`=, !=, >, <, >=, <=, like, not like, is null,
+  is not null`) and never interpolated from raw input.
+- **`list_documents` `offset` and `fields`** — `offset` pages past `limit`;
+  `fields` returns only the named columns (plus `name`) to keep results lean.
+- **Office & document chat attachments** — upload Excel / Word / OpenDocument /
+  CSV files (`xlsx, xls, ods, docx, doc, odt, pptx, ppt, odp, csv, txt`) in the
+  chat. The model reads them directly via the `file` content part (raw bytes, no
+  server-side conversion), so you can e.g. hand it a spreadsheet of companies and
+  have it cross-check them against the CRM. Existing 10 MB cap applies.
+
+### Security
+- **List filters and `order_by` are validated against the doctype's real columns**
+  before reaching SQL (in the chat/MCP path), closing a key-interpolation seam and
+  returning a clean error instead of a 500.
+
 ## [0.6.13] - 2026-07-31
 
 ### Changed
