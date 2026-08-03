@@ -44,7 +44,8 @@ _EXCLUDE = {
 # Mirror the REST permission model: reads are viewer+, writes are manager+,
 # delete_master is admin-only (the handler also re-checks).
 _WRITE = {
-    "create_document", "update_document", "submit_document", "cancel_document",
+    "create_document", "update_document", "batch_update_documents",
+    "submit_document", "cancel_document",
     "discard_document", "convert_document", "create_master", "update_master",
 }
 _ADMIN = {"delete_master"}

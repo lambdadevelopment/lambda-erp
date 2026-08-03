@@ -458,15 +458,17 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_documents",
-            "description": "List or search documents of a given type. Returns an array of document summaries (header fields only — child tables like 'items' and 'taxes' are NOT included to keep results compact). Use get_document to drill into a single document's line items. Results are ordered by creation DESC (newest first).",
+            "description": "List or search documents of a given type. Returns an array of document summaries (header fields only — child tables like 'items' and 'taxes' are NOT included to keep results compact). Use get_document to drill into a single document's line items. Results are ordered by creation DESC (newest first). Page past `limit` with `offset`; trim the payload to only the columns you need with `fields`.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "doctype": {"type": "string", "enum": DOCUMENT_SLUGS, "description": "Document type slug"},
-                    "filters": {"type": "object", "description": "Optional equality filters on any column, e.g. {\"status\": \"Draft\", \"customer\": \"CUST-001\", \"lead_id\": \"LEAD-3316\"}", "default": {}},
+                    "filters": {"type": "object", "description": "Optional filters on any column. Equality: {\"status\": \"Draft\", \"customer\": \"CUST-001\"}. Comparison (value = a 2-item array [op, value]): {\"grand_total\": [\">\", 100]}, {\"fit\": [\"!=\", \"A\"]}. NULL checks (1-item array): {\"fit\": [\"is null\"]}, {\"main_email\": [\"is not null\"]}. Allowed ops: =, !=, >, <, >=, <=, like, not like, is null, is not null.", "default": {}},
                     "order_by": {"type": "string", "description": "Optional column to sort by (e.g. \"occurred_at\" for a timeline). Defaults to creation."},
                     "order": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction (default desc)", "default": "desc"},
                     "limit": {"type": "integer", "description": "Max results (default 20, max 500)", "default": 20},
+                    "offset": {"type": "integer", "description": "Skip this many rows before returning — for paging past `limit`. Default 0.", "default": 0},
+                    "fields": {"type": "array", "items": {"type": "string"}, "description": "Optional: return ONLY these columns (plus name) instead of every field — keeps results lean when you need just a few. Unknown fields are ignored."},
                 },
                 "required": ["doctype"],
             },
@@ -518,6 +520,41 @@ TOOLS = [
                     "data": {"type": "object", "description": "Fields to change. MUST be provided. For child tables like items, pass the complete array."},
                 },
                 "required": ["doctype", "name", "data"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "batch_update_documents",
+            "description": (
+                "Update MANY existing documents of the SAME doctype in ONE call — far cheaper than a "
+                "separate update_document per record when applying changes across a set (e.g. tagging or "
+                "qualifying a batch of leads). Pass `doctype` and `updates`: an array of {\"name\", \"data\"} "
+                "objects where `data` holds the fields to change on that record (identical shape to "
+                "update_document's `data`, including child-table arrays). Best-effort and per-item: each "
+                "record is updated independently, so one failure doesn't undo the others. Max 200 per call. "
+                "Only drafts (docstatus=0) can be updated. Returns {\"updated\", \"failed\", "
+                "\"results\": [{\"name\", \"ok\", \"error\"?}]}."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "doctype": {"type": "string", "enum": DOCUMENT_SLUGS},
+                    "updates": {
+                        "type": "array",
+                        "description": "Up to 200 {name, data} objects — one per record to update.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string", "description": "Document name/ID to update"},
+                                "data": {"type": "object", "description": "Fields to change on this record (same as update_document's data)."},
+                            },
+                            "required": ["name", "data"],
+                        },
+                    },
+                },
+                "required": ["doctype", "updates"],
             },
         },
     },
@@ -746,7 +783,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_chat_attachments",
-            "description": "List all files (PDFs, images) the user has uploaded in this chat session. Returns metadata including id, filename, mime type, size, and upload date. Use this when the user references a previously uploaded file or you need to find an attachment to retrieve.",
+            "description": "List all files the user has uploaded in this chat session — PDFs, images, spreadsheets (Excel/CSV/ODS), and documents (Word/OpenDocument). Returns metadata including id, filename, mime type, size, and upload date. Use this when the user references a previously uploaded file or you need to find an attachment to retrieve.",
             "parameters": {"type": "object", "properties": {}},
         },
     },
@@ -754,7 +791,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "retrieve_chat_attachment",
-            "description": "Retrieve a previously uploaded file (PDF or image) by its id and inject it back into the conversation so you can read/analyze it. Use this when the user asks a follow-up about a file they uploaded earlier in the chat but it's no longer in the immediate context. Call list_chat_attachments first if you don't know the id.",
+            "description": "Retrieve a previously uploaded file (PDF, image, spreadsheet, or document) by its id and inject it back into the conversation so you can read/analyze it — e.g. to cross-check a spreadsheet of companies against the CRM. Use this when the user asks a follow-up about a file they uploaded earlier in the chat but it's no longer in the immediate context. Call list_chat_attachments first if you don't know the id.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1251,22 +1288,59 @@ def build_tools():
 # ---------------------------------------------------------------------------
 
 
+# Filter/order keys that aren't real columns but are meaningful to list_documents.
+_LIST_META_FILTER_KEYS = {"from_date", "to_date", "date_field", "search", "search_fields"}
+
+
+def _validate_filter_columns(doctype_slug, filters) -> str | None:
+    """Reject a filter naming a column the doctype doesn't have. The key is
+    interpolated into SQL, so this both closes that injection seam and hands the
+    model a clean error instead of a 500. Returns an error string, or None."""
+    if not filters:
+        return None
+    cols = services.document_columns(doctype_slug)
+    if not cols:
+        return None  # unknown doctype -> handled downstream
+    bad = [k for k in filters if k not in cols and k not in _LIST_META_FILTER_KEYS]
+    if bad:
+        return (f"Unknown filter column(s) for {doctype_slug}: {', '.join(bad)}. "
+                f"Valid columns include: {', '.join(sorted(cols)[:40])}.")
+    return None
+
+
 def _handle_list_documents(args):
     # List views don't need child tables — strip them so the LLM can see more rows
     # within the tool-result budget. Use get_document to drill into one doc.
-    cls_entry = services.DOCUMENT_CLASSES.get(services.SLUG_TO_DOCTYPE.get(args["doctype"], ""))
+    doctype = args["doctype"]
+    filters = args.get("filters") or {}
+    err = _validate_filter_columns(doctype, filters)
+    if err:
+        return {"error": err}
+    order_by = args.get("order_by")
+    cols = services.document_columns(doctype)
+    if order_by and cols and order_by not in cols:
+        return {"error": f"Unknown order_by column for {doctype}: {order_by}"}
+
+    cls_entry = services.DOCUMENT_CLASSES.get(services.SLUG_TO_DOCTYPE.get(doctype, ""))
     child_keys = list(cls_entry.CHILD_TABLES.keys()) if cls_entry and cls_entry.CHILD_TABLES else []
 
-    rows = services.list_documents(
-        args["doctype"],
-        filters=args.get("filters"),
-        limit=args.get("limit", 20),
-        order_by=args.get("order_by"),
-        order=args.get("order", "desc"),
-    )
-    for row in rows:
-        for key in child_keys:
-            row.pop(key, None)
+    fields = args.get("fields")
+    try:
+        rows = services.list_documents(
+            doctype,
+            filters=filters,
+            limit=args.get("limit", 20),
+            offset=args.get("offset", 0) or 0,
+            order_by=order_by,
+            order=args.get("order", "desc"),
+            fields=fields,
+        )
+    except ValueError as e:  # bad filter operator / malformed operator list
+        return {"error": str(e)}
+    if not fields:  # projection already excludes child tables
+        for row in rows:
+            for key in child_keys:
+                row.pop(key, None)
     return rows
 
 
@@ -1283,6 +1357,13 @@ def _handle_create_document(args):
 
 def _handle_update_document(args):
     return services.update_document(args["doctype"], args["name"], args.get("data", {}))
+
+
+def _handle_batch_update_documents(args):
+    try:
+        return services.batch_update_documents(args["doctype"], args.get("updates"))
+    except ValueError as e:  # bad doctype / empty or oversized batch
+        return {"error": str(e)}
 
 
 def _handle_submit_document(args):
@@ -1813,6 +1894,7 @@ TOOL_HANDLERS = {
     "get_document": _handle_get_document,
     "create_document": _handle_create_document,
     "update_document": _handle_update_document,
+    "batch_update_documents": _handle_batch_update_documents,
     "submit_document": _handle_submit_document,
     "cancel_document": _handle_cancel_document,
     "discard_document": _handle_discard_document,

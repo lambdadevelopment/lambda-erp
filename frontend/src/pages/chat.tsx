@@ -8,6 +8,27 @@ const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 const ALLOWED_MIMES = new Set([
   "image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf",
+  // Spreadsheets
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // xlsx
+  "application/vnd.ms-excel", // xls
+  "application/vnd.oasis.opendocument.spreadsheet", // ods
+  // Documents
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
+  "application/msword", // doc
+  "application/vnd.oasis.opendocument.text", // odt
+  // Presentations
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // pptx
+  "application/vnd.ms-powerpoint", // ppt
+  "application/vnd.oasis.opendocument.presentation", // odp
+  // Delimited / text
+  "text/csv", "text/plain",
+]);
+
+// Some browsers/OSes hand us an empty or octet-stream type for Office files, so
+// the picker also accepts by extension (mirrors the server's extension fallback).
+const ALLOWED_EXTS = new Set([
+  "png", "jpg", "jpeg", "gif", "webp", "pdf",
+  "xlsx", "xls", "ods", "docx", "doc", "odt", "pptx", "ppt", "odp", "csv", "txt",
 ]);
 
 interface PendingAttachment {
@@ -401,7 +422,8 @@ export default function ChatPage() {
           setAttachmentError(`Maximum ${MAX_ATTACHMENTS} attachments per message.`);
           break;
         }
-        if (!ALLOWED_MIMES.has(file.type)) {
+        const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
+        if (!ALLOWED_MIMES.has(file.type) && !ALLOWED_EXTS.has(ext)) {
           setAttachmentError(`Unsupported file type: ${file.type || file.name}`);
           continue;
         }
@@ -736,7 +758,7 @@ export default function ChatPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf"
+            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,.xlsx,.xls,.ods,.docx,.doc,.odt,.pptx,.ppt,.odp,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.oasis.opendocument.text,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.oasis.opendocument.presentation,text/csv,text/plain"
             multiple
             className="hidden"
             onChange={(e) => {

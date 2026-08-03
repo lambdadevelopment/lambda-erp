@@ -313,6 +313,45 @@ def update_document(doctype_slug: str, name: str, data: dict) -> dict:
     return doc.as_dict()
 
 
+def batch_update_documents(doctype_slug: str, updates: list) -> dict:
+    """Apply many ``{"name", "data"}`` updates to ONE doctype in a single call.
+
+    Best-effort and per-item: each update runs as its own update_document (its
+    own save + hooks), so a failing row doesn't roll back the others. Returns
+    ``{"updated", "failed", "results": [{"name", "ok", "error"?}]}``. Because it
+    reuses update_document, every plugin save-hook still fires — e.g. a lead
+    update carrying a transient ``_note`` records its timeline Activity here too.
+    """
+    doctype, cls = get_document_class(doctype_slug)
+    if not cls:
+        raise ValueError(f"Unknown document type: {doctype_slug}")
+    if not isinstance(updates, list) or not updates:
+        raise ValueError("updates must be a non-empty array of {name, data} objects")
+    if len(updates) > _BATCH_MAX:
+        raise ValueError(f"Too many updates ({len(updates)}); max {_BATCH_MAX} per call")
+
+    results, updated = [], 0
+    for i, item in enumerate(updates):
+        if not isinstance(item, dict):
+            results.append({"name": None, "ok": False, "error": f"item {i} is not an object"})
+            continue
+        name = item.get("name")
+        data = item.get("data")
+        if not name:
+            results.append({"name": None, "ok": False, "error": f"item {i} is missing 'name'"})
+            continue
+        if not isinstance(data, dict) or not data:
+            results.append({"name": name, "ok": False, "error": "missing 'data' object"})
+            continue
+        try:
+            update_document(doctype_slug, name, data)
+            results.append({"name": name, "ok": True})
+            updated += 1
+        except Exception as e:  # noqa: BLE001 — per-item best effort; report, don't abort
+            results.append({"name": name, "ok": False, "error": str(e)})
+    return {"updated": updated, "failed": len(results) - updated, "results": results}
+
+
 def submit_document(doctype_slug: str, name: str) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
@@ -473,8 +512,87 @@ def _order_clause(order_by: str = None, order: str = "desc") -> str:
     return f'"{order_by}" {direction}'
 
 
+# --- Filter operators (safe, whitelisted) ---
+#
+# A list-style filter value is normally a scalar (equality), but it may also be
+# an operator form so callers can express inequality / range / NULL checks:
+#   {"amount": [">", 100]}   {"fit": ["!=", "A"]}
+#   {"fit": ["is null"]}     {"main_email": ["is not null"]}
+# The operator is looked up in this whitelist and NEVER interpolated from raw
+# caller input, so an operator filter can't inject SQL. (The column name is
+# validated separately against the doctype's real columns by the callers.)
+_FILTER_OPS = {
+    "=": "=", "==": "=", "!=": "!=", "<>": "!=",
+    ">": ">", "<": "<", ">=": ">=", "<=": "<=",
+    "like": "LIKE", "not like": "NOT LIKE",
+    "is null": "IS NULL", "is not null": "IS NOT NULL",
+}
+_NULLARY_OPS = {"IS NULL", "IS NOT NULL"}  # take no bound value
+
+# Max records a single batch write may touch (keeps one call bounded).
+_BATCH_MAX = 200
+
+
+def _resolve_op(raw) -> str:
+    op = _FILTER_OPS.get(str(raw).strip().lower())
+    if not op:
+        raise ValueError(
+            f"Unsupported filter operator: {raw!r} "
+            f"(allowed: {', '.join(sorted(set(_FILTER_OPS)))})"
+        )
+    return op
+
+
+def _filter_atom(col: str, value):
+    """Build (sql_clause, params) for one filter entry. `value` may be:
+      scalar      -> `"col" = ?`
+      [op, val]   -> `"col" <op> ?`            (op whitelisted)
+      [op]        -> `"col" IS [NOT] NULL`     (nullary op only)
+    Raises ValueError on an unknown operator or a malformed operator list — the
+    tool/REST layer surfaces that as a clean error rather than bad SQL."""
+    if isinstance(value, (list, tuple)):
+        if len(value) == 1:
+            op = _resolve_op(value[0])
+            if op not in _NULLARY_OPS:
+                raise ValueError(f"Filter operator {value[0]!r} requires a value")
+            return f'"{col}" {op}', []
+        if len(value) == 2:
+            op = _resolve_op(value[0])
+            if op in _NULLARY_OPS:
+                return f'"{col}" {op}', []  # value ignored for IS [NOT] NULL
+            return f'"{col}" {op} ?', [value[1]]
+        raise ValueError(
+            f"Malformed filter for {col!r}: expected a scalar, [op], or [op, value]"
+        )
+    return f'"{col}" = ?', [value]
+
+
+def _where_from_filters(db_filters: dict):
+    """(where_parts, params) for a dict of already-parsed equality/operator
+    filters, via the whitelisted _filter_atom builder."""
+    where_parts, params = [], []
+    for k, v in db_filters.items():
+        clause, ps = _filter_atom(k, v)
+        where_parts.append(clause)
+        params.extend(ps)
+    return where_parts, params
+
+
+def _projection_columns(doctype_slug: str, fields) -> set:
+    """The set of real columns to keep for a `fields` projection — always
+    includes 'name'. Unknown field names are dropped (validated against the
+    doctype's real columns), so a projection can never widen or inject."""
+    real = document_columns(doctype_slug)
+    keep = {"name"}
+    for f in (fields or []):
+        if f in real:
+            keep.add(f)
+    return keep
+
+
 def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, offset: int = 0,
-                   include_discarded: bool = False, order_by: str = None, order: str = "desc") -> list:
+                   include_discarded: bool = False, order_by: str = None, order: str = "desc",
+                   fields: list = None) -> list:
     doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     if not doctype:
         raise ValueError(f"Unknown document type: {doctype_slug}")
@@ -520,31 +638,39 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
 
     search_where, search_params = _search_clause(db, doctype, doctype_slug, search, search_fields)
 
-    # If both from and to are set, the dict can only hold one constraint per key
-    # Fall through to a raw SQL query for that case
+    order_clause = _order_clause(order_by, order)
+
+    # get_all handles only pure-equality filters (no OFFSET, no free-text OR-group,
+    # no whitelisted operator/NULL forms), so drop to raw SQL whenever any of those
+    # is in play. An operator filter shows up as a list/tuple value in db_filters.
+    has_op_filter = any(isinstance(v, (list, tuple)) for v in db_filters.values())
+
     if date_field and from_date and to_date:
-        return _list_with_date_range(
+        # Both bounds set: the dict can only hold one constraint per key, so this
+        # path adds both date conditions explicitly.
+        rows = _list_with_date_range(
             db, doctype, doctype_slug, db_filters, date_field, from_date, to_date, limit, offset,
             extra_where=search_where, extra_params=search_params,
         )
-
-    order_clause = _order_clause(order_by, order)
-
-    # get_all can't express OFFSET or a free-text OR-group, so drop to raw SQL
-    # whenever either is in play.
-    if offset or search_where:
-        return _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause,
+    elif offset or search_where or has_op_filter:
+        rows = _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause,
                                  extra_where=search_where, extra_params=search_params)
+    else:
+        rows = db.get_all(
+            doctype,
+            filters=db_filters if db_filters else None,
+            fields=["*"],
+            order_by=order_clause,
+            limit=limit,
+        )
+        rows = _attach_children(db, doctype_slug, rows)
 
-    rows = db.get_all(
-        doctype,
-        filters=db_filters if db_filters else None,
-        fields=["*"],
-        order_by=order_clause,
-        limit=limit,
-    )
-
-    return _attach_children(db, doctype_slug, rows)
+    # `fields` projection: keep only the requested real columns (+ name) to trim
+    # the payload — child tables (never selected here) drop out automatically.
+    if fields:
+        keep = _projection_columns(doctype_slug, fields)
+        rows = [{k: v for k, v in row.items() if k in keep} for row in rows]
+    return rows
 
 
 def count_documents(doctype_slug: str, filters: dict = None, include_discarded: bool = False) -> int:
@@ -588,14 +714,9 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
     if date_field and to_date:
         where_parts.append(f'"{date_field}" <= ?')
         params.append(to_date)
-    for k, v in db_filters.items():
-        if isinstance(v, (list, tuple)) and len(v) == 2:
-            op, val = v
-            where_parts.append(f'"{k}" {op} ?')
-            params.append(val)
-        else:
-            where_parts.append(f'"{k}" = ?')
-            params.append(v)
+    fparts, fparams = _where_from_filters(db_filters)
+    where_parts.extend(fparts)
+    params.extend(fparams)
 
     search_where, search_params = _search_clause(db, doctype, doctype_slug, search, search_fields)
     if search_where:
@@ -639,12 +760,8 @@ def _filter_where(db, doctype: str, doctype_slug: str, filters: dict, include_di
         where_parts.append(f'"{date_field}" >= ?'); params.append(from_date)
     if date_field and to_date:
         where_parts.append(f'"{date_field}" <= ?'); params.append(to_date)
-    for k, v in db_filters.items():
-        if isinstance(v, (list, tuple)) and len(v) == 2:
-            op, val = v
-            where_parts.append(f'"{k}" {op} ?'); params.append(val)
-        else:
-            where_parts.append(f'"{k}" = ?'); params.append(v)
+    fparts, fparams = _where_from_filters(db_filters)
+    where_parts.extend(fparts); params.extend(fparams)
     search_where, search_params = _search_clause(db, doctype, doctype_slug, search, search_fields)
     if search_where:
         where_parts.append(search_where)
@@ -692,16 +809,7 @@ def adjacent_documents(doctype_slug: str, name: str, filters: dict = None,
 
 def _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause="creation DESC",
                       extra_where=None, extra_params=None):
-    where_parts = []
-    params = []
-    for k, v in db_filters.items():
-        if isinstance(v, (list, tuple)) and len(v) == 2:
-            op, val = v
-            where_parts.append(f'"{k}" {op} ?')
-            params.append(val)
-        else:
-            where_parts.append(f'"{k}" = ?')
-            params.append(v)
+    where_parts, params = _where_from_filters(db_filters)
     if extra_where:
         where_parts.append(extra_where)
         params.extend(extra_params or [])
@@ -740,14 +848,9 @@ def _list_with_date_range(db, doctype, doctype_slug, extra_filters, date_field, 
     """List documents when both from_date and to_date are set."""
     where_parts = [f'"{date_field}" >= ?', f'"{date_field}" <= ?']
     params = [from_date, to_date]
-    for k, v in extra_filters.items():
-        if isinstance(v, (list, tuple)) and len(v) == 2:
-            op, val = v
-            where_parts.append(f'"{k}" {op} ?')
-            params.append(val)
-        else:
-            where_parts.append(f'"{k}" = ?')
-            params.append(v)
+    fparts, fparams = _where_from_filters(extra_filters)
+    where_parts.extend(fparts)
+    params.extend(fparams)
     if extra_where:
         where_parts.append(extra_where)
         params.extend(extra_params or [])

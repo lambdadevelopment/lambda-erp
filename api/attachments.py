@@ -16,10 +16,55 @@ router = APIRouter(prefix="/chat", tags=["chat-attachments"])
 
 MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_ATTACHMENTS_PER_SESSION = 100  # sanity cap
+
+# Binary Office / OpenDocument formats. The chat model reads these directly via
+# the OpenAI `file` content part (the same mechanism PDFs use) — the endpoint
+# accepts the raw bytes and reasons about them, so there is NO server-side
+# conversion/parsing here. Keep this set authoritative: the upload gate, the
+# extension map, and build_multimodal_content all read from it.
+OFFICE_MIME_TYPES = {
+    # Spreadsheets
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",          # xlsx
+    "application/vnd.ms-excel",                                                   # xls
+    "application/vnd.oasis.opendocument.spreadsheet",                             # ods
+    # Word-processing documents
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",    # docx
+    "application/msword",                                                         # doc
+    "application/vnd.oasis.opendocument.text",                                    # odt
+    # Presentations
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # pptx
+    "application/vnd.ms-powerpoint",                                              # ppt
+    "application/vnd.oasis.opendocument.presentation",                           # odp
+}
+
+# Plain-text formats — inlined into the prompt as text (no file part needed).
+TEXT_MIME_TYPES = {"text/csv", "text/plain"}
+
 ALLOWED_MIME_TYPES = {
     "image/png", "image/jpeg", "image/gif", "image/webp",
     "application/pdf",
+} | OFFICE_MIME_TYPES | TEXT_MIME_TYPES
+
+# Extension -> canonical mime, so a correctly-named file still uploads when the
+# browser/OS mislabels its type (Office files are frequently sent as
+# application/octet-stream, and CSV as application/vnd.ms-excel).
+_EXT_TO_MIME = {
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "xls": "application/vnd.ms-excel",
+    "ods": "application/vnd.oasis.opendocument.spreadsheet",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc": "application/msword",
+    "odt": "application/vnd.oasis.opendocument.text",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "ppt": "application/vnd.ms-powerpoint",
+    "odp": "application/vnd.oasis.opendocument.presentation",
+    "csv": "text/csv",
+    "txt": "text/plain",
+    "pdf": "application/pdf",
+    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "gif": "image/gif", "webp": "image/webp",
 }
+_MIME_TO_EXT = {m: e for e, m in _EXT_TO_MIME.items()}
 
 UPLOAD_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
 
@@ -46,14 +91,7 @@ def _safe_ext(filename: str, mime: str) -> str:
         ext = filename.rsplit(".", 1)[1].lower()
         if len(ext) <= 5 and ext.isalnum():
             return ext
-    mime_ext = {
-        "image/png": "png",
-        "image/jpeg": "jpg",
-        "image/gif": "gif",
-        "image/webp": "webp",
-        "application/pdf": "pdf",
-    }
-    return mime_ext.get(mime, "bin")
+    return _MIME_TO_EXT.get(mime, "bin")
 
 
 @router.post("/attachments")
@@ -65,7 +103,17 @@ async def upload_attachment(
     """Upload a chat attachment. Returns metadata the client uses to attach it to a message."""
     mime = (file.content_type or "application/octet-stream").lower()
     if mime not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {mime}. Allowed: images, PDF.")
+        # Browsers/OSes often mislabel Office files (e.g. octet-stream) — fall
+        # back to the filename extension so a correctly-named file still uploads.
+        ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else ""
+        if ext in _EXT_TO_MIME:
+            mime = _EXT_TO_MIME[ext]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"Unsupported file type: {mime or ext or 'unknown'}. Allowed: images, PDF, "
+                        "spreadsheets (Excel/CSV/ODS), and documents (Word/OpenDocument)."),
+            )
 
     data = await file.read()
     if len(data) > MAX_ATTACHMENT_SIZE:
@@ -186,23 +234,33 @@ def get_attachments_by_ids(attachment_ids: list[str], user_id: str) -> list[dict
 
 
 def build_multimodal_content(attachment: dict) -> dict:
-    """Convert an attachment dict (with raw data) into an OpenAI multimodal content part."""
+    """Convert an attachment dict (with raw data) into an OpenAI multimodal content part.
+
+    Images go as `image_url`; plain-text files (CSV/TXT) are inlined as text;
+    PDFs and binary Office/OpenDocument files go as a `file` part carrying the
+    raw bytes — the model reads them directly, no server-side conversion.
+    """
     mime = attachment["mime_type"]
-    data_b64 = base64.b64encode(attachment["data"]).decode("ascii")
+    filename = attachment["filename"]
     if mime.startswith("image/"):
+        data_b64 = base64.b64encode(attachment["data"]).decode("ascii")
         return {
             "type": "image_url",
             "image_url": {"url": f"data:{mime};base64,{data_b64}"},
         }
-    if mime == "application/pdf":
+    if mime in TEXT_MIME_TYPES or mime.startswith("text/"):
+        text = attachment["data"].decode("utf-8", errors="replace")
+        return {"type": "text", "text": f"[File: {filename}]\n{text}"}
+    if mime == "application/pdf" or mime in OFFICE_MIME_TYPES:
+        data_b64 = base64.b64encode(attachment["data"]).decode("ascii")
         return {
             "type": "file",
             "file": {
-                "filename": attachment["filename"],
+                "filename": filename,
                 "file_data": f"data:{mime};base64,{data_b64}",
             },
         }
-    return {"type": "text", "text": f"[Unsupported attachment: {attachment['filename']}]"}
+    return {"type": "text", "text": f"[Unsupported attachment: {filename}]"}
 
 
 def list_session_attachments(session_id: str, user_id: str) -> list[dict]:
