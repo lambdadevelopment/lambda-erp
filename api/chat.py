@@ -2712,7 +2712,9 @@ ORCHESTRATOR_MODEL = "gpt-5.6-terra"
 # ---------------------------------------------------------------------------
 
 def _use_responses_api() -> bool:
-    return os.environ.get("ERP_CHAT_API", "chat").strip().lower() == "responses"
+    # Default: the Responses API (needed for Office attachments + native
+    # reasoning). Set ERP_CHAT_API=chat to fall back to Chat Completions.
+    return os.environ.get("ERP_CHAT_API", "responses").strip().lower() != "chat"
 
 
 # Reasoning effort for the Responses path (native; the Chat path uses "none").
