@@ -13,6 +13,24 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.17] - 2026-08-03
+
+### Added
+- **Responses API path for the chat orchestrator, behind the `ERP_CHAT_API` flag**
+  (default `chat`). Setting `ERP_CHAT_API=responses` routes the main reasoning loop
+  through OpenAI's Responses API (`/v1/responses`) instead of Chat Completions —
+  which is what actually lets the model read Office attachments (`input_file` by
+  `file_id`; Chat Completions is PDF-only, even by `file_id`) and enables native
+  reasoning during tool calls (no `reasoning_effort="none"` hack). Conversation
+  state stays Chat-Completions-shaped; the translation happens only at the single
+  orchestrator call boundary and the Responses output is shimmed back into
+  Chat-shaped objects, so cost/booking and the whole tool loop are unchanged. The
+  default (`chat`) path is byte-for-byte identical.
+
+### Changed
+- On the default Chat backend an Office attachment now degrades to a short text
+  note (that backend only reads PDFs/images) instead of triggering a hard 400.
+
 ## [0.6.16] - 2026-08-03
 
 ### Changed
