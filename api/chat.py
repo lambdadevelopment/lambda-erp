@@ -3112,19 +3112,25 @@ async def run_session_turn(
         # Stateless: only the current user message, no prior turns replayed.
         conversation = [{"role": "user", "content": user_content}]
 
-    # Multimodal attachments: replace the last user message with an image/PDF-
-    # bearing content array so the LLM can see them directly.
+    # Multimodal attachments: replace the last user message with a content array
+    # (image/PDF inline, Office via Files-API file_id) so the LLM can see them.
+    # build_multimodal_content may upload an Office file to the Files API, so run
+    # the whole build off the event loop in a worker thread.
     if attachment_ids and attachments_user_id:
         from api.attachments import get_attachments_by_ids, build_multimodal_content
         atts = get_attachments_by_ids(attachment_ids, attachments_user_id)
         if atts and conversation and conversation[-1].get("role") == "user":
-            parts = []
             text = conversation[-1].get("content") or ""
-            if text:
-                parts.append({"type": "text", "text": text})
-            for att in atts:
-                parts.append(build_multimodal_content(att))
-            conversation[-1] = {"role": "user", "content": parts}
+
+            def _build_attachment_parts():
+                parts = []
+                if text:
+                    parts.append({"type": "text", "text": text})
+                for att in atts:
+                    parts.append(build_multimodal_content(att))
+                return parts
+
+            conversation[-1] = {"role": "user", "content": await asyncio.to_thread(_build_attachment_parts)}
 
     messages.extend(conversation)
 

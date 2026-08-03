@@ -447,6 +447,9 @@ export default function ChatPage() {
                 a.localId === localId ? { ...a, uploading: false, uploadedId: res.id } : a,
               ),
             );
+            // Non-blocking advisory (e.g. a spreadsheet over the model's
+            // per-sheet row limit) — the attachment still uploaded fine.
+            if (res.warning) setAttachmentError(`"${file.name}": ${res.warning}`);
           })
           .catch((err) => {
             const msg = err?.message || "Upload failed";

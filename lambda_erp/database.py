@@ -1274,7 +1274,10 @@ class Database:
                 FOREIGN KEY (session_id) REFERENCES "Chat Session"(id)
             )""",
 
-            # --- Chat Attachments (PDFs + images uploaded via chat) ---
+            # --- Chat Attachments (PDFs, images, and Office docs uploaded via chat) ---
+            # openai_file_id/openai_file_expires_at cache the OpenAI Files API
+            # upload for Office formats (sent to the model by file_id, reused
+            # across turns, re-uploaded once the 30-day expiry lapses).
             """CREATE TABLE IF NOT EXISTS "Chat Attachment" (
                 id TEXT PRIMARY KEY,
                 session_id TEXT NOT NULL,
@@ -1283,6 +1286,8 @@ class Database:
                 mime_type TEXT NOT NULL,
                 size_bytes INTEGER NOT NULL,
                 file_path TEXT NOT NULL,
+                openai_file_id TEXT,
+                openai_file_expires_at INTEGER,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (session_id) REFERENCES "Chat Session"(id)
             )""",
@@ -2038,6 +2043,14 @@ def _m019_api_keys_per_user(db: "Database") -> None:
     db._text_col_cache.pop("Api Key", None)
 
 
+def _m020_chat_attachment_openai_file(db: "Database") -> None:
+    """Cache the OpenAI Files API id (+ its expiry) on a chat attachment, so an
+    uploaded Office file is sent to the model by file_id — reused across turns
+    and re-uploaded only once its 30-day expires_after lapses."""
+    db._add_column_if_missing("Chat Attachment", "openai_file_id", "TEXT")
+    db._add_column_if_missing("Chat Attachment", "openai_file_expires_at", "INTEGER")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2058,6 +2071,7 @@ Database.MIGRATIONS = [
     (17, "proposal_cover_template", _m017_proposal_cover_template),
     (18, "quotation_item_frequency", _m018_quotation_item_frequency),
     (19, "api_keys_per_user", _m019_api_keys_per_user),
+    (20, "chat_attachment_openai_file", _m020_chat_attachment_openai_file),
 ]
 
 

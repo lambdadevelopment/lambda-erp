@@ -98,6 +98,7 @@ export const api = {
       mime_type: string;
       size_bytes: number;
       created_at: string;
+      warning?: string;
     }>;
   },
   getChatAttachmentUrl: (id: string) => `${BASE}/chat/attachments/${encodeURIComponent(id)}`,

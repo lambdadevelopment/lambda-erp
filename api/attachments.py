@@ -1,17 +1,25 @@
 """Chat attachment upload/download. Files stored on the local filesystem."""
 
 import base64
+import io
+import logging
 import os
 import tempfile
+import time
 import uuid
+from typing import Optional
 
+import openpyxl
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
+from openai import OpenAI
 
 from lambda_erp.database import get_db
 from lambda_erp.utils import now
 from api.auth import require_role, get_current_user
 from api.demo_limits import demo_max_attachment_bytes, is_demo_role
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat-attachments"])
 
@@ -66,6 +74,115 @@ _EXT_TO_MIME = {
     "gif": "image/gif", "webp": "image/webp",
 }
 _MIME_TO_EXT = {m: e for e, m in _EXT_TO_MIME.items()}
+
+
+# --- OpenAI Files API (Office documents) -----------------------------------
+#
+# The chat model can't read Office bytes from an inline base64 `file_data` (that
+# path is PDF-only), but it CAN read them when uploaded to the Files API and
+# referenced by file_id. We upload each Office attachment once, cache the id on
+# its row, and reuse it across turns. Every upload carries a 30-day
+# `expires_after` so OpenAI reclaims the file on its own (users rarely delete
+# chats and lambda-erp has no scheduler) — if a stale id is ever referenced we
+# simply re-upload, since the bytes stay in our own storage. The per-use cost is
+# the file's tokens on the completion, already billed via providers.py; there's
+# no separate file fee to book.
+_OPENAI_FILE_TTL_SECONDS = 30 * 24 * 3600      # 30 days
+_OPENAI_FILE_REUSE_MARGIN = 300               # re-upload if within 5 min of expiry
+SPREADSHEET_ROW_WARN_LIMIT = 1000             # OpenAI augments ~1000 rows/sheet
+
+_openai_singleton: Optional[OpenAI] = None
+_expires_after_supported = True               # flips off if the API rejects it once
+
+# The single Office spreadsheet mime we can cheaply row-count (openpyxl).
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _openai_client() -> OpenAI:
+    """Lazily build a module-level OpenAI client for Files uploads (a separate
+    call from the chat completion; same OPENAI_API_KEY)."""
+    global _openai_singleton
+    if _openai_singleton is None:
+        _openai_singleton = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+    return _openai_singleton
+
+
+def _create_openai_file(att: dict):
+    """Upload the attachment's bytes to the Files API. Tries once with a 30-day
+    `expires_after`; if the SDK/API rejects it (older SDK, or the purpose doesn't
+    honor it) we disable it process-wide and fall back to a plain upload so
+    attachments keep working (accumulation is then unbounded until a sweep)."""
+    global _expires_after_supported
+    client = _openai_client()
+    file_tuple = (att["filename"], att["data"], att["mime_type"])
+    if _expires_after_supported:
+        try:
+            return client.files.create(
+                file=file_tuple,
+                purpose="user_data",
+                expires_after={"anchor": "created_at", "seconds": _OPENAI_FILE_TTL_SECONDS},
+            )
+        except Exception as e:  # noqa: BLE001 — unsupported param/purpose -> fall back
+            _expires_after_supported = False
+            logger.warning("Files API expires_after unsupported (%s); using plain uploads", e)
+    return client.files.create(file=file_tuple, purpose="user_data")
+
+
+def ensure_openai_file(att: dict) -> Optional[str]:
+    """Return a currently-valid OpenAI file_id for an Office attachment, uploading
+    it (once) when there's no cached id or the cached one is at/near expiry.
+    Mutates `att` and persists the id + expiry on the Chat Attachment row.
+    Returns None on failure (caller degrades to a text note). Blocking — both
+    call sites run it in a worker thread, off the event loop."""
+    fid = att.get("openai_file_id")
+    exp = att.get("openai_file_expires_at")
+    if fid and (not exp or time.time() < int(exp) - _OPENAI_FILE_REUSE_MARGIN):
+        return fid
+    try:
+        uploaded = _create_openai_file(att)
+    except Exception as e:  # noqa: BLE001 — surface as "couldn't load", not a 500
+        logger.warning("OpenAI file upload failed for %s: %s", att.get("id"), e)
+        return None
+
+    new_id = uploaded.id
+    new_exp = getattr(uploaded, "expires_at", None)
+    att["openai_file_id"] = new_id
+    att["openai_file_expires_at"] = new_exp
+    try:
+        db = get_db()
+        db.sql(
+            'UPDATE "Chat Attachment" SET openai_file_id = ?, openai_file_expires_at = ? WHERE id = ?',
+            [new_id, new_exp, att.get("id")],
+        )
+        db.conn.commit()
+    except Exception as e:  # persistence is best-effort — the id still works this turn
+        logger.warning("Could not persist openai_file_id for %s: %s", att.get("id"), e)
+    return new_id
+
+
+def spreadsheet_row_warning(data: bytes, mime: str, filename: str) -> Optional[str]:
+    """If an .xlsx has a sheet over the model's ~1000-row augmentation limit,
+    return a short user-facing warning (else None). Only .xlsx is inspected —
+    openpyxl read-only, dimensions only (NOT a content extraction); other
+    spreadsheet formats upload without a row check."""
+    if mime != _XLSX_MIME:
+        return None
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True)
+        worst, worst_sheet = 0, None
+        for ws in wb.worksheets:
+            rows = ws.max_row or 0
+            if rows > worst:
+                worst, worst_sheet = rows, ws.title
+        wb.close()
+    except Exception as e:  # a warning is best-effort — never block the upload
+        logger.info("Row-count check skipped for %s: %s", filename, e)
+        return None
+    if worst > SPREADSHEET_ROW_WARN_LIMIT:
+        return (f"Sheet “{worst_sheet}” has {worst:,} rows — the assistant reads about "
+                f"{SPREADSHEET_ROW_WARN_LIMIT:,} rows per sheet, so results may be partial. "
+                "Split the file or ask about a specific range.")
+    return None
 
 # Where uploaded files are stored. Must be a WRITABLE path — a package-relative
 # location (e.g. next to this module) resolves under site-packages when the
@@ -170,13 +287,19 @@ async def upload_attachment(
     )
     db.conn.commit()
 
-    return {
+    resp = {
         "id": att_id,
         "filename": file.filename or f"file.{ext}",
         "mime_type": mime,
         "size_bytes": len(data),
         "created_at": now(),
     }
+    # Advisory (non-blocking): warn if a spreadsheet exceeds the model's
+    # per-sheet augmentation limit, so the user knows results may be partial.
+    warning = spreadsheet_row_warning(data, mime, file.filename or "")
+    if warning:
+        resp["warning"] = warning
+    return resp
 
 
 @router.get("/attachments/{attachment_id}")
@@ -223,7 +346,8 @@ def get_attachments_by_ids(attachment_ids: list[str], user_id: str) -> list[dict
     db = get_db()
     placeholders = ",".join(["?"] * len(attachment_ids))
     rows = db.sql(
-        f'SELECT id, filename, mime_type, file_path, size_bytes FROM "Chat Attachment" '
+        f'SELECT id, filename, mime_type, file_path, size_bytes, '
+        f'openai_file_id, openai_file_expires_at FROM "Chat Attachment" '
         f'WHERE id IN ({placeholders}) AND user_id = ?',
         list(attachment_ids) + [user_id],
     )
@@ -237,6 +361,8 @@ def get_attachments_by_ids(attachment_ids: list[str], user_id: str) -> list[dict
                 "filename": row["filename"],
                 "mime_type": row["mime_type"],
                 "size_bytes": row["size_bytes"],
+                "openai_file_id": row.get("openai_file_id"),
+                "openai_file_expires_at": row.get("openai_file_expires_at"),
                 "data": data,
             })
         except FileNotFoundError:
@@ -247,9 +373,13 @@ def get_attachments_by_ids(attachment_ids: list[str], user_id: str) -> list[dict
 def build_multimodal_content(attachment: dict) -> dict:
     """Convert an attachment dict (with raw data) into an OpenAI multimodal content part.
 
-    Images go as `image_url`; plain-text files (CSV/TXT) are inlined as text;
-    PDFs and binary Office/OpenDocument files go as a `file` part carrying the
-    raw bytes — the model reads them directly, no server-side conversion.
+    Images go as `image_url`; plain-text files (CSV/TXT) inline as text; PDFs go
+    as an inline base64 `file` part; binary Office/OpenDocument files are uploaded
+    to the Files API (once, cached) and referenced by `file_id` — OpenAI only
+    accepts PDF via inline base64, but reads Office bytes fine by file_id.
+
+    May upload to the Files API (blocking) for an Office file, so both call sites
+    run it in a worker thread, off the event loop.
     """
     mime = attachment["mime_type"]
     filename = attachment["filename"]
@@ -262,7 +392,7 @@ def build_multimodal_content(attachment: dict) -> dict:
     if mime in TEXT_MIME_TYPES or mime.startswith("text/"):
         text = attachment["data"].decode("utf-8", errors="replace")
         return {"type": "text", "text": f"[File: {filename}]\n{text}"}
-    if mime == "application/pdf" or mime in OFFICE_MIME_TYPES:
+    if mime == "application/pdf":
         data_b64 = base64.b64encode(attachment["data"]).decode("ascii")
         return {
             "type": "file",
@@ -271,6 +401,12 @@ def build_multimodal_content(attachment: dict) -> dict:
                 "file_data": f"data:{mime};base64,{data_b64}",
             },
         }
+    if mime in OFFICE_MIME_TYPES:
+        file_id = ensure_openai_file(attachment)
+        if file_id:
+            return {"type": "file", "file": {"file_id": file_id}}
+        return {"type": "text",
+                "text": f"[Attachment “{filename}” couldn’t be loaded for analysis — please re-upload it.]"}
     return {"type": "text", "text": f"[Unsupported attachment: {filename}]"}
 
 
