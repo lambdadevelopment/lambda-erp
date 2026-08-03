@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.18] - 2026-08-03
+
+### Changed
+- **The Responses API is now the default chat orchestrator** (`ERP_CHAT_API`
+  defaults to `responses`; verified on dev). Office attachments are read directly,
+  and the loop reasons natively during tool calls. Set `ERP_CHAT_API=chat` to fall
+  back to the legacy Chat Completions path (instant, no redeploy).
+
 ## [0.6.17] - 2026-08-03
 
 ### Added
