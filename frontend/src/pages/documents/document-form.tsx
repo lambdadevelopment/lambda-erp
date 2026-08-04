@@ -4,6 +4,7 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { getDoctypeConfig, type FieldDef, type ChildTableDef } from "@/lib/doctypes";
+import { usePageTitle } from "@/lib/use-page-title";
 import { StatusBadge } from "@/components/document/status-badge";
 import { DocPager } from "@/components/document/doc-pager";
 import { Button } from "@/components/ui/button";
@@ -622,6 +623,7 @@ export default function DocumentFormPage() {
   const { t } = useTranslation();
   const config = getDoctypeConfig(doctype ?? "");
   const isNew = !name;
+  usePageTitle(isNew ? (config?.label ?? null) : (name ?? config?.label ?? null));
 
   const [formData, setFormData] = useState<any>({});
   // True once the user picks a currency by hand, so auto-defaulting backs off.

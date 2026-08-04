@@ -10,6 +10,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { api } from "@/api/client";
+import { usePageTitle } from "@/lib/use-page-title";
 import { setListContext } from "@/lib/doc-list-context";
 import { Button } from "@/components/ui/button";
 
@@ -28,6 +29,7 @@ export default function MasterListPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const label = TYPE_LABELS[type ?? ""] ?? type ?? "";
+  usePageTitle(label || null);
   const notice = (location.state as { notice?: string } | null)?.notice;
 
   // Stash the list URL so the detail page's DocPager can come "back" to this

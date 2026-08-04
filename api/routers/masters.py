@@ -319,9 +319,12 @@ def search_masters(master_type: str, q: str = "", _user: dict = _viewer):
     if not q:
         return db.get_all(doctype, filters=_with_active_filter(db, doctype), fields=["name", name_field], limit=10)
 
+    # Case-INSENSITIVE: on Postgres plain LIKE is case-sensitive, so "plus medica"
+    # would miss "Plus Medica AG". LOWER(...) LIKE LOWER(...) is portable (SQLite
+    # + Postgres) and matches how the document search (_search_clause) works.
     rows = db.sql(
         f'SELECT name, "{name_field}" FROM "{doctype}" '
-        f'WHERE {active_prefix}(name LIKE ? OR "{name_field}" LIKE ?) LIMIT 10',
+        f'WHERE {active_prefix}(LOWER(name) LIKE LOWER(?) OR LOWER("{name_field}") LIKE LOWER(?)) LIMIT 10',
         [f"%{q}%", f"%{q}%"],
     )
     return rows

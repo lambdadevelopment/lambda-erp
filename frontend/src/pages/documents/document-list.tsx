@@ -13,6 +13,7 @@ import { useDocumentList } from "@/hooks/use-document-list";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import { getDoctypeConfig } from "@/lib/doctypes";
+import { usePageTitle } from "@/lib/use-page-title";
 import { linkRefHref } from "@/pages/documents/document-form";
 import { StatusBadge } from "@/components/document/status-badge";
 import { Button } from "@/components/ui/button";
@@ -157,6 +158,7 @@ export default function DocumentListPage() {
   const { doctype } = useParams<{ doctype: string }>();
   const config = getDoctypeConfig(doctype ?? "");
   const location = useLocation();
+  usePageTitle(config?.label ?? doctype ?? null);
 
   // Config-driven filter dropdowns (opt-in via config.listFilters). Their values
   // live in the URL like every other filter; read them generically since the

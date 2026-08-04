@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/dialog";
@@ -114,6 +115,13 @@ export default function MasterFormPage() {
     queryFn: () => api.getMaster(type!, name!),
     enabled: !!type && !!name && !isNew,
   });
+
+  // Tab title: the record's display name (e.g. a customer's name) on an existing
+  // record, the type label on a new one. The display field is the "*_name" one
+  // (customer_name / item_name / …), not fields[0] which for some types is the ID.
+  const nameField = fields.find((f) => f.name.endsWith("_name"))?.name;
+  const displayName = nameField ? existing?.[nameField] : undefined;
+  usePageTitle(isNew ? labelTr : (displayName ?? name ?? labelTr));
 
   useEffect(() => {
     if (isNew) {
