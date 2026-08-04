@@ -13,6 +13,13 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.20] - 2026-08-04
+
+### Fixed
+- **Chat attachment chips show the real file type** (PDF / DOCX / XLSX / …) from
+  the filename instead of always reading "PDF", and use the neutral surface
+  colour instead of the off-palette salmon.
+
 ## [0.6.19] - 2026-08-03
 
 ### Changed
