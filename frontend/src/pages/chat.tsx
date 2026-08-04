@@ -732,8 +732,8 @@ export default function ChatPage() {
                   {att.previewUrl ? (
                     <img src={att.previewUrl} alt="" className="h-10 w-10 rounded object-cover" />
                   ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded bg-rose-100 text-[10px] font-bold text-rose-700">
-                      PDF
+                    <div className="flex h-10 w-10 items-center justify-center rounded bg-surface-subtle text-[10px] font-bold text-fg-muted">
+                      {fileBadge(att.file.name)}
                     </div>
                   )}
                   <div className="flex min-w-0 flex-col">
@@ -874,6 +874,13 @@ export default function ChatPage() {
   );
 }
 
+// Short type badge for a non-image attachment — the file extension, uppercased
+// (e.g. PDF, DOCX, XLSX). Falls back to FILE when there's no extension.
+function fileBadge(name: string): string {
+  const ext = name.includes(".") ? name.split(".").pop()!.toUpperCase() : "";
+  return ext ? ext.slice(0, 4) : "FILE";
+}
+
 function AttachmentThumbs({ attachments }: { attachments?: ChatAttachment[] }) {
   if (!attachments || attachments.length === 0) return null;
   return (
@@ -893,7 +900,7 @@ function AttachmentThumbs({ attachments }: { attachments?: ChatAttachment[] }) {
             {isImage ? (
               <img src={url} alt={att.filename} className="h-8 w-8 rounded object-cover" />
             ) : (
-              <span className="flex h-8 w-8 items-center justify-center rounded bg-red-200 text-[9px] font-bold text-red-800">PDF</span>
+              <span className="flex h-8 w-8 items-center justify-center rounded bg-black/20 text-[9px] font-bold">{fileBadge(att.filename)}</span>
             )}
             <span className="max-w-[120px] truncate">{att.filename}</span>
           </a>
