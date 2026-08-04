@@ -13,6 +13,20 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.21] - 2026-08-04
+
+### Fixed
+- **Master search is now case-insensitive.** Postgres `LIKE` is case-sensitive, so
+  searching "plus medica" missed "Plus Medica AG" — now `LOWER(...) LIKE LOWER(...)`
+  (portable). Also fixes the CRM lead→customer dedup missing an existing customer.
+
+### Added
+- **Smart browser-tab titles** via a new `usePageTitle` hook. Detail pages show the
+  record's name (`Plus Medica AG — Lambda ERP`, `SINV-0042 — Lambda ERP`); list /
+  overview pages show the section (`Customer — Lambda ERP`); home stays the app
+  name. Wired into the generic document/master list + detail pages; the app name
+  comes from branding (white-label safe). Custom pages call `usePageTitle(...)`.
+
 ## [0.6.20] - 2026-08-04
 
 ### Fixed
