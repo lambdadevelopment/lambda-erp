@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.22] - 2026-08-04
+
+### Fixed
+- **DB integrity violations return a clear 409, not an opaque 500.** A unique /
+  foreign-key violation (e.g. saving a duplicate lead UID) had no exception
+  handler, so it surfaced as "Internal Server Error" — which a form could show as
+  a stray red line or effectively swallow ("nothing saved, no warning"). Now
+  mapped to `409` with the colliding field/value: *A record with uid = "…" already
+  exists.* (Portable across psycopg / sqlite.)
+- Page-title separator is now a plain hyphen: `Name - Lambda ERP`.
+
 ## [0.6.21] - 2026-08-04
 
 ### Fixed
