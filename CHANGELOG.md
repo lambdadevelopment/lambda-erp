@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.23] - 2026-08-04
+
+### Added
+- **Chat tab title = the chat's own name.** The chat page sets `document.title`
+  to the session's (auto-generated) title, so a bookmarked chat keeps that string.
+- **Tab titles across the rest of the app.** Every remaining custom page now sets
+  its title via `usePageTitle` — all 8 report pages (incl. Chart of Accounts),
+  the dashboard, and the entry pages (setup, tutorial, admin, proposal form) —
+  using the same `titles.*` labels the header shows. Combined with the generic
+  document/master list+detail wiring, the whole app now has meaningful tab titles.
+
 ## [0.6.22] - 2026-08-04
 
 ### Fixed
