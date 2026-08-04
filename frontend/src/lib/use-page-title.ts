@@ -16,7 +16,7 @@ import { getBranding } from "./branding";
 export function usePageTitle(title?: string | null): void {
   useEffect(() => {
     const brand = getBranding().appName || "Lambda ERP";
-    document.title = title ? `${title} — ${brand}` : brand;
+    document.title = title ? `${title} - ${brand}` : brand;
     return () => {
       document.title = brand;
     };
