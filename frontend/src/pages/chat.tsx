@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { type ChatMessage, type ChatAttachment, useChat, rememberSessionId } from "@/components/chat/chat-provider";
 import { api } from "@/api/client";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useTranslation } from "react-i18next";
 
 const MAX_ATTACHMENTS = 5;
@@ -111,6 +112,7 @@ export default function ChatPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const {
+    sessions,
     connectionStatus,
     connectionVersion,
     createSession,
@@ -145,6 +147,10 @@ export default function ChatPage() {
   const programmaticScrollRef = useRef(false);
   const programmaticScrollTimerRef = useRef<number | null>(null);
   const messages = getMessages(sessionId);
+  // Tab title = the chat's own (auto-generated) name, so a bookmarked chat keeps
+  // that string. Updates live when the title is generated on the first reply.
+  const chatTitle = sessions.find((s) => s.id === sessionId)?.title;
+  usePageTitle(chatTitle || null);
   const isConnected = connectionStatus === "connected";
   const isThinking = getIsThinking(sessionId);
   const demoStatus = getDemoStatus(sessionId);

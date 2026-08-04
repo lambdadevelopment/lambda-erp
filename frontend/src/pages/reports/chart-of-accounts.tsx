@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useChartOfAccounts } from "@/hooks/use-report";
+import { usePageTitle } from "@/lib/use-page-title";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { formatCurrency as fmtCurrency } from "@/lib/utils";
@@ -28,6 +29,7 @@ const ROOT_ORDER = ["Asset", "Liability", "Equity", "Income", "Expense"];
 
 export default function ChartOfAccountsPage() {
   const { t } = useTranslation();
+  usePageTitle(t("coa.title", { defaultValue: "Chart of Accounts" }));
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(String(currentYear));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
