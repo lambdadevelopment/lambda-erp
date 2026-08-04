@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useTranslation } from "react-i18next";
 import { useTrialBalance } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -12,6 +13,7 @@ import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 export default function TrialBalancePage() {
   const { t } = useTranslation();
+  usePageTitle(t("titles.trial-balance"));
   const [urlCompany] = useUrlState<string>("company", "");
   const [urlFromDate] = useUrlState<string>("from", "");
   const [urlToDate] = useUrlState<string>("to", "");

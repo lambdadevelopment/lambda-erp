@@ -29,7 +29,7 @@ const ROOT_ORDER = ["Asset", "Liability", "Equity", "Income", "Expense"];
 
 export default function ChartOfAccountsPage() {
   const { t } = useTranslation();
-  usePageTitle(t("coa.title", { defaultValue: "Chart of Accounts" }));
+  usePageTitle(t("titles.chart-of-accounts", { defaultValue: "Chart of Accounts" }));
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(String(currentYear));
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());

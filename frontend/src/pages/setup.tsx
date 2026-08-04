@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
@@ -12,6 +13,7 @@ const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY"
 type SeedMode = "none" | "quick" | "history";
 
 export default function SetupPage() {
+  usePageTitle("Company Setup");
   const queryClient = useQueryClient();
 
   const { data: status, isLoading } = useQuery({

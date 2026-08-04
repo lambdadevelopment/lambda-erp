@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { usePageTitle } from "@/lib/use-page-title";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -133,6 +134,7 @@ function RecentDocumentRowSkeleton() {
 
 export default function DashboardPage() {
   const { t } = useTranslation();
+  usePageTitle(t("titles.dashboard"));
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: () => api.dashboardSummary(),

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useArAging } from "@/hooks/use-report";
@@ -13,6 +14,7 @@ import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 export default function ArAgingPage() {
   const { t } = useTranslation();
+  usePageTitle(t("titles.ar-aging"));
   const [urlCompany] = useUrlState<string>("company", "");
   const [urlAsOfDate] = useUrlState<string>("as_of_date", "");
   const patchUrl = useUrlPatch();

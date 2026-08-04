@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useGeneralLedger } from "@/hooks/use-report";
@@ -20,6 +21,7 @@ const PAGE_SIZE_OPTIONS = ["25", "50", "100", "200"];
 
 export default function GeneralLedgerPage() {
   const { t } = useTranslation();
+  usePageTitle(t("titles.general-ledger"));
   // URL-backed filter and pagination state. Param names match the backend
   // where it's natural (account, party) and use human-friendly short forms
   // for pagination and dates (page, per_page, from, to).

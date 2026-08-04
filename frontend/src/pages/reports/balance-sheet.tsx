@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useTranslation } from "react-i18next";
 import { useBalanceSheet } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -44,6 +45,7 @@ function SectionTable({ title, rows, total, totalLabel, currency }: { title: str
 
 export default function BalanceSheetPage() {
   const { t } = useTranslation();
+  usePageTitle(t("titles.balance-sheet"));
   const [urlCompany] = useUrlState<string>("company", "");
   const [urlAsOfDate] = useUrlState<string>("as_of_date", "");
   const patchUrl = useUrlPatch();

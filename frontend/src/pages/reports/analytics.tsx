@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useNavigate } from "react-router-dom";
 import {
   Bar,
@@ -141,6 +142,7 @@ return {
 const EXAMPLE_CUSTOM_REPORT = buildExampleCustomReport();
 
 export default function AnalyticsPage() {
+  usePageTitle("Analytics");
   const navigate = useNavigate();
   const { sessions, createSession } = useChat();
 

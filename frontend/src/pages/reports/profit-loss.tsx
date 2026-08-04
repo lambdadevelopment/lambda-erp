@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useTranslation } from "react-i18next";
 import { useProfitAndLoss } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -12,6 +13,7 @@ import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 export default function ProfitLossPage() {
   const { t } = useTranslation();
+  usePageTitle(t("titles.profit-and-loss"));
   const [urlCompany] = useUrlState<string>("company", "");
   const [urlFromDate] = useUrlState<string>("from", "");
   const [urlToDate] = useUrlState<string>("to", "");

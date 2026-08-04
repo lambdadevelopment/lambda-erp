@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/card";
 import { useChat } from "@/components/chat/chat-provider";
@@ -400,6 +401,7 @@ function LifecycleCard() {
 
 export default function TutorialPage() {
   const { t } = useTranslation();
+  usePageTitle(t("titles.tutorial"));
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>

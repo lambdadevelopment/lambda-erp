@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useTranslation } from "react-i18next";
 import { useStockBalance } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -10,6 +11,7 @@ import { useBaseCurrency } from "@/hooks/use-base-currency";
 
 export default function StockBalancePage() {
   const { t } = useTranslation();
+  usePageTitle(t("titles.stock-balance"));
   const [urlItemCode] = useUrlState<string>("item_code", "");
   const [urlWarehouse] = useUrlState<string>("warehouse", "");
   const patchUrl = useUrlPatch();

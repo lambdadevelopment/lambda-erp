@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { usePrompt } from "@/components/ui/dialog";
 
 export default function UsersPage() {
+  usePageTitle("Users");
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
 

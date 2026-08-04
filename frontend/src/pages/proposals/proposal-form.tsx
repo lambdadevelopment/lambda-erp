@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { usePageTitle } from "@/lib/use-page-title";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -35,6 +36,7 @@ export default function ProposalForm() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { t } = useTranslation();
+  usePageTitle(t("titles.proposal"));
   const tr = (k: string, dflt: string) => t(k, { defaultValue: dflt });
   const confirm = useConfirm();
 
