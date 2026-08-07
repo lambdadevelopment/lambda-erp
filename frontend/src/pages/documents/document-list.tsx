@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { DateRangePresets } from "@/components/ui/date-range-presets";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizontal } from "lucide-react";
 
 const STATUS_OPTIONS = ["All", "Draft", "Submitted", "Cancelled"];
 
@@ -205,21 +206,27 @@ export default function DocumentListPage() {
   const page = urlPage - 1;
   const patchUrl = useUrlPatch();
 
-  // Sort: order_by/order live in the URL (shareable, survives back/forward). The
-  // backend validates order_by against the doctype's real columns and defaults
-  // to creation DESC when unset.
-  const [orderBy] = useUrlState<string>("order_by", "");
-  const [order] = useUrlState<string>("order", "desc");
-  const toggleSort = (col: string) => {
-    const next = orderBy === col
-      ? (order === "desc" ? "asc" : "desc")   // same column: flip direction
-      : (isDateColumn(col) ? "desc" : "asc");  // new column: sensible first click
-    patchUrl({ order_by: col, order: next, page: null });
-  };
-
-  // Per-user column choice (persisted server-side via /auth/my-settings under
-  // `columns.<doctype>`). Falls back to the doctype's declared listColumns.
+  // Per-user preferences (columns + sort), persisted server-side via
+  // /auth/my-settings — cross-device, unlike localStorage.
   const { settings, setSetting } = useMySettings();
+
+  // Sort. The URL (order_by/order) is the immediate, shareable state; the per-user
+  // store holds this doctype's DEFAULT sort ("col:dir"). Effective sort = the URL
+  // when present, else the saved default, else the backend's creation-DESC.
+  // Toggling a header updates BOTH (so "I sorted by X" sticks on a fresh revisit).
+  // The backend validates order_by against the doctype's real columns.
+  const [urlOrderBy] = useUrlState<string>("order_by", "");
+  const [urlOrder] = useUrlState<string>("order", "");
+  const [savedSortCol, savedSortDir] = (settings[`sort.${doctype}`] || "").split(":");
+  const activeSortCol = urlOrderBy || savedSortCol || "";
+  const activeSortDir = (urlOrderBy ? urlOrder : savedSortDir) || "desc";
+  const toggleSort = (col: string) => {
+    const next = activeSortCol === col
+      ? (activeSortDir === "desc" ? "asc" : "desc")   // same column: flip direction
+      : (isDateColumn(col) ? "desc" : "asc");          // new column: sensible first click
+    patchUrl({ order_by: col, order: next, page: null });
+    setSetting(`sort.${doctype}`, `${col}:${next}`);
+  };
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const savedCols = useMemo(
@@ -297,11 +304,11 @@ export default function DocumentListPage() {
       f.search_fields = searchFields.join(",");
     }
     if (showDiscarded) f.include_discarded = "true";
-    if (orderBy) { f.order_by = orderBy; f.order = order || "desc"; }
+    if (activeSortCol) { f.order_by = activeSortCol; f.order = activeSortDir; }
     f.limit = pageSize;
     f.offset = page * pageSize;
     return f;
-  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, searchFields, urlQ, orderBy, order]);
+  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, searchFields, urlQ, activeSortCol, activeSortDir]);
 
   const { data, isLoading } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
@@ -438,7 +445,10 @@ export default function DocumentListPage() {
       <div className="flex items-center justify-end gap-2">
         <div className="relative" ref={pickerRef}>
           <Button variant="secondary" onClick={() => setPickerOpen((o) => !o)}>
-            {t("common.columns", { defaultValue: "Columns" })}
+            <span className="inline-flex items-center gap-1.5">
+              <SlidersHorizontal className="h-4 w-4" />
+              {t("common.columns", { defaultValue: "Columns" })}
+            </span>
           </Button>
           {pickerOpen && (
             <div className="absolute right-0 z-20 mt-2 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-surface p-2 shadow-card">
@@ -568,11 +578,11 @@ export default function DocumentListPage() {
                             className="group inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-fg"
                           >
                             {flexRender(header.column.columnDef.header, header.getContext())}
-                            <span className="text-[10px] leading-none">
-                              {orderBy === header.column.id
-                                ? (order === "asc" ? "▲" : "▼")
-                                : <span className="opacity-0 transition-opacity group-hover:opacity-40">▼</span>}
-                            </span>
+                            {activeSortCol === header.column.id
+                              ? (activeSortDir === "asc"
+                                  ? <ChevronUp className="h-3.5 w-3.5" />
+                                  : <ChevronDown className="h-3.5 w-3.5" />)
+                              : <ChevronsUpDown className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-40" />}
                           </button>
                         )}
                       </th>
