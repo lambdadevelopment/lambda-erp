@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useLocation } from "react-router-dom";
 import { setListContext } from "@/lib/doc-list-context";
+import { useMySettings } from "@/hooks/use-my-settings";
 import { useTranslation } from "react-i18next";
 import {
   useReactTable,
@@ -41,6 +42,18 @@ const DATE_FIELDS = new Set([
   "valid_till",
   "date",
 ]);
+
+// System columns every doctype/master row carries — offerable in the column
+// picker and sortable, even though they aren't in the doctype's `fields`.
+const SYSTEM_COLUMNS: Array<{ name: string; label: string; isDate: boolean }> = [
+  { name: "modified", label: "Last modified", isDate: true },
+  { name: "creation", label: "Created", isDate: true },
+];
+const SYSTEM_COLUMN_NAMES = new Set(SYSTEM_COLUMNS.map((c) => c.name));
+// A column whose default first-click sort should be DESC (newest/highest first).
+const isDateColumn = (col: string) =>
+  DATE_FIELDS.has(col) || col === "modified" || col === "creation" ||
+  col.endsWith("_date") || col.endsWith("_at");
 
 // Columns that reference a master record — rendered as clickable links to the master page.
 const MASTER_REF_FIELDS: Record<string, string> = {
@@ -192,6 +205,59 @@ export default function DocumentListPage() {
   const page = urlPage - 1;
   const patchUrl = useUrlPatch();
 
+  // Sort: order_by/order live in the URL (shareable, survives back/forward). The
+  // backend validates order_by against the doctype's real columns and defaults
+  // to creation DESC when unset.
+  const [orderBy] = useUrlState<string>("order_by", "");
+  const [order] = useUrlState<string>("order", "desc");
+  const toggleSort = (col: string) => {
+    const next = orderBy === col
+      ? (order === "desc" ? "asc" : "desc")   // same column: flip direction
+      : (isDateColumn(col) ? "desc" : "asc");  // new column: sensible first click
+    patchUrl({ order_by: col, order: next, page: null });
+  };
+
+  // Per-user column choice (persisted server-side via /auth/my-settings under
+  // `columns.<doctype>`). Falls back to the doctype's declared listColumns.
+  const { settings, setSetting } = useMySettings();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const savedCols = useMemo(
+    () => (settings[`columns.${doctype}`] || "").split(",").map((s) => s.trim()).filter(Boolean),
+    [settings, doctype],
+  );
+  const effectiveCols = savedCols.length ? savedCols : (config?.listColumns ?? []);
+  // The full menu of columns a user can pick: name (the id) + the doctype's own
+  // fields + the system columns (modified/creation).
+  const availableCols = useMemo(() => {
+    if (!config) return [];
+    const seen = new Set<string>();
+    const out: Array<{ name: string; label: string }> = [];
+    const push = (name: string, label: string) => {
+      if (seen.has(name)) return;
+      seen.add(name); out.push({ name, label });
+    };
+    push("name", t("fields.Name", { defaultValue: "Name" }));
+    for (const f of config.fields) push(f.name, t(`fields.${f.label}`, { defaultValue: f.label }));
+    for (const c of SYSTEM_COLUMNS) push(c.name, t(`fields.${c.label}`, { defaultValue: c.label }));
+    return out;
+  }, [config, t]);
+  const toggleColumn = (col: string) => {
+    const set = effectiveCols.includes(col)
+      ? effectiveCols.filter((c) => c !== col)          // remove
+      : [...effectiveCols, col];                         // append
+    if (set.length === 0) return;                        // never leave an empty table
+    setSetting(`columns.${doctype}`, set.join(","));
+  };
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [pickerOpen]);
+
   // All writes go through one atomic patch so multiple params update together
   // — calling two individual setters in the same handler races (react-router
   // caches the previous searchParams, so the last call wins).
@@ -231,10 +297,11 @@ export default function DocumentListPage() {
       f.search_fields = searchFields.join(",");
     }
     if (showDiscarded) f.include_discarded = "true";
+    if (orderBy) { f.order_by = orderBy; f.order = order || "desc"; }
     f.limit = pageSize;
     f.offset = page * pageSize;
     return f;
-  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, searchFields, urlQ]);
+  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, searchFields, urlQ, orderBy, order]);
 
   const { data, isLoading } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
@@ -257,6 +324,8 @@ export default function DocumentListPage() {
     // Title-case a column slug, then translate it (English title-case is the
     // fallback when a field has no translation yet).
     const headerLabel = (c: string) => {
+      const sys = SYSTEM_COLUMNS.find((s) => s.name === c);
+      if (sys) return t(`fields.${sys.label}`, { defaultValue: sys.label });
       const titleCased = c
         .split("_")
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -264,7 +333,7 @@ export default function DocumentListPage() {
       return t(`fields.${titleCased}`, { defaultValue: titleCased });
     };
 
-    return config.listColumns.map((col) => {
+    return effectiveCols.map((col) => {
       if (col === "name") {
         return helper.accessor("name", {
           header: t("fields.Name", { defaultValue: "Name" }),
@@ -337,7 +406,7 @@ export default function DocumentListPage() {
         });
       }
 
-      if (DATE_FIELDS.has(col)) {
+      if (DATE_FIELDS.has(col) || SYSTEM_COLUMN_NAMES.has(col)) {
         return helper.accessor(col, {
           header: headerLabel(col),
           cell: (info) => formatDate(info.getValue()),
@@ -348,7 +417,7 @@ export default function DocumentListPage() {
         header: headerLabel(col),
       });
     });
-  }, [config, t, baseCurrency]);
+  }, [config, t, baseCurrency, effectiveCols]);
 
   const table = useReactTable({
     data: rows,
@@ -366,7 +435,38 @@ export default function DocumentListPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <div className="relative" ref={pickerRef}>
+          <Button variant="secondary" onClick={() => setPickerOpen((o) => !o)}>
+            {t("common.columns", { defaultValue: "Columns" })}
+          </Button>
+          {pickerOpen && (
+            <div className="absolute right-0 z-20 mt-2 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-surface p-2 shadow-card">
+              <div className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+                {t("common.columns", { defaultValue: "Columns" })}
+              </div>
+              {availableCols.map((c) => {
+                const checked = effectiveCols.includes(c.name);
+                const lastOne = checked && effectiveCols.length === 1;
+                return (
+                  <label
+                    key={c.name}
+                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-surface-subtle"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-line text-brand focus:ring-brand/30 disabled:opacity-50"
+                      checked={checked}
+                      disabled={lastOne}
+                      onChange={() => toggleColumn(c.name)}
+                    />
+                    {c.label}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
         <Link to={`/app/${config.slug}/new`}>
           <Button>{t("common.new")}</Button>
         </Link>
@@ -460,12 +560,21 @@ export default function DocumentListPage() {
                         key={header.id}
                         className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted"
                       >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                        {header.isPlaceholder ? null : (
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(header.column.id)}
+                            title={t("common.sortByColumn", { defaultValue: "Sort by this column" })}
+                            className="group inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-fg"
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            <span className="text-[10px] leading-none">
+                              {orderBy === header.column.id
+                                ? (order === "asc" ? "▲" : "▼")
+                                : <span className="opacity-0 transition-opacity group-hover:opacity-40">▼</span>}
+                            </span>
+                          </button>
+                        )}
                       </th>
                     ))}
                   </tr>

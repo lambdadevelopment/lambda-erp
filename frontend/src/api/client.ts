@@ -464,6 +464,11 @@ export const api = {
   getSettings: () => request<Record<string, string>>("/auth/settings"),
   updateSettings: (data: Record<string, string>) =>
     request<Record<string, string>>("/auth/settings", { method: "PUT", body: JSON.stringify(data) }),
+  // Per-USER preferences (columns.<doctype>, language, …) — scoped to the caller,
+  // not admin-gated, unlike the global getSettings/updateSettings above.
+  getMySettings: () => request<Record<string, string>>("/auth/my-settings"),
+  updateMySettings: (data: Record<string, string>) =>
+    request<Record<string, string>>("/auth/my-settings", { method: "PUT", body: JSON.stringify(data) }),
   getApiKeys: () =>
     request<Array<{
       id: string; name: string; user?: string; role: string; key_prefix: string;

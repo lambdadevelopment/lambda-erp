@@ -11,6 +11,8 @@
     "keepDraft": "Behalten",
     "discardDraftConfirm": "Verwerfen",
     "showDiscarded": "Verworfene anzeigen",
+    "columns": "Spalten",
+    "sortByColumn": "Nach dieser Spalte sortieren",
     "delete": "Löschen",
     "edit": "Bearbeiten",
     "pdf": "PDF",
@@ -363,6 +365,8 @@
     "disabledOnDelete": "{{label}} {{name}} wurde deaktiviert statt gelöscht, da er von {{reason}} referenziert wird."
   },
   "fields": {
+    "Last modified": "Zuletzt geändert",
+    "Created": "Erstellt",
     "Account": "Konto",
     "Amount": "Betrag",
     "Balance": "Saldo",

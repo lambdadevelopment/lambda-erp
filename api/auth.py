@@ -720,6 +720,46 @@ def update_settings(data: dict, user: dict = Depends(require_admin)):
     return settings
 
 
+@router.get("/my-settings")
+def get_my_settings(user: dict = Depends(get_current_user)):
+    """The CURRENT user's personal preferences as a {key: value} bag.
+
+    Distinct from the global, admin-only /settings above: this is scoped to the
+    caller and any authenticated user may read (and, via PUT, write) their OWN
+    row. Consumers so far: `columns.<doctype>` (personal list columns) and
+    `language`. Returns {} for a user who has set nothing.
+    """
+    db = get_db()
+    rows = db.sql('SELECT key, value FROM "User Preference" WHERE user_name = ?', [user["name"]])
+    return {r["key"]: r["value"] for r in rows}
+
+
+@router.put("/my-settings")
+def update_my_settings(data: dict, user: dict = Depends(get_current_user)):
+    """Merge-upsert the caller's OWN preferences (not admin-gated — a user owns
+    their prefs). Only rows with this user_name are ever touched, so one user can
+    never read or overwrite another's. Send only the keys you want to change."""
+    db = get_db()
+    uname = user["name"]
+    for key, value in data.items():
+        existing = db.sql(
+            'SELECT 1 FROM "User Preference" WHERE user_name = ? AND key = ?', [uname, key]
+        )
+        if existing:
+            db.sql(
+                'UPDATE "User Preference" SET value = ? WHERE user_name = ? AND key = ?',
+                [str(value), uname, key],
+            )
+        else:
+            db.sql(
+                'INSERT INTO "User Preference" (user_name, key, value) VALUES (?, ?, ?)',
+                [uname, key, str(value)],
+            )
+    db.conn.commit()
+    rows = db.sql('SELECT key, value FROM "User Preference" WHERE user_name = ?', [uname])
+    return {r["key"]: r["value"] for r in rows}
+
+
 # ---------------------------------------------------------------------------
 # Programmatic chat API — Bearer API keys
 # ---------------------------------------------------------------------------

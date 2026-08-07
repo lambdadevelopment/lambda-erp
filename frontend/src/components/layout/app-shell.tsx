@@ -7,6 +7,7 @@ import { ChatProvider, useChat } from "@/components/chat/chat-provider";
 import { DialogProvider } from "@/components/ui/dialog";
 import { Sidebar, FLASH_STYLES } from "@/components/layout/sidebar";
 import { useAuth } from "@/contexts/auth-context";
+import { useMySettings } from "@/hooks/use-my-settings";
 import { cn } from "@/lib/utils";
 
 const titleCase = (slug: string) =>
@@ -76,7 +77,20 @@ function AppShellContent() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { navigationFlash } = useChat();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  // Apply the user's saved language (per-user server pref) once it loads, so the
+  // choice follows their account across devices — localStorage seeded the initial
+  // language synchronously; this reconciles it with the server. No-op when they
+  // already match (so a manual switch via LanguageSelect never fights this).
+  const { settings: mySettings } = useMySettings();
+  useEffect(() => {
+    const lang = mySettings["language"];
+    if (lang && lang !== (i18n.language || "").split("-")[0]) {
+      i18n.changeLanguage(lang);
+    }
+  }, [mySettings, i18n]);
+
   const pageTitle = deriveTitle(pathname, t);
   const backPath = deriveBackPath(pathname);
 

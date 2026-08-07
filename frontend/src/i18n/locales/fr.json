@@ -11,6 +11,8 @@
     "keepDraft": "Conserver",
     "discardDraftConfirm": "Supprimer",
     "showDiscarded": "Afficher les supprimés",
+    "columns": "Colonnes",
+    "sortByColumn": "Trier par cette colonne",
     "delete": "Supprimer",
     "edit": "Modifier",
     "pdf": "PDF",
@@ -363,6 +365,8 @@
     "disabledOnDelete": "{{label}} {{name}} a été désactivé au lieu d'être supprimé car il est référencé par {{reason}}."
   },
   "fields": {
+    "Last modified": "Dernière modification",
+    "Created": "Créé",
     "Account": "Compte",
     "Amount": "Montant",
     "Balance": "Solde",

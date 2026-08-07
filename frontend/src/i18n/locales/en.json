@@ -11,6 +11,8 @@
     "keepDraft": "Keep",
     "discardDraftConfirm": "Discard draft",
     "showDiscarded": "Show discarded",
+    "columns": "Columns",
+    "sortByColumn": "Sort by this column",
     "delete": "Delete",
     "edit": "Edit",
     "pdf": "PDF",
@@ -405,6 +407,8 @@
     "Create Sales Order": "Create Sales Order"
   },
   "fields": {
+    "Last modified": "Last modified",
+    "Created": "Created",
     "% Billed": "% Billed",
     "% Delivered": "% Delivered",
     "Account": "Account",

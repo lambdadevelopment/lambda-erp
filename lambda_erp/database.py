@@ -1348,6 +1348,17 @@ class Database:
                 value TEXT
             )""",
 
+            # Per-USER preferences — distinct from the global admin-only Settings
+            # above. A key->value bag scoped to one User; any authenticated user
+            # reads/writes ONLY their own rows via /auth/my-settings (not admin).
+            # Consumers: `columns.<doctype>` (personal list columns), `language`.
+            """CREATE TABLE IF NOT EXISTS "User Preference" (
+                user_name TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT,
+                PRIMARY KEY (user_name, key)
+            )""",
+
             # Bearer API keys for the programmatic chat API (off by default via
             # the `chat_api_enabled` Settings flag). Tokens are stored hashed
             # (sha256); `key_prefix` is a display-only fragment. `role` bounds the
