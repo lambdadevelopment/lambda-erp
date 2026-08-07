@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.25] - 2026-08-07
+
+### Added
+- **Sort now persists per-user.** Clicking a column header saves that sort as the
+  doctype's default (`sort.<doctype>` in the per-user store), so it survives a
+  fresh revisit — not just back/forward. The URL still wins when present (shareable
+  links), falling back to the saved default, then the backend's creation-DESC.
+
+### Changed
+- List sort indicators and the "Columns" button now use lucide SVG icons
+  (chevrons for sort direction; a sliders icon on the column picker) instead of
+  text arrows.
+
 ## [0.6.24] - 2026-08-07
 
 ### Added
