@@ -13,6 +13,25 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.6.24] - 2026-08-07
+
+### Added
+- **Sortable list columns.** Every doctype/master list header is now clickable to
+  sort by that column (`order_by`/`order` in the URL, validated server-side; ▲/▼
+  indicator; date columns default newest-first). Sort by Next action date, Last
+  contacted, **Last modified**, etc.
+- **Per-user column picker.** A "Columns" popover on each list lets each user pick
+  which columns they see (built from the doctype's fields + `name` + system
+  `modified`/`creation`), persisted **server-side per user**. Falls back to the
+  doctype's `listColumns` default.
+- **Per-user preferences store.** New `User Preference` table + current-user-scoped
+  `GET`/`PUT /auth/my-settings` (merge-upsert, not admin-gated) — distinct from the
+  global admin-only `/auth/settings`. Portable across SQLite + Postgres. Consumers:
+  `columns.<doctype>` and `language`.
+- **Language now follows the account.** `LanguageSelect` saves the choice to the
+  per-user store and the app applies it on load, so language syncs across devices
+  (localStorage remains the fast pre-auth seed).
+
 ## [0.6.23] - 2026-08-04
 
 ### Added
