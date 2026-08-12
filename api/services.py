@@ -22,6 +22,8 @@ from lambda_erp.controllers.pricing_rule import PricingRule
 from lambda_erp.accounting.budget import Budget
 from lambda_erp.accounting.subscription import Subscription
 from lambda_erp.accounting.bank_transaction import BankTransaction
+from lambda_erp.assets.asset import Asset
+from lambda_erp.assets.reservation import Reservation
 
 
 # --- Doctype registries ---
@@ -43,6 +45,11 @@ DOCUMENT_CLASSES = {
     "Budget": Budget,
     "Subscription": Subscription,
     "Bank Transaction": BankTransaction,
+    # Neither posts to the GL or the Stock Ledger; both stay at docstatus 0 and
+    # carry their meaning in `status`. Registered here so the generic document
+    # CRUD, the chat tools and MCP drive them like every other doctype.
+    "Asset": Asset,
+    "Reservation": Reservation,
 }
 
 CONVERTERS = {

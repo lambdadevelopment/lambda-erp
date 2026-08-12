@@ -2684,6 +2684,110 @@ def main():
     print("  PASSED - Draft discard is a soft delete; submitted docs still require cancel")
 
     # =====================================================================
+    # ASSET IDENTITY + DATE-RANGED RESERVATIONS
+    # =====================================================================
+    print_header("ASSETS: unit identity, opt-in, and the reservation calendar")
+
+    from lambda_erp.exceptions import ValidationError
+    from lambda_erp.assets.asset import Asset
+    from lambda_erp.assets.reservation import (
+        Reservation, available_assets, available_qty, committed_qty,
+        pool_capacity, release_reservations,
+    )
+
+    _gl_before = len(db.get_all("GL Entry", fields=["name"]))
+    _sle_before = len(db.get_all("Stock Ledger Entry", fields=["name"]))
+
+    db.insert("Warehouse", _dict(name="Yard SG - LAMB", warehouse_name="Yard SG",
+                                 company="Lambda Corp"))
+    db.insert("Warehouse", _dict(name="Yard ZH - LAMB", warehouse_name="Yard ZH",
+                                 company="Lambda Corp"))
+    db.insert("Item", _dict(name="EXC-17", item_name="17t Excavator",
+                            is_stock_item=0, is_asset_tracked=1,
+                            default_warehouse="Yard SG - LAMB"))
+    db.commit()
+
+    # Opt-in is the whole safety story: an item that hasn't asked for unit
+    # tracking cannot grow Assets, so every pre-existing item is untouched.
+    try:
+        Asset(item_code="ITEM-001", asset_tag="NOPE").save()
+        raise AssertionError("an item without is_asset_tracked must be refused")
+    except ValidationError as err:
+        assert "not asset-tracked" in str(err), f"unexpected message: {err}"
+    print("  Opt-in enforced: ITEM-001 (untracked) cannot have Assets")
+
+    _u1 = Asset(item_code="EXC-17", asset_tag="SG-001", warehouse="Yard SG - LAMB").save()
+    _u2 = Asset(item_code="EXC-17", asset_tag="SG-002", warehouse="Yard SG - LAMB").save()
+    _u3 = Asset(item_code="EXC-17", asset_tag="ZH-001", warehouse="Yard ZH - LAMB").save()
+    assert pool_capacity(db, "EXC-17", "Yard SG - LAMB") == 2
+    print(f"  3 units created ({_u1.name}, {_u2.name}, {_u3.name}); SG pool capacity = 2")
+
+    # A duplicate plate would silently double the pool's capacity.
+    try:
+        Asset(item_code="EXC-17", asset_tag="SG-001").save()
+        raise AssertionError("a duplicate asset_tag must be refused")
+    except ValidationError as err:
+        assert "already used by" in str(err), f"unexpected message: {err}"
+
+    # Unit-level booking, then the same unit double-booked.
+    _r1 = Reservation(asset=_u1.name, from_datetime="2026-08-14",
+                      to_datetime="2026-08-19", party_type="Customer",
+                      party="CUST-001").save()
+    assert _r1.item_code == "EXC-17" and _r1.warehouse == "Yard SG - LAMB", \
+        "a unit reservation must inherit its asset's item and yard"
+    try:
+        Reservation(asset=_u1.name, from_datetime="2026-08-18",
+                    to_datetime="2026-08-20").save()
+        raise AssertionError("an overlapping unit reservation must be refused")
+    except ValidationError as err:
+        assert "already committed" in str(err), f"unexpected message: {err}"
+    print(f"  {_r1.name} holds {_u1.name} 14.-19.; the overlapping booking was refused")
+
+    # Half-open windows: a hire ending when the next starts is NOT a clash.
+    _r2 = Reservation(asset=_u1.name, from_datetime="2026-08-19",
+                      to_datetime="2026-08-21").save()
+    print(f"  {_r2.name} starts exactly when {_r1.name} ends — allowed (half-open)")
+
+    # Pooled booking draws on the same capacity as the pinned one.
+    _r3 = Reservation(item_code="EXC-17", warehouse="Yard SG - LAMB", qty=1,
+                      from_datetime="2026-08-14", to_datetime="2026-08-16",
+                      voucher_type="Sales Order", voucher_no="SO-RENTAL-1").save()
+    assert committed_qty(db, "EXC-17", "Yard SG - LAMB", "2026-08-14", "2026-08-16") == 2
+    assert available_qty(db, "EXC-17", "Yard SG - LAMB", "2026-08-14", "2026-08-16") == 0
+    try:
+        Reservation(item_code="EXC-17", warehouse="Yard SG - LAMB", qty=1,
+                    from_datetime="2026-08-14", to_datetime="2026-08-16").save()
+        raise AssertionError("a booking beyond pool capacity must be refused")
+    except ValidationError as err:
+        assert "free at" in str(err), f"unexpected message: {err}"
+    print("  Pool exhausted 14.-16. (1 pinned + 1 pooled of 2) — third booking refused")
+
+    # A different yard has its own pool and is unaffected.
+    Reservation(asset=_u3.name, from_datetime="2026-08-14", to_datetime="2026-08-16").save()
+    assert available_qty(db, "EXC-17", "Yard ZH - LAMB", "2026-08-17", "2026-08-18") == 1
+    _free = [a["name"] for a in
+             available_assets(db, "EXC-17", "Yard SG - LAMB", "2026-08-20", "2026-08-21")]
+    assert _free == [_u2.name], f"expected only {_u2.name} free 20.-21., got {_free}"
+    print(f"  Yard ZH unaffected; only {_u2.name} is free in Yard SG on 20.-21.")
+
+    # Editing a reservation must not collide with itself.
+    _r1.notes = "extended by phone"
+    _r1.save()
+
+    # Releasing a document's holds frees the window immediately.
+    assert release_reservations(db, "Sales Order", "SO-RENTAL-1") == 1
+    assert available_qty(db, "EXC-17", "Yard SG - LAMB", "2026-08-14", "2026-08-16") == 1
+    print("  Releasing SO-RENTAL-1 returned its slot to the pool")
+
+    # THE invariant for this feature: a commitment is not a transaction. If
+    # these counts ever move, assets have started touching the books.
+    assert len(db.get_all("GL Entry", fields=["name"])) == _gl_before, \
+        "Assets/Reservations must never post GL entries"
+    assert len(db.get_all("Stock Ledger Entry", fields=["name"])) == _sle_before, \
+        "Assets/Reservations must never post Stock Ledger Entries"
+    print("  PASSED - Unit identity + calendar work, and post nothing to GL or stock")
+
+    # =====================================================================
     # FINAL SUMMARY
     # =====================================================================
     print_header("TRIAL BALANCE")

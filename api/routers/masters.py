@@ -78,6 +78,8 @@ DELETE_REFERENCE_CHECKS = {
         ('SELECT 1 FROM "Bin" WHERE item_code = ? LIMIT 1', "bin"),
         ('SELECT 1 FROM "Pricing Rule" WHERE item_code = ? LIMIT 1', "pricing rule"),
         ('SELECT 1 FROM "Subscription Plan" WHERE item_code = ? LIMIT 1', "subscription plan"),
+        ('SELECT 1 FROM "Asset" WHERE item_code = ? LIMIT 1', "asset"),
+        ('SELECT 1 FROM "Reservation" WHERE item_code = ? LIMIT 1', "reservation"),
     ],
     "warehouse": [
         ('SELECT 1 FROM "Item" WHERE default_warehouse = ? LIMIT 1', "item"),
@@ -94,6 +96,8 @@ DELETE_REFERENCE_CHECKS = {
         ('SELECT 1 FROM "Stock Entry Detail" WHERE s_warehouse = ? OR t_warehouse = ? LIMIT 1', "stock entry item"),
         ('SELECT 1 FROM "Stock Ledger Entry" WHERE warehouse = ? LIMIT 1', "stock ledger entry"),
         ('SELECT 1 FROM "Bin" WHERE warehouse = ? LIMIT 1', "bin"),
+        ('SELECT 1 FROM "Asset" WHERE warehouse = ? LIMIT 1', "asset"),
+        ('SELECT 1 FROM "Reservation" WHERE warehouse = ? LIMIT 1', "reservation"),
     ],
     "account": [
         ('SELECT 1 FROM "Account" WHERE parent_account = ? LIMIT 1', "child account"),

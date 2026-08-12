@@ -397,6 +397,7 @@ class Database:
                 stock_uom TEXT DEFAULT 'Nos',
                 is_stock_item INTEGER DEFAULT 1,
                 is_fixed_asset INTEGER DEFAULT 0,
+                is_asset_tracked INTEGER DEFAULT 0,
                 valuation_method TEXT DEFAULT 'FIFO',
                 default_warehouse TEXT,
                 standard_rate REAL DEFAULT 0,
@@ -1396,6 +1397,60 @@ class Database:
                 creation TEXT,
                 modified TEXT
             )""",
+
+            # --- Unit-level asset identity + reservations ---
+            # An Asset is one physical unit of an asset-tracked Item (the Item
+            # stays the *type* and carries the pricing). Owned, not consumed:
+            # nothing in lambda_erp/assets/ touches the Stock Ledger or the GL,
+            # so these tables cannot affect an existing deployment's books.
+            # Tracking is opt-in per Item via `is_asset_tracked` (migration 21),
+            # which defaults to 0. See docs/adr-0002-asset-and-reservation.md.
+            """CREATE TABLE IF NOT EXISTS "Asset" (
+                name TEXT PRIMARY KEY,
+                asset_name TEXT,
+                item_code TEXT,
+                asset_tag TEXT,
+                warehouse TEXT,
+                company TEXT,
+                status TEXT DEFAULT 'Available',
+                purchase_date TEXT,
+                purchase_value REAL DEFAULT 0,
+                meter_reading REAL DEFAULT 0,
+                meter_uom TEXT,
+                notes TEXT,
+                disabled INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
+                docstatus INTEGER DEFAULT 0,
+                creation TEXT,
+                modified TEXT
+            )""",
+
+            # A half-open [from, to) commitment against either one Asset
+            # (`asset` set) or `qty` units of an item+warehouse pool. Bounds are
+            # normalised to fixed-width 'YYYY-MM-DD HH:MM:SS', which is what
+            # lets the overlap test be a plain TEXT comparison on both backends.
+            """CREATE TABLE IF NOT EXISTS "Reservation" (
+                name TEXT PRIMARY KEY,
+                item_code TEXT,
+                warehouse TEXT,
+                asset TEXT,
+                qty REAL DEFAULT 1,
+                from_datetime TEXT,
+                to_datetime TEXT,
+                status TEXT DEFAULT 'Reserved',
+                party_type TEXT,
+                party TEXT,
+                voucher_type TEXT,
+                voucher_no TEXT,
+                voucher_detail_no TEXT,
+                purpose TEXT,
+                notes TEXT,
+                company TEXT,
+                discarded INTEGER DEFAULT 0,
+                docstatus INTEGER DEFAULT 0,
+                creation TEXT,
+                modified TEXT
+            )""",
         ]
 
         for stmt in stmts:
@@ -2062,6 +2117,14 @@ def _m020_chat_attachment_openai_file(db: "Database") -> None:
     db._add_column_if_missing("Chat Attachment", "openai_file_expires_at", "INTEGER")
 
 
+def _m021_item_is_asset_tracked(db: "Database") -> None:
+    """Opt an Item in to unit-level Asset tracking. Defaults to 0, so every
+    existing item in every existing deployment keeps behaving exactly as
+    before — no stock movement starts demanding unit identities. Only items a
+    user explicitly flags get Assets and reservations."""
+    db._add_column_if_missing("Item", "is_asset_tracked", "INTEGER DEFAULT 0")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2083,6 +2146,7 @@ Database.MIGRATIONS = [
     (18, "quotation_item_frequency", _m018_quotation_item_frequency),
     (19, "api_keys_per_user", _m019_api_keys_per_user),
     (20, "chat_attachment_openai_file", _m020_chat_attachment_openai_file),
+    (21, "item_is_asset_tracked", _m021_item_is_asset_tracked),
 ]
 
 

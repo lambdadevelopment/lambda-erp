@@ -449,6 +449,10 @@ DOCUMENT_SLUGS = [
     "payment-entry", "journal-entry", "stock-entry",
     "delivery-note", "purchase-receipt", "pos-invoice",
     "pricing-rule", "budget", "subscription", "bank-transaction",
+    # Owned equipment and its hire calendar. Core doctypes, so they belong in
+    # this list rather than surfacing as "deployment-specific extensions"
+    # (_extra_document_slugs is defined as everything NOT named here).
+    "asset", "reservation",
 ]
 
 MASTER_TYPES = ["customer", "supplier", "item", "warehouse", "account", "company", "cost-center"]
@@ -2135,6 +2139,7 @@ When a user asks you to do something they don't have permission for, explain wha
 - **Buying:** purchase-order, purchase-invoice
 - **Accounting:** payment-entry, journal-entry, budget, subscription, bank-transaction
 - **Stock:** stock-entry, delivery-note, purchase-receipt
+- **Assets & hire:** asset, reservation
 - **Settings:** pricing-rule{extension_doctypes_line}{chat_doctype_section}
 
 ## Document Workflow & What Each Document Does
@@ -2238,6 +2243,18 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - **Material Receipt:** Manual adjustment that adds stock (found stock, inventory count corrections). Posts Dr Stock In Hand / Cr Stock Adjustment. Not for purchased goods — use Purchase Receipt or Purchase Invoice with update_stock=1 for those. Not for opening balances — use Opening Stock.
 - **Material Issue:** Removes stock for write-offs or internal consumption. Posts Dr Stock Adjustment / Cr Stock In Hand.
 - **Material Transfer:** Moves stock between warehouses. No GL impact.
+
+### Assets & Reservations (equipment you OWN and hire out — not stock you sell)
+Use these only for items flagged `is_asset_tracked` on the Item master. Neither posts GL or stock entries: an owned machine going out on hire is not a sale of inventory, so the books are untouched until you invoice the hire through the normal selling cycle.
+
+- **Item vs Asset:** the Item is the *type* ("17t Excavator") and carries the rate and pricing rules. An **Asset** (slug `asset`) is ONE physical unit of it. Three identical machines = one Item + three Assets. Create with `item_code` (required) plus `asset_tag` (plate / serial — optional but must be unique), `warehouse` (its home yard), and optionally `purchase_date`, `purchase_value`, `meter_reading`. `status` is Available / On Hire / Maintenance / Retired — the unit's state *today*, not a date range. Retired units leave the pool.
+- **Opting in:** creating an Asset for an Item that isn't asset-tracked is refused. Fix it by setting `is_asset_tracked` = 1 on the Item via update_master, then retry. Never suggest the user edit the database.
+- **Reservation** (slug `reservation`) books a time window. Required: `from_datetime` and `to_datetime` (`YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`; a bare date means midnight). Windows are **half-open** — a hire ending on the 19th and the next starting on the 19th do NOT clash. Two ways to book:
+  - **pooled** — set `item_code`, `warehouse` and `qty`: "*a* machine of this type from that yard". Use this at quotation/order time when the specific unit doesn't matter yet.
+  - **unit** — set `asset`: "*that* machine". `item_code`, `warehouse` and `qty` are filled in from the Asset automatically.
+- `status` is Reserved / Out / Returned / Cancelled. **Reserved and Out block the calendar; Returned and Cancelled do not** — so a hire that comes back early frees its slot the moment you set it to Returned. Link a booking to the order that caused it with `voucher_type` + `voucher_no`.
+- **Double-booking is refused at save time.** If you get "already committed" (that unit is taken) or "free at" (the yard's pool is exhausted for that window), do NOT retry blindly — report the conflict, then offer the alternatives: different dates, a different yard, or a different model.
+- To answer "what's free between X and Y", list reservations for the item over the window and compare against the Assets that exist; a unit with no overlapping Reserved/Out row is available.
 
 ### Salary / Payroll (manual flow)
 There is no dedicated payroll module. Handle salary payments with two steps:
