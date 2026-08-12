@@ -130,6 +130,7 @@ The result is booked in one step — chart of accounts, sensible default account
 - Moving-average stock ledger with negative-stock protection
 - Double-entry General Ledger with cancellation reversal
 - Preset reports: Trial Balance, Profit & Loss, Balance Sheet, General Ledger, AR/AP Aging, Stock Balance
+- **Assets & reservations** — for equipment you own and hire out rather than sell: an `Asset` is one physical unit of an Item (the Item stays the *type* and carries the pricing), and a `Reservation` books a half-open date window against either a specific unit or `qty` units of an item+warehouse pool, refusing double-bookings and answering "what's free between the 14th and the 19th". Tracking is opt-in per Item (`is_asset_tracked`, off by default), and neither posts to the GL or the stock ledger — an owned machine going out on hire is not a sale of inventory. See [`docs/adr-0002-asset-and-reservation.md`](docs/adr-0002-asset-and-reservation.md).
 - Custom analytics drafts via chat (persisted, shareable, editable)
 - Server-side aggregation tool for in-chat factual answers across large datasets
 - PDF / image attachment → add invoices, create quotations, etc. all directly by adding them in the chat
@@ -142,7 +143,8 @@ The result is booked in one step — chart of accounts, sensible default account
 
 - Multi-currency beyond the simplified current handling
 - Workflows / approval chains
-- Serial & batch tracking
+- Serial & batch tracking for *sellable stock* (unit identity for owned equipment
+  is covered by Assets — see below)
 - Manufacturing (BOM, work orders)
 - HR / Payroll beyond the journal-entry workaround
 - Regional compliance packs (GST, VAT returns, etc.) - see below
