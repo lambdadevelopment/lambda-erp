@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-13
+
+### Fixed
+- **Chat document search now matches the record you asked for.** `list_documents`
+  free-text `search` silently no-op'd when the model didn't also pass
+  `search_fields` — it returned the newest N rows instead of searching, so e.g. a
+  CRM lead lookup by a value in `tags` reported "no match" even though the lead
+  existed. The chat handler now defaults `search_fields` to the doctype's
+  registered chat fields (`register_chat_doctype(..., fields=[...])`) when the
+  caller omits them, mirroring how `search_masters` already auto-searches a
+  master's text columns. The frontend is unaffected — it always sends its own
+  `search_fields` from the per-view config.
+- **Free-text search no longer 500s on a non-text column.** `_search_clause` now
+  `CAST`s each searched column to text before `LOWER(...)`, so naming (or
+  defaulting to) an int/bool column can't raise `function lower(integer) does not
+  exist` on Postgres. Matches the master-search path.
+
 ## [0.6.25] - 2026-08-07
 
 ### Added

@@ -467,7 +467,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "doctype": {"type": "string", "enum": DOCUMENT_SLUGS, "description": "Document type slug"},
-                    "filters": {"type": "object", "description": "Optional filters on any column. Equality: {\"status\": \"Draft\", \"customer\": \"CUST-001\"}. Comparison (value = a 2-item array [op, value]): {\"grand_total\": [\">\", 100]}, {\"fit\": [\"!=\", \"A\"]}. NULL checks (1-item array): {\"fit\": [\"is null\"]}, {\"main_email\": [\"is not null\"]}. Allowed ops: =, !=, >, <, >=, <=, like, not like, is null, is not null.", "default": {}},
+                    "filters": {"type": "object", "description": "Optional filters on any column. Equality: {\"status\": \"Draft\", \"customer\": \"CUST-001\"}. Comparison (value = a 2-item array [op, value]): {\"grand_total\": [\">\", 100]}, {\"fit\": [\"!=\", \"A\"]}. NULL checks (1-item array): {\"fit\": [\"is null\"]}, {\"main_email\": [\"is not null\"]}. Allowed ops: =, !=, >, <, >=, <=, like, not like, is null, is not null. Free-text search: {\"search\": \"acme\"} matches the doctype's default text columns; narrow it with {\"search\": \"acme\", \"search_fields\": [\"company_name\", \"tags\"]}.", "default": {}},
                     "order_by": {"type": "string", "description": "Optional column to sort by (e.g. \"occurred_at\" for a timeline). Defaults to creation."},
                     "order": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction (default desc)", "default": "desc"},
                     "limit": {"type": "integer", "description": "Max results (default 20, max 500)", "default": 20},
@@ -1317,6 +1317,18 @@ def _handle_list_documents(args):
     # within the tool-result budget. Use get_document to drill into one doc.
     doctype = args["doctype"]
     filters = args.get("filters") or {}
+    # Chat callers routinely pass `search` but omit `search_fields`; with no fields
+    # the free-text search silently no-ops and returns the newest N by creation
+    # (2026-08-13: tag lookups on leads "found nothing"). Default the columns to the
+    # doctype's registered chat fields so document search matches a record the way
+    # search_masters already does for masters. The frontend never hits this — its
+    # UI config always sends search_fields.
+    if filters.get("search") and not filters.get("search_fields"):
+        registered = (services.CHAT_DOCTYPES.get(doctype) or {}).get("fields") or []
+        valid = set(services.document_columns(doctype) or [])
+        default_fields = [f for f in registered if f in valid]
+        if default_fields:
+            filters = {**filters, "search_fields": default_fields}
     err = _validate_filter_columns(doctype, filters)
     if err:
         return {"error": err}

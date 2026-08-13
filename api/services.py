@@ -483,7 +483,10 @@ def _search_clause(db, doctype: str, doctype_slug: str, search, search_fields):
     parts, params = [], []
     for f in (search_fields or []):
         if f in cols:
-            parts.append(f'LOWER("{f}") LIKE LOWER(?)')
+            # CAST to text so non-text search_fields (e.g. an int/bool column a
+            # caller names) don't blow up Postgres with "lower(integer) does not
+            # exist" — matches the master path (_handle_search_masters, 2026-08-13).
+            parts.append(f'LOWER(CAST("{f}" AS TEXT)) LIKE LOWER(?)')
             params.append(like)
     extra = []
     seen = set()
