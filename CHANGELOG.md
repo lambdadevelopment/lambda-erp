@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-17
+
+### Fixed
+- **`search_masters` accepts the identity alias in `fields`.** `item_code` is the
+  identity everywhere else (create_master, document lines) but the real column is
+  the `name` PK — so `fields=["item_code"]` errored ("None of fields … exist").
+  The alias now resolves to `name`, and when no requested field resolves the
+  search degrades to the default text search instead of erroring.
+- **Sidebar scrolls as a whole when the chat list is short.** The chat list's
+  `overscroll-contain` blocked wheel-chaining to the parent nav, so scrolling
+  over a short (non-scrolling) chat list did nothing. A short list now scrolls
+  the whole sidebar; a long list keeps its own capped scrollbar.
+
 ## [0.8.1] - 2026-08-17
 
 ### Fixed
