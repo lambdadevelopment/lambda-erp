@@ -753,5 +753,30 @@
     "loadError": "Could not load the fleet calendar.",
     "noAssets": "No assets to show. Add machines under Rentals → Fleet.",
     "pooledNote": "{{count}} pooled booking(s) not shown on a unit lane"
+  },
+  "fieldOptions": {
+    "Available": "Available",
+    "On Hire": "On Hire",
+    "Maintenance": "Maintenance",
+    "Retired": "Retired",
+    "Reserved": "Reserved",
+    "Returned": "Returned",
+    "Cancelled": "Cancelled",
+    "Customer": "Customer",
+    "Supplier": "Supplier"
+  },
+  "hints": {
+    "asset": {
+      "item_code": "The Item is the machine TYPE and carries the rate; an Asset is one physical unit of it. The Item must have is_asset_tracked = 1.",
+      "asset_tag": "Plate or serial — must be unique across assets.",
+      "status": "The unit's state today (not a date range). Retired units leave the pool.",
+      "meter_reading": "Operating hours / km."
+    },
+    "reservation": {
+      "item_code": "Pooled booking ('a 1.7t excavator'): set Item + Yard + Qty. For a specific machine, set Asset instead.",
+      "asset": "Book one specific machine. A unit booking also consumes a slot of its Item+Yard pool.",
+      "from_datetime": "Exact start — date and time (e.g. 14:27). A bare date means 00:00.",
+      "to_datetime": "Exact end. Windows are half-open [from, to): a hire ending 09:00 and the next starting 09:00 do NOT clash."
+    }
   }
 }

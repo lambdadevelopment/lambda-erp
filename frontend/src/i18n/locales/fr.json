@@ -753,5 +753,30 @@
     "loadError": "Impossible de charger le calendrier de flotte.",
     "noAssets": "Aucun équipement à afficher. Ajoutez des machines sous Locations → Flotte.",
     "pooledNote": "{{count}} réservation(s) de pool non affichée(s) sur une ligne d'unité"
+  },
+  "fieldOptions": {
+    "Available": "Disponible",
+    "On Hire": "En location",
+    "Maintenance": "Maintenance",
+    "Retired": "Retiré",
+    "Reserved": "Réservé",
+    "Returned": "Retourné",
+    "Cancelled": "Annulé",
+    "Customer": "Client",
+    "Supplier": "Fournisseur"
+  },
+  "hints": {
+    "asset": {
+      "item_code": "L'article est le TYPE de machine et porte le tarif ; un équipement en est une unité physique. L'article doit avoir is_asset_tracked = 1.",
+      "asset_tag": "Plaque ou numéro de série — doit être unique sur tous les équipements.",
+      "status": "État actuel de l'unité (pas une période). Les unités retirées quittent le pool.",
+      "meter_reading": "Heures de fonctionnement / km."
+    },
+    "reservation": {
+      "item_code": "Réservation de pool ('une pelle de 1,7 t') : renseigner Article + Dépôt + Qté. Pour une machine précise, renseigner Équipement.",
+      "asset": "Réserver une machine précise. Une réservation d'unité consomme aussi une place du pool Article+Dépôt.",
+      "from_datetime": "Début exact — date et heure (p. ex. 14:27). Une date seule signifie 00:00.",
+      "to_datetime": "Fin exacte. Les fenêtres sont semi-ouvertes [de, à) : une location finissant à 09:00 et la suivante commençant à 09:00 ne se chevauchent PAS."
+    }
   }
 }

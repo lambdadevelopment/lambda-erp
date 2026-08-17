@@ -171,12 +171,15 @@ function FieldRenderer({
   rowData,
   hideLabel,
   currency = "USD",
+  doctype,
 }: {
   field: FieldDef;
   value: any;
   onChange: (v: any) => void;
   readOnly: boolean;
   rowData?: Record<string, any>;
+  /** Doctype slug — scopes hint translation keys (hints.<slug>.<field>). */
+  doctype?: string;
   /** Suppress the in-cell field label. Used by ChildTableEditor where the
    *  table column header already shows the label — repeating it inside
    *  every row makes mobile cells taller and wider than they need to be. */
@@ -189,7 +192,10 @@ function FieldRenderer({
   const isDisabled = readOnly || !!field.readOnly;
   const Label = () =>
     hideLabel ? null : (
-      <FieldLabel label={t(`fields.${field.label}`, { defaultValue: field.label })} hint={field.hint} />
+      <FieldLabel
+        label={t(`fields.${field.label}`, { defaultValue: field.label })}
+        hint={field.hint ? t(`hints.${doctype ?? "_"}.${field.name}`, { defaultValue: field.hint }) : undefined}
+      />
     );
 
   // Currency pickers get their options from the available-currencies endpoint
@@ -272,7 +278,13 @@ function FieldRenderer({
       ? value && !currencyOptions.includes(value)
         ? [value, ...currencyOptions]
         : currencyOptions
-      : field.options!;
+      : // Translate the visible label but keep the stored value (e.g. status
+        // "Available" -> "Verfügbar"): t(`fieldOptions.<value>`), English fallback.
+        field.options!.map((o) => {
+          const val = typeof o === "string" ? o : o.value;
+          const lbl = typeof o === "string" ? o : o.label;
+          return { value: val, label: t(`fieldOptions.${val}`, { defaultValue: lbl }) };
+        });
     return (
       <div>
         <Label />
@@ -909,6 +921,7 @@ export default function DocumentFormPage() {
               readOnly={readOnly}
               rowData={formData}
               currency={docCurrency}
+              doctype={doctype}
             />
           ))}
         </div>
@@ -924,6 +937,7 @@ export default function DocumentFormPage() {
                 readOnly={readOnly}
                 rowData={formData}
                 currency={docCurrency}
+                doctype={doctype}
               />
             ))}
           </div>

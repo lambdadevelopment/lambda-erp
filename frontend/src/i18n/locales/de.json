@@ -753,5 +753,30 @@
     "loadError": "Flottenkalender konnte nicht geladen werden.",
     "noAssets": "Keine Geräte vorhanden. Maschinen unter Vermietung → Flotte hinzufügen.",
     "pooledNote": "{{count}} Pool-Reservation(en) ohne Einheiten-Zeile"
+  },
+  "fieldOptions": {
+    "Available": "Verfügbar",
+    "On Hire": "Vermietet",
+    "Maintenance": "Wartung",
+    "Retired": "Ausgemustert",
+    "Reserved": "Reserviert",
+    "Returned": "Zurückgegeben",
+    "Cancelled": "Storniert",
+    "Customer": "Kunde",
+    "Supplier": "Lieferant"
+  },
+  "hints": {
+    "asset": {
+      "item_code": "Der Artikel ist der Maschinen-TYP und trägt den Tarif; ein Gerät ist eine physische Einheit davon. Der Artikel muss is_asset_tracked = 1 haben.",
+      "asset_tag": "Kennzeichen oder Seriennummer — muss über alle Geräte eindeutig sein.",
+      "status": "Aktueller Zustand der Einheit (kein Zeitraum). Ausgemusterte Einheiten verlassen den Pool.",
+      "meter_reading": "Betriebsstunden / km."
+    },
+    "reservation": {
+      "item_code": "Pool-Reservation ('ein 1.7t-Bagger'): Artikel + Depot + Menge setzen. Für eine bestimmte Maschine stattdessen Gerät setzen.",
+      "asset": "Eine bestimmte Maschine buchen. Eine Einheiten-Buchung belegt auch einen Platz im Artikel+Depot-Pool.",
+      "from_datetime": "Genauer Beginn — Datum und Uhrzeit (z. B. 14:27). Ein reines Datum bedeutet 00:00.",
+      "to_datetime": "Genaues Ende. Fenster sind halboffen [von, bis): eine Miete, die um 09:00 endet, und die nächste um 09:00 beginnende, kollidieren NICHT."
+    }
   }
 }
