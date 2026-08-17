@@ -132,8 +132,10 @@ function ChatGroup() {
           </ul>
           {/* Existing sessions — once the list grows past ~15 chats it scrolls
               inside this capped area instead of pushing the nav groups below it
-              further down the sidebar. */}
-          <ul className="max-h-[30rem] overflow-y-auto overscroll-contain">
+              further down the sidebar. No `overscroll-contain`: when the list is
+              short (no scrollbar of its own) a wheel over it must chain to the
+              parent <nav> so the WHOLE sidebar scrolls, not nothing. */}
+          <ul className="max-h-[30rem] overflow-y-auto">
             {sessions.map((session) => {
             const active = location.pathname === `/chat/${session.id}`;
             return (
