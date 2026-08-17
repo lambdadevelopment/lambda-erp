@@ -115,6 +115,21 @@ def check_availability_api():
         assert sorted(a["asset_tag"] for a in d2["available_assets"]) == ["U-01", "U-02"], d2
         print("  abutting window (from == prior to): both free OK")
 
+        # --- calendar feed: asset lanes + overlapping bars --------------------
+        r = client.get("/api/availability/calendar", headers=h,
+                       params={"from": "2026-08-14", "to": "2026-08-15"})
+        assert r.status_code == 200, r.text[:300]
+        cal = r.json()
+        assert sorted(a["asset_tag"] for a in cal["assets"]) == ["U-01", "U-02"], cal
+        assert len(cal["reservations"]) == 1, cal
+        bar = cal["reservations"][0]
+        assert bar["asset"] == u01 and bar["status"] == "Reserved", bar
+        # a window after the hire has the lanes but no bars
+        empty = client.get("/api/availability/calendar", headers=h,
+                           params={"from": "2026-08-20", "to": "2026-08-22"}).json()
+        assert len(empty["assets"]) == 2 and empty["reservations"] == [], empty
+        print("  calendar feed: 2 lanes + 1 overlapping bar OK")
+
         # --- bad datetime -> 422, not 500 -------------------------------------
         r = client.get("/api/availability", headers=h,
                        params={"item_code": "EXC-17", "from": "not-a-date", "to": "2026-08-18"})

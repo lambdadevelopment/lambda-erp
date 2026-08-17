@@ -80,3 +80,75 @@ def check_availability(
         ],
         "overlapping": overlap,
     }
+
+
+@router.get("/calendar")
+def calendar_feed(
+    from_datetime: str = Query(..., alias="from", description="Window start (YYYY-MM-DD or with time)."),
+    to_datetime: str = Query(..., alias="to", description="Window end; half-open [from, to)."),
+    warehouse: str | None = Query(None, description="Optional yard/warehouse to scope both lanes and bars."),
+    item_code: str | None = Query(None, description="Optional item (machine type) to scope to."),
+):
+    """Feed for the fleet availability timeline: the asset lanes (rows) plus the
+    reservations that occupy them within the window (bars).
+
+    - `assets` are the active, non-retired units (optionally scoped by yard /
+      item) — the timeline's Y axis.
+    - `reservations` are the blocking hires overlapping [from, to) — the bars —
+      via the single canonical overlap rule (overlapping_reservations), enriched
+      with the party for a bar label. Pooled bookings (no `asset`) carry a null
+      `asset`; the caller renders them on an item lane or a "pool" row.
+    """
+    db = get_db()
+
+    asset_filters: dict = {"disabled": 0}
+    if warehouse:
+        asset_filters["warehouse"] = warehouse
+    if item_code:
+        asset_filters["item_code"] = item_code
+    assets = [
+        {
+            "name": a.get("name"),
+            "asset_tag": a.get("asset_tag"),
+            "item_code": a.get("item_code"),
+            "warehouse": a.get("warehouse"),
+            "status": a.get("status"),
+            "meter_reading": a.get("meter_reading"),
+        }
+        for a in db.get_all("Asset", filters=asset_filters, fields=["*"], order_by="item_code, asset_tag")
+        if a.get("status") != "Retired"
+    ]
+
+    try:
+        rows = overlapping_reservations(
+            db, from_dt=from_datetime, to_dt=to_datetime,
+            item_code=item_code, warehouse=warehouse,
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    reservations = []
+    for r in rows:
+        extra = db.get_value("Reservation", r["name"], ["party_type", "party", "purpose"]) or {}
+        reservations.append({
+            "name": r.get("name"),
+            "item_code": r.get("item_code"),
+            "asset": r.get("asset"),
+            "warehouse": r.get("warehouse"),
+            "qty": r.get("qty"),
+            "from_datetime": r.get("from_datetime"),
+            "to_datetime": r.get("to_datetime"),
+            "status": r.get("status"),
+            "party_type": extra.get("party_type"),
+            "party": extra.get("party"),
+            "purpose": extra.get("purpose"),
+        })
+
+    return {
+        "from": from_datetime,
+        "to": to_datetime,
+        "warehouse": warehouse,
+        "item_code": item_code,
+        "assets": assets,
+        "reservations": reservations,
+    }
