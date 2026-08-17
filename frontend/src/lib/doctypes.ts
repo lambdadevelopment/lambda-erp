@@ -9,7 +9,7 @@
 export interface FieldDef {
   name: string;
   label: string;
-  type: "text" | "number" | "currency" | "date" | "link" | "select" | "textarea";
+  type: "text" | "number" | "currency" | "date" | "datetime" | "link" | "select" | "textarea";
   required?: boolean;
   readOnly?: boolean;
   linkDoctype?: string; // for type=link, which master to search
@@ -698,9 +698,10 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "asset", label: "Asset (specific unit)", type: "link", linkDoctype: "asset",
         hint: "Book one specific machine. A unit booking also consumes a slot of its Item+Yard pool." },
       { name: "qty", label: "Qty", type: "number", default: 1 },
-      { name: "from_datetime", label: "From", type: "date", required: true },
-      { name: "to_datetime", label: "To", type: "date", required: true,
-        hint: "Windows are half-open [from, to): a hire ending on the 19th and the next starting on the 19th do NOT clash." },
+      { name: "from_datetime", label: "From", type: "datetime", required: true,
+        hint: "Exact start — date and time (e.g. 14:27). A bare date means 00:00." },
+      { name: "to_datetime", label: "To", type: "datetime", required: true,
+        hint: "Exact end. Windows are half-open [from, to): a hire ending 09:00 and the next starting 09:00 do NOT clash." },
       { name: "status", label: "Status", type: "select",
         options: ["Reserved", "On Hire", "Returned", "Cancelled"], default: "Reserved" },
       { name: "party_type", label: "Party Type", type: "select", options: ["Customer", "Supplier"], default: "Customer" },

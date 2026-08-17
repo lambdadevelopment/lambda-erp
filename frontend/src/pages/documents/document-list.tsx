@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { DateRangePresets } from "@/components/ui/date-range-presets";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizontal } from "lucide-react";
 
 const STATUS_OPTIONS = ["All", "Draft", "Submitted", "Cancelled"];
@@ -54,7 +54,7 @@ const SYSTEM_COLUMN_NAMES = new Set(SYSTEM_COLUMNS.map((c) => c.name));
 // A column whose default first-click sort should be DESC (newest/highest first).
 const isDateColumn = (col: string) =>
   DATE_FIELDS.has(col) || col === "modified" || col === "creation" ||
-  col.endsWith("_date") || col.endsWith("_at");
+  col.endsWith("_date") || col.endsWith("_at") || col.endsWith("_datetime");
 
 // Columns that reference a master record — rendered as clickable links to the master page.
 const MASTER_REF_FIELDS: Record<string, string> = {
@@ -410,6 +410,13 @@ export default function DocumentListPage() {
               </Link>
             );
           },
+        });
+      }
+
+      if (col.endsWith("_datetime")) {
+        return helper.accessor(col, {
+          header: headerLabel(col),
+          cell: (info) => formatDateTime(info.getValue() as string),
         });
       }
 

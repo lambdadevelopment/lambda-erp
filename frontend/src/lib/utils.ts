@@ -41,6 +41,21 @@ export function formatDate(value: string | null | undefined) {
   });
 }
 
+/** Format a datetime for display: date + HH:MM. Accepts "YYYY-MM-DD HH:MM:SS"
+ * (the ERP's stored form) or ISO. Falls back to the raw value if unparseable. */
+export function formatDateTime(value: string | null | undefined) {
+  if (!value) return "";
+  const d = new Date(value.replace(" ", "T"));
+  if (isNaN(d.getTime())) return value;
+  return d.toLocaleString(dateLocale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /** Safely parse a float, defaulting to 0. */
 export function flt(value: unknown, precision?: number): number {
   const n = parseFloat(String(value ?? 0)) || 0;

@@ -230,6 +230,9 @@ function FieldRenderer({
     if ((field.type === "currency") && typeof value === "number") {
       display = formatCurrency(value, currency);
     }
+    if (field.type === "datetime" && typeof value === "string" && value) {
+      display = value.slice(0, 16); // "YYYY-MM-DD HH:MM" (drop seconds)
+    }
     // Multi-line fields (Notes / Terms) keep their line breaks when shown
     // read-only, instead of collapsing to one paragraph like a <p> does.
     const pClass = [
@@ -311,7 +314,16 @@ function FieldRenderer({
       ? "number"
       : field.type === "date"
         ? "date"
-        : "text";
+        : field.type === "datetime"
+          ? "datetime-local"
+          : "text";
+
+  // <input type="datetime-local"> wants "YYYY-MM-DDTHH:MM"; we store/normalise
+  // as "YYYY-MM-DD HH:MM:SS". Convert on the way in (here) and out (onChange).
+  const inputValue =
+    field.type === "datetime" && typeof value === "string" && value
+      ? value.replace(" ", "T").slice(0, 16)
+      : (value ?? "");
 
   return (
     <div>
@@ -319,12 +331,17 @@ function FieldRenderer({
       <Input
         type={inputType}
         step={field.type === "currency" ? "0.01" : undefined}
-        value={value ?? ""}
-        onChange={(e) =>
+        value={inputValue}
+        onChange={(e) => {
+          const v = e.target.value;
           onChange(
-            inputType === "number" ? parseFloat(e.target.value) || 0 : e.target.value,
-          )
-        }
+            inputType === "number"
+              ? parseFloat(v) || 0
+              : field.type === "datetime"
+                ? v.replace("T", " ") // -> "YYYY-MM-DD HH:MM"; backend adds seconds
+                : v,
+          );
+        }}
       />
     </div>
   );
