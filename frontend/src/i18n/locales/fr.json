@@ -489,7 +489,20 @@
     "Stock UOM": "Unité de stock",
     "Standard Rate": "Prix standard",
     "Warehouse Name": "Nom de l'entrepôt",
-    "Company Name": "Nom de la société"
+    "Company Name": "Nom de la société",
+    "Item (type)": "Article (type)",
+    "Asset Tag / Plate": "Étiquette / plaque",
+    "Home Yard": "Dépôt d'attache",
+    "Purchase Value": "Valeur d'achat",
+    "Meter Reading": "Relevé compteur",
+    "Meter Unit": "Unité compteur",
+    "Yard": "Dépôt",
+    "Asset (specific unit)": "Équipement (unité spécifique)",
+    "From": "Du",
+    "To": "Au",
+    "Purpose": "Objet",
+    "Purchase Date": "Date d'achat",
+    "Notes": "Notes"
   },
   "tables": {
     "items": "Lignes",
@@ -724,5 +737,21 @@
       "Income": "Produits",
       "Expense": "Charges"
     }
+  },
+  "rentals": {
+    "fleetCalendar": "Calendrier de flotte",
+    "yard": "Dépôt",
+    "machineType": "Type de machine",
+    "prev": "Préc.",
+    "today": "Aujourd'hui",
+    "next": "Suiv.",
+    "weeks": "semaines",
+    "newBooking": "Nouvelle réservation",
+    "reserved": "Réservé",
+    "onHire": "En location",
+    "machine": "Machine",
+    "loadError": "Impossible de charger le calendrier de flotte.",
+    "noAssets": "Aucun équipement à afficher. Ajoutez des machines sous Locations → Flotte.",
+    "pooledNote": "{{count}} réservation(s) de pool non affichée(s) sur une ligne d'unité"
   }
 }

@@ -489,7 +489,20 @@
     "Stock UOM": "Lagereinheit",
     "Standard Rate": "Standardpreis",
     "Warehouse Name": "Lagername",
-    "Company Name": "Firmenname"
+    "Company Name": "Firmenname",
+    "Item (type)": "Artikel (Typ)",
+    "Asset Tag / Plate": "Kennung / Kennzeichen",
+    "Home Yard": "Heimdepot",
+    "Purchase Value": "Kaufwert",
+    "Meter Reading": "Zählerstand",
+    "Meter Unit": "Zählereinheit",
+    "Yard": "Depot",
+    "Asset (specific unit)": "Gerät (bestimmte Einheit)",
+    "From": "Von",
+    "To": "Bis",
+    "Purpose": "Zweck",
+    "Purchase Date": "Kaufdatum",
+    "Notes": "Notizen"
   },
   "tables": {
     "items": "Positionen",
@@ -724,5 +737,21 @@
       "Income": "Ertrag",
       "Expense": "Aufwand"
     }
+  },
+  "rentals": {
+    "fleetCalendar": "Flottenkalender",
+    "yard": "Depot",
+    "machineType": "Maschinentyp",
+    "prev": "Zurück",
+    "today": "Heute",
+    "next": "Weiter",
+    "weeks": "Wochen",
+    "newBooking": "Neue Reservation",
+    "reserved": "Reserviert",
+    "onHire": "Vermietet",
+    "machine": "Maschine",
+    "loadError": "Flottenkalender konnte nicht geladen werden.",
+    "noAssets": "Keine Geräte vorhanden. Maschinen unter Vermietung → Flotte hinzufügen.",
+    "pooledNote": "{{count}} Pool-Reservation(en) ohne Einheiten-Zeile"
   }
 }

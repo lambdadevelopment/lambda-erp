@@ -531,7 +531,20 @@
     "Warehouse": "Warehouse",
     "Warehouse Name": "Warehouse Name",
     "Withdrawal": "Withdrawal",
-    "Zip Code": "Zip Code"
+    "Zip Code": "Zip Code",
+    "Item (type)": "Item (type)",
+    "Asset Tag / Plate": "Asset Tag / Plate",
+    "Home Yard": "Home Yard",
+    "Purchase Value": "Purchase Value",
+    "Meter Reading": "Meter Reading",
+    "Meter Unit": "Meter Unit",
+    "Yard": "Yard",
+    "Asset (specific unit)": "Asset (specific unit)",
+    "From": "From",
+    "To": "To",
+    "Purpose": "Purpose",
+    "Purchase Date": "Purchase Date",
+    "Notes": "Notes"
   },
   "tables": {
     "accounts": "accounts",
@@ -724,5 +737,21 @@
       "Income": "Income",
       "Expense": "Expenses"
     }
+  },
+  "rentals": {
+    "fleetCalendar": "Fleet Calendar",
+    "yard": "Yard",
+    "machineType": "Machine type",
+    "prev": "Prev",
+    "today": "Today",
+    "next": "Next",
+    "weeks": "weeks",
+    "newBooking": "New booking",
+    "reserved": "Reserved",
+    "onHire": "On Hire",
+    "machine": "Machine",
+    "loadError": "Could not load the fleet calendar.",
+    "noAssets": "No assets to show. Add machines under Rentals → Fleet.",
+    "pooledNote": "{{count}} pooled booking(s) not shown on a unit lane"
   }
 }

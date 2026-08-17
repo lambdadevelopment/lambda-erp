@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { usePageTitle } from "@/lib/use-page-title";
 import { useFleetCalendar } from "@/hooks/use-rentals";
 import type { CalendarAsset, CalendarReservation } from "@/api/client";
@@ -44,7 +45,8 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 export default function FleetCalendarPage() {
-  usePageTitle("Fleet Calendar");
+  const { t } = useTranslation();
+  usePageTitle(t("rentals.fleetCalendar", { defaultValue: "Fleet Calendar" }));
   const navigate = useNavigate();
 
   const [winDays, setWinDays] = useState(28);
@@ -108,47 +110,47 @@ export default function FleetCalendarPage() {
     <div className="space-y-4">
       {/* --- controls --- */}
       <div className="flex flex-wrap items-end gap-3">
-        <LinkField label="Yard" value={whInput} onChange={setWhInput} linkDoctype="warehouse" readOnly={false} />
-        <LinkField label="Machine type" value={itemInput} onChange={setItemInput} linkDoctype="item" readOnly={false} />
-        <Button onClick={apply}>Apply</Button>
+        <LinkField label={t("rentals.yard", { defaultValue: "Yard" })} value={whInput} onChange={setWhInput} linkDoctype="warehouse" readOnly={false} />
+        <LinkField label={t("rentals.machineType", { defaultValue: "Machine type" })} value={itemInput} onChange={setItemInput} linkDoctype="item" readOnly={false} />
+        <Button onClick={apply}>{t("common.apply", { defaultValue: "Apply" })}</Button>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="secondary" onClick={() => shift(-winDays)}>‹ Prev</Button>
-          <Button variant="secondary" onClick={() => setWinStart(startOfToday())}>Today</Button>
-          <Button variant="secondary" onClick={() => shift(winDays)}>Next ›</Button>
+          <Button variant="secondary" onClick={() => shift(-winDays)}>‹ {t("rentals.prev", { defaultValue: "Prev" })}</Button>
+          <Button variant="secondary" onClick={() => setWinStart(startOfToday())}>{t("rentals.today", { defaultValue: "Today" })}</Button>
+          <Button variant="secondary" onClick={() => shift(winDays)}>{t("rentals.next", { defaultValue: "Next" })} ›</Button>
           <select
             className="rounded border border-gray-300 px-2 py-1 text-sm"
             value={winDays}
             onChange={(e) => setWinDays(Number(e.target.value))}
           >
-            <option value={14}>2 weeks</option>
-            <option value={28}>4 weeks</option>
-            <option value={56}>8 weeks</option>
+            <option value={14}>2 {t("rentals.weeks", { defaultValue: "weeks" })}</option>
+            <option value={28}>4 {t("rentals.weeks", { defaultValue: "weeks" })}</option>
+            <option value={56}>8 {t("rentals.weeks", { defaultValue: "weeks" })}</option>
           </select>
-          <Button onClick={() => navigate("/app/reservation/new")}>New booking</Button>
+          <Button onClick={() => navigate("/app/reservation/new")}>{t("rentals.newBooking", { defaultValue: "New booking" })}</Button>
         </div>
       </div>
 
       {/* --- legend --- */}
       <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-        <span><span className="mr-1 inline-block h-3 w-3 rounded bg-amber-400 align-middle" />Reserved</span>
-        <span><span className="mr-1 inline-block h-3 w-3 rounded bg-blue-500 align-middle" />On Hire</span>
+        <span><span className="mr-1 inline-block h-3 w-3 rounded bg-amber-400 align-middle" />{t("rentals.reserved", { defaultValue: "Reserved" })}</span>
+        <span><span className="mr-1 inline-block h-3 w-3 rounded bg-blue-500 align-middle" />{t("rentals.onHire", { defaultValue: "On Hire" })}</span>
         <span>{ymd(winStart)} → {ymd(winEnd)}</span>
-        {pooledCount > 0 && <span>· {pooledCount} pooled booking(s) not shown on a unit lane</span>}
+        {pooledCount > 0 && <span>· {t("rentals.pooledNote", { count: pooledCount, defaultValue: "{{count}} pooled booking(s) not shown on a unit lane" })}</span>}
       </div>
 
       {error ? (
-        <p className="py-8 text-center text-red-500">Could not load the fleet calendar.</p>
+        <p className="py-8 text-center text-red-500">{t("rentals.loadError", { defaultValue: "Could not load the fleet calendar." })}</p>
       ) : isLoading ? (
-        <p className="py-8 text-center text-gray-400">Loading…</p>
+        <p className="py-8 text-center text-gray-400">{t("common.loading", { defaultValue: "Loading…" })}</p>
       ) : assets.length === 0 ? (
-        <p className="py-8 text-center text-gray-400">No assets to show. Add machines under Rentals → Fleet.</p>
+        <p className="py-8 text-center text-gray-400">{t("rentals.noAssets", { defaultValue: "No assets to show. Add machines under Rentals → Fleet." })}</p>
       ) : (
         <Card>
           <div className="overflow-x-auto">
             <div style={{ minWidth: LABEL_PX + trackWidth }}>
               {/* header: day columns */}
               <div className="flex border-b bg-gray-50 text-xs text-gray-500">
-                <div className="shrink-0 px-3 py-2 font-medium" style={{ width: LABEL_PX }}>Machine</div>
+                <div className="shrink-0 px-3 py-2 font-medium" style={{ width: LABEL_PX }}>{t("rentals.machine", { defaultValue: "Machine" })}</div>
                 <div className="flex" style={{ width: trackWidth }}>
                   {days.map((d) => (
                     <div key={d.getTime()} className="shrink-0 border-l py-2 text-center" style={{ width: COL_PX }}>
