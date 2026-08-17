@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-17
+
+### Fixed
+- **Reservation From/To now display and support exact times.** They store a
+  datetime (`YYYY-MM-DD HH:MM:SS`) but were typed as `date`, so a `<input
+  type="date">` couldn't show a value with a time component (blank) and was
+  day-only. Added a `datetime` field type (`datetime-local`); hires can be set
+  to the minute (e.g. 14:27→16:24) — the backend already stored/overlapped on
+  the full timestamp. `_datetime` list columns format with the time too.
+
+### Added
+- **Rental UI i18n (en/de/fr):** the Rentals nav group + items, the fleet
+  calendar (Yard, Machine type, controls, legend, states), Asset/Reservation
+  field labels, select option values (status/party) with the stored value kept,
+  and field hints (scoped per doctype).
+
 ## [0.8.0] - 2026-08-17
 
 ### Added
