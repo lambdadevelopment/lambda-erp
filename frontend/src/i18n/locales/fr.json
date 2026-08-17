@@ -167,7 +167,8 @@
       "Stock": "Stock",
       "Reports": "Rapports",
       "Masters": "Données de base",
-      "Settings": "Paramètres"
+      "Settings": "Paramètres",
+      "Rentals": "Locations"
     },
     "items": {
       "Getting Started": "Premiers pas",
@@ -204,7 +205,10 @@
       "General": "Général",
       "Pricing Rule": "Règle de prix",
       "Users & Team": "Utilisateurs et équipe",
-      "Chart of Accounts": "Plan comptable"
+      "Chart of Accounts": "Plan comptable",
+      "Fleet Calendar": "Calendrier de flotte",
+      "Fleet (Assets)": "Flotte (matériel)",
+      "Reservations": "Réservations"
     }
   },
   "login": {

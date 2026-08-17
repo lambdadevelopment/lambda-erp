@@ -167,7 +167,8 @@
       "Stock": "Stock",
       "Reports": "Reports",
       "Masters": "Masters",
-      "Settings": "Settings"
+      "Settings": "Settings",
+      "Rentals": "Rentals"
     },
     "items": {
       "Getting Started": "Getting Started",
@@ -204,7 +205,10 @@
       "General": "General",
       "Pricing Rule": "Pricing Rule",
       "Users & Team": "Users & Team",
-      "Chart of Accounts": "Chart of Accounts"
+      "Chart of Accounts": "Chart of Accounts",
+      "Fleet Calendar": "Fleet Calendar",
+      "Fleet (Assets)": "Fleet (Assets)",
+      "Reservations": "Reservations"
     }
   },
   "login": {

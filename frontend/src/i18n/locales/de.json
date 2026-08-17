@@ -167,7 +167,8 @@
       "Stock": "Lager",
       "Reports": "Berichte",
       "Masters": "Stammdaten",
-      "Settings": "Einstellungen"
+      "Settings": "Einstellungen",
+      "Rentals": "Vermietung"
     },
     "items": {
       "Getting Started": "Erste Schritte",
@@ -204,7 +205,10 @@
       "General": "Allgemein",
       "Pricing Rule": "Preisregel",
       "Users & Team": "Benutzer & Team",
-      "Chart of Accounts": "Kontenplan"
+      "Chart of Accounts": "Kontenplan",
+      "Fleet Calendar": "Flottenkalender",
+      "Fleet (Assets)": "Flotte (Geräte)",
+      "Reservations": "Reservationen"
     }
   },
   "login": {
