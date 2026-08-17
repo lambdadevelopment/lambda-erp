@@ -102,6 +102,14 @@ jobs:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_availability_api
 
+      - name: Default sales tax auto-apply — SQLite (in-memory)
+        run: python -m tests.test_default_tax
+
+      - name: Default sales tax auto-apply — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_default_tax
+
       - name: Master registry seam — SQLite (temp file)
         run: python -m tests.test_master_registry
 

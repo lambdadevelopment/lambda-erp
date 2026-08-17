@@ -2125,6 +2125,17 @@ def _m021_item_is_asset_tracked(db: "Database") -> None:
     db._add_column_if_missing("Item", "is_asset_tracked", "INTEGER DEFAULT 0")
 
 
+def _m022_company_default_tax_templates(db: "Database") -> None:
+    """Per-company default sales/purchase Tax Templates. When a selling/buying
+    document is created with NO `taxes` rows at all, create_document applies the
+    matching default so VAT/MWST is not silently omitted (see api/services.py).
+    Both default to NULL, so existing deployments are unaffected until a default
+    is wired — e.g. the CH pack points the sales default at the 8.1% MWST
+    template. Passing an explicit empty `taxes: []` still means a tax-free doc."""
+    db._add_column_if_missing("Company", "default_sales_tax_template", "TEXT")
+    db._add_column_if_missing("Company", "default_purchase_tax_template", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2147,6 +2158,7 @@ Database.MIGRATIONS = [
     (19, "api_keys_per_user", _m019_api_keys_per_user),
     (20, "chat_attachment_openai_file", _m020_chat_attachment_openai_file),
     (21, "item_is_asset_tracked", _m021_item_is_asset_tracked),
+    (22, "company_default_tax_templates", _m022_company_default_tax_templates),
 ]
 
 

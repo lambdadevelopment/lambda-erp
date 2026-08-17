@@ -284,10 +284,59 @@ def get_document_class(doctype_slug: str):
     return doctype, DOCUMENT_CLASSES[doctype]
 
 
+# Which Company default a doc's `taxes` table draws from — keyed by the taxes
+# child doctype, so any doc that has a taxes table is covered without a hardcoded
+# doctype list. Selling -> sales default, buying -> purchase default.
+_TAX_CHILD_DEFAULT_FIELD = {
+    "Sales Taxes and Charges": "default_sales_tax_template",
+    "Purchase Taxes and Charges": "default_purchase_tax_template",
+}
+
+
+def _default_tax_rows(cls, data: dict) -> list | None:
+    """`taxes[]` rows to seed a new document from its company's default Tax
+    Template, or None to leave taxes untouched.
+
+    Applied ONLY when the caller omits `taxes` entirely — the exact case the chat
+    model kept hitting (it forgets to add MWST). An explicit `taxes: []` is left
+    alone, so a deliberately tax-free doc (export, reverse-charge, exempt) is
+    expressed by passing an empty list. The document's own tax calc then computes
+    `tax_amount` from the rate, so this only seeds charge_type/account/rate.
+    """
+    taxes_child = cls.CHILD_TABLES.get("taxes")
+    if not taxes_child or "taxes" in data:
+        return None
+    field = _TAX_CHILD_DEFAULT_FIELD.get(taxes_child[0])
+    company = data.get("company")
+    if not field or not company:
+        return None
+    db = get_db()
+    template = db.get_value("Company", company, field)
+    if not template:
+        return None
+    details = db.get_all("Tax Template Detail", filters={"parent": template},
+                         fields=["*"], order_by="idx")
+    if not details:
+        return None
+    return [
+        {
+            "charge_type": d.get("charge_type") or "On Net Total",
+            "account_head": d.get("account_head"),
+            "rate": d.get("rate") or 0,
+            "description": d.get("description") or template,
+            "add_deduct_tax": "Add",
+        }
+        for d in details
+    ]
+
+
 def create_document(doctype_slug: str, data: dict) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
+    default_taxes = _default_tax_rows(cls, data)
+    if default_taxes is not None:
+        data = {**data, "taxes": default_taxes}
     doc = cls(data)
     doc.save()
     return doc.as_dict()

@@ -238,6 +238,15 @@ def ch_setup_tax(company_name, currency):
     for title, rate, leaf in _PURCHASE_TAXES:
         _template(title, "Purchase", rate, leaf)
 
+    # Make the 8.1% standard rate the company's default sales tax, so new
+    # invoices/quotations pick up MWST automatically (create_document seeds it
+    # when `taxes` is omitted). Purchase Vorsteuer stays manual — it varies by
+    # goods vs. investment, so there's no single sensible default.
+    default_sales = f"MWST Normalsatz 8.1% - {abbr}"
+    if db.exists("Tax Template", default_sales):
+        db.set_value("Company", company_name, {"default_sales_tax_template": default_sales})
+        summary.append(f"default sales tax: MWST Normalsatz 8.1%")
+
     return summary
 
 
