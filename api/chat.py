@@ -1524,10 +1524,26 @@ def _handle_search_masters(args):
     # that the default search skips. Unknown names are ignored.
     requested = args.get("fields") or []
     if requested:
-        valid = db._get_table_columns(doctype)
-        search_cols = sorted(c for c in requested if c in valid)
+        valid = set(db._get_table_columns(doctype))
+        # The identity alias (e.g. "item_code") is what the model calls the code
+        # everywhere else — create_master, document lines, the asset/reservation
+        # prompt — so it naturally passes fields=["item_code"]. But the real
+        # column is the `name` PK; resolve the alias to `name` so that lookup
+        # works instead of erroring "None of fields ['item_code'] exist".
+        alias = MASTER_IDENTITY_ALIAS.get(master_type)
+        search_cols = []
+        for c in requested:
+            if c in valid:
+                search_cols.append(c)
+            elif alias and c == alias and "name" in valid:
+                search_cols.append("name")
+        search_cols = sorted(set(search_cols))
+        # Nothing resolved (all names unknown) — degrade to the default text
+        # search rather than erroring: the value the caller meant is almost
+        # always in the columns the default already covers (incl. the `name`
+        # code). Honours the "unknown names are ignored" contract above.
         if not search_cols:
-            return {"error": f"None of fields {requested} exist on {master_type}"}
+            search_cols = _master_search_columns(db, doctype)
     else:
         search_cols = _master_search_columns(db, doctype)
 

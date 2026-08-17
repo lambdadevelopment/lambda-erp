@@ -84,7 +84,8 @@ def check_master_registry():
             db = get_db()
             db.conn.execute(db._ddl(GADGET_TABLE))
             db.conn.commit()
-            services.register_master("gadget", "Gadget", "gadget_name", name_prefix="GAD")
+            services.register_master("gadget", "Gadget", "gadget_name", name_prefix="GAD",
+                                     identity_alias="gadget_code")
             services.register_doctype("Gadget", Gadget)
 
             # --- Tool schemas widen from the live registries. ----------------
@@ -127,13 +128,21 @@ def check_master_registry():
             # Misspelled → fuzzy fallback still resolves it.
             fuzzy = chat._handle_search_masters({"master_type": "gadget", "query": "nimbes coil"})
             assert isinstance(fuzzy, list) and fuzzy and fuzzy[0]["name"] == "GAD-001", fuzzy
-            # Narrowing to a specific live column works; a bogus column errors.
+            # Narrowing to a specific live column works.
             by_town = chat._handle_search_masters(
                 {"master_type": "gadget", "query": "bramblewick", "fields": ["town"]})
             assert isinstance(by_town, list) and by_town, by_town
-            bogus = chat._handle_search_masters(
-                {"master_type": "gadget", "query": "x", "fields": ["no_such_column"]})
-            assert isinstance(bogus, dict) and "error" in bogus, bogus
+            # The identity alias resolves to the `name` PK: fields=["gadget_code"]
+            # searches the id column instead of erroring "no such field" — the
+            # mistake the model kept making with fields=["item_code"].
+            by_code = chat._handle_search_masters(
+                {"master_type": "gadget", "query": "GAD-001", "fields": ["gadget_code"]})
+            assert isinstance(by_code, list) and by_code and by_code[0]["name"] == "GAD-001", by_code
+            # A bogus column no longer errors — it degrades to the default text
+            # search (unknown names ignored), so the query still resolves.
+            fallback = chat._handle_search_masters(
+                {"master_type": "gadget", "query": "nimbus", "fields": ["no_such_column"]})
+            assert isinstance(fallback, list) and fallback and fallback[0]["name"] == "GAD-001", fallback
 
             updated = chat._handle_update_master(
                 {"master_type": "gadget", "name": "GAD-001", "data": {"status": "Qualified"}})
