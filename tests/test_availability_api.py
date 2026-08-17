@@ -66,6 +66,15 @@ def check_availability_api():
                           params={"item_code": "EXC-17", "from": "2026-08-14", "to": "2026-08-15"}
                           ).status_code == 401, "no key must be rejected"
 
+        # Seed a company + yard (FK targets for Asset.warehouse) at the model
+        # layer — same shared DB as the app; the accounting Chart of Accounts is
+        # not needed for assets/reservations (they post nothing to the GL).
+        from lambda_erp.database import get_db
+        db = get_db()
+        db.insert("Company", {"name": "Test Co", "company_name": "Test Co", "default_currency": "CHF"})
+        db.insert("Warehouse", {"name": "YARD-SG", "warehouse_name": "Yard SG", "company": "Test Co"})
+        db.conn.commit()
+
         # --- asset-tracked item + two physical units ---------------------------
         r = client.post("/api/masters/item", headers=h, json={
             "item_code": "EXC-17", "item_name": "17t Excavator",
@@ -73,7 +82,7 @@ def check_availability_api():
         assert r.status_code == 200, r.text[:300]
         for tag in ("U-01", "U-02"):
             r = client.post("/api/documents/asset", headers=h, json={
-                "item_code": "EXC-17", "asset_tag": tag, "status": "Available"})
+                "item_code": "EXC-17", "asset_tag": tag, "warehouse": "YARD-SG", "status": "Available"})
             assert r.status_code == 200, r.text[:300]
 
         units = _rows(client.get("/api/documents/asset?item_code=EXC-17", headers=h).json())
