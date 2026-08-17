@@ -214,10 +214,18 @@ def check_master_search():
     assert "ITEM-PORT1" not in item_names("qwobble"), "description should not be searched by default"
     assert "ITEM-PORT1" in item_names("qwobble", fields=["description"]), \
         "description should be searchable when named in fields"
+    # The identity alias resolves to the `name` PK: fields=["item_code"] searches
+    # the id column instead of erroring (the model's recurring item_code mistake).
+    assert "ITEM-PORT1" in item_names("ITEM-PORT1", fields=["item_code"]), \
+        "item_code alias should resolve to the name/id column"
 
-    # Unknown field names yield a clear error rather than matching everything.
-    err = _handle_search_masters({"master_type": "customer", "query": "x", "fields": ["no_such_col"]})
-    assert isinstance(err, dict) and "error" in err, f"bad fields should error, got {err!r}"
+    # Unknown field names now degrade to the default text search (unknown names
+    # ignored) rather than erroring: a real value still resolves via the default
+    # columns instead of returning an error the caller has to recover from.
+    fell_back = _handle_search_masters(
+        {"master_type": "customer", "query": "zorblax", "fields": ["no_such_col"]})
+    assert isinstance(fell_back, list) and any(r["name"] == "CUST-PORT1" for r in fell_back), \
+        f"unknown fields should fall back to the default search, got {fell_back!r}"
 
     # get_master_fields exposes real columns so the model can target them.
     meta = _handle_get_master_fields({"master_type": "item"})
