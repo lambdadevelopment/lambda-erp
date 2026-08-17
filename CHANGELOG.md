@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-17
+
+### Added
+- **Rental UI, phase 1** (see `docs/RENTAL_UI_PLAN.md`). Builds on the 0.7.0
+  `Asset` + `Reservation` primitives:
+  - **`GET /api/availability`** — is an item free over a window? Returns pool
+    capacity, committed, available qty, the free units, and the overlapping
+    hires. Read-only; wraps the single canonical overlap rule.
+  - **`GET /api/availability/calendar`** — the fleet-timeline feed: asset lanes
+    plus the reservations overlapping a window (bars), scoped optionally by yard
+    / item.
+  - **Frontend:** `Asset` and `Reservation` are now first-class in the UI (list
+    + form pages, a "Rentals" nav group), and a **fleet availability calendar**
+    (`/rentals/calendar`) — a resource timeline of machines × time with
+    reservation bars — visualises "when is what rented out". No new runtime
+    dependency.
+
 ## [0.7.1] - 2026-08-13
 
 ### Fixed
