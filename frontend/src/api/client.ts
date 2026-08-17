@@ -70,6 +70,56 @@ function qs(params?: Record<string, string | number | undefined>) {
   return s ? `?${s}` : "";
 }
 
+// --- Rental types (asset availability + fleet calendar feed) ---
+export interface AvailabilityAsset {
+  name: string;
+  asset_tag: string | null;
+  warehouse: string | null;
+  status: string | null;
+  meter_reading: number | null;
+}
+export interface AvailabilityResult {
+  item_code: string;
+  warehouse: string | null;
+  from: string;
+  to: string;
+  capacity: number;
+  committed: number;
+  available_qty: number;
+  available: boolean;
+  available_assets: AvailabilityAsset[];
+  overlapping: unknown[];
+}
+export interface CalendarAsset {
+  name: string;
+  asset_tag: string | null;
+  item_code: string | null;
+  warehouse: string | null;
+  status: string | null;
+  meter_reading: number | null;
+}
+export interface CalendarReservation {
+  name: string;
+  item_code: string | null;
+  asset: string | null;
+  warehouse: string | null;
+  qty: number | null;
+  from_datetime: string;
+  to_datetime: string;
+  status: string | null;
+  party_type: string | null;
+  party: string | null;
+  purpose: string | null;
+}
+export interface FleetCalendarFeed {
+  from: string;
+  to: string;
+  warehouse: string | null;
+  item_code: string | null;
+  assets: CalendarAsset[];
+  reservations: CalendarReservation[];
+}
+
 export const api = {
   // Generic request (used by sidebar for chat sessions)
   request,
@@ -255,6 +305,13 @@ export const api = {
 
   stockBalance: (params?: Record<string, string>) =>
     request<{ rows: any[] }>(`/reports/stock-balance${qs(params)}`),
+
+  // --- Rentals: availability + fleet calendar (docs/RENTAL_UI_PLAN.md) ---
+  availability: (params: { item_code: string; from: string; to: string; warehouse?: string; exclude?: string }) =>
+    request<AvailabilityResult>(`/availability${qs(params)}`),
+
+  fleetCalendar: (params: { from: string; to: string; warehouse?: string; item_code?: string }) =>
+    request<FleetCalendarFeed>(`/availability/calendar${qs(params)}`),
 
   dashboardSummary: (company?: string) =>
     request<any>(`/reports/dashboard-summary${qs({ company })}`),

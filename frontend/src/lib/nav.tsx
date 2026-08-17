@@ -99,6 +99,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Rentals",
     icon: <Forklift className="h-4 w-4" />,
     items: [
+      { label: "Fleet Calendar", path: "/rentals/calendar" },
       { label: "Fleet (Assets)", path: "/app/asset" },
       { label: "Reservations", path: "/app/reservation" },
     ],
