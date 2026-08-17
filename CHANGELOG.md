@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-08-17
+
+### Added
+- **Company default tax templates, auto-applied on document creation.** Each
+  `Company` now carries a `default_sales_tax_template` and
+  `default_purchase_tax_template` (migration 22). When a document with a taxes
+  table is created and the caller **omits** `taxes` entirely, `create_document`
+  seeds `taxes[]` from the matching company default — so invoices, quotations and
+  orders pick up the right tax without the caller (or the chat model) having to
+  remember it. An explicit `taxes: []` is still honoured as a deliberately
+  tax-free document (export, reverse-charge, exempt); nothing is forced.
+- **Swiss setup wires the 8.1% MWST default.** The CH accounting pack now points
+  `default_sales_tax_template` at *"MWST Normalsatz 8.1%"*, so new Swiss sales
+  documents get VAT automatically. Purchase Vorsteuer stays manual (it varies by
+  goods vs. investment, so there is no single sensible default).
+
 ## [0.8.2] - 2026-08-17
 
 ### Fixed
