@@ -16,6 +16,7 @@ import BalanceSheet from "@/pages/reports/balance-sheet";
 import ArAging from "@/pages/reports/ar-aging";
 import ApAging from "@/pages/reports/ap-aging";
 import Analytics from "@/pages/reports/analytics";
+import FleetCalendar from "@/pages/rentals/fleet-calendar";
 import Setup from "@/pages/setup";
 import Tutorial from "@/pages/tutorial";
 import Chat from "@/pages/chat";
@@ -72,6 +73,9 @@ const baseChildRoutes: RouteObject[] = [
   { path: "reports/ar-aging", element: <ArAging /> },
   { path: "reports/ap-aging", element: <ApAging /> },
   { path: "reports/analytics", element: <Analytics /> },
+
+  // Rentals (docs/RENTAL_UI_PLAN.md)
+  { path: "rentals/calendar", element: <FleetCalendar /> },
 
   // Admin
   { path: "admin/users", element: <Users /> },
