@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Fixed
+- **Chat now links a reservation to its hiring customer.** The chat agent's
+  Assets & Reservations guidance never mentioned the `party` field, so "reserve
+  the 17t for Hans Meisterhans" booked the machine but left the customer blank.
+  The prompt now tells the agent to resolve the customer name to a record
+  (`search_masters`) and set `party` / `party_type` — a named customer with no
+  `party` is treated as a bug, not a valid booking. Prompt-only; no model change.
+
 ## [0.8.3] - 2026-08-17
 
 ### Added
