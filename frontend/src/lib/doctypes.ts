@@ -62,6 +62,11 @@ export interface DoctypeConfig {
   canSubmit: boolean;
   canCancel: boolean;
   conversions: ConversionDef[];
+  // A non-document "soft cancel": flip a field to a terminal value (e.g. a
+  // Reservation's status -> "Cancelled", which frees the calendar) via a plain
+  // update — the ERP has no hard delete for documents. Renders a "Cancel
+  // booking" button. Omit for doctypes that don't have one.
+  softCancel?: { field: string; value: string };
 }
 
 // --- Shared child table definitions ---
@@ -703,7 +708,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "to_datetime", label: "To", type: "datetime", required: true,
         hint: "Exact end. Windows are half-open [from, to): a hire ending 09:00 and the next starting 09:00 do NOT clash." },
       { name: "status", label: "Status", type: "select",
-        options: ["Reserved", "On Hire", "Returned", "Cancelled"], default: "Reserved" },
+        options: ["Reserved", "Out", "Returned", "Cancelled"], default: "Reserved" },
       { name: "party_type", label: "Party Type", type: "select", options: ["Customer", "Supplier"], default: "Customer" },
       { name: "party", label: "Party", type: "link", linkDoctypeField: "party_type" },
       { name: "purpose", label: "Purpose", type: "text" },
@@ -716,6 +721,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     canSubmit: false,
     canCancel: false,
     conversions: [],
+    softCancel: { field: "status", value: "Cancelled" },
   },
 };
 

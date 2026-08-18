@@ -479,6 +479,8 @@ function DocumentActions({
   onCancel,
   onConvert,
   onDiscard,
+  onSoftCancel,
+  softCancelDone,
 }: {
   isNew: boolean;
   doctype?: string;
@@ -492,6 +494,8 @@ function DocumentActions({
   onCancel: () => void;
   onConvert: (targetDoctype: string) => void;
   onDiscard: () => void;
+  onSoftCancel: () => void;
+  softCancelDone?: boolean;
 }) {
   const { t } = useTranslation();
   // Two-step cancel: clicking "Cancel" doesn't cancel — it arms confirmation.
@@ -502,6 +506,7 @@ function DocumentActions({
   // Discard (drafts only) is a soft delete — reversible at the DB level — so a
   // lighter inline two-step arm is enough.
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [confirmingSoftCancel, setConfirmingSoftCancel] = useState(false);
   if (!config) return null;
 
   const pdfUrl = !isNew && doctype && name
@@ -547,6 +552,31 @@ function DocumentActions({
         ) : (
           <Button variant="ghost" onClick={() => setConfirmingDiscard(true)}>
             {t("common.discardDraft")}
+          </Button>
+        )
+      )}
+      {/* Soft-cancel (e.g. a Reservation -> "Cancelled"): a plain field update,
+          NOT a document cancel — the ERP has no hard delete. Reversible (the
+          status can be set back), so a light inline two-step is enough. */}
+      {config.softCancel && !isNew && !discarded && !softCancelDone && (
+        confirmingSoftCancel ? (
+          <>
+            <Button variant="secondary" onClick={() => setConfirmingSoftCancel(false)}>
+              {t("common.keepBooking")}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setConfirmingSoftCancel(false);
+                onSoftCancel();
+              }}
+            >
+              {t("common.cancelBookingConfirm")}
+            </Button>
+          </>
+        ) : (
+          <Button variant="ghost" onClick={() => setConfirmingSoftCancel(true)}>
+            {t("common.cancelBooking")}
           </Button>
         )
       )}
@@ -830,6 +860,14 @@ export default function DocumentFormPage() {
     discardMut.mutate();
   };
 
+  const handleSoftCancel = () => {
+    // Flip a field to a terminal value (e.g. a Reservation's status ->
+    // "Cancelled", which frees the calendar) via an ordinary update — there is
+    // no hard delete for documents. Reuses the update mutation + payload.
+    if (!config?.softCancel) return;
+    updateMut.mutate({ ...formData, [config.softCancel.field]: config.softCancel.value });
+  };
+
   if (!config) {
     return (
       <p className="text-fg-muted">
@@ -898,6 +936,11 @@ export default function DocumentFormPage() {
           onCancel={handleCancel}
           onConvert={handleConvert}
           onDiscard={handleDiscard}
+          onSoftCancel={handleSoftCancel}
+          softCancelDone={
+            !!config.softCancel &&
+            formData[config.softCancel.field] === config.softCancel.value
+          }
         />
       </div>
 

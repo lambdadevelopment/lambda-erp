@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-08-18
+
+### Added
+- **Cancel a reservation from the UI.** Reservations had no removal control —
+  they don't submit, so neither Discard nor Cancel ever showed. The document
+  form now has a **"Cancel booking"** button that sets the reservation's status
+  to `Cancelled`, which frees the calendar slot while keeping the row for audit
+  (the ERP has no hard delete for documents). Exposed via a generic `softCancel`
+  doctype-config option so other doctypes can adopt the same pattern.
+
+### Fixed
+- **Reservation status option "On Hire" → "Out".** The reservation status
+  dropdown offered "On Hire", but the backend only accepts
+  Reserved/Out/Returned/Cancelled — so choosing it made the save fail. It now
+  sends `Out` (localised label). The Asset status "On Hire" is correct and
+  unchanged.
+
 ## [0.8.4] - 2026-08-18
 
 ### Fixed

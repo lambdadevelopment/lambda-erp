@@ -7,6 +7,9 @@
     "cancelDoc": "Annuler",
     "cancelDocAbort": "Ne pas annuler",
     "cancelDocConfirmBtn": "Annuler définitivement",
+    "cancelBooking": "Annuler la réservation",
+    "cancelBookingConfirm": "Oui, annuler",
+    "keepBooking": "Conserver",
     "discardDraft": "Supprimer le brouillon",
     "keepDraft": "Conserver",
     "discardDraftConfirm": "Supprimer",
@@ -757,6 +760,7 @@
   "fieldOptions": {
     "Available": "Disponible",
     "On Hire": "En location",
+    "Out": "Sorti",
     "Maintenance": "Maintenance",
     "Retired": "Retiré",
     "Reserved": "Réservé",

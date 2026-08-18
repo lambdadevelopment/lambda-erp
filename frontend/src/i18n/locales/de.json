@@ -7,6 +7,9 @@
     "cancelDoc": "Stornieren",
     "cancelDocAbort": "Nicht stornieren",
     "cancelDocConfirmBtn": "Definitiv stornieren",
+    "cancelBooking": "Buchung stornieren",
+    "cancelBookingConfirm": "Ja, stornieren",
+    "keepBooking": "Behalten",
     "discardDraft": "Entwurf verwerfen",
     "keepDraft": "Behalten",
     "discardDraftConfirm": "Verwerfen",
@@ -757,6 +760,7 @@
   "fieldOptions": {
     "Available": "Verfügbar",
     "On Hire": "Vermietet",
+    "Out": "Ausgeliefert",
     "Maintenance": "Wartung",
     "Retired": "Ausgemustert",
     "Reserved": "Reserviert",

@@ -7,6 +7,9 @@
     "cancelDoc": "Cancel",
     "cancelDocAbort": "Don't cancel",
     "cancelDocConfirmBtn": "Yes, cancel document",
+    "cancelBooking": "Cancel booking",
+    "cancelBookingConfirm": "Yes, cancel booking",
+    "keepBooking": "Keep booking",
     "discardDraft": "Discard draft",
     "keepDraft": "Keep",
     "discardDraftConfirm": "Discard draft",
@@ -757,6 +760,7 @@
   "fieldOptions": {
     "Available": "Available",
     "On Hire": "On Hire",
+    "Out": "Out",
     "Maintenance": "Maintenance",
     "Retired": "Retired",
     "Reserved": "Reserved",
