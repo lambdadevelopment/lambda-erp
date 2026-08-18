@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-08-18
+
 ### Fixed
 - **Chat now links a reservation to its hiring customer.** The chat agent's
   Assets & Reservations guidance never mentioned the `party` field, so "reserve
