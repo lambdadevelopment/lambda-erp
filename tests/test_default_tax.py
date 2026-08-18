@@ -58,8 +58,12 @@ def check_default_tax():
                        "standard_rate": 200, "is_stock_item": 0, "disabled": 0})
     db.conn.commit()
 
+    # currency=CHF matches the CH company base (rate 1, no exchange lookup) and
+    # skips the party-currency default (a bare Customer row defaults to USD, which
+    # would otherwise force a USD->CHF rate that isn't seeded in the test DB).
     inv = services.create_document("sales-invoice", {
         "customer": "CUST-1", "company": "Schweizer AG", "posting_date": "2026-08-17",
+        "currency": "CHF",
         "items": [{"item_code": "SVC-1", "qty": 2, "rate": 200}],
     })
     net = flt(inv.get("net_total") or inv.get("total"))
@@ -73,6 +77,7 @@ def check_default_tax():
     # --- Explicit empty taxes -> deliberately tax-free (default NOT applied). ---
     free = services.create_document("sales-invoice", {
         "customer": "CUST-1", "company": "Schweizer AG", "posting_date": "2026-08-17",
+        "currency": "CHF",
         "items": [{"item_code": "SVC-1", "qty": 1, "rate": 200}], "taxes": [],
     })
     assert (free.get("taxes") or []) == [], free.get("taxes")
