@@ -13,6 +13,13 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.11] - 2026-08-19
+
+### Fixed
+- **Master list pages are now fully translated** (de/fr) — the Columns/New
+  buttons, column selector, filter labels, search box, and pagination controls
+  were hardcoded English.
+
 ## [0.8.10] - 2026-08-19
 
 ### Added
