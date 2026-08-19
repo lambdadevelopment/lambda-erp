@@ -13,6 +13,13 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.10] - 2026-08-19
+
+### Added
+- **Column selector on master list pages.** Master lists (Customer, Item, …) now
+  have the same "Columns" picker as document lists, persisted per master type
+  per user (cross-device). Default shows all columns.
+
 ## [0.8.9] - 2026-08-19
 
 ### Added
