@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-08-19
+
+### Performance
+- **Large list views no longer slow down with table size (all doctypes).** Lists
+  default to `ORDER BY creation DESC` + a `count(*)` total, but tables shipped
+  with only a `name` primary key — so a big table did a full sequential scan +
+  sort on every load (measured at 89K rows: ~341 ms list + ~147 ms count; the
+  same list on an indexed column: 0.26 ms).
+  - **Index reconcile:** `Database._ensure_list_indexes()` runs after migrations
+    and creates a `creation` index on every table that has the column — core,
+    plugin, and future doctypes — back-filling existing tables on deploy.
+  - **Column projection:** the documents list projects to the columns the view
+    actually renders (`fields` param) instead of `SELECT *`.
+  - **Cached exact counts:** the list total is cached ~60 s per (doctype,
+    filters), keeping the page-jump total exact while collapsing repeated counts
+    on paging. `services.invalidate_count_cache()` clears it after bulk writes.
+
 ## [0.8.5] - 2026-08-18
 
 ### Added
