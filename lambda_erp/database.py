@@ -96,6 +96,28 @@ def _pg_row_factory(cursor):
     return make
 
 
+_write_generation = 0
+
+
+def _stmt_is_read(sql: str) -> bool:
+    s = sql.lstrip().lower()
+    return s.startswith("select") and "for update" not in s and "for share" not in s
+
+
+def _note_write(sql: str) -> None:
+    """Bump the process write-generation on any non-SELECT statement. The list
+    count cache keys on it, so an in-process write invalidates cached counts at
+    once (cross-process staleness stays bounded by the cache TTL)."""
+    global _write_generation
+    if not _stmt_is_read(sql):
+        _write_generation += 1
+
+
+def get_write_generation() -> int:
+    """Monotonic per-process write counter — see _note_write."""
+    return _write_generation
+
+
 class _PgConn:
     """Adapts a psycopg (v3) connection to the sqlite3 connection API the code
     uses. autocommit is off so the existing `_in_transaction` + single commit()
@@ -150,6 +172,7 @@ class _PgConn:
             self._safe_rollback()
             raise
         self._maybe_release(sql)
+        _note_write(sql)
         return cur
 
     def executemany(self, sql, seq_params):
@@ -161,6 +184,7 @@ class _PgConn:
             self._safe_rollback()
             raise
         self._dirty = True
+        _note_write(sql)
         return cur
 
     def _safe_rollback(self):
@@ -183,6 +207,20 @@ class _PgConn:
 
     def cursor(self, *args, **kwargs):
         return self._raw.cursor(*args, **kwargs)
+
+
+class _SqliteConn(sqlite3.Connection):
+    """SQLite connection that bumps the write-generation like _PgConn does, so the
+    list count cache invalidates on writes under both backends (SQLite is a raw
+    connection where Postgres is wrapped)."""
+
+    def execute(self, sql, *args, **kwargs):
+        _note_write(sql)
+        return super().execute(sql, *args, **kwargs)
+
+    def executemany(self, sql, *args, **kwargs):
+        _note_write(sql)
+        return super().executemany(sql, *args, **kwargs)
 
 
 class _NullLock:
@@ -240,7 +278,7 @@ class Database:
         return conn
 
     def _open_sqlite_conn(self):
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False, factory=_SqliteConn)
         conn.row_factory = sqlite3.Row
         conn.execute(f"PRAGMA journal_mode={_journal_mode()}")
         conn.execute("PRAGMA foreign_keys=ON")

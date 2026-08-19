@@ -3,7 +3,7 @@
 import time
 
 from lambda_erp.utils import _dict, now
-from lambda_erp.database import get_db
+from lambda_erp.database import get_db, get_write_generation
 
 from lambda_erp.selling.quotation import (
     Quotation, make_sales_order,
@@ -736,13 +736,13 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
     return rows
 
 
-# Exact list counts are cached briefly per (doctype, filters). The count is the
-# one O(N) part of a list load — a full scan even with the creation index, since
-# the discard/search predicates aren't covered — and paging within a view repeats
-# the identical count. A short TTL keeps the page-jump total EXACT (unlike a
-# reltuples estimate, which would make the "of N" bound approximate) while
-# collapsing repeat counts to a dict lookup. Stale for at most _COUNT_CACHE_TTL
-# seconds after a write, which is fine for a total-count display.
+# Exact list counts are cached per (doctype, filters). The count is the one O(N)
+# part of a list load — a full scan even with the creation index, since the
+# discard/search predicates aren't covered — and paging within a view repeats the
+# identical count. The cache stays EXACT (unlike a reltuples estimate, which would
+# make the page-jump "of N" bound approximate): every entry is tagged with the DB
+# write-generation, so any in-process write invalidates it immediately; the TTL is
+# only a backstop for cross-replica writes this process didn't see.
 _COUNT_CACHE: dict = {}
 _COUNT_CACHE_TTL = 60.0
 _COUNT_CACHE_MAX = 512
@@ -754,22 +754,24 @@ def _count_cache_key(doctype_slug, filters, include_discarded):
 
 
 def invalidate_count_cache() -> None:
-    """Clear the list-count cache (call after a bulk import/delete if an
-    immediately-fresh total matters more than the ~60s TTL)."""
+    """Clear the list-count cache (writes already invalidate via the write-
+    generation; call this only to force-drop cross-replica staleness early)."""
     _COUNT_CACHE.clear()
 
 
 def count_documents(doctype_slug: str, filters: dict = None, include_discarded: bool = False) -> int:
-    """Exact count of documents matching the filters, cached ~60s per filter-set."""
+    """Exact count of documents matching the filters, cached per filter-set until
+    the next write (write-generation) or the TTL, whichever comes first."""
     key = _count_cache_key(doctype_slug, filters, include_discarded)
+    gen = get_write_generation()
     now_mono = time.monotonic()
     hit = _COUNT_CACHE.get(key)
-    if hit is not None and now_mono - hit[0] < _COUNT_CACHE_TTL:
-        return hit[1]
+    if hit is not None and hit[1] == gen and now_mono - hit[0] < _COUNT_CACHE_TTL:
+        return hit[2]
     result = _count_documents_uncached(doctype_slug, filters, include_discarded)
     if len(_COUNT_CACHE) >= _COUNT_CACHE_MAX:
         _COUNT_CACHE.clear()
-    _COUNT_CACHE[key] = (now_mono, result)
+    _COUNT_CACHE[key] = (now_mono, gen, result)
     return result
 
 

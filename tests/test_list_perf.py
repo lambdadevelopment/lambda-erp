@@ -39,26 +39,33 @@ def check_list_perf():
                 cols.append(str(i["name"]))
         return " ".join(cols)
 
-    for table in ("Customer", "Item", "Quotation", "Sales Invoice"):
+    # Document tables list by `creation DESC`, so they get the index. (Masters
+    # like Customer have no `creation` column — they sort by the `name` PK — so
+    # they are correctly skipped.)
+    for table in ("Quotation", "Sales Invoice", "Sales Order", "Payment Entry"):
         assert "creation" in _index_columns(table), f"no creation index on {table}"
-    print("  A: creation index present on Customer / Item / Quotation / Sales Invoice")
+    assert "creation" not in _index_columns("Customer"), "master should not be indexed on creation"
+    print("  A: creation index present on document tables, skipped on masters")
 
     db._ensure_list_indexes()  # idempotent — a second reconcile must not error
     print("  A: _ensure_list_indexes is idempotent")
 
-    # --- C: exact count is cached per filter-set; invalidation refreshes it. ---
+    # --- C: exact count is cached, but a write invalidates it immediately. -----
     # Raw inserts into a core doctype (Quotation: name PK, rest nullable) — this
     # tests the list/count plumbing, not document validation.
     db.insert("Quotation", {"name": "QTN-1", "customer_name": "Alpha AG", "creation": "2026-08-19 10:00:00"})
     db.insert("Quotation", {"name": "QTN-2", "customer_name": "Beta GmbH", "creation": "2026-08-19 11:00:00"})
     db.conn.commit()
     assert services.count_documents("quotation") == 2
+    assert services.count_documents("quotation") == 2  # repeat read: served from cache
+    # A write bumps the DB write-generation, so the next count is fresh (not stale).
     db.insert("Quotation", {"name": "QTN-3", "customer_name": "Gamma SA", "creation": "2026-08-19 12:00:00"})
     db.conn.commit()
-    assert services.count_documents("quotation") == 2, "count should be served from cache"
-    services.invalidate_count_cache()
-    assert services.count_documents("quotation") == 3, "count should refresh after invalidation"
-    print("  C: count_documents caches, then refreshes on invalidation")
+    assert services.count_documents("quotation") == 3, "insert must invalidate the cached count"
+    db.delete("Quotation", "QTN-3")
+    db.conn.commit()
+    assert services.count_documents("quotation") == 2, "delete must invalidate the cached count"
+    print("  C: count is cached but invalidates immediately on any write")
 
     # --- B: fields projection returns only name + the requested columns. -------
     rows = services.list_documents("quotation", fields=["customer_name"])
