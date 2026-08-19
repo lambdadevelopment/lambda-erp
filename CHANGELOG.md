@@ -13,6 +13,15 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-08-19
+
+### Fixed
+- **Cached list counts now invalidate on writes.** 0.8.6 cached the exact list
+  total per filter-set but served it stale after a create/delete within the TTL.
+  The cache now keys on a process write-generation (bumped on every non-SELECT
+  statement, both backends), so a mutation refreshes the count immediately; the
+  TTL only backstops cross-replica writes. The page-jump total stays exact.
+
 ## [0.8.6] - 2026-08-19
 
 ### Performance
