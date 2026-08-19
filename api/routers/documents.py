@@ -28,7 +28,7 @@ _manager = Depends(require_role("manager"))
 _LIST_RESERVED = {
     "status", "party", "from_date", "to_date", "docstatus",
     "include_discarded", "limit", "offset", "order_by", "order",
-    "date_field", "search", "search_fields",
+    "date_field", "search", "search_fields", "fields",
 }
 
 
@@ -47,6 +47,7 @@ def list_docs(
     date_field: str | None = None,
     search: str | None = None,
     search_fields: str | None = None,
+    fields: str | None = None,
     limit: int = Query(default=50, le=500),
     offset: int = Query(default=0, ge=0),
     _user: dict = _viewer,
@@ -87,20 +88,31 @@ def list_docs(
     # real columns, mirroring the arbitrary-filter / order_by contract.
     if search:
         filters["search"] = search
-        fields = [f.strip() for f in (search_fields or "").split(",") if f.strip()]
-        bad = [f for f in fields if f not in columns]
+        sf = [f.strip() for f in (search_fields or "").split(",") if f.strip()]
+        bad = [f for f in sf if f not in columns]
         if bad:
             raise HTTPException(status_code=400, detail=f"Unknown search field(s): {', '.join(bad)}")
-        if fields:
-            filters["search_fields"] = fields
+        if sf:
+            filters["search_fields"] = sf
 
     if order_by is not None and order_by not in columns:
         raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
     if order.lower() not in ("asc", "desc"):
         raise HTTPException(status_code=400, detail="order must be 'asc' or 'desc'")
 
+    # Column projection: the frontend sends the columns its list view actually
+    # renders, so a wide doctype doesn't ship every column for a few-column grid.
+    # Validated against real columns (name is always kept, added downstream).
+    projection = None
+    if fields:
+        projection = [f.strip() for f in fields.split(",") if f.strip()]
+        bad = [f for f in projection if f not in columns]
+        if bad:
+            raise HTTPException(status_code=400, detail=f"Unknown field(s): {', '.join(bad)}")
+
     rows = list_documents(doctype_slug, filters=filters, limit=limit, offset=offset,
-                          include_discarded=include_discarded, order_by=order_by, order=order)
+                          include_discarded=include_discarded, order_by=order_by, order=order,
+                          fields=projection)
     total = count_documents(doctype_slug, filters=filters, include_discarded=include_discarded)
     return {"rows": rows, "total": total, "limit": limit, "offset": offset}
 

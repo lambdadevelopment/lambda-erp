@@ -1,5 +1,7 @@
 """Bridge between FastAPI request data and lambda_erp Document classes."""
 
+import time
+
 from lambda_erp.utils import _dict, now
 from lambda_erp.database import get_db
 
@@ -717,8 +719,10 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
     else:
         rows = db.get_all(
             doctype,
+            # Project to the requested columns at the DB (not just *-then-trim) so a
+            # wide table doesn't ship every column for a few-column list view.
+            fields=(sorted(_projection_columns(doctype_slug, fields)) if fields else ["*"]),
             filters=db_filters if db_filters else None,
-            fields=["*"],
             order_by=order_clause,
             limit=limit,
         )
@@ -732,7 +736,44 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
     return rows
 
 
+# Exact list counts are cached briefly per (doctype, filters). The count is the
+# one O(N) part of a list load — a full scan even with the creation index, since
+# the discard/search predicates aren't covered — and paging within a view repeats
+# the identical count. A short TTL keeps the page-jump total EXACT (unlike a
+# reltuples estimate, which would make the "of N" bound approximate) while
+# collapsing repeat counts to a dict lookup. Stale for at most _COUNT_CACHE_TTL
+# seconds after a write, which is fine for a total-count display.
+_COUNT_CACHE: dict = {}
+_COUNT_CACHE_TTL = 60.0
+_COUNT_CACHE_MAX = 512
+
+
+def _count_cache_key(doctype_slug, filters, include_discarded):
+    items = tuple(sorted((k, str(v)) for k, v in (filters or {}).items()))
+    return (doctype_slug, items, bool(include_discarded))
+
+
+def invalidate_count_cache() -> None:
+    """Clear the list-count cache (call after a bulk import/delete if an
+    immediately-fresh total matters more than the ~60s TTL)."""
+    _COUNT_CACHE.clear()
+
+
 def count_documents(doctype_slug: str, filters: dict = None, include_discarded: bool = False) -> int:
+    """Exact count of documents matching the filters, cached ~60s per filter-set."""
+    key = _count_cache_key(doctype_slug, filters, include_discarded)
+    now_mono = time.monotonic()
+    hit = _COUNT_CACHE.get(key)
+    if hit is not None and now_mono - hit[0] < _COUNT_CACHE_TTL:
+        return hit[1]
+    result = _count_documents_uncached(doctype_slug, filters, include_discarded)
+    if len(_COUNT_CACHE) >= _COUNT_CACHE_MAX:
+        _COUNT_CACHE.clear()
+    _COUNT_CACHE[key] = (now_mono, result)
+    return result
+
+
+def _count_documents_uncached(doctype_slug: str, filters: dict = None, include_discarded: bool = False) -> int:
     """Count documents matching the filters (ignores limit/offset)."""
     doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     if not doctype:

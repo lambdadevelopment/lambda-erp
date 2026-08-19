@@ -234,6 +234,13 @@ export default function DocumentListPage() {
     [settings, doctype],
   );
   const effectiveCols = savedCols.length ? savedCols : (config?.listColumns ?? []);
+  // Ask the API for only the columns this list renders (+ currency for amount
+  // formatting and party_type for party links — the two fields cells read beyond
+  // their own column). The backend always keeps `name`. A stable string so it can
+  // be a memo/query dependency without churning. Trims wide-doctype payloads.
+  const fieldsParam = effectiveCols.length
+    ? [...effectiveCols, "currency", "party_type"].join(",")
+    : undefined;
   // The full menu of columns a user can pick: name (the id) + the doctype's own
   // fields + the system columns (modified/creation).
   const availableCols = useMemo(() => {
@@ -305,10 +312,11 @@ export default function DocumentListPage() {
     }
     if (showDiscarded) f.include_discarded = "true";
     if (activeSortCol) { f.order_by = activeSortCol; f.order = activeSortDir; }
+    if (fieldsParam) f.fields = fieldsParam;
     f.limit = pageSize;
     f.offset = page * pageSize;
     return f;
-  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, searchFields, urlQ, activeSortCol, activeSortDir]);
+  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, searchFields, urlQ, activeSortCol, activeSortDir, fieldsParam]);
 
   const { data, isLoading } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
