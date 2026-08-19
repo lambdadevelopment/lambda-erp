@@ -23,6 +23,7 @@ import Chat from "@/pages/chat";
 import Login from "@/pages/login";
 import Demo from "@/pages/demo";
 import OpeningBalances from "@/pages/opening-balances";
+import { AdminRoute } from "@/components/auth/protected-route";
 import Users from "@/pages/admin/users";
 import GeneralSettings from "@/pages/admin/settings";
 import { getComponent } from "@/lib/component-registry";
@@ -42,7 +43,7 @@ const baseTopRoutes: RouteObject[] = [
 const baseChildRoutes: RouteObject[] = [
   { index: true, element: <DashboardRoute /> },
   { path: "setup", element: <Setup /> },
-  { path: "setup/opening-balances", element: <OpeningBalances /> },
+  { path: "setup/opening-balances", element: <AdminRoute><OpeningBalances /></AdminRoute> },
   { path: "tutorial", element: <Tutorial /> },
   { path: "chat", element: <Chat /> },
   { path: "chat/:sessionId", element: <Chat /> },

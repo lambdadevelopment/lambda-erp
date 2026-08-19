@@ -56,6 +56,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { useChat } from "@/components/chat/chat-provider";
 import { getNavGroups, type NavGroup } from "@/lib/nav";
+import { useAuth } from "@/contexts/auth-context";
 import { getBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
@@ -392,6 +393,7 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
     staleTime: 60_000,
   });
 
+  const { user } = useAuth();
   const firstCompany = setupStatus?.companies?.[0];
   const companyName: string =
     firstCompany?.company_name || firstCompany?.name || getBranding().appName;
@@ -401,6 +403,8 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
     return base.map((group) => ({
       ...group,
       items: group.items.filter((item) => {
+        // Admin-only items are hidden from non-admins (the route is gated too).
+        if (item.adminOnly && user?.role !== "admin") return false;
         // Company Setup is a one-time step — hide it once a company exists.
         if (item.path === "/setup" && setupStatus?.setup_complete) return false;
         // Settings-gated items (default to shown until settings load).
@@ -410,7 +414,7 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
         return settings[settingKey] !== "0";
       }),
     }));
-  }, [settings, setupStatus]);
+  }, [settings, setupStatus, user?.role]);
 
   return (
     <aside

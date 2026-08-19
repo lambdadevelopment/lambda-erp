@@ -23,6 +23,8 @@ import {
 export interface NavItem {
   label: string;
   path: string;
+  // Hide from the sidebar for non-admins (the route is admin-gated too).
+  adminOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -38,7 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Getting Started", path: "/tutorial" },
       { label: "Company Setup", path: "/setup" },
-      { label: "Opening Balances", path: "/setup/opening-balances" },
+      { label: "Opening Balances", path: "/setup/opening-balances", adminOnly: true },
     ],
   },
   {
