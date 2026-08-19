@@ -2,13 +2,16 @@
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from lambda_erp.database import get_db
 from lambda_erp.utils import _dict
 # The per-type registries live in api.services so `register_master` can extend
 # them; imported here (not moved) so existing `from api.routers.masters import
 # MASTER_IDENTITY_ALIAS`-style imports keep working.
-from api.services import MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_IDENTITY_ALIAS
+from api.services import (
+    MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_IDENTITY_ALIAS,
+    _search_clause, _where_from_filters, master_search_columns, count_query_cached,
+)
 from api.auth import require_role, require_non_public_manager
 
 router = APIRouter(prefix="/masters", tags=["masters"])
@@ -267,45 +270,91 @@ def update_master_record(master_type: str, name: str, data: dict) -> dict:
     return _echo_identity_alias(master_type, rows[0])
 
 
+# Query params list_masters consumes itself — anything else is treated as an
+# ad-hoc equality field filter (validated against the master's real columns).
+_MASTER_LIST_RESERVED = {
+    "limit", "offset", "include_disabled", "search", "search_fields",
+}
+
+
+@router.get("/{master_type}/filter-values")
+def master_filter_values(
+    master_type: str,
+    field: str,
+    _user: dict = _viewer,
+):
+    """Distinct non-empty values of one column — populates a master-list filter
+    dropdown. Capped; the field is validated against real columns."""
+    doctype, _ = _get_table(master_type)
+    if not doctype:
+        raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
+    db = get_db()
+    if field not in db._get_table_columns(doctype):
+        raise HTTPException(status_code=400, detail=f"Unknown field: {field}")
+    rows = db.sql(
+        f'SELECT DISTINCT "{field}" AS v FROM "{doctype}" '
+        f'WHERE "{field}" IS NOT NULL AND "{field}" <> \'\' '
+        f'ORDER BY "{field}" LIMIT 200'
+    )
+    return {"values": [r["v"] for r in rows]}
+
+
 @router.get("/{master_type}")
 def list_masters(
     master_type: str,
+    request: Request,
     limit: int = Query(default=50, le=1000),
     offset: int = Query(default=0, ge=0),
     include_disabled: bool = False,
+    search: str | None = None,
+    search_fields: str | None = None,
     _user: dict = _viewer,
 ):
     doctype, _ = _get_table(master_type)
     if not doctype:
         return {"detail": f"Unknown master type: {master_type}"}
     db = get_db()
-    filters = None if include_disabled else _with_active_filter(db, doctype)
+    columns = db._get_table_columns(doctype)
 
-    # Build WHERE clause and params
-    where_parts = []
-    params = []
-    if filters:
-        for k, v in filters.items():
-            if isinstance(v, (list, tuple)) and len(v) == 2:
-                op, val = v
-                where_parts.append(f'"{k}" {op} ?')
-                params.append(val)
-            else:
-                where_parts.append(f'"{k}" = ?')
-                params.append(v)
+    where_parts: list = []
+    params: list = []
 
-    count_query = f'SELECT COUNT(*) as c FROM "{doctype}"'
-    if where_parts:
-        count_query += " WHERE " + " AND ".join(where_parts)
-    total_rows = db.sql(count_query, params)
-    total = int(total_rows[0]["c"]) if total_rows else 0
+    # Active (non-disabled) filter, unless the caller opts in to disabled rows.
+    active = None if include_disabled else _with_active_filter(db, doctype)
+    if active:
+        wp, ps = _where_from_filters(active)
+        where_parts += wp
+        params += ps
 
-    query = f'SELECT * FROM "{doctype}"'
-    if where_parts:
-        query += " WHERE " + " AND ".join(where_parts)
-    # Deterministic order: without it Postgres returns pages in arbitrary order,
-    # which breaks OFFSET pagination and the /adjacent prev/next contract.
-    query += f" ORDER BY name LIMIT {int(limit)}"
+    # Ad-hoc equality field filters: any remaining query param naming a real
+    # column (e.g. /masters/customer?customer_group=Commercial). Unknown field
+    # -> 400 (a filter on a missing column is a client bug, never interpolated).
+    for key, value in request.query_params.items():
+        if key in _MASTER_LIST_RESERVED:
+            continue
+        if key not in columns:
+            raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
+        where_parts.append(f'"{key}" = ?')
+        params.append(value)
+
+    # Free-text search — defaults to the master's text columns when the caller
+    # doesn't name search_fields (so a plain ?search=... just works).
+    if search:
+        sf = [f.strip() for f in (search_fields or "").split(",")
+              if f.strip() and f.strip() in columns]
+        if not sf:
+            sf = master_search_columns(db, doctype)
+        clause, sp = _search_clause(db, doctype, master_type, search, sf)
+        if clause:
+            where_parts.append(clause)
+            params += sp
+
+    where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
+    total = count_query_cached(f'SELECT COUNT(*) as c FROM "{doctype}"{where}', params)
+
+    # Deterministic order by the `name` PK (already indexed) — required for
+    # OFFSET pagination and the /adjacent prev/next contract.
+    query = f'SELECT * FROM "{doctype}"{where} ORDER BY name LIMIT {int(limit)}'
     if offset:
         query += f" OFFSET {int(offset)}"
     rows = db.sql(query, params)

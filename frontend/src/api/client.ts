@@ -250,6 +250,10 @@ export const api = {
   searchMasters: (type: string, q: string) =>
     request<any[]>(`/masters/${type}/search?q=${encodeURIComponent(q)}`),
 
+  // Distinct values of one master column — populates a list filter dropdown.
+  masterFilterValues: (type: string, field: string) =>
+    request<{ values: any[] }>(`/masters/${type}/filter-values?field=${encodeURIComponent(field)}`),
+
   searchDocuments: (doctype: string, q: string) =>
     request<any[]>(`/documents/${doctype}/search?q=${encodeURIComponent(q)}`),
 

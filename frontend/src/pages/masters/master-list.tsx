@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -24,6 +24,46 @@ const TYPE_LABELS: Record<string, string> = {
 
 const PAGE_SIZE_OPTIONS = ["25", "50", "100", "200"];
 
+// Per-master field filters shown as dropdowns (options fetched from the backend).
+// Fields must be real columns of the master; the server validates and 400s
+// otherwise, so keep these to columns that exist.
+type MasterFilterDef = { field: string; label: string };
+const MASTER_FILTERS: Record<string, MasterFilterDef[]> = {
+  customer: [{ field: "customer_group", label: "Group" }, { field: "territory", label: "Territory" }],
+  supplier: [{ field: "supplier_group", label: "Group" }],
+  item: [{ field: "item_group", label: "Group" }, { field: "stock_uom", label: "UoM" }],
+  warehouse: [{ field: "parent_warehouse", label: "Parent" }],
+  account: [{ field: "root_type", label: "Root type" }, { field: "account_type", label: "Type" }],
+};
+
+function MasterFilterSelect({
+  type, def, value, onChange,
+}: {
+  type: string;
+  def: MasterFilterDef;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { data } = useQuery({
+    queryKey: ["master-filter-values", type, def.field],
+    queryFn: () => api.masterFilterValues(type, def.field),
+    enabled: !!type,
+  });
+  const values = data?.values ?? [];
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-8 rounded-md bg-surface px-2 text-sm text-fg ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-brand/30"
+    >
+      <option value="">{def.label}: All</option>
+      {values.map((v) => (
+        <option key={String(v)} value={String(v)}>{String(v)}</option>
+      ))}
+    </select>
+  );
+}
+
 export default function MasterListPage() {
   const { type } = useParams<{ type: string }>();
   const navigate = useNavigate();
@@ -46,12 +86,34 @@ export default function MasterListPage() {
   const setPage = (p: number) => patchUrl({ page: p === 0 ? null : p + 1 });
   const setPageSize = (n: number) => patchUrl({ per_page: n, page: null });
 
+  // Free-text search: local input, debounced into the URL (?q=), which resets
+  // the page. The committed value drives the query.
+  const [urlQ] = useUrlState<string>("q", "");
+  const [searchInput, setSearchInput] = useState(urlQ);
+  useEffect(() => { setSearchInput(urlQ); }, [urlQ]);
+  useEffect(() => {
+    const t = setTimeout(() => patchUrl({ q: searchInput || null, page: null }), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filterDefs = MASTER_FILTERS[type ?? ""] ?? [];
+  // Each configured filter's committed value lives in the URL (?field=value).
+  const filterValues = useMemo(() => {
+    const p = new URLSearchParams(location.search);
+    const out: Record<string, string> = {};
+    for (const f of filterDefs) { const v = p.get(f.field); if (v) out[f.field] = v; }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, type]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["masters", type, page, pageSize],
+    queryKey: ["masters", type, page, pageSize, urlQ, filterValues],
     queryFn: () => api.listMasters(type!, {
       include_disabled: 1,
       limit: pageSize,
       offset: page * pageSize,
+      ...(urlQ ? { search: urlQ } : {}),
+      ...filterValues,
     }),
     enabled: !!type,
   });
@@ -108,10 +170,28 @@ export default function MasterListPage() {
           {notice}
         </div>
       )}
-      <div className="flex items-center justify-end">
-        <Link to={`/masters/${type}/new`}>
-          <Button>New</Button>
-        </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder={`Search ${(label || "records").toLowerCase()}…`}
+          className="h-8 w-56 rounded-md bg-surface px-3 text-sm text-fg ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-brand/30"
+        />
+        {filterDefs.map((f) => (
+          <MasterFilterSelect
+            key={f.field}
+            type={type!}
+            def={f}
+            value={filterValues[f.field] ?? ""}
+            onChange={(v) => patchUrl({ [f.field]: v || null, page: null })}
+          />
+        ))}
+        <div className="ml-auto">
+          <Link to={`/masters/${type}/new`}>
+            <Button>New</Button>
+          </Link>
+        </div>
       </div>
 
       {isLoading ? (

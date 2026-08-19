@@ -759,6 +759,38 @@ def invalidate_count_cache() -> None:
     _COUNT_CACHE.clear()
 
 
+def count_query_cached(query: str, params=None) -> int:
+    """Result of a single-column COUNT(*) query, cached per (query, params) with
+    the same policy as count_documents — until the next write (write-generation)
+    or the TTL. Lets the masters list share the exact-but-cached count."""
+    key = ("q", query, tuple(str(p) for p in (params or [])))
+    gen = get_write_generation()
+    now_mono = time.monotonic()
+    hit = _COUNT_CACHE.get(key)
+    if hit is not None and hit[1] == gen and now_mono - hit[0] < _COUNT_CACHE_TTL:
+        return hit[2]
+    rows = get_db().sql(query, params or [])
+    total = int(next(iter(rows[0].values()))) if rows else 0
+    if len(_COUNT_CACHE) >= _COUNT_CACHE_MAX:
+        _COUNT_CACHE.clear()
+    _COUNT_CACHE[key] = (now_mono, gen, total)
+    return total
+
+
+# Audit / plumbing columns never worth matching a free-text list search against.
+_MASTER_SEARCH_SKIP = {
+    "name", "creation", "modified", "owner", "modified_by", "disabled",
+    "idx", "parent", "parenttype", "parentfield", "docstatus",
+}
+
+
+def master_search_columns(db, doctype: str) -> list:
+    """Text columns a free-text master-list search matches by default — schema-
+    discovered (a new text field becomes searchable automatically), minus audit
+    noise. Mirrors the chat search_masters default so both search the same set."""
+    return sorted(db._get_text_columns(doctype) - _MASTER_SEARCH_SKIP)
+
+
 def count_documents(doctype_slug: str, filters: dict = None, include_discarded: bool = False) -> int:
     """Exact count of documents matching the filters, cached per filter-set until
     the next write (write-generation) or the TTL, whichever comes first."""

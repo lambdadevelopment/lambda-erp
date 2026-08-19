@@ -58,6 +58,39 @@ def check_documents_route():
             assert set(rows[0].keys()) <= {"name", "customer_name", "currency"}, rows[0].keys()
         print("  route: unknown projection fields dropped (no 400); known ones projected")
 
+        # --- Masters list: search + field filter + filter-values + strict field. ---
+        # Seed via the shared db singleton (same instance the app serves) — avoids
+        # any create-time validation; we're testing the list route, not creation.
+        from lambda_erp.database import get_db
+        db = get_db()
+        db.insert("Customer", {"name": "CUST-T1", "customer_name": "Muster Test AG",
+                               "customer_group": "Commercial", "territory": "Zurich", "disabled": 0})
+        db.insert("Customer", {"name": "CUST-T2", "customer_name": "Other GmbH",
+                               "customer_group": "Retail", "disabled": 0})
+        db.conn.commit()
+
+        # free-text search matches a text column (customer_name), excludes others
+        r = client.get("/api/masters/customer?search=Muster", headers=h)
+        assert r.status_code == 200, r.text[:200]
+        names = [row.get("customer_name") for row in r.json()["rows"]]
+        assert any("Muster" in (n or "") for n in names) and all("Other" not in (n or "") for n in names), names
+
+        # equality field filter narrows to the group
+        r = client.get("/api/masters/customer?customer_group=Retail", headers=h)
+        assert r.status_code == 200 and r.json()["total"] >= 1, r.text[:200]
+        assert all(row.get("customer_group") == "Retail" for row in r.json()["rows"]), r.text[:200]
+
+        # distinct filter-values for the dropdown
+        r = client.get("/api/masters/customer/filter-values?field=customer_group", headers=h)
+        assert r.status_code == 200, r.text[:200]
+        vals = r.json()["values"]
+        assert "Commercial" in vals and "Retail" in vals, vals
+
+        # an unknown filter field IS a 400 — filters affect the query, so stay strict
+        r = client.get("/api/masters/customer?nonsense_col=x", headers=h)
+        assert r.status_code == 400, f"unknown filter field must 400: {r.status_code} {r.text[:150]}"
+        print("  masters: search + field filter + filter-values + strict unknown-field")
+
     print("PASS")
 
 
