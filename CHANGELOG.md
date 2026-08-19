@@ -13,6 +13,15 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-08-19
+
+### Fixed
+- **Document lists load again — the `fields` projection is advisory.** 0.8.7's
+  column projection rejected any requested field the doctype didn't have with a
+  400, but the frontend appends display-only fields (currency, party_type) that
+  not every doctype has — so lists lacking them (e.g. Quotation) failed to load.
+  Unknown projection columns are now dropped silently.
+
 ## [0.8.7] - 2026-08-19
 
 ### Fixed
