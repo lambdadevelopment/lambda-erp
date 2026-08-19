@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.9] - 2026-08-19
+
+### Added
+- **Search + field filters on master list pages.** Master lists (Customer, Item,
+  Supplier, …) previously had only pagination. They now have a free-text search
+  box (matches the master's text columns) and per-master field-filter dropdowns
+  (e.g. customer group/territory, item group/UoM), served by a new
+  `GET /masters/{type}/filter-values` endpoint. Master counts are now cached
+  (invalidated on write) like document counts.
+
 ## [0.8.8] - 2026-08-19
 
 ### Fixed
