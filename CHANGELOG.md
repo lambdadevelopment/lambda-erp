@@ -13,6 +13,13 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.12] - 2026-08-19
+
+### Changed
+- **Opening Balances is now admin-only** in the UI — the sidebar entry is hidden
+  from non-admins and the page redirects them home. The import endpoints were
+  already admin-gated server-side.
+
 ## [0.8.11] - 2026-08-19
 
 ### Fixed
