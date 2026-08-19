@@ -100,15 +100,16 @@ def list_docs(
     if order.lower() not in ("asc", "desc"):
         raise HTTPException(status_code=400, detail="order must be 'asc' or 'desc'")
 
-    # Column projection: the frontend sends the columns its list view actually
-    # renders, so a wide doctype doesn't ship every column for a few-column grid.
-    # Validated against real columns (name is always kept, added downstream).
+    # Column projection: the frontend sends the columns its list view renders, so
+    # a wide doctype doesn't ship every column for a few-column grid. This is
+    # ADVISORY — unknown columns are silently dropped, never a 400: the frontend
+    # appends display-only fields (currency, party_type) that not every doctype
+    # has, and a projection can only ever narrow the response (name is kept
+    # downstream), so an unknown field is harmless. (Contrast order_by/search_
+    # fields, which affect query correctness and stay strict.)
     projection = None
     if fields:
-        projection = [f.strip() for f in fields.split(",") if f.strip()]
-        bad = [f for f in projection if f not in columns]
-        if bad:
-            raise HTTPException(status_code=400, detail=f"Unknown field(s): {', '.join(bad)}")
+        projection = [f.strip() for f in fields.split(",") if f.strip() and f.strip() in columns]
 
     rows = list_documents(doctype_slug, filters=filters, limit=limit, offset=offset,
                           include_discarded=include_discarded, order_by=order_by, order=order,
