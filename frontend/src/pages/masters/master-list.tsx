@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { SlidersHorizontal } from "lucide-react";
+import { useMySettings } from "@/hooks/use-my-settings";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import {
   useReactTable,
@@ -23,6 +25,9 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const PAGE_SIZE_OPTIONS = ["25", "50", "100", "200"];
+
+const humanizeCol = (key: string) =>
+  key.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
 // Per-master field filters shown as dropdowns (options fetched from the backend).
 // Fields must be real columns of the master; the server validates and 400s
@@ -124,12 +129,41 @@ export default function MasterListPage() {
   const rangeStart = total === 0 ? 0 : page * pageSize + 1;
   const rangeEnd = Math.min(total, (page + 1) * pageSize);
 
+  // Column selector (server-persisted per master type, cross-device). Masters
+  // fetch every column and are fast on the `name` PK, so this hides client-side.
+  // No per-master config, so the default is "show all"; a saved choice is filtered
+  // to columns that still exist.
+  const { settings, setSetting } = useMySettings();
+  const allColumns = useMemo(() => (rows.length ? Object.keys(rows[0]) : []), [rows]);
+  const savedCols = useMemo(
+    () => (settings[`columns.master:${type}`] || "").split(",").map((s) => s.trim()).filter(Boolean),
+    [settings, type],
+  );
+  const chosenCols = savedCols.filter((c) => allColumns.includes(c));
+  const effectiveCols = chosenCols.length ? chosenCols : allColumns;
+  const toggleColumn = (col: string) => {
+    const next = effectiveCols.includes(col)
+      ? effectiveCols.filter((c) => c !== col)
+      : [...effectiveCols, col];
+    if (next.length === 0) return; // never leave an empty table
+    setSetting(`columns.master:${type}`, next.join(","));
+  };
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [pickerOpen]);
+
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
     if (!rows || rows.length === 0) return [];
     const helper = createColumnHelper<any>();
-    const keys = Object.keys(rows[0]);
 
-    return keys.map((key) =>
+    return effectiveCols.map((key) =>
       helper.accessor(key, {
         header: key
           .split("_")
@@ -155,7 +189,7 @@ export default function MasterListPage() {
         },
       }),
     );
-  }, [rows, type]);
+  }, [rows, type, effectiveCols.join(",")]);
 
   const table = useReactTable({
     data: rows,
@@ -187,7 +221,43 @@ export default function MasterListPage() {
             onChange={(v) => patchUrl({ [f.field]: v || null, page: null })}
           />
         ))}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {allColumns.length > 0 && (
+            <div className="relative" ref={pickerRef}>
+              <Button variant="secondary" onClick={() => setPickerOpen((o) => !o)}>
+                <span className="inline-flex items-center gap-1.5">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Columns
+                </span>
+              </Button>
+              {pickerOpen && (
+                <div className="absolute right-0 z-20 mt-2 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-surface p-2 shadow-card">
+                  <div className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
+                    Columns
+                  </div>
+                  {allColumns.map((c) => {
+                    const checked = effectiveCols.includes(c);
+                    const lastOne = checked && effectiveCols.length === 1;
+                    return (
+                      <label
+                        key={c}
+                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-surface-subtle"
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-line text-brand focus:ring-brand/30 disabled:opacity-50"
+                          checked={checked}
+                          disabled={lastOne}
+                          onChange={() => toggleColumn(c)}
+                        />
+                        {humanizeCol(c)}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           <Link to={`/masters/${type}/new`}>
             <Button>New</Button>
           </Link>
