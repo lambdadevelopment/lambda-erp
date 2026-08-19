@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useMySettings } from "@/hooks/use-my-settings";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import {
@@ -33,12 +34,13 @@ const humanizeCol = (key: string) =>
 // Fields must be real columns of the master; the server validates and 400s
 // otherwise, so keep these to columns that exist.
 type MasterFilterDef = { field: string; label: string };
+// `label` is a fields.* i18n key (falls back to itself if untranslated).
 const MASTER_FILTERS: Record<string, MasterFilterDef[]> = {
-  customer: [{ field: "customer_group", label: "Group" }, { field: "territory", label: "Territory" }],
-  supplier: [{ field: "supplier_group", label: "Group" }],
-  item: [{ field: "item_group", label: "Group" }, { field: "stock_uom", label: "UoM" }],
-  warehouse: [{ field: "parent_warehouse", label: "Parent" }],
-  account: [{ field: "root_type", label: "Root type" }, { field: "account_type", label: "Type" }],
+  customer: [{ field: "customer_group", label: "Customer Group" }, { field: "territory", label: "Territory" }],
+  supplier: [{ field: "supplier_group", label: "Supplier Group" }],
+  item: [{ field: "item_group", label: "Item Group" }, { field: "stock_uom", label: "Stock UOM" }],
+  warehouse: [{ field: "parent_warehouse", label: "Parent Warehouse" }],
+  account: [{ field: "root_type", label: "Root Type" }, { field: "account_type", label: "Account Type" }],
 };
 
 function MasterFilterSelect({
@@ -49,19 +51,21 @@ function MasterFilterSelect({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const { t } = useTranslation();
   const { data } = useQuery({
     queryKey: ["master-filter-values", type, def.field],
     queryFn: () => api.masterFilterValues(type, def.field),
     enabled: !!type,
   });
   const values = data?.values ?? [];
+  const label = t(`fields.${def.label}`, { defaultValue: def.label });
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="h-8 rounded-md bg-surface px-2 text-sm text-fg ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-brand/30"
     >
-      <option value="">{def.label}: All</option>
+      <option value="">{label}: {t("common.all")}</option>
       {values.map((v) => (
         <option key={String(v)} value={String(v)}>{String(v)}</option>
       ))}
@@ -75,6 +79,7 @@ export default function MasterListPage() {
   const location = useLocation();
   const label = TYPE_LABELS[type ?? ""] ?? type ?? "";
   usePageTitle(label || null);
+  const { t } = useTranslation();
   const notice = (location.state as { notice?: string } | null)?.notice;
 
   // Stash the list URL so the detail page's DocPager can come "back" to this
@@ -183,13 +188,13 @@ export default function MasterListPage() {
             );
           }
           if (key === "disabled") {
-            return val === 1 ? "Disabled" : "Active";
+            return val === 1 ? t("common.disabled") : t("common.active");
           }
           return val ?? "-";
         },
       }),
     );
-  }, [rows, type, effectiveCols.join(",")]);
+  }, [rows, type, effectiveCols.join(","), t]);
 
   const table = useReactTable({
     data: rows,
@@ -209,7 +214,7 @@ export default function MasterListPage() {
           type="search"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          placeholder={`Search ${(label || "records").toLowerCase()}…`}
+          placeholder={t("common.searchPlaceholder", { defaultValue: "Search…" })}
           className="h-8 w-56 rounded-md bg-surface px-3 text-sm text-fg ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
         {filterDefs.map((f) => (
@@ -227,13 +232,13 @@ export default function MasterListPage() {
               <Button variant="secondary" onClick={() => setPickerOpen((o) => !o)}>
                 <span className="inline-flex items-center gap-1.5">
                   <SlidersHorizontal className="h-4 w-4" />
-                  Columns
+                  {t("common.columns", { defaultValue: "Columns" })}
                 </span>
               </Button>
               {pickerOpen && (
                 <div className="absolute right-0 z-20 mt-2 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-surface p-2 shadow-card">
                   <div className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
-                    Columns
+                    {t("common.columns", { defaultValue: "Columns" })}
                   </div>
                   {allColumns.map((c) => {
                     const checked = effectiveCols.includes(c);
@@ -259,15 +264,15 @@ export default function MasterListPage() {
             </div>
           )}
           <Link to={`/masters/${type}/new`}>
-            <Button>New</Button>
+            <Button>{t("common.new")}</Button>
           </Link>
         </div>
       </div>
 
       {isLoading ? (
-        <p className="text-fg-muted">Loading...</p>
+        <p className="text-fg-muted">{t("common.loading")}</p>
       ) : rows.length === 0 ? (
-        <p className="py-8 text-center text-fg-muted">No records found</p>
+        <p className="py-8 text-center text-fg-muted">{t("common.noRecords", { defaultValue: "No records found" })}</p>
       ) : (
         <>
           <div className="overflow-x-auto rounded-xl bg-surface ring-1 ring-line shadow-card">
@@ -320,12 +325,12 @@ export default function MasterListPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-fg-muted">
             <div>
-              Showing <span className="font-medium text-fg">{rangeStart}–{rangeEnd}</span>{" "}
-              of <span className="font-medium text-fg">{total}</span>
+              {t("common.showing")} <span className="font-medium text-fg">{rangeStart}–{rangeEnd}</span>{" "}
+              {t("common.of")} <span className="font-medium text-fg">{total}</span>
             </div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5">
-                <span className="text-xs text-fg-muted">Per page</span>
+                <span className="text-xs text-fg-muted">{t("common.perPage")}</span>
                 <select
                   value={pageSize}
                   onChange={(e) => setPageSize(Number(e.target.value))}
@@ -341,10 +346,10 @@ export default function MasterListPage() {
                 disabled={page === 0}
                 className="rounded-md bg-surface px-3 py-1 text-sm text-fg ring-1 ring-line transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Prev
+                {t("common.prev")}
               </button>
               <span className="text-xs">
-                Page <span className="font-medium text-fg">{page + 1}</span> of{" "}
+                {t("common.page")} <span className="font-medium text-fg">{page + 1}</span> {t("common.of")}{" "}
                 <span className="font-medium text-fg">{totalPages}</span>
               </span>
               <button
@@ -352,7 +357,7 @@ export default function MasterListPage() {
                 disabled={page >= totalPages - 1}
                 className="rounded-md bg-surface px-3 py-1 text-sm text-fg ring-1 ring-line transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Next
+                {t("common.next")}
               </button>
             </div>
           </div>
