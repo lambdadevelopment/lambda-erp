@@ -13,6 +13,12 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.15] - 2026-08-20
+
+### Changed
+- Master list pages now show the same pagination controls above and below the
+  table as document lists, including direct page-number entry.
+
 ## [0.8.14] - 2026-08-20
 
 ### Added
