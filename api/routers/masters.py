@@ -10,7 +10,8 @@ from lambda_erp.utils import _dict, now
 # them; imported here (not moved) so existing `from api.routers.masters import
 # MASTER_IDENTITY_ALIAS`-style imports keep working.
 from api.services import (
-    MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_RANDOM_NAME_TYPES, MASTER_IDENTITY_ALIAS,
+    MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_NAME_DIGITS, MASTER_RANDOM_NAME_TYPES,
+    MASTER_IDENTITY_ALIAS,
     MASTER_REFERENCE_CHECKS,
     _search_clause, _where_from_filters, master_search_columns, count_query_cached,
 )
@@ -161,7 +162,7 @@ def _find_reference(master_type: str, name: str) -> str | None:
     return None
 
 
-def _generate_master_name(db, doctype: str, prefix: str) -> str:
+def _generate_master_name(db, doctype: str, prefix: str, digits: int = 3) -> str:
     # Take the highest numeric suffix among strict "PREFIX-<digits>" names.
     # Names with a non-numeric tail (e.g. a custom "ITEM-COST-TEST") are ignored
     # rather than parsed — string-sorting them to the top used to reset the
@@ -179,9 +180,9 @@ def _generate_master_name(db, doctype: str, prefix: str) -> str:
 
     # Skip any number already taken by a non-standard name so we never collide.
     number = max_number + 1
-    while db.exists(doctype, f"{prefix}-{number:03d}"):
+    while db.exists(doctype, f"{prefix}-{number:0{digits}d}"):
         number += 1
-    return f"{prefix}-{number:03d}"
+    return f"{prefix}-{number:0{digits}d}"
 
 
 def _generate_random_master_name(db, doctype: str, prefix: str) -> str:
@@ -230,7 +231,9 @@ def create_master_record(master_type: str, data: dict) -> dict:
             if master_type in MASTER_RANDOM_NAME_TYPES:
                 doc["name"] = _generate_random_master_name(db, doctype, prefix)
             else:
-                doc["name"] = _generate_master_name(db, doctype, prefix)
+                doc["name"] = _generate_master_name(
+                    db, doctype, prefix, MASTER_NAME_DIGITS.get(master_type, 3)
+                )
         elif master_type == "company" and doc.get("company_name"):
             # A company's id is conventionally its name (mirrors /setup/company).
             doc["name"] = doc["company_name"]

@@ -95,6 +95,10 @@ def check_master_registry():
                 "random-gadget", "Gadget", "gadget_name", name_prefix="RGAD",
                 random_name=True,
             )
+            services.register_master(
+                "wide-gadget", "Gadget", "gadget_name", name_prefix="WGAD",
+                name_digits=4,
+            )
 
             # --- Tool schemas widen from the live registries. ----------------
             tools = chat.build_tools()
@@ -180,6 +184,8 @@ def check_master_registry():
             r = client.post("/api/masters/random-gadget", json={"gadget_name": "Scale Safe"})
             assert r.status_code == 200, r.text[:300]
             assert re.fullmatch(r"RGAD-[0-9A-F]{16}", r.json()["name"]), r.json()
+            r = client.post("/api/masters/wide-gadget", json={"gadget_name": "Padded Sequence"})
+            assert r.status_code == 200 and r.json()["name"] == "WGAD-0001", r.text[:300]
 
             # --- Delete: no reference checks registered → permanent delete. --
             gone = chat._handle_delete_master({"master_type": "gadget", "name": "GAD-002"},
@@ -191,8 +197,13 @@ def check_master_registry():
         # The registries are process-global — leave them as we found them.
         services.MASTER_TABLES.pop("gadget", None)
         services.MASTER_TABLES.pop("random-gadget", None)
+        services.MASTER_TABLES.pop("wide-gadget", None)
         services.MASTER_NAME_PREFIXES.pop("gadget", None)
         services.MASTER_NAME_PREFIXES.pop("random-gadget", None)
+        services.MASTER_NAME_PREFIXES.pop("wide-gadget", None)
+        services.MASTER_NAME_DIGITS.pop("gadget", None)
+        services.MASTER_NAME_DIGITS.pop("random-gadget", None)
+        services.MASTER_NAME_DIGITS.pop("wide-gadget", None)
         services.MASTER_RANDOM_NAME_TYPES.discard("random-gadget")
         services.MASTER_METADATA.pop("gadget", None)
         services.MASTER_REFERENCE_CHECKS.pop("gadget", None)

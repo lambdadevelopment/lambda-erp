@@ -90,6 +90,10 @@ MASTER_NAME_PREFIXES = {
     "warehouse": "WH",
 }
 
+# Minimum numeric suffix width for sequential plugin master ids. Core masters
+# retain the historical three-digit form; plugins can opt into e.g. FIDX-0001.
+MASTER_NAME_DIGITS: dict[str, int] = {}
+
 # High-volume plugin masters can opt out of sequential ids. Sequential naming
 # must inspect existing suffixes after a process restart; opaque random ids keep
 # inserts constant-time for index-scale reference tables.
@@ -218,6 +222,7 @@ def document_columns(doctype_slug: str) -> set:
 
 def register_master(slug: str, table: str, name_field: str, *,
                     name_prefix: str | None = None,
+                    name_digits: int = 3,
                     random_name: bool = False,
                     identity_alias: str | None = None,
                     description: str | None = None,
@@ -236,12 +241,16 @@ def register_master(slug: str, table: str, name_field: str, *,
 
     `name_field` is the human display column (e.g. "company_name").
     `name_prefix` enables auto-generated ids (prefix "LEAD" -> LEAD-001) when a
-    record is created without an explicit `name`. `identity_alias` lets callers
-    address the `name` PK under a friendlier key, like item's `item_code`.
+    record is created without an explicit `name`. `name_digits` controls the
+    minimum sequential suffix width. `identity_alias` lets callers address the
+    `name` PK under a friendlier key, like item's `item_code`.
     """
     MASTER_TABLES[slug] = (table, name_field)
     if name_prefix:
+        if name_digits < 1:
+            raise ValueError("name_digits must be at least 1")
         MASTER_NAME_PREFIXES[slug] = name_prefix
+        MASTER_NAME_DIGITS[slug] = name_digits
     if random_name:
         if not name_prefix:
             raise ValueError("random_name requires name_prefix")

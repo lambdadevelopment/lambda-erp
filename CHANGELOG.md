@@ -13,6 +13,12 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.16] - 2026-08-20
+
+### Added
+- Registered masters can configure the minimum digit width of sequential ids,
+  allowing conventions such as `FIDX-0001` without custom naming code.
+
 ## [0.8.15] - 2026-08-20
 
 ### Changed

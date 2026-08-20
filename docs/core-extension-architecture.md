@@ -207,7 +207,7 @@ register_master(
     ],
 )
 ```
-`register_master(slug, table, name_field, *, name_prefix=None, random_name=False,
+`register_master(slug, table, name_field, *, name_prefix=None, name_digits=3, random_name=False,
 identity_alias=None, description=None, fields=None, reference_checks=None)` is
 the master-side counterpart of `register_doctype`.
 One call makes the type first-class on every master surface:
@@ -225,7 +225,8 @@ One call makes the type first-class on every master surface:
   `fields`), with the same fuzzy-misspelling fallback core masters get.
 
 `name_prefix` enables auto-generated ids (`GAD-001`) when a record is created
-without an explicit `name`. With `random_name=True`, ids use an opaque
+without an explicit `name`; `name_digits=4` produces `GAD-0001`. With
+`random_name=True`, ids use an opaque
 `GAD-<hex>` suffix instead; use this for high-volume reference tables where a
 restart-time sequential suffix scan would be inappropriate. `identity_alias`
 exposes the `name` PK under a
