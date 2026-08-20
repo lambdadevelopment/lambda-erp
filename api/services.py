@@ -90,6 +90,11 @@ MASTER_NAME_PREFIXES = {
     "warehouse": "WH",
 }
 
+# High-volume plugin masters can opt out of sequential ids. Sequential naming
+# must inspect existing suffixes after a process restart; opaque random ids keep
+# inserts constant-time for index-scale reference tables.
+MASTER_RANDOM_NAME_TYPES: set[str] = set()
+
 # An Item's code is stored in the primary-key column `name`, but every
 # transaction line and report references it as `item_code`. Accept that
 # intuitive alias on the master API so callers (LLM tools, REST clients) can
@@ -213,6 +218,7 @@ def document_columns(doctype_slug: str) -> set:
 
 def register_master(slug: str, table: str, name_field: str, *,
                     name_prefix: str | None = None,
+                    random_name: bool = False,
                     identity_alias: str | None = None,
                     description: str | None = None,
                     fields: list[str] | None = None,
@@ -236,6 +242,12 @@ def register_master(slug: str, table: str, name_field: str, *,
     MASTER_TABLES[slug] = (table, name_field)
     if name_prefix:
         MASTER_NAME_PREFIXES[slug] = name_prefix
+    if random_name:
+        if not name_prefix:
+            raise ValueError("random_name requires name_prefix")
+        MASTER_RANDOM_NAME_TYPES.add(slug)
+    else:
+        MASTER_RANDOM_NAME_TYPES.discard(slug)
     if identity_alias:
         MASTER_IDENTITY_ALIAS[slug] = identity_alias
     if description or fields:

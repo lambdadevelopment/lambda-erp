@@ -21,6 +21,7 @@ Run:  python -m tests.test_master_registry
       LAMBDA_ERP_TEST_DB=postgresql://... python -m tests.test_master_registry
 """
 import os
+import re
 import sys
 
 
@@ -90,6 +91,10 @@ def check_master_registry():
                 fields=["gadget_name", "town"],
             )
             services.register_doctype("Gadget", Gadget)
+            services.register_master(
+                "random-gadget", "Gadget", "gadget_name", name_prefix="RGAD",
+                random_name=True,
+            )
 
             # --- Tool schemas widen from the live registries. ----------------
             tools = chat.build_tools()
@@ -172,6 +177,9 @@ def check_master_registry():
             assert projected and set(projected[0]) == {"name", "gadget_name"}, projected
             r = client.post("/api/masters/gadget", json={"gadget_name": "Vela Spring"})
             assert r.status_code == 200 and r.json()["name"] == "GAD-002", r.text[:300]
+            r = client.post("/api/masters/random-gadget", json={"gadget_name": "Scale Safe"})
+            assert r.status_code == 200, r.text[:300]
+            assert re.fullmatch(r"RGAD-[0-9A-F]{16}", r.json()["name"]), r.json()
 
             # --- Delete: no reference checks registered → permanent delete. --
             gone = chat._handle_delete_master({"master_type": "gadget", "name": "GAD-002"},
@@ -182,7 +190,10 @@ def check_master_registry():
     finally:
         # The registries are process-global — leave them as we found them.
         services.MASTER_TABLES.pop("gadget", None)
+        services.MASTER_TABLES.pop("random-gadget", None)
         services.MASTER_NAME_PREFIXES.pop("gadget", None)
+        services.MASTER_NAME_PREFIXES.pop("random-gadget", None)
+        services.MASTER_RANDOM_NAME_TYPES.discard("random-gadget")
         services.MASTER_METADATA.pop("gadget", None)
         services.MASTER_REFERENCE_CHECKS.pop("gadget", None)
         services.DOCUMENT_CLASSES.pop("Gadget", None)

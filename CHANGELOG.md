@@ -13,6 +13,12 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.14] - 2026-08-20
+
+### Added
+- Registered masters can opt into opaque random prefixed ids, keeping automatic
+  naming constant-time for high-volume reference indexes.
+
 ## [0.8.13] - 2026-08-20
 
 ### Added

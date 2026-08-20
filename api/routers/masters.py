@@ -1,6 +1,7 @@
 """Master data CRUD: Customer, Supplier, Item, Warehouse, Account, Company."""
 
 import re
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from lambda_erp.database import get_db
@@ -9,7 +10,7 @@ from lambda_erp.utils import _dict, now
 # them; imported here (not moved) so existing `from api.routers.masters import
 # MASTER_IDENTITY_ALIAS`-style imports keep working.
 from api.services import (
-    MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_IDENTITY_ALIAS,
+    MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_RANDOM_NAME_TYPES, MASTER_IDENTITY_ALIAS,
     MASTER_REFERENCE_CHECKS,
     _search_clause, _where_from_filters, master_search_columns, count_query_cached,
 )
@@ -183,6 +184,14 @@ def _generate_master_name(db, doctype: str, prefix: str) -> str:
     return f"{prefix}-{number:03d}"
 
 
+def _generate_random_master_name(db, doctype: str, prefix: str) -> str:
+    """Opaque, index-scale id for high-volume registered masters."""
+    while True:
+        name = f"{prefix}-{secrets.token_hex(8).upper()}"
+        if not db.exists(doctype, name):
+            return name
+
+
 def _normalize_master_data(data: dict) -> dict:
     normalized = _dict(data)
     for key, value in list(normalized.items()):
@@ -218,7 +227,10 @@ def create_master_record(master_type: str, data: dict) -> dict:
     if not doc.get("name"):
         prefix = MASTER_NAME_PREFIXES.get(master_type)
         if prefix:
-            doc["name"] = _generate_master_name(db, doctype, prefix)
+            if master_type in MASTER_RANDOM_NAME_TYPES:
+                doc["name"] = _generate_random_master_name(db, doctype, prefix)
+            else:
+                doc["name"] = _generate_master_name(db, doctype, prefix)
         elif master_type == "company" and doc.get("company_name"):
             # A company's id is conventionally its name (mirrors /setup/company).
             doc["name"] = doc["company_name"]

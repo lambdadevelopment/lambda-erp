@@ -199,6 +199,7 @@ from api.services import register_master
 
 register_master(
     "gadget", "Gadget", "gadget_name", name_prefix="GAD",
+    random_name=True,
     description="A deployment-specific inventory gadget.",
     fields=["gadget_name", "owner_ref"],
     reference_checks=[
@@ -206,7 +207,7 @@ register_master(
     ],
 )
 ```
-`register_master(slug, table, name_field, *, name_prefix=None,
+`register_master(slug, table, name_field, *, name_prefix=None, random_name=False,
 identity_alias=None, description=None, fields=None, reference_checks=None)` is
 the master-side counterpart of `register_doctype`.
 One call makes the type first-class on every master surface:
@@ -224,7 +225,10 @@ One call makes the type first-class on every master surface:
   `fields`), with the same fuzzy-misspelling fallback core masters get.
 
 `name_prefix` enables auto-generated ids (`GAD-001`) when a record is created
-without an explicit `name`. `identity_alias` exposes the `name` PK under a
+without an explicit `name`. With `random_name=True`, ids use an opaque
+`GAD-<hex>` suffix instead; use this for high-volume reference tables where a
+restart-time sequential suffix scan would be inappropriate. `identity_alias`
+exposes the `name` PK under a
 friendlier key, like Item's `item_code`. `description`/`fields` add deployment
 guidance to the chat prompt. `reference_checks` gives plugin masters the same
 safe-delete behavior as core masters: a referenced row is disabled when it has
