@@ -197,10 +197,18 @@ Hook events: `<DocType>:{before,after}_{save,submit,cancel}`.
 ```python
 from api.services import register_master
 
-register_master("gadget", "Gadget", "gadget_name", name_prefix="GAD")
+register_master(
+    "gadget", "Gadget", "gadget_name", name_prefix="GAD",
+    description="A deployment-specific inventory gadget.",
+    fields=["gadget_name", "owner_ref"],
+    reference_checks=[
+        ('SELECT 1 FROM "Work Order" WHERE gadget = ? LIMIT 1', "work order"),
+    ],
+)
 ```
 `register_master(slug, table, name_field, *, name_prefix=None,
-identity_alias=None)` is the master-side counterpart of `register_doctype`.
+identity_alias=None, description=None, fields=None, reference_checks=None)` is
+the master-side counterpart of `register_doctype`.
 One call makes the type first-class on every master surface:
 
 - **REST**: `/api/masters/gadget` CRUD with the standard role guards.
@@ -217,9 +225,39 @@ One call makes the type first-class on every master surface:
 
 `name_prefix` enables auto-generated ids (`GAD-001`) when a record is created
 without an explicit `name`. `identity_alias` exposes the `name` PK under a
-friendlier key, like Item's `item_code`. Caveats: chat/REST master writes are
-plain row CRUD (a registered Document class's `validate()` does not run on
-this path), and `delete_master` has no reference checks for registered types.
+friendlier key, like Item's `item_code`. `description`/`fields` add deployment
+guidance to the chat prompt. `reference_checks` gives plugin masters the same
+safe-delete behavior as core masters: a referenced row is disabled when it has
+a `disabled` column, otherwise deletion returns 409. Caveat: chat/REST master
+writes are plain row CRUD (a registered Document class's `validate()` does not
+run on this path).
+
+The frontend has a parallel build-time `registerMaster(config)` registry for
+generic master pages. It configures fields, lightweight list projection,
+default/selectable columns, search fields, dropdown filters, linked columns,
+and registered-action buttons without adding a hard-coded core master.
+
+### Add a deliberate business action — REST + chat + MCP
+```python
+from api.services import register_action
+
+register_action(
+    "activate_gadget",
+    lambda args: activate_gadget(args["name"]),
+    description="Activate one Gadget. Idempotent.",
+    parameters={
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+    },
+    minimum_role="manager",
+)
+```
+The action is callable at `POST /api/actions/activate_gadget`, appears as the
+same function tool in ERP chat, and is listed/callable over MCP for permitted
+roles. One handler and JSON Schema drive all three paths. Demo
+`public_manager` access is denied by default. A frontend master action points at
+the same name through `registerMaster({ actions: [...] })`.
 
 ### Give a plugin its own tables and migrations
 ```python

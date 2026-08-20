@@ -84,8 +84,11 @@ def check_master_registry():
             db = get_db()
             db.conn.execute(db._ddl(GADGET_TABLE))
             db.conn.commit()
-            services.register_master("gadget", "Gadget", "gadget_name", name_prefix="GAD",
-                                     identity_alias="gadget_code")
+            services.register_master(
+                "gadget", "Gadget", "gadget_name", name_prefix="GAD",
+                identity_alias="gadget_code", description="A test inventory gadget.",
+                fields=["gadget_name", "town"],
+            )
             services.register_doctype("Gadget", Gadget)
 
             # --- Tool schemas widen from the live registries. ----------------
@@ -107,6 +110,7 @@ def check_master_registry():
             assert "gadget" in prompt, "system prompt does not mention the registered master"
             assert "Extensions (deployment-specific)" in prompt
             assert "display = `gadget_name`" in prompt
+            assert "A test inventory gadget" in prompt
 
             # --- Field discovery is pure introspection. ----------------------
             fields = chat._handle_get_master_fields({"master_type": "gadget"})
@@ -164,6 +168,8 @@ def check_master_registry():
             r = client.get("/api/masters/gadget")
             assert r.status_code == 200, r.text[:300]
             assert any(g["name"] == "GAD-001" for g in r.json()["rows"]), r.text[:300]
+            projected = client.get("/api/masters/gadget?fields=name,gadget_name").json()["rows"]
+            assert projected and set(projected[0]) == {"name", "gadget_name"}, projected
             r = client.post("/api/masters/gadget", json={"gadget_name": "Vela Spring"})
             assert r.status_code == 200 and r.json()["name"] == "GAD-002", r.text[:300]
 
@@ -177,6 +183,8 @@ def check_master_registry():
         # The registries are process-global — leave them as we found them.
         services.MASTER_TABLES.pop("gadget", None)
         services.MASTER_NAME_PREFIXES.pop("gadget", None)
+        services.MASTER_METADATA.pop("gadget", None)
+        services.MASTER_REFERENCE_CHECKS.pop("gadget", None)
         services.DOCUMENT_CLASSES.pop("Gadget", None)
         services.SLUG_TO_DOCTYPE.pop("gadget", None)
         services.DOCTYPE_TO_SLUG.pop("Gadget", None)

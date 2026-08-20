@@ -1,5 +1,6 @@
 """Bridge between FastAPI request data and lambda_erp Document classes."""
 
+import re
 import time
 
 from lambda_erp.utils import _dict, now
@@ -97,6 +98,17 @@ MASTER_NAME_PREFIXES = {
 MASTER_IDENTITY_ALIAS = {
     "item": "item_code",
 }
+
+# Optional metadata for plugin masters. Backend consumers use the descriptions
+# to teach chat/MCP about deployment-specific records; the frontend has a
+# parallel build-time registry because Python plugin state is not available to
+# the browser bundle.
+MASTER_METADATA: dict[str, dict] = {}
+
+# Reference checks registered alongside plugin masters. Each entry has the same
+# shape as the core checks in api.routers.masters: (query, human label). Keeping
+# this registry here avoids making plugins mutate router-private globals.
+MASTER_REFERENCE_CHECKS: dict[str, list[tuple[str, str]]] = {}
 
 # Slug <-> doctype name mapping
 SLUG_TO_DOCTYPE = {}
@@ -201,7 +213,10 @@ def document_columns(doctype_slug: str) -> set:
 
 def register_master(slug: str, table: str, name_field: str, *,
                     name_prefix: str | None = None,
-                    identity_alias: str | None = None) -> None:
+                    identity_alias: str | None = None,
+                    description: str | None = None,
+                    fields: list[str] | None = None,
+                    reference_checks: list[tuple[str, str]] | None = None) -> None:
     """Register (or override) a master type — the master-side counterpart of
     `register_doctype`.
 
@@ -223,6 +238,93 @@ def register_master(slug: str, table: str, name_field: str, *,
         MASTER_NAME_PREFIXES[slug] = name_prefix
     if identity_alias:
         MASTER_IDENTITY_ALIAS[slug] = identity_alias
+    if description or fields:
+        MASTER_METADATA[slug] = {
+            "description": description or "",
+            "fields": list(fields or []),
+        }
+    if reference_checks is not None:
+        MASTER_REFERENCE_CHECKS[slug] = list(reference_checks)
+
+
+# --- Registered actions ----------------------------------------------------
+#
+# Plugins sometimes need one deliberate transition that is richer than CRUD
+# (for example, promoting reference data into a workflow document). Register it
+# once here and it becomes available through REST, AI chat, and MCP. The
+# frontend's master registry can point a button at the same action name.
+
+REGISTERED_ACTIONS: dict[str, dict] = {}
+_ACTION_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+_ROLE_LEVEL = {"viewer": 1, "manager": 2, "public_manager": 2, "admin": 3}
+
+
+def register_action(name: str, handler, *, description: str,
+                    parameters: dict | None = None,
+                    minimum_role: str = "manager",
+                    allow_public_manager: bool = False) -> None:
+    """Register a deployment action across REST, chat, and MCP.
+
+    ``handler`` receives one JSON-compatible argument dict and returns a
+    JSON-compatible result. ``parameters`` is a JSON Schema object for that
+    dict. Mutating actions should keep the default manager requirement; demo
+    ``public_manager`` users are excluded unless explicitly opted in.
+    """
+    if not _ACTION_NAME_RE.fullmatch(name):
+        raise ValueError(f"Invalid action name: {name!r}")
+    if minimum_role not in _ROLE_LEVEL:
+        raise ValueError(f"Invalid minimum action role: {minimum_role!r}")
+    REGISTERED_ACTIONS[name] = {
+        "handler": handler,
+        "description": description,
+        "parameters": parameters or {"type": "object", "properties": {}},
+        "minimum_role": minimum_role,
+        "allow_public_manager": allow_public_manager,
+    }
+
+
+def registered_action_allowed(name: str, role: str | None) -> bool:
+    meta = REGISTERED_ACTIONS.get(name)
+    if not meta:
+        return False
+    if role == "public_manager" and not meta["allow_public_manager"]:
+        return False
+    return _ROLE_LEVEL.get(role or "", 0) >= _ROLE_LEVEL[meta["minimum_role"]]
+
+
+def registered_action_tools() -> list[dict]:
+    """OpenAI-style function tool schemas for all live registered actions."""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": meta["description"],
+                "parameters": meta["parameters"],
+            },
+        }
+        for name, meta in REGISTERED_ACTIONS.items()
+    ]
+
+
+def run_registered_action(name: str, args: dict | None, user_info: dict | None = None):
+    meta = REGISTERED_ACTIONS.get(name)
+    if not meta:
+        raise KeyError(name)
+    role = (user_info or {}).get("role")
+    if not registered_action_allowed(name, role):
+        raise PermissionError(
+            f"Action '{name}' requires {meta['minimum_role']} access."
+        )
+    return meta["handler"](args or {})
+
+
+def registered_action_handlers(user_info: dict | None = None) -> dict:
+    """Handlers bound to one caller, used by both chat and MCP dispatch."""
+    return {
+        name: (lambda args, action=name: run_registered_action(action, args, user_info))
+        for name in REGISTERED_ACTIONS
+    }
 
 
 # Chat guidance for registered doctypes: slug -> {"description", "fields"}. The

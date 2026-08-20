@@ -284,6 +284,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  runAction: (action: string, data: Record<string, any>) =>
+    request<any>(`/actions/${encodeURIComponent(action)}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   deleteMaster: (type: string, name: string) =>
     request<any>(`/masters/${type}/${encodeURIComponent(name)}`, { method: "DELETE" }),
 

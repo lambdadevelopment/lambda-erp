@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse, Response
 
 from lambda_erp import get_app_version
 from api.auth import get_current_user
+from api import services
 from api import chat as chat_mod
 from api.chat import TOOL_HANDLERS, build_tools
 
@@ -58,6 +59,8 @@ def _can_write(role) -> bool:
 def _allowed(name: str, role) -> bool:
     if name in _EXCLUDE:
         return False
+    if name in services.REGISTERED_ACTIONS:
+        return services.registered_action_allowed(name, role)
     if name in _ADMIN:
         return role == "admin"
     if name in _WRITE:
@@ -96,6 +99,7 @@ def _call(name: str, args: dict, user: dict):
     # delete_master needs the caller's role (admin-only); handled by the chat's
     # role-aware variant.
     handlers["delete_master"] = lambda a: chat_mod._handle_delete_master(a, user)
+    handlers.update(services.registered_action_handlers(user))
     handler = handlers.get(name)
     if handler is None:
         raise KeyError(name)

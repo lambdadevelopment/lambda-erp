@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { FieldDef } from "@/lib/doctypes";
+import { getMasterConfig } from "@/lib/masters";
 
 // ---------------------------------------------------------------------------
 // Field registry per master type
@@ -102,9 +103,10 @@ export default function MasterFormPage() {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const isNew = !name || name === "new";
-  const label = TYPE_LABELS[type ?? ""] ?? type ?? "";
+  const config = getMasterConfig(type ?? "");
+  const label = config?.label ?? TYPE_LABELS[type ?? ""] ?? type ?? "";
   const labelTr = t(`masters.${type}.one`, { defaultValue: label });
-  const fields = MASTER_FIELDS[type ?? ""] ?? [];
+  const fields = config?.fields ?? MASTER_FIELDS[type ?? ""] ?? [];
   const fieldLabel = (f: FieldDef) => t(`fields.${f.label}`, { defaultValue: f.label });
 
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -189,6 +191,22 @@ export default function MasterFormPage() {
     },
   });
 
+  const actionMut = useMutation({
+    mutationFn: ({ action, args }: { action: string; args: Record<string, any> }) =>
+      api.runAction(action, args),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["master", type, name] });
+      queryClient.invalidateQueries({ queryKey: ["masters", type] });
+      const action = config?.actions?.find((item) => item.action === variables.action);
+      if (action?.resultPath) {
+        const path = action.resultPath.replace(/\{([^}]+)\}/g, (_match, key) =>
+          encodeURIComponent(String(result?.[key] ?? "")),
+        );
+        navigate(path);
+      }
+    },
+  });
+
   const handleSave = () => {
     if (missingRequiredFields.length > 0) return;
     const payload =
@@ -224,7 +242,7 @@ export default function MasterFormPage() {
   const saving = createMut.isPending || updateMut.isPending;
   const missingRequiredFields = fields.filter((field) => {
     if (!field.required || field.readOnly) return false;
-    if (isNew && field.name === "name" && AUTO_NAME_TYPES.has(type ?? "")) return false;
+    if (isNew && field.name === "name" && (config?.autoName || AUTO_NAME_TYPES.has(type ?? ""))) return false;
     const value = formData[field.name];
     return value === undefined || value === null || String(value).trim() === "";
   });
@@ -242,6 +260,21 @@ export default function MasterFormPage() {
           <Button onClick={handleSave} disabled={saving || missingRequiredFields.length > 0}>
             {saving ? t("common.saving") : t("common.save")}
           </Button>
+          {!isNew && config?.actions
+            ?.filter((action) => !action.visibleWhen || action.visibleWhen(formData))
+            .map((action) => (
+              <Button
+                key={action.action}
+                variant="secondary"
+                disabled={actionMut.isPending}
+                onClick={() => actionMut.mutate({
+                  action: action.action,
+                  args: action.buildArgs?.(formData) ?? { name },
+                })}
+              >
+                {t(`actions.${action.action}`, { defaultValue: action.label })}
+              </Button>
+            ))}
           {!isNew && (
             <Button
               variant="danger"
@@ -255,9 +288,9 @@ export default function MasterFormPage() {
       </div>
 
       {/* Error display */}
-      {(createMut.error || updateMut.error || deleteMut.error) && (
+      {(createMut.error || updateMut.error || deleteMut.error || actionMut.error) && (
         <div className="rounded-lg bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
-          {(createMut.error ?? updateMut.error ?? deleteMut.error)?.message ??
+          {(createMut.error ?? updateMut.error ?? deleteMut.error ?? actionMut.error)?.message ??
             t("common.errorOccurred")}
         </div>
       )}
@@ -279,7 +312,23 @@ export default function MasterFormPage() {
             // Name field is read-only on edit
             const isNameField = field.name === "name" && !isNew;
             const isReadOnly = isNameField || field.readOnly;
-            const isRequired = field.required && !(isNew && field.name === "name" && AUTO_NAME_TYPES.has(type ?? ""));
+            const isRequired = field.required && !(isNew && field.name === "name" && (config?.autoName || AUTO_NAME_TYPES.has(type ?? "")));
+            const linkedHref = isReadOnly && formData[field.name]
+              ? config?.columnLinks?.[field.name]?.(formData[field.name], formData)
+              : null;
+
+            if (linkedHref) {
+              return (
+                <div key={field.name}>
+                  <label className="mb-1.5 block text-sm font-medium text-fg">
+                    {fieldLabel(field)}
+                  </label>
+                  <Link className="py-2 text-sm text-sky-600 hover:underline" to={linkedHref}>
+                    {String(formData[field.name])}
+                  </Link>
+                </div>
+              );
+            }
 
             if (field.type === "select" && field.options) {
               // A value saved through the API/chat can lie outside the hardcoded

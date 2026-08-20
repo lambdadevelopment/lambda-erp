@@ -37,6 +37,10 @@ export type {
   ConversionDef,
 } from "./lib/doctypes";
 
+// Master registry (generic master list/form metadata + registered action UI)
+export { registerMaster, getMasterConfig, getAllMasterConfigs } from "./lib/masters";
+export type { MasterConfig, MasterFilterDef, MasterActionDef } from "./lib/masters";
+
 // Sidebar navigation registry
 export { getNavGroups, registerNavGroup, registerNavItem } from "./lib/nav";
 export type { NavGroup, NavItem } from "./lib/nav";

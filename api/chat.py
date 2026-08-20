@@ -1260,8 +1260,8 @@ def _chat_doctype_section() -> str:
     )
 
 
-def build_tools():
-    """TOOLS with the doctype/master enums widened from the live registries.
+def build_tools(user_info: dict | None = None):
+    """TOOLS widened with live plugin types and registered business actions.
 
     Plugins register doctypes and masters at startup — after this module is
     imported — so the static TOOLS constant can't know about them. The tool
@@ -1274,7 +1274,14 @@ def build_tools():
     """
     extra_docs = _extra_document_slugs()
     extra_masters = _extra_master_types()
-    if not extra_docs and not extra_masters:
+    action_tools = services.registered_action_tools()
+    if user_info is not None:
+        role = user_info.get("role")
+        action_tools = [
+            tool for tool in action_tools
+            if services.registered_action_allowed(tool["function"]["name"], role)
+        ]
+    if not extra_docs and not extra_masters and not action_tools:
         return TOOLS
     tools = copy.deepcopy(TOOLS)
     for tool in tools:
@@ -1284,6 +1291,8 @@ def build_tools():
                 schema["enum"] = DOCUMENT_SLUGS + extra_docs
             elif schema.get("enum") == MASTER_TYPES:
                 schema["enum"] = MASTER_TYPES + extra_masters
+    existing_names = {tool["function"]["name"] for tool in tools}
+    tools.extend(tool for tool in action_tools if tool["function"]["name"] not in existing_names)
     return tools
 
 
@@ -2053,11 +2062,20 @@ def build_system_prompt(user_info: dict | None = None, channel: str = "web"):
         f"\n- **Extensions (deployment-specific):** {', '.join(extra_docs)}" if extra_docs else ""
     )
     master_types_line = ", ".join(MASTER_TYPES + extra_masters)
-    extension_master_keys = "".join(
-        f"\n- **{services.MASTER_TABLES[m][0]}** (master_type `{m}`): key = `name`, "
-        f"display = `{services.MASTER_TABLES[m][1]}`"
-        for m in extra_masters
-    )
+    extension_master_keys = ""
+    for master in extra_masters:
+        meta = services.MASTER_METADATA.get(master, {})
+        extension_master_keys += (
+            f"\n- **{services.MASTER_TABLES[master][0]}** (master_type `{master}`): "
+            f"key = `name`, display = `{services.MASTER_TABLES[master][1]}`"
+        )
+        if meta.get("description"):
+            extension_master_keys += f". {meta['description']}"
+        if meta.get("fields"):
+            extension_master_keys += (
+                ". Key fields: "
+                + ", ".join(f"`{field}`" for field in meta["fields"])
+            )
     chat_doctype_section = _chat_doctype_section()
 
     # Channel-aware link guidance. On the "web" channel the reader is a browser
@@ -2974,6 +2992,7 @@ async def run_thinking_loop(
     # delete_master needs the caller's role (admin-only) — scoped here rather
     # than in TOOL_HANDLERS, whose handlers are called with (args) only.
     tool_handlers["delete_master"] = lambda args: _handle_delete_master(args, user_info)
+    tool_handlers.update(services.registered_action_handlers(user_info))
 
     user_role = user_info.get("role") if user_info else None
     demo_mode = is_demo_role(user_role)
@@ -3075,7 +3094,7 @@ async def run_thinking_loop(
                 # Responses API (ERP_CHAT_API=responses). Returns Chat-shaped
                 # (message, usage) either way, so everything below is unchanged.
                 message, usage = await asyncio.to_thread(
-                    _orchestrator_turn, openai_client, messages, build_tools(), max_completion,
+                    _orchestrator_turn, openai_client, messages, build_tools(user_info), max_completion,
                 )
             except Exception as e:
                 await on_event({"type": "error", "content": f"Error calling LLM: {e}"})

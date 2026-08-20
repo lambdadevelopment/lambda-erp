@@ -15,6 +15,7 @@ import {
 import { api } from "@/api/client";
 import { usePageTitle } from "@/lib/use-page-title";
 import { setListContext } from "@/lib/doc-list-context";
+import { getMasterConfig, type MasterFilterDef } from "@/lib/masters";
 import { Button } from "@/components/ui/button";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -33,7 +34,6 @@ const humanizeCol = (key: string) =>
 // Per-master field filters shown as dropdowns (options fetched from the backend).
 // Fields must be real columns of the master; the server validates and 400s
 // otherwise, so keep these to columns that exist.
-type MasterFilterDef = { field: string; label: string };
 // `label` is a fields.* i18n key (falls back to itself if untranslated).
 const MASTER_FILTERS: Record<string, MasterFilterDef[]> = {
   customer: [{ field: "customer_group", label: "Customer Group" }, { field: "territory", label: "Territory" }],
@@ -77,7 +77,8 @@ export default function MasterListPage() {
   const { type } = useParams<{ type: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const label = TYPE_LABELS[type ?? ""] ?? type ?? "";
+  const config = getMasterConfig(type ?? "");
+  const label = config?.label ?? TYPE_LABELS[type ?? ""] ?? type ?? "";
   usePageTitle(label || null);
   const { t } = useTranslation();
   const notice = (location.state as { notice?: string } | null)?.notice;
@@ -106,7 +107,7 @@ export default function MasterListPage() {
     return () => clearTimeout(t);
   }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filterDefs = MASTER_FILTERS[type ?? ""] ?? [];
+  const filterDefs = config?.listFilters ?? MASTER_FILTERS[type ?? ""] ?? [];
   // Each configured filter's committed value lives in the URL (?field=value).
   const filterValues = useMemo(() => {
     const p = new URLSearchParams(location.search);
@@ -123,6 +124,8 @@ export default function MasterListPage() {
       limit: pageSize,
       offset: page * pageSize,
       ...(urlQ ? { search: urlQ } : {}),
+      ...(config?.searchFields?.length ? { search_fields: config.searchFields.join(",") } : {}),
+      ...(config?.columnOptions?.length ? { fields: config.columnOptions.join(",") } : {}),
       ...filterValues,
     }),
     enabled: !!type,
@@ -139,13 +142,21 @@ export default function MasterListPage() {
   // No per-master config, so the default is "show all"; a saved choice is filtered
   // to columns that still exist.
   const { settings, setSetting } = useMySettings();
-  const allColumns = useMemo(() => (rows.length ? Object.keys(rows[0]) : []), [rows]);
+  const allColumns = useMemo(
+    () => config?.columnOptions ?? (rows.length ? Object.keys(rows[0]) : []),
+    [config, rows],
+  );
   const savedCols = useMemo(
     () => (settings[`columns.master:${type}`] || "").split(",").map((s) => s.trim()).filter(Boolean),
     [settings, type],
   );
   const chosenCols = savedCols.filter((c) => allColumns.includes(c));
-  const effectiveCols = chosenCols.length ? chosenCols : allColumns;
+  const configuredDefaults = (config?.listColumns ?? []).filter((c) => allColumns.includes(c));
+  const effectiveCols = chosenCols.length
+    ? chosenCols
+    : configuredDefaults.length
+      ? configuredDefaults
+      : allColumns;
   const toggleColumn = (col: string) => {
     const next = effectiveCols.includes(col)
       ? effectiveCols.filter((c) => c !== col)
@@ -170,10 +181,9 @@ export default function MasterListPage() {
 
     return effectiveCols.map((key) =>
       helper.accessor(key, {
-        header: key
-          .split("_")
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" "),
+        header: t(`fields.${config?.fields.find((field) => field.name === key)?.label ?? humanizeCol(key)}`, {
+          defaultValue: config?.fields.find((field) => field.name === key)?.label ?? humanizeCol(key),
+        }),
         cell: (info) => {
           const val = info.getValue();
           if (key === "name") {
@@ -190,11 +200,23 @@ export default function MasterListPage() {
           if (key === "disabled") {
             return val === 1 ? t("common.disabled") : t("common.active");
           }
+          const href = config?.columnLinks?.[key]?.(val, info.row.original);
+          if (href && val) {
+            return (
+              <Link
+                to={href}
+                className="text-sky-600 hover:text-sky-800 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                {String(val)}
+              </Link>
+            );
+          }
           return val ?? "-";
         },
       }),
     );
-  }, [rows, type, effectiveCols.join(","), t]);
+  }, [rows, type, effectiveCols.join(","), t, config]);
 
   const table = useReactTable({
     data: rows,
@@ -255,7 +277,9 @@ export default function MasterListPage() {
                           disabled={lastOne}
                           onChange={() => toggleColumn(c)}
                         />
-                        {humanizeCol(c)}
+                        {t(`fields.${config?.fields.find((field) => field.name === c)?.label ?? humanizeCol(c)}`, {
+                          defaultValue: config?.fields.find((field) => field.name === c)?.label ?? humanizeCol(c),
+                        })}
                       </label>
                     );
                   })}
@@ -263,9 +287,11 @@ export default function MasterListPage() {
               )}
             </div>
           )}
-          <Link to={`/masters/${type}/new`}>
-            <Button>{t("common.new")}</Button>
-          </Link>
+          {config?.allowCreate !== false && (
+            <Link to={`/masters/${type}/new`}>
+              <Button>{t("common.new")}</Button>
+            </Link>
+          )}
         </div>
       </div>
 

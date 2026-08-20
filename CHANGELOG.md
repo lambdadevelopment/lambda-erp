@@ -13,6 +13,20 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.13] - 2026-08-20
+
+### Added
+- **Deployment-registered business actions.** Plugins can register one
+  role-gated handler and JSON Schema for consistent REST, ERP chat, and MCP
+  exposure; frontend master configurations can render the corresponding action.
+- **Configurable plugin master pages.** The frontend master registry supports
+  fields, projected list columns, filters, search fields, links, and actions.
+
+### Changed
+- Registered masters can provide chat metadata and safe-delete reference checks.
+- Master lists support a strict `fields` projection, and tables with audit
+  columns receive automatic creation/modified timestamps through master CRUD.
+
 ## [0.8.12] - 2026-08-19
 
 ### Changed

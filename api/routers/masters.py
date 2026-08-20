@@ -4,12 +4,13 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from lambda_erp.database import get_db
-from lambda_erp.utils import _dict
+from lambda_erp.utils import _dict, now
 # The per-type registries live in api.services so `register_master` can extend
 # them; imported here (not moved) so existing `from api.routers.masters import
 # MASTER_IDENTITY_ALIAS`-style imports keep working.
 from api.services import (
     MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_IDENTITY_ALIAS,
+    MASTER_REFERENCE_CHECKS,
     _search_clause, _where_from_filters, master_search_columns, count_query_cached,
 )
 from api.auth import require_role, require_non_public_manager
@@ -145,7 +146,11 @@ def _with_active_filter(db, doctype: str, filters: dict | None = None) -> dict |
 
 def _find_reference(master_type: str, name: str) -> str | None:
     db = get_db()
-    for query, label in DELETE_REFERENCE_CHECKS.get(master_type, []):
+    checks = [
+        *DELETE_REFERENCE_CHECKS.get(master_type, []),
+        *MASTER_REFERENCE_CHECKS.get(master_type, []),
+    ]
+    for query, label in checks:
         params = [name] if query.count("?") == 1 else [name] * query.count("?")
         try:
             if db.sql(query, params):
@@ -223,6 +228,13 @@ def create_master_record(master_type: str, data: dict) -> dict:
     if db.exists(doctype, doc["name"]):
         raise HTTPException(status_code=409, detail=f"{doctype} {doc['name']} already exists")
 
+    columns = db._get_table_columns(doctype)
+    stamp = now()
+    if "creation" in columns and not doc.get("creation"):
+        doc["creation"] = stamp
+    if "modified" in columns and not doc.get("modified"):
+        doc["modified"] = stamp
+
     # Party masters inherit the company's base currency when none is specified.
     # Otherwise the Customer/Supplier default_currency column default ('USD')
     # wins, so a non-USD company (e.g. CHF) gets USD customers that then force
@@ -261,6 +273,8 @@ def update_master_record(master_type: str, name: str, data: dict) -> dict:
             )
 
     update_fields = {k: v for k, v in normalized.items() if k != "name"}
+    if "modified" in db._get_table_columns(doctype) and "modified" not in update_fields:
+        update_fields["modified"] = now()
     if update_fields:
         db.set_value(doctype, name, update_fields)
 
@@ -273,7 +287,7 @@ def update_master_record(master_type: str, name: str, data: dict) -> dict:
 # Query params list_masters consumes itself — anything else is treated as an
 # ad-hoc equality field filter (validated against the master's real columns).
 _MASTER_LIST_RESERVED = {
-    "limit", "offset", "include_disabled", "search", "search_fields",
+    "limit", "offset", "include_disabled", "search", "search_fields", "fields",
 }
 
 
@@ -308,6 +322,7 @@ def list_masters(
     include_disabled: bool = False,
     search: str | None = None,
     search_fields: str | None = None,
+    fields: str | None = None,
     _user: dict = _viewer,
 ):
     doctype, _ = _get_table(master_type)
@@ -354,7 +369,17 @@ def list_masters(
 
     # Deterministic order by the `name` PK (already indexed) — required for
     # OFFSET pagination and the /adjacent prev/next contract.
-    query = f'SELECT * FROM "{doctype}"{where} ORDER BY name LIMIT {int(limit)}'
+    requested_fields = [f.strip() for f in (fields or "").split(",") if f.strip()]
+    if requested_fields:
+        unknown = [f for f in requested_fields if f not in columns]
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"Unknown list fields: {', '.join(unknown)}")
+        if "name" not in requested_fields:
+            requested_fields.insert(0, "name")
+        projection = ", ".join(f'"{f}"' for f in requested_fields)
+    else:
+        projection = "*"
+    query = f'SELECT {projection} FROM "{doctype}"{where} ORDER BY name LIMIT {int(limit)}'
     if offset:
         query += f" OFFSET {int(offset)}"
     rows = db.sql(query, params)
