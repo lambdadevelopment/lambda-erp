@@ -434,7 +434,6 @@ This is early. The project needs:
 - Country compliance packs (tax rules, invoice formats, mandatory fields)
 - Industry templates (services, retail, light manufacturing, SaaS)
 - More preset reports
-- A Postgres storage adapter (the current SQLite layer is fine for local evaluation but will need to be swapped for real multi-user write loads)
 - Better observability around token spend per turn
 - Native messenger integration, for WhatsApp, Telegram, etc.
 
@@ -454,13 +453,6 @@ Release notes live in [CHANGELOG.md](./CHANGELOG.md). Releases are tagged
 `vX.Y.Z` and published in lockstep to PyPI (`lambda-erp`) and npm
 (`@lambda-development/erp-core`).
 
----
-
-## Status
-
-Version 0, and it already implements the vision: invoicing, inventory, accounting, and reporting — all driven by chat. Good for demos, internal tools, and real day-to-day work. It's under active development and improving fast.
-
-If you try it, we'd love to know what broke.
 
 ---
 
