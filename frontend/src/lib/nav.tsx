@@ -17,7 +17,7 @@ import {
   CreditCard,
   BookOpen,
   Settings,
-  Forklift,
+  CalendarRange,
 } from "lucide-react";
 
 export interface NavItem {
@@ -99,7 +99,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Rentals",
-    icon: <Forklift className="h-4 w-4" />,
+    icon: <CalendarRange className="h-4 w-4" />,
     items: [
       { label: "Fleet Calendar", path: "/rentals/calendar" },
       { label: "Fleet (Assets)", path: "/app/asset" },
