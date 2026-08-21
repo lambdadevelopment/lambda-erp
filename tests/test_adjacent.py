@@ -138,10 +138,11 @@ def check_adjacent():
         assert madj(cust[2], order_by="territory", order="asc") == {
             "prev": cust[0], "next": None
         }
-        # disabled records are included by default (list parity), excludable
+        # Disabled records are excluded by default (list parity), but the
+        # explicit list toggle carries through to detail prev/next navigation.
         client.put(f"/api/masters/customer/{cust[2]}", json={"disabled": 1})
-        assert madj(cust[1])["next"] == cust[2]
-        assert madj(cust[1], include_disabled="false")["next"] is None
+        assert madj(cust[1])["next"] is None
+        assert madj(cust[1], include_disabled="true")["next"] == cust[2]
         # the list itself pages in the same deterministic order
         rows = client.get("/api/masters/customer?include_disabled=1").json()["rows"]
         listed = [r["name"] for r in rows if r["name"] in set(cust)]

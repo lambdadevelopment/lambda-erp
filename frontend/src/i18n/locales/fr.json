@@ -14,6 +14,7 @@
     "keepDraft": "Conserver",
     "discardDraftConfirm": "Supprimer",
     "showDiscarded": "Afficher les supprimés",
+    "showDisabled": "Afficher les désactivés",
     "columns": "Colonnes",
     "searchPlaceholder": "Rechercher…",
     "noRecords": "Aucun enregistrement trouvé",

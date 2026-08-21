@@ -465,7 +465,7 @@ def adjacent_master(
     master_type: str,
     name: str,
     request: Request,
-    include_disabled: bool = True,
+    include_disabled: bool = False,
     search: str | None = None,
     search_fields: str | None = None,
     order_by: str | None = None,

@@ -90,10 +90,13 @@ export default function MasterListPage() {
   const [pageSize] = useUrlState<number>("per_page", 50);
   // URL page is 1-indexed; internal 0-indexed for offset math.
   const [urlPage] = useUrlState<number>("page", 1);
+  const [showDisabled] = useUrlState<string>("include_disabled", "");
   const page = urlPage - 1;
   const patchUrl = useUrlPatch();
   const setPage = (p: number) => patchUrl({ page: p === 0 ? null : p + 1 });
   const setPageSize = (n: number) => patchUrl({ per_page: n, page: null });
+  const setShowDisabled = (on: boolean) =>
+    patchUrl({ include_disabled: on ? "1" : null, page: null });
 
   // Match document lists: the URL is immediate/shareable state and the user's
   // last choice becomes this master type's cross-device default.
@@ -133,15 +136,15 @@ export default function MasterListPage() {
   }, [location.search, type]);
 
   const listParams = useMemo(() => ({
-      include_disabled: 1,
       limit: pageSize,
       offset: page * pageSize,
+      ...(showDisabled ? { include_disabled: 1 } : {}),
       ...(urlQ ? { search: urlQ } : {}),
       ...(config?.searchFields?.length ? { search_fields: config.searchFields.join(",") } : {}),
       ...(config?.columnOptions?.length ? { fields: config.columnOptions.join(",") } : {}),
       ...(activeSortCol ? { order_by: activeSortCol, order: activeSortDir } : {}),
       ...filterValues,
-    }), [page, pageSize, urlQ, filterValues, config, activeSortCol, activeSortDir]);
+    }), [page, pageSize, showDisabled, urlQ, filterValues, config, activeSortCol, activeSortDir]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["masters", type, listParams],
@@ -276,6 +279,15 @@ export default function MasterListPage() {
             onChange={(v) => patchUrl({ [f.field]: v || null, page: null })}
           />
         ))}
+        <label className="flex h-8 items-center gap-2 text-sm text-fg-muted">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-line text-brand focus:ring-brand/30"
+            checked={!!showDisabled}
+            onChange={(event) => setShowDisabled(event.target.checked)}
+          />
+          {t("common.showDisabled")}
+        </label>
         <div className="ml-auto flex items-center gap-2">
           {allColumns.length > 0 && (
             <div className="relative" ref={pickerRef}>
