@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Added
+- Master lists now support validated server-side column sorting with the same
+  persisted header controls as document lists.
+
+### Fixed
+- Master detail previous/next navigation now follows the originating list's
+  search, filters, and sort order instead of reverting to internal-id order.
+- Registered master date and datetime columns now use the standard localized
+  list formatting instead of displaying raw database values.
+
 ## [0.8.16] - 2026-08-20
 
 ### Added

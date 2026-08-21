@@ -67,6 +67,12 @@ def check_documents_route():
                                "customer_group": "Commercial", "territory": "Zurich", "disabled": 0})
         db.insert("Customer", {"name": "CUST-T2", "customer_name": "Other GmbH",
                                "customer_group": "Retail", "disabled": 0})
+        db.insert("Customer", {"name": "CUST-S3", "customer_name": "Zulu AG",
+                               "customer_group": "Sort Test", "territory": None, "disabled": 0})
+        db.insert("Customer", {"name": "CUST-S1", "customer_name": "Alpha AG",
+                               "customer_group": "Sort Test", "territory": "Zurich", "disabled": 0})
+        db.insert("Customer", {"name": "CUST-S2", "customer_name": "Alpha AG",
+                               "customer_group": "Sort Test", "territory": "Aargau", "disabled": 0})
         db.conn.commit()
 
         # free-text search matches a text column (customer_name), excludes others
@@ -80,6 +86,25 @@ def check_documents_route():
         assert r.status_code == 200 and r.json()["total"] >= 1, r.text[:200]
         assert all(row.get("customer_group") == "Retail" for row in r.json()["rows"]), r.text[:200]
 
+        # sortable headers are backed by validated, deterministic server-side
+        # ordering. Ties use name in the same direction; NULL stays last.
+        def sorted_test(order_by, order="asc"):
+            r = client.get(
+                f"/api/masters/customer?customer_group=Sort%20Test&order_by={order_by}&order={order}",
+                headers=h,
+            )
+            assert r.status_code == 200, r.text[:200]
+            return [row["name"] for row in r.json()["rows"]]
+
+        assert sorted_test("customer_name") == ["CUST-S1", "CUST-S2", "CUST-S3"]
+        assert sorted_test("customer_name", "desc") == ["CUST-S3", "CUST-S2", "CUST-S1"]
+        assert sorted_test("territory") == ["CUST-S2", "CUST-S1", "CUST-S3"]
+        assert client.get("/api/masters/customer?order_by=nope", headers=h).status_code == 400
+        assert client.get("/api/masters/customer?order_by=name&order=sideways", headers=h).status_code == 400
+        assert client.get(
+            "/api/masters/customer?search=x&search_fields=nope", headers=h
+        ).status_code == 400
+
         # distinct filter-values for the dropdown
         r = client.get("/api/masters/customer/filter-values?field=customer_group", headers=h)
         assert r.status_code == 200, r.text[:200]
@@ -89,7 +114,7 @@ def check_documents_route():
         # an unknown filter field IS a 400 — filters affect the query, so stay strict
         r = client.get("/api/masters/customer?nonsense_col=x", headers=h)
         assert r.status_code == 400, f"unknown filter field must 400: {r.status_code} {r.text[:150]}"
-        print("  masters: search + field filter + filter-values + strict unknown-field")
+        print("  masters: search + filters + validated deterministic sorting")
 
     print("PASS")
 

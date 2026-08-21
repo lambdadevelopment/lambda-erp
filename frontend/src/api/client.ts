@@ -180,10 +180,10 @@ export const api = {
       `/documents/${doctype}/${encodeURIComponent(name)}/adjacent${qs(params)}`,
     ),
 
-  // Prev/next master record around `name` in the master list's order (name ASC).
-  adjacentMaster: (masterType: string, name: string) =>
+  // Prev/next master record around `name` in the same order+filters as its list.
+  adjacentMaster: (masterType: string, name: string, params?: Record<string, string | number | undefined>) =>
     request<{ prev: string | null; next: string | null }>(
-      `/masters/${masterType}/${encodeURIComponent(name)}/adjacent`,
+      `/masters/${masterType}/${encodeURIComponent(name)}/adjacent${qs(params)}`,
     ),
 
   createDocument: (doctype: string, data: any) =>

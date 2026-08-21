@@ -303,7 +303,71 @@ def update_master_record(master_type: str, name: str, data: dict) -> dict:
 # ad-hoc equality field filter (validated against the master's real columns).
 _MASTER_LIST_RESERVED = {
     "limit", "offset", "include_disabled", "search", "search_fields", "fields",
+    "order_by", "order",
 }
+
+
+def _master_list_where(db, doctype: str, master_type: str, request: Request,
+                       include_disabled: bool, search: str | None,
+                       search_fields: str | None) -> tuple[list, list, set]:
+    """Build the validated WHERE clause shared by master list and adjacent.
+
+    Keeping this in one place is what makes detail prev/next follow the exact
+    search and field filters of the list the user opened the record from.
+    """
+    columns = db._get_table_columns(doctype)
+    where_parts: list = []
+    params: list = []
+
+    active = None if include_disabled else _with_active_filter(db, doctype)
+    if active:
+        wp, ps = _where_from_filters(active)
+        where_parts += wp
+        params += ps
+
+    for key, value in request.query_params.items():
+        if key in _MASTER_LIST_RESERVED:
+            continue
+        if key not in columns:
+            raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
+        where_parts.append(f'"{key}" = ?')
+        params.append(value)
+
+    if search:
+        requested = [f.strip() for f in (search_fields or "").split(",") if f.strip()]
+        unknown = [f for f in requested if f not in columns]
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"Unknown search field(s): {', '.join(unknown)}")
+        sf = requested or master_search_columns(db, doctype)
+        clause, sp = _search_clause(db, doctype, master_type, search, sf)
+        if clause:
+            where_parts.append(clause)
+            params += sp
+
+    return where_parts, params, columns
+
+
+def _master_order(columns: set, order_by: str | None, order: str) -> tuple[str, str]:
+    if order_by is not None and order_by not in columns:
+        raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
+    direction = order.lower()
+    if direction not in ("asc", "desc"):
+        raise HTTPException(status_code=400, detail="order must be 'asc' or 'desc'")
+    # Reference masters retain their historical default: stable ID order.
+    return order_by or "name", direction if order_by else "asc"
+
+
+def _master_order_sql(column: str, direction: str, *, reverse: bool = False) -> str:
+    """Deterministic master ordering with NULL values consistently at the end."""
+    effective = direction
+    nulls = "LAST"
+    if reverse:
+        effective = "desc" if direction == "asc" else "asc"
+        nulls = "FIRST"
+    sql = f'"{column}" {effective.upper()}'
+    if column != "name":
+        sql += f" NULLS {nulls}, name {effective.upper()}"
+    return sql
 
 
 @router.get("/{master_type}/filter-values")
@@ -338,52 +402,22 @@ def list_masters(
     search: str | None = None,
     search_fields: str | None = None,
     fields: str | None = None,
+    order_by: str | None = None,
+    order: str = "asc",
     _user: dict = _viewer,
 ):
     doctype, _ = _get_table(master_type)
     if not doctype:
         return {"detail": f"Unknown master type: {master_type}"}
     db = get_db()
-    columns = db._get_table_columns(doctype)
-
-    where_parts: list = []
-    params: list = []
-
-    # Active (non-disabled) filter, unless the caller opts in to disabled rows.
-    active = None if include_disabled else _with_active_filter(db, doctype)
-    if active:
-        wp, ps = _where_from_filters(active)
-        where_parts += wp
-        params += ps
-
-    # Ad-hoc equality field filters: any remaining query param naming a real
-    # column (e.g. /masters/customer?customer_group=Commercial). Unknown field
-    # -> 400 (a filter on a missing column is a client bug, never interpolated).
-    for key, value in request.query_params.items():
-        if key in _MASTER_LIST_RESERVED:
-            continue
-        if key not in columns:
-            raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
-        where_parts.append(f'"{key}" = ?')
-        params.append(value)
-
-    # Free-text search — defaults to the master's text columns when the caller
-    # doesn't name search_fields (so a plain ?search=... just works).
-    if search:
-        sf = [f.strip() for f in (search_fields or "").split(",")
-              if f.strip() and f.strip() in columns]
-        if not sf:
-            sf = master_search_columns(db, doctype)
-        clause, sp = _search_clause(db, doctype, master_type, search, sf)
-        if clause:
-            where_parts.append(clause)
-            params += sp
+    where_parts, params, columns = _master_list_where(
+        db, doctype, master_type, request, include_disabled, search, search_fields,
+    )
+    sort_column, sort_direction = _master_order(columns, order_by, order)
 
     where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
     total = count_query_cached(f'SELECT COUNT(*) as c FROM "{doctype}"{where}', params)
 
-    # Deterministic order by the `name` PK (already indexed) — required for
-    # OFFSET pagination and the /adjacent prev/next contract.
     requested_fields = [f.strip() for f in (fields or "").split(",") if f.strip()]
     if requested_fields:
         unknown = [f for f in requested_fields if f not in columns]
@@ -394,7 +428,10 @@ def list_masters(
         projection = ", ".join(f'"{f}"' for f in requested_fields)
     else:
         projection = "*"
-    query = f'SELECT {projection} FROM "{doctype}"{where} ORDER BY name LIMIT {int(limit)}'
+    query = (
+        f'SELECT {projection} FROM "{doctype}"{where} '
+        f'ORDER BY {_master_order_sql(sort_column, sort_direction)} LIMIT {int(limit)}'
+    )
     if offset:
         query += f" OFFSET {int(offset)}"
     rows = db.sql(query, params)
@@ -424,26 +461,79 @@ def search_masters(master_type: str, q: str = "", _user: dict = _viewer):
 
 
 @router.get("/{master_type}/{name}/adjacent")
-def adjacent_master(master_type: str, name: str, include_disabled: bool = True,
-                    _user: dict = _viewer):
-    """The records immediately before/after `name` in the list's order (name
-    ASC) — {"prev": name|None, "next": name|None}. Keyset queries on the
-    primary key. include_disabled defaults True to step 1:1 with the master
-    list, which shows disabled records too."""
+def adjacent_master(
+    master_type: str,
+    name: str,
+    request: Request,
+    include_disabled: bool = True,
+    search: str | None = None,
+    search_fields: str | None = None,
+    order_by: str | None = None,
+    order: str = "asc",
+    _user: dict = _viewer,
+):
+    """Records immediately before/after ``name`` in the current master list.
+
+    Search, equality filters, disabled visibility, and ordering are shared with
+    ``list_masters``. Keyset predicates keep navigation proportional to one
+    index lookup rather than numbering the entire result set.
+    """
     doctype, _ = _get_table(master_type)
     if not doctype:
         raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
     db = get_db()
-    active = ("" if include_disabled or "disabled" not in db._get_table_columns(doctype)
-              else "disabled = 0 AND ")
+    where_parts, params, columns = _master_list_where(
+        db, doctype, master_type, request, include_disabled, search, search_fields,
+    )
+    sort_column, sort_direction = _master_order(columns, order_by, order)
+    base_where = (" AND ".join(where_parts)) if where_parts else "1 = 1"
+    current_rows = db.sql(
+        f'SELECT "{sort_column}" AS sort_value FROM "{doctype}" '
+        f"WHERE {base_where} AND name = ? LIMIT 1",
+        [*params, name],
+    )
+    if not current_rows:
+        return {"prev": None, "next": None}
+    current_value = current_rows[0]["sort_value"]
 
-    def neighbor(cmp: str, direction: str):
+    def neighbor(toward: str):
+        after = toward == "next"
+        same_cmp = ">" if sort_direction == "asc" else "<"
+        primary_cmp = same_cmp
+        if not after:
+            same_cmp = "<" if same_cmp == ">" else ">"
+            primary_cmp = "<" if primary_cmp == ">" else ">"
+
+        if sort_column == "name":
+            keyset = f'name {same_cmp} ?'
+            key_params = [name]
+        elif current_value is None:
+            if after:
+                keyset = f'"{sort_column}" IS NULL AND name {same_cmp} ?'
+            else:
+                keyset = (
+                    f'("{sort_column}" IS NOT NULL OR '
+                    f'("{sort_column}" IS NULL AND name {same_cmp} ?))'
+                )
+            key_params = [name]
+        else:
+            keyset = (
+                f'("{sort_column}" {primary_cmp} ? OR '
+                f'("{sort_column}" = ? AND name {same_cmp} ?)'
+            )
+            key_params = [current_value, current_value, name]
+            if after:
+                keyset += f' OR "{sort_column}" IS NULL'
+            keyset += ")"
+
         rows = db.sql(
-            f'SELECT name FROM "{doctype}" WHERE {active}name {cmp} ? '
-            f"ORDER BY name {direction} LIMIT 1", [name])
+            f'SELECT name FROM "{doctype}" WHERE {base_where} AND {keyset} '
+            f'ORDER BY {_master_order_sql(sort_column, sort_direction, reverse=not after)} LIMIT 1',
+            [*params, *key_params],
+        )
         return rows[0]["name"] if rows else None
 
-    return {"prev": neighbor("<", "DESC"), "next": neighbor(">", "ASC")}
+    return {"prev": neighbor("prev"), "next": neighbor("next")}
 
 
 @router.get("/{master_type}/{name}")

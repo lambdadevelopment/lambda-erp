@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMySettings } from "@/hooks/use-my-settings";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -18,6 +18,7 @@ import { setListContext } from "@/lib/doc-list-context";
 import { getMasterConfig, type MasterFilterDef } from "@/lib/masters";
 import { ListPager } from "@/components/list-pager";
 import { Button } from "@/components/ui/button";
+import { formatDate, formatDateTime } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = {
   customer: "Customer",
@@ -29,6 +30,10 @@ const TYPE_LABELS: Record<string, string> = {
 
 const humanizeCol = (key: string) =>
   key.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+const isDateColumn = (col: string) =>
+  col === "modified" || col === "creation" || col.endsWith("_date") ||
+  col.endsWith("_at") || col.endsWith("_datetime");
 
 // Per-master field filters shown as dropdowns (options fetched from the backend).
 // Fields must be real columns of the master; the server validates and 400s
@@ -82,12 +87,6 @@ export default function MasterListPage() {
   const { t } = useTranslation();
   const notice = (location.state as { notice?: string } | null)?.notice;
 
-  // Stash the list URL so the detail page's DocPager can come "back" to this
-  // exact page (Esc/u). Masters have no filter UI, so filters stays empty.
-  useEffect(() => {
-    if (type) setListContext(`master:${type}`, { filters: {}, search: location.search });
-  }, [type, location.search]);
-
   const [pageSize] = useUrlState<number>("per_page", 50);
   // URL page is 1-indexed; internal 0-indexed for offset math.
   const [urlPage] = useUrlState<number>("page", 1);
@@ -96,15 +95,32 @@ export default function MasterListPage() {
   const setPage = (p: number) => patchUrl({ page: p === 0 ? null : p + 1 });
   const setPageSize = (n: number) => patchUrl({ per_page: n, page: null });
 
+  // Match document lists: the URL is immediate/shareable state and the user's
+  // last choice becomes this master type's cross-device default.
+  const { settings, setSetting } = useMySettings();
+  const [urlOrderBy] = useUrlState<string>("order_by", "");
+  const [urlOrder] = useUrlState<string>("order", "");
+  const [savedSortCol, savedSortDir] = (settings[`sort.master:${type}`] || "").split(":");
+  const activeSortCol = urlOrderBy || savedSortCol || "";
+  const activeSortDir = (urlOrderBy ? urlOrder : savedSortDir) || "asc";
+  const toggleSort = (col: string) => {
+    const next = activeSortCol === col
+      ? (activeSortDir === "desc" ? "asc" : "desc")
+      : (isDateColumn(col) ? "desc" : "asc");
+    patchUrl({ order_by: col, order: next, page: null });
+    setSetting(`sort.master:${type}`, `${col}:${next}`);
+  };
+
   // Free-text search: local input, debounced into the URL (?q=), which resets
   // the page. The committed value drives the query.
   const [urlQ] = useUrlState<string>("q", "");
   const [searchInput, setSearchInput] = useState(urlQ);
   useEffect(() => { setSearchInput(urlQ); }, [urlQ]);
   useEffect(() => {
+    if (searchInput === urlQ) return;
     const t = setTimeout(() => patchUrl({ q: searchInput || null, page: null }), 300);
     return () => clearTimeout(t);
-  }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchInput, urlQ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filterDefs = config?.listFilters ?? MASTER_FILTERS[type ?? ""] ?? [];
   // Each configured filter's committed value lives in the URL (?field=value).
@@ -116,19 +132,30 @@ export default function MasterListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, type]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["masters", type, page, pageSize, urlQ, filterValues],
-    queryFn: () => api.listMasters(type!, {
+  const listParams = useMemo(() => ({
       include_disabled: 1,
       limit: pageSize,
       offset: page * pageSize,
       ...(urlQ ? { search: urlQ } : {}),
       ...(config?.searchFields?.length ? { search_fields: config.searchFields.join(",") } : {}),
       ...(config?.columnOptions?.length ? { fields: config.columnOptions.join(",") } : {}),
+      ...(activeSortCol ? { order_by: activeSortCol, order: activeSortDir } : {}),
       ...filterValues,
-    }),
+    }), [page, pageSize, urlQ, filterValues, config, activeSortCol, activeSortDir]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["masters", type, listParams],
+    queryFn: () => api.listMasters(type!, listParams),
     enabled: !!type,
   });
+
+  // Detail prev/next and back-to-list now inherit master search, filters, and
+  // sorting too. Projection/pagination do not affect membership or order.
+  useEffect(() => {
+    if (!type) return;
+    const { limit, offset, fields, ...ctxFilters } = listParams;
+    setListContext(`master:${type}`, { filters: ctxFilters, search: location.search });
+  }, [type, listParams, location.search]);
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
@@ -136,11 +163,10 @@ export default function MasterListPage() {
   const rangeStart = total === 0 ? 0 : page * pageSize + 1;
   const rangeEnd = Math.min(total, (page + 1) * pageSize);
 
-  // Column selector (server-persisted per master type, cross-device). Masters
-  // fetch every column and are fast on the `name` PK, so this hides client-side.
-  // No per-master config, so the default is "show all"; a saved choice is filtered
-  // to columns that still exist.
-  const { settings, setSetting } = useMySettings();
+  // Column selector (server-persisted per master type, cross-device). Registered
+  // masters declare lightweight list columns; legacy built-ins discover their
+  // choices from the returned row. Saved choices are filtered to columns that
+  // still exist.
   const allColumns = useMemo(
     () => config?.columnOptions ?? (rows.length ? Object.keys(rows[0]) : []),
     [config, rows],
@@ -185,6 +211,7 @@ export default function MasterListPage() {
         }),
         cell: (info) => {
           const val = info.getValue();
+          const field = config?.fields.find((candidate) => candidate.name === key);
           if (key === "name") {
             const isDisabled = info.row.original.disabled === 1;
             return (
@@ -199,6 +226,8 @@ export default function MasterListPage() {
           if (key === "disabled") {
             return val === 1 ? t("common.disabled") : t("common.active");
           }
+          if (field?.type === "date") return formatDate(val);
+          if (field?.type === "datetime") return formatDateTime(val);
           const href = config?.columnLinks?.[key]?.(val, info.row.original);
           if (href && val) {
             return (
@@ -320,12 +349,21 @@ export default function MasterListPage() {
                         key={header.id}
                         className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted"
                       >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                        {header.isPlaceholder ? null : (
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(header.column.id)}
+                            title={t("common.sortByColumn", { defaultValue: "Sort by this column" })}
+                            className="group inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-fg"
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {activeSortCol === header.column.id
+                              ? (activeSortDir === "asc"
+                                  ? <ChevronUp className="h-3.5 w-3.5" />
+                                  : <ChevronDown className="h-3.5 w-3.5" />)
+                              : <ChevronsUpDown className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-40" />}
+                          </button>
+                        )}
                       </th>
                     ))}
                   </tr>

@@ -120,6 +120,24 @@ def check_adjacent():
         assert madj(cust[1]) == {"prev": cust[0], "next": cust[2]}, madj(cust[1])
         assert madj(cust[0])["prev"] is None
         assert madj(cust[2])["next"] is None
+        # Custom sorting and search use the same list context on detail pages.
+        assert madj(cust[1], order_by="customer_name", order="desc") == {
+            "prev": cust[2], "next": cust[0]
+        }
+        assert madj(cust[1], search="Borea", search_fields="customer_name") == {
+            "prev": None, "next": None
+        }
+        # NULL sort values stay last and keyset navigation crosses the
+        # non-NULL/NULL boundary in the same order as the list.
+        client.put(f"/api/masters/customer/{cust[0]}", json={"territory": "Zurich"})
+        client.put(f"/api/masters/customer/{cust[1]}", json={"territory": "Aargau"})
+        client.put(f"/api/masters/customer/{cust[2]}", json={"territory": None})
+        assert madj(cust[0], order_by="territory", order="asc") == {
+            "prev": cust[1], "next": cust[2]
+        }
+        assert madj(cust[2], order_by="territory", order="asc") == {
+            "prev": cust[0], "next": None
+        }
         # disabled records are included by default (list parity), excludable
         client.put(f"/api/masters/customer/{cust[2]}", json={"disabled": 1})
         assert madj(cust[1])["next"] == cust[2]

@@ -18,7 +18,7 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
   name: string;
   /** Called on Cmd/Ctrl+S. Omit if the page has nothing to save. */
   onSave?: () => void;
-  /** "master" pages through /masters/{slug} (name ASC) instead of /app/{slug}. */
+  /** "master" pages through /masters/{slug} instead of /app/{slug}. */
   kind?: "document" | "master";
 }) {
   const navigate = useNavigate();
@@ -32,7 +32,7 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
     queryKey: ["adjacent", kind, slug, name, ctx?.filters ?? null],
     queryFn: () =>
       isMaster
-        ? api.adjacentMaster(slug, name)
+        ? api.adjacentMaster(slug, name, ctx?.filters as any)
         : api.adjacentDocument(slug, name, ctx?.filters as any),
   });
   const prev = data?.prev ?? null;
