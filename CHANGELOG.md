@@ -13,9 +13,15 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.17] - 2026-08-21
+
 ### Added
 - Master lists now support validated server-side column sorting with the same
   persisted header controls as document lists.
+
+### Changed
+- The Rentals sidebar group now uses a calendar-range icon instead of a
+  forklift, matching its reservation and availability purpose.
 
 ### Fixed
 - Master detail previous/next navigation now follows the originating list's
@@ -1452,7 +1458,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.4...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.17...HEAD
+[0.8.17]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.16...v0.8.17
 [0.6.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.1...v0.6.2
