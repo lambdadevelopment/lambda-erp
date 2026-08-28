@@ -16,7 +16,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 ### Added
 - Master and document lists now share a field-aware search control with
   discoverable `field:value` filters, data-backed value suggestions, removable
-  filter chips, and shareable URL state.
+  filter chips, explicit search submission, and shareable URL state. Separate
+  master-filter dropdowns are consolidated into the same control.
 
 ## [0.8.19] - 2026-08-28
 

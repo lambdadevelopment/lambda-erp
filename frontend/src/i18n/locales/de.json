@@ -61,6 +61,7 @@
   },
   "smartSearch": {
     "placeholder": "Suchen oder Feld:Wert eingeben…",
+    "search": "Suchen",
     "addFilter": "+ Filter",
     "availableFields": "Verfügbare Felder",
     "fieldHelp": "Feld auswählen oder den technischen Namen mit Doppelpunkt eingeben.",

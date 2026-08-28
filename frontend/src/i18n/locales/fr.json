@@ -61,6 +61,7 @@
   },
   "smartSearch": {
     "placeholder": "Rechercher ou saisir champ:valeur…",
+    "search": "Rechercher",
     "addFilter": "+ Filtre",
     "availableFields": "Champs disponibles",
     "fieldHelp": "Choisissez un champ ou saisissez son nom technique suivi de deux-points.",

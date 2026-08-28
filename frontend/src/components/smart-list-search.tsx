@@ -32,6 +32,7 @@ interface SmartListSearchProps {
   fields: SmartSearchField[];
   filters: Record<string, string>;
   onFiltersChange: (updates: Record<string, string | null>) => void;
+  onSubmit: (search: string, updates: Record<string, string>) => void;
   loadValues: (field: string, prefix: string) => Promise<Array<string | number>>;
   hiddenChipFields?: string[];
   className?: string;
@@ -94,6 +95,7 @@ export function SmartListSearch({
   fields,
   filters,
   onFiltersChange,
+  onSubmit,
   loadValues,
   hiddenChipFields = [],
   className,
@@ -103,6 +105,7 @@ export function SmartListSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [appendMode, setAppendMode] = useState(false);
+  const [debouncedQualifier, setDebouncedQualifier] = useState({ field: "", value: "" });
 
   const qualifier = useMemo(() => currentQualifier(value, fields), [value, fields]);
   const lastToken = value.trimEnd().split(/\s+/).pop() ?? "";
@@ -123,11 +126,19 @@ export function SmartListSearch({
   }, [fields, fieldQuery, filters]);
 
   const staticOptions = qualifier?.field.options ?? [];
-  const shouldLoadValues = !!qualifier && staticOptions.length === 0 &&
-    (!!qualifier.value || !!qualifier.field.suggestOnEmpty);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQualifier({
+      field: qualifier?.field.name ?? "",
+      value: qualifier?.value ?? "",
+    }), 200);
+    return () => clearTimeout(timer);
+  }, [qualifier?.field.name, qualifier?.value]);
+  const qualifierIsDebounced = !!qualifier && debouncedQualifier.field === qualifier.field.name;
+  const shouldLoadValues = qualifierIsDebounced && staticOptions.length === 0 &&
+    (!!debouncedQualifier.value || !!qualifier!.field.suggestOnEmpty);
   const { data: loadedValues = [], isFetching } = useQuery({
-    queryKey: ["smart-list-values", scope, qualifier?.field.name, qualifier?.value],
-    queryFn: () => loadValues(qualifier!.field.name, qualifier!.value),
+    queryKey: ["smart-list-values", scope, qualifier?.field.name, debouncedQualifier.value],
+    queryFn: () => loadValues(qualifier!.field.name, debouncedQualifier.value),
     enabled: shouldLoadValues,
     staleTime: 60_000,
   });
@@ -179,6 +190,14 @@ export function SmartListSearch({
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
+  const submitSearch = () => {
+    const parsed = extractQualifiers(value, fields);
+    onSubmit(parsed.text, parsed.updates);
+    if (parsed.text !== value) onChange(parsed.text);
+    setAppendMode(false);
+    setOpen(false);
+  };
+
   const visibleChips = Object.entries(filters)
     .filter(([, filterValue]) => filterValue !== "")
     .filter(([field]) => !hiddenChipFields.includes(field))
@@ -190,7 +209,7 @@ export function SmartListSearch({
 
   return (
     <div ref={rootRef} className={cn("relative flex w-full flex-wrap items-center gap-2 sm:w-auto", className)}>
-      <div className="relative w-full sm:w-[28rem] lg:w-[32rem]">
+      <div className="relative w-full sm:w-[32rem] lg:w-[38rem]">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />
         <input
           ref={inputRef}
@@ -210,22 +229,19 @@ export function SmartListSearch({
               setOpen(false);
               setAppendMode(false);
             } else if (event.key === "Enter") {
-              const parsed = extractQualifiers(value, fields);
-              if (Object.keys(parsed.updates).length > 0) {
-                event.preventDefault();
-                onFiltersChange(parsed.updates);
-                onChange(parsed.text);
-                setOpen(false);
-              } else if (qualifier?.value) {
-                event.preventDefault();
-                commitQualifier(qualifier.value);
-              }
+              event.preventDefault();
+              submitSearch();
             }
           }}
           placeholder={t("smartSearch.placeholder")}
           className="h-8 w-full rounded-md bg-surface pl-8 pr-3 text-sm text-fg ring-1 ring-line placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
+
+      <Button size="sm" onClick={submitSearch}>
+        <Search className="h-4 w-4" />
+        {t("smartSearch.search")}
+      </Button>
 
       <Button size="sm" variant="secondary" onClick={showFields}>
         <Filter className="h-4 w-4" />

@@ -55,7 +55,7 @@ export interface DoctypeConfig {
   listFilters?: string[];
   // Column names the list's free-text search box matches against (case-
   // insensitive substring), e.g. ["company_name", "uid", "town"]. When set, the
-  // list shows a debounced search box; the backend can also match via a
+  // list shows a field-aware search box; the backend can also match via a
   // registered related-table expansion (register_search_expansion). Omit for no
   // search box.
   searchFields?: string[];

@@ -119,8 +119,7 @@ export default function DocumentListPage() {
   const [showDiscarded] = useUrlState<string>("discarded", "");
   const [pageSize] = useUrlState<number>("per_page", 50);
   // Free-text search (opt-in via config.searchFields). The committed query lives
-  // in the URL (`q`); a local input debounces into it so we don't refetch on
-  // every keystroke.
+  // in the URL (`q`); a separate local draft avoids refetching while typing.
   const searchFields = config?.searchFields ?? [];
   const [urlQ] = useUrlState<string>("q", "");
   const [searchInput, setSearchInput] = useState(urlQ);
@@ -237,14 +236,9 @@ export default function DocumentListPage() {
   const setShowDiscarded = (on: boolean) => patchUrl({ discarded: on ? "1" : null, page: null });
   const setPageSize = (n: number) => patchUrl({ per_page: n, page: null });
 
-  // Keep the box in sync when `q` changes from outside typing (back/forward, a
-  // cleared filter), then debounce local edits back into the URL after a pause.
+  // Keep the draft in sync with committed URL state (back/forward and links).
+  // Typing stays local; Enter or the Search button commits it deliberately.
   useEffect(() => { setSearchInput(urlQ); }, [urlQ]);
-  useEffect(() => {
-    if (searchInput === urlQ) return; // idle — nothing to commit, no timer
-    const t = setTimeout(() => patchUrl({ q: searchInput || null, page: null }), 300);
-    return () => clearTimeout(t);
-  }, [searchInput, urlQ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filters = useMemo(() => {
     const f: Record<string, string | number | undefined> = {};
@@ -464,6 +458,11 @@ export default function DocumentListPage() {
             fields={smartFields}
             filters={queryFilterValues}
             onFiltersChange={(updates) => patchUrl({ ...updates, page: null })}
+            onSubmit={(search, updates) => patchUrl({
+              q: search || null,
+              ...updates,
+              page: null,
+            })}
             loadValues={(field, prefix) =>
               api.documentFilterValues(doctype!, field, prefix, 12).then((result) => result.values)
             }

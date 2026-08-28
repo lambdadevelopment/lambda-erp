@@ -61,6 +61,7 @@
   },
   "smartSearch": {
     "placeholder": "Search or enter field:value…",
+    "search": "Search",
     "addFilter": "+ Filter",
     "availableFields": "Available fields",
     "fieldHelp": "Choose a field or type its technical name followed by a colon.",

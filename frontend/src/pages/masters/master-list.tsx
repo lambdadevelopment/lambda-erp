@@ -16,6 +16,7 @@ import { api } from "@/api/client";
 import { usePageTitle } from "@/lib/use-page-title";
 import { setListContext } from "@/lib/doc-list-context";
 import { getMasterConfig, type MasterFilterDef } from "@/lib/masters";
+import { BUILTIN_MASTER_FIELDS } from "@/lib/master-fields";
 import { ListPager } from "@/components/list-pager";
 import { Button } from "@/components/ui/button";
 import { SmartListSearch, type SmartSearchField } from "@/components/smart-list-search";
@@ -47,36 +48,6 @@ const MASTER_FILTERS: Record<string, MasterFilterDef[]> = {
   warehouse: [{ field: "parent_warehouse", label: "Parent Warehouse" }],
   account: [{ field: "root_type", label: "Root Type" }, { field: "account_type", label: "Account Type" }],
 };
-
-function MasterFilterSelect({
-  type, def, value, onChange,
-}: {
-  type: string;
-  def: MasterFilterDef;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const { t } = useTranslation();
-  const { data } = useQuery({
-    queryKey: ["master-filter-values", type, def.field],
-    queryFn: () => api.masterFilterValues(type, def.field),
-    enabled: !!type,
-  });
-  const values = data?.values ?? [];
-  const label = t(`fields.${def.label}`, { defaultValue: def.label });
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-8 rounded-md bg-surface px-2 text-sm text-fg ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-brand/30"
-    >
-      <option value="">{label}: {t("common.all")}</option>
-      {values.map((v) => (
-        <option key={String(v)} value={String(v)}>{String(v)}</option>
-      ))}
-    </select>
-  );
-}
 
 export default function MasterListPage() {
   const { type } = useParams<{ type: string }>();
@@ -115,16 +86,11 @@ export default function MasterListPage() {
     setSetting(`sort.master:${type}`, `${col}:${next}`);
   };
 
-  // Free-text search: local input, debounced into the URL (?q=), which resets
-  // the page. The committed value drives the query.
+  // Free-text search: typing stays local. Enter or the Search button commits
+  // it to the URL (?q=) and resets the page.
   const [urlQ] = useUrlState<string>("q", "");
   const [searchInput, setSearchInput] = useState(urlQ);
   useEffect(() => { setSearchInput(urlQ); }, [urlQ]);
-  useEffect(() => {
-    if (searchInput === urlQ) return;
-    const t = setTimeout(() => patchUrl({ q: searchInput || null, page: null }), 300);
-    return () => clearTimeout(t);
-  }, [searchInput, urlQ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filterDefs = config?.listFilters ?? MASTER_FILTERS[type ?? ""] ?? [];
   // Every non-control URL key is a validated equality field filter. This lets
@@ -140,8 +106,6 @@ export default function MasterListPage() {
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, type]);
-  const filterValues = queryFilterValues;
-
   const listParams = useMemo(() => ({
       limit: pageSize,
       offset: page * pageSize,
@@ -177,15 +141,18 @@ export default function MasterListPage() {
   // masters declare lightweight list columns; legacy built-ins discover their
   // choices from the returned row. Saved choices are filtered to columns that
   // still exist.
-  const allColumns = useMemo(
-    () => config?.columnOptions ?? (rows.length ? Object.keys(rows[0]) : []),
-    [config, rows],
-  );
+  const discoveredColumnsRef = useRef<Record<string, string[]>>({});
+  const allColumns = useMemo(() => {
+    if (config?.columnOptions) return config.columnOptions;
+    if (type && rows.length) discoveredColumnsRef.current[type] = Object.keys(rows[0]);
+    return type ? (discoveredColumnsRef.current[type] ?? []) : [];
+  }, [config, rows, type]);
   const smartFields = useMemo<SmartSearchField[]>(() => {
-    const configured = new Map((config?.fields ?? []).map((field) => [field.name, field]));
+    const stableFields = config?.fields ?? BUILTIN_MASTER_FIELDS[type ?? ""] ?? [];
+    const configured = new Map(stableFields.map((field) => [field.name, field]));
     const names = new Set<string>([
       ...allColumns,
-      ...(config?.fields ?? []).map((field) => field.name),
+      ...stableFields.map((field) => field.name),
       ...filterDefs.map((filter) => filter.field),
     ]);
     return [...names].map((name) => {
@@ -204,7 +171,7 @@ export default function MasterListPage() {
         suggestOnEmpty: !!options?.length || filterDefs.some((filter) => filter.field === name),
       };
     });
-  }, [allColumns, config, filterDefs, t]);
+  }, [allColumns, config, filterDefs, t, type]);
   const savedCols = useMemo(
     () => (settings[`columns.master:${type}`] || "").split(",").map((s) => s.trim()).filter(Boolean),
     [settings, type],
@@ -301,20 +268,15 @@ export default function MasterListPage() {
           fields={smartFields}
           filters={queryFilterValues}
           onFiltersChange={(updates) => patchUrl({ ...updates, page: null })}
+          onSubmit={(search, updates) => patchUrl({
+            q: search || null,
+            ...updates,
+            page: null,
+          })}
           loadValues={(field, prefix) =>
             api.masterFilterValues(type!, field, prefix, 12).then((result) => result.values)
           }
-          hiddenChipFields={filterDefs.map((filter) => filter.field)}
         />
-        {filterDefs.map((f) => (
-          <MasterFilterSelect
-            key={f.field}
-            type={type!}
-            def={f}
-            value={filterValues[f.field] ?? ""}
-            onChange={(v) => patchUrl({ [f.field]: v || null, page: null })}
-          />
-        ))}
         <label className="flex h-8 items-center gap-2 text-sm text-fg-muted">
           <input
             type="checkbox"

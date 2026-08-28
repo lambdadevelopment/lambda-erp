@@ -13,75 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { FieldDef } from "@/lib/doctypes";
 import { getMasterConfig } from "@/lib/masters";
-
-// ---------------------------------------------------------------------------
-// Field registry per master type
-// ---------------------------------------------------------------------------
-
-const MASTER_FIELDS: Record<string, FieldDef[]> = {
-  customer: [
-    { name: "name", label: "ID", type: "text", required: true },
-    { name: "customer_name", label: "Customer Name", type: "text", required: true },
-    { name: "customer_group", label: "Customer Group", type: "select", options: ["Individual", "Commercial", "Government", "Non-Profit", "Premium"] },
-    { name: "territory", label: "Territory", type: "text" },
-    { name: "default_currency", label: "Currency", type: "select", options: ["", "USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY", "INR"] },
-    { name: "credit_limit", label: "Credit Limit", type: "currency" },
-    { name: "email", label: "Email", type: "text" },
-    { name: "phone", label: "Phone", type: "text" },
-    { name: "address", label: "Address", type: "textarea" },
-    { name: "city", label: "City", type: "text" },
-    { name: "zip_code", label: "Zip Code", type: "text" },
-    { name: "country", label: "Country", type: "text" },
-    { name: "tax_id", label: "Tax ID", type: "text" },
-    { name: "contact_person", label: "Contact Person", type: "text" },
-    { name: "contact_email", label: "Contact Email", type: "text" },
-    { name: "contact_phone", label: "Contact Phone", type: "text" },
-  ],
-  supplier: [
-    { name: "name", label: "ID", type: "text", required: true },
-    { name: "supplier_name", label: "Supplier Name", type: "text", required: true },
-    { name: "supplier_group", label: "Supplier Group", type: "select", options: ["Local", "Distributor", "Services", "Raw Materials"] },
-    { name: "default_currency", label: "Currency", type: "select", options: ["", "USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY", "INR"] },
-    { name: "email", label: "Email", type: "text" },
-    { name: "phone", label: "Phone", type: "text" },
-    { name: "address", label: "Address", type: "textarea" },
-    { name: "city", label: "City", type: "text" },
-    { name: "zip_code", label: "Zip Code", type: "text" },
-    { name: "country", label: "Country", type: "text" },
-    { name: "tax_id", label: "Tax ID", type: "text" },
-  ],
-  item: [
-    { name: "name", label: "Item Code", type: "text", required: true },
-    { name: "item_name", label: "Item Name", type: "text", required: true },
-    { name: "item_group", label: "Item Group", type: "select", options: ["Products", "Raw Material", "Services", "Consumable"] },
-    { name: "stock_uom", label: "Stock UOM", type: "select", options: ["Nos", "Kg", "Ltr", "Mtr", "Box", "Set"] },
-    { name: "standard_rate", label: "Standard Rate", type: "currency" },
-    { name: "description", label: "Description", type: "textarea" },
-  ],
-  warehouse: [
-    { name: "warehouse_name", label: "Warehouse Name", type: "text", required: true },
-    { name: "warehouse_type", label: "Type", type: "select", options: ["Stores", "Manufacturing", "Transit", "Rejected"] },
-    { name: "company", label: "Company", type: "text" },
-    { name: "address", label: "Address", type: "textarea" },
-    { name: "city", label: "City", type: "text" },
-    { name: "zip_code", label: "Zip Code", type: "text" },
-    { name: "country", label: "Country", type: "text" },
-  ],
-  company: [
-    { name: "company_name", label: "Company Name", type: "text", required: true },
-    // No static default — a new record's currency is pre-filled with the
-    // company base currency by the effect in the form component below.
-    { name: "default_currency", label: "Currency", type: "text" },
-    { name: "email", label: "Email", type: "text" },
-    { name: "phone", label: "Phone", type: "text" },
-    { name: "address", label: "Address", type: "textarea" },
-    { name: "city", label: "City", type: "text" },
-    { name: "zip_code", label: "Zip Code", type: "text" },
-    { name: "country", label: "Country", type: "text" },
-    { name: "tax_id", label: "Tax ID", type: "text" },
-    { name: "iban", label: "IBAN", type: "text" },
-  ],
-};
+import { BUILTIN_MASTER_FIELDS } from "@/lib/master-fields";
 
 const TYPE_LABELS: Record<string, string> = {
   customer: "Customer",
@@ -106,7 +38,7 @@ export default function MasterFormPage() {
   const config = getMasterConfig(type ?? "");
   const label = config?.label ?? TYPE_LABELS[type ?? ""] ?? type ?? "";
   const labelTr = t(`masters.${type}.one`, { defaultValue: label });
-  const fields = config?.fields ?? MASTER_FIELDS[type ?? ""] ?? [];
+  const fields = config?.fields ?? BUILTIN_MASTER_FIELDS[type ?? ""] ?? [];
   const fieldLabel = (f: FieldDef) => t(`fields.${f.label}`, { defaultValue: f.label });
 
   const [formData, setFormData] = useState<Record<string, any>>({});
