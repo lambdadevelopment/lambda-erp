@@ -44,6 +44,21 @@
     "totals": "Totals",
     "errorOccurred": "An error occurred"
   },
+  "datePresets": {
+    "today": "Today",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "thisQuarter": "This Quarter",
+    "thisYear": "This Year",
+    "lastMonth": "Last Month",
+    "lastQuarter": "Last Quarter",
+    "lastYear": "Last Year",
+    "endOfThisMonth": "End of This Month",
+    "endOfLastMonth": "End of Last Month",
+    "endOfThisQuarter": "End of This Quarter",
+    "endOfThisYear": "End of This Year",
+    "endOfLastYear": "End of Last Year"
+  },
   "language": {
     "title": "Language",
     "help": "Choose the language for the interface. Your choice is saved in this browser.",
@@ -347,6 +362,10 @@
     "Closed": "Closed"
   },
   "reports": {
+    "periodRange": "Reporting period: {{from}} – {{to}}",
+    "periodFrom": "Reporting period from {{from}}",
+    "periodThrough": "Reporting period through {{to}}",
+    "asOfDate": "As of: {{date}}",
     "balanced": "BALANCED",
     "imbalanced": "IMBALANCED",
     "income": "Income",

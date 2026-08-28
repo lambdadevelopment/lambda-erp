@@ -25,7 +25,7 @@ import { useChat } from "@/components/chat/chat-provider";
 // downstream consumer's build resolves against its own public/ dir and fails
 // to find. Inlining keeps the package consumer-buildable.
 import ReportRuntimeWorker from "@/workers/report-runtime.worker.ts?worker&inline";
-import { flt, formatCurrency, formatDate, formatNumber } from "@/lib/utils";
+import { flt, formatCurrency, formatDate, formatLocalDate, formatNumber } from "@/lib/utils";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { api } from "@/api/client";
 
@@ -66,10 +66,10 @@ function buildExampleCustomReport(): string {
   // Rolling 12-month window ending today — no hardcoded company so this works
   // on any tenant's data out of the box.
   const today = new Date();
-  const to = today.toISOString().slice(0, 10);
+  const to = formatLocalDate(today);
   const start = new Date(today);
   start.setMonth(start.getMonth() - 12);
-  const from = start.toISOString().slice(0, 10);
+  const from = formatLocalDate(start);
 
   return JSON.stringify(
     {

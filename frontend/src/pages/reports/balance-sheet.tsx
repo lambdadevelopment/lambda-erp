@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LinkField } from "@/components/document/link-field";
 import { SingleDatePresets } from "@/components/ui/date-range-presets";
+import { ReportPeriod } from "@/components/reports/report-period";
 import { formatCurrency as fmtCurrency } from "@/lib/utils";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 
@@ -83,6 +84,7 @@ export default function BalanceSheetPage() {
         setAsOfDate(date);
         patchUrl({ as_of_date: date });
       }} />
+      <ReportPeriod asOf={urlAsOfDate} />
 
       {isLoading ? (
         <p className="text-gray-500">{t("common.loading")}</p>

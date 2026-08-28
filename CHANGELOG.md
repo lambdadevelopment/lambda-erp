@@ -13,6 +13,26 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.19] - 2026-08-28
+
+### Added
+- Accounting reports now display their applied reporting period prominently.
+- Regression coverage for inclusive report end dates, signed contra balances,
+  and pure base-currency revaluation entries.
+
+### Changed
+- Date presets use local calendar dates consistently and their labels are
+  translated in English, German, and French.
+- Profit and Loss reports preserve signed income and expense balances so
+  contra-income and contra-expense accounts contribute correctly.
+
+### Fixed
+- Explicit zero account-currency amounts on journal lines are preserved,
+  allowing base-currency valuations without artificial foreign-currency
+  movements.
+- Local calendar dates no longer shift by one day through UTC conversion in
+  positive-offset timezones.
+
 ## [0.8.17] - 2026-08-21
 
 ### Added

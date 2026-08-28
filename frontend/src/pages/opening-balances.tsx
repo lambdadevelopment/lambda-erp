@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { LinkField } from "@/components/document/link-field";
+import { formatLocalDate } from "@/lib/utils";
 
 interface AccountRow { account: string; debit: string; credit: string; party_type: string; party: string }
 interface StockRow { item_code: string; qty: string; rate: string }
@@ -20,7 +21,7 @@ export default function OpeningBalancesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [company, setCompany] = useState("");
-  const [postingDate, setPostingDate] = useState(new Date().toISOString().split("T")[0]);
+  const [postingDate, setPostingDate] = useState(formatLocalDate());
   const [warehouse, setWarehouse] = useState("");
 
   const [accountRows, setAccountRows] = useState<AccountRow[]>([emptyAccountRow()]);

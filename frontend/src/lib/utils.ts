@@ -31,10 +31,23 @@ export function setDateLocale(locale: string | undefined) {
   dateLocale = locale;
 }
 
+/** Format a Date as a local calendar date without converting it to UTC. */
+export function formatLocalDate(value: Date = new Date()): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /** Format a date string for display (numeric, day-first per the locale). */
 export function formatDate(value: string | null | undefined) {
   if (!value) return "";
-  return new Date(value).toLocaleDateString(dateLocale, {
+  const calendarDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const parsed = calendarDate
+    ? new Date(Number(calendarDate[1]), Number(calendarDate[2]) - 1, Number(calendarDate[3]))
+    : new Date(value);
+  if (isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString(dateLocale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

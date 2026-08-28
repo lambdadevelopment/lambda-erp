@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { formatCurrency, flt } from "@/lib/utils";
+import { formatCurrency, formatLocalDate, flt } from "@/lib/utils";
 import { HintTooltip } from "@/components/ui/hint-tooltip";
 import { NotesMarkupHelp } from "@/components/ui/notes-markup-help";
 import { useCurrencies } from "@/hooks/use-currencies";
@@ -737,7 +737,7 @@ export default function DocumentFormPage() {
       const defaults: any = {};
       config.fields.forEach((f) => {
         if (f.type === "date") {
-          defaults[f.name] = new Date().toISOString().split("T")[0];
+          defaults[f.name] = formatLocalDate();
         } else {
           defaults[f.name] = f.default ?? "";
         }

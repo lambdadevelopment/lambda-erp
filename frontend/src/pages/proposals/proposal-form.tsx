@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { usePageTitle } from "@/lib/use-page-title";
+import { formatLocalDate } from "@/lib/utils";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -44,7 +45,7 @@ export default function ProposalForm() {
     title: "Offerte",
     customer: "",
     company: "",
-    proposal_date: new Date().toISOString().slice(0, 10),
+    proposal_date: formatLocalDate(),
     partner_name: "",
     partner_email: "",
     cover_letter: "",

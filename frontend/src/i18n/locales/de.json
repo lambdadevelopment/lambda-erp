@@ -44,6 +44,21 @@
     "totals": "Summen",
     "errorOccurred": "Ein Fehler ist aufgetreten"
   },
+  "datePresets": {
+    "today": "Heute",
+    "thisWeek": "Diese Woche",
+    "thisMonth": "Dieser Monat",
+    "thisQuarter": "Dieses Quartal",
+    "thisYear": "Dieses Jahr",
+    "lastMonth": "Letzter Monat",
+    "lastQuarter": "Letztes Quartal",
+    "lastYear": "Letztes Jahr",
+    "endOfThisMonth": "Ende dieses Monats",
+    "endOfLastMonth": "Ende des letzten Monats",
+    "endOfThisQuarter": "Ende dieses Quartals",
+    "endOfThisYear": "Ende dieses Jahres",
+    "endOfLastYear": "Ende des letzten Jahres"
+  },
   "language": {
     "title": "Sprache",
     "help": "Wählen Sie die Sprache der Oberfläche. Ihre Auswahl wird in diesem Browser gespeichert.",
@@ -347,6 +362,10 @@
     "Closed": "Geschlossen"
   },
   "reports": {
+    "periodRange": "Berichtszeitraum: {{from}} – {{to}}",
+    "periodFrom": "Berichtszeitraum ab {{from}}",
+    "periodThrough": "Berichtszeitraum bis {{to}}",
+    "asOfDate": "Stichtag: {{date}}",
     "balanced": "AUSGEGLICHEN",
     "imbalanced": "NICHT AUSGEGLICHEN",
     "income": "Erträge",

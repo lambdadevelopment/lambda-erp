@@ -44,6 +44,21 @@
     "totals": "Totaux",
     "errorOccurred": "Une erreur s'est produite"
   },
+  "datePresets": {
+    "today": "Aujourd’hui",
+    "thisWeek": "Cette semaine",
+    "thisMonth": "Ce mois-ci",
+    "thisQuarter": "Ce trimestre",
+    "thisYear": "Cette année",
+    "lastMonth": "Mois dernier",
+    "lastQuarter": "Trimestre dernier",
+    "lastYear": "Année dernière",
+    "endOfThisMonth": "Fin du mois en cours",
+    "endOfLastMonth": "Fin du mois dernier",
+    "endOfThisQuarter": "Fin du trimestre en cours",
+    "endOfThisYear": "Fin de l’année en cours",
+    "endOfLastYear": "Fin de l’année dernière"
+  },
   "language": {
     "title": "Langue",
     "help": "Choisissez la langue de l'interface. Votre choix est enregistré dans ce navigateur.",
@@ -347,6 +362,10 @@
     "Closed": "Clôturé"
   },
   "reports": {
+    "periodRange": "Période du rapport : {{from}} – {{to}}",
+    "periodFrom": "Période du rapport à partir du {{from}}",
+    "periodThrough": "Période du rapport jusqu’au {{to}}",
+    "asOfDate": "Date de référence : {{date}}",
     "balanced": "ÉQUILIBRÉ",
     "imbalanced": "DÉSÉQUILIBRÉ",
     "income": "Produits",

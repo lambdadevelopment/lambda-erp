@@ -76,26 +76,27 @@ class JournalEntry(Document):
         self._set_totals()
 
     def _normalize_amounts(self):
-        """Keep each row's base debit/credit and its *_in_account_currency twin in
-        sync. lambda-erp has no per-line exchange rate (base == account currency),
-        so back-fill whichever side is missing. Without this, a row created with
-        the amount ONLY in debit_in_account_currency (as the chat's create path
-        did) leaves base debit/credit at 0 — it passes the 0==0 balance check,
-        submits "successfully", and posts NOTHING (GL is built from the base
-        fields, and _get_gl_entries skips 0/0 rows). Idempotent."""
+        """Back-fill only missing base/account-currency amounts.
+
+        ``None`` or an absent field means the caller supplied only the matching
+        amount in the other currency. An explicit zero is meaningful: period-end
+        valuation entries move the base carrying value without changing the
+        foreign-currency quantity, so their *_in_account_currency amount must
+        remain zero.
+        """
         for row in self.get("accounts") or []:
-            debit = flt(row.get("debit"))
-            credit = flt(row.get("credit"))
-            dr_ac = flt(row.get("debit_in_account_currency"))
-            cr_ac = flt(row.get("credit_in_account_currency"))
-            if not debit and dr_ac:
-                row["debit"] = dr_ac
-            if not credit and cr_ac:
-                row["credit"] = cr_ac
-            if not dr_ac and debit:
-                row["debit_in_account_currency"] = debit
-            if not cr_ac and credit:
-                row["credit_in_account_currency"] = credit
+            debit = row.get("debit")
+            credit = row.get("credit")
+            dr_ac = row.get("debit_in_account_currency")
+            cr_ac = row.get("credit_in_account_currency")
+            if debit is None and dr_ac is not None:
+                row["debit"] = flt(dr_ac)
+            if credit is None and cr_ac is not None:
+                row["credit"] = flt(cr_ac)
+            if dr_ac is None and debit is not None:
+                row["debit_in_account_currency"] = flt(debit)
+            if cr_ac is None and credit is not None:
+                row["credit_in_account_currency"] = flt(credit)
 
     def _validate_debit_credit(self):
         """Ensure total debits == total credits.
@@ -235,10 +236,21 @@ class JournalEntry(Document):
         journal entries map 1:1 from account rows to GL entries.
         """
         gl_entries = []
+        db = get_db()
+        base_currency = db.get_value("Company", self.company, "default_currency") or "USD"
 
         for row in self.get("accounts"):
             if not (flt(row.get("debit")) or flt(row.get("credit"))):
                 continue
+
+            debit = flt(row.get("debit"), 2)
+            credit = flt(row.get("credit"), 2)
+            dr_ac = row.get("debit_in_account_currency")
+            cr_ac = row.get("credit_in_account_currency")
+            account_currency = (
+                db.get_value("Account", row.get("account"), "account_currency")
+                or base_currency
+            )
 
             gl_entries.append(
                 _dict(
@@ -246,10 +258,11 @@ class JournalEntry(Document):
                     party_type=row.get("party_type"),
                     party=row.get("party"),
                     cost_center=row.get("cost_center"),
-                    debit=flt(row.get("debit"), 2),
-                    credit=flt(row.get("credit"), 2),
-                    debit_in_account_currency=flt(row.get("debit_in_account_currency") or row.get("debit"), 2),
-                    credit_in_account_currency=flt(row.get("credit_in_account_currency") or row.get("credit"), 2),
+                    debit=debit,
+                    credit=credit,
+                    debit_in_account_currency=flt(debit if dr_ac is None else dr_ac, 2),
+                    credit_in_account_currency=flt(credit if cr_ac is None else cr_ac, 2),
+                    account_currency=account_currency,
                     against_voucher_type=row.get("reference_doctype") or row.get("reference_type"),
                     against_voucher=row.get("reference_name"),
                     voucher_type=self.DOCTYPE,

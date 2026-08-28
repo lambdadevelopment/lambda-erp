@@ -69,7 +69,7 @@ export { usePageTitle } from "./lib/use-page-title";
 
 // Date display locale (default: viewer's browser locale). Pin per deployment,
 // e.g. setDateLocale("de-CH").
-export { setDateLocale, formatDate } from "./lib/utils";
+export { setDateLocale, formatDate, formatLocalDate } from "./lib/utils";
 
 // API client
 export { api, request, ApiError, configureApiBase } from "./api/client";

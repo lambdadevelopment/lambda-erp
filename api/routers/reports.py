@@ -508,14 +508,14 @@ def _profit_and_loss(db, company=None, from_date=None, to_date=None):
             "account": acc["name"],
             "account_name": acc["account_name"],
             "root_type": acc["root_type"],
-            "amount": abs(balance),
+            "amount": balance,
         }
         if acc["root_type"] == "Income":
             income_rows.append(row)
-            total_income += abs(balance)
+            total_income += balance
         else:
             expense_rows.append(row)
-            total_expense += abs(balance)
+            total_expense += balance
 
     return {
         "income": income_rows,

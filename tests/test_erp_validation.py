@@ -2788,6 +2788,163 @@ def main():
     print("  PASSED - Unit identity + calendar work, and post nothing to GL or stock")
 
     # =====================================================================
+    # SIGNED P&L + INCLUSIVE REPORT BOUNDARIES
+    # =====================================================================
+    print_header("45. REPORTS - signed contra balances + inclusive year end")
+
+    from api.routers.reports import (
+        _balance_sheet, _general_ledger, _profit_and_loss, _trial_balance,
+    )
+    from lambda_erp.accounting.journal_entry import JournalEntry as _ReportJE
+
+    report_accounts = [
+        _dict(name="Report Boundary Cash - LAMB", account_name="Report Boundary Cash",
+              parent_account="Current Assets - LAMB", company="Lambda Corp",
+              root_type="Asset", report_type="Balance Sheet", account_type="Bank",
+              account_currency="USD", is_group=0),
+        _dict(name="Report Normal Income - LAMB", account_name="Report Normal Income",
+              parent_account="Income - LAMB", company="Lambda Corp",
+              root_type="Income", report_type="Profit and Loss",
+              account_currency="USD", is_group=0),
+        _dict(name="Report Contra Income - LAMB", account_name="Report Contra Income",
+              parent_account="Income - LAMB", company="Lambda Corp",
+              root_type="Income", report_type="Profit and Loss",
+              account_currency="USD", is_group=0),
+        _dict(name="Report Normal Expense - LAMB", account_name="Report Normal Expense",
+              parent_account="Expenses - LAMB", company="Lambda Corp",
+              root_type="Expense", report_type="Profit and Loss",
+              account_currency="USD", is_group=0),
+        _dict(name="Report Contra Expense - LAMB", account_name="Report Contra Expense",
+              parent_account="Expenses - LAMB", company="Lambda Corp",
+              root_type="Expense", report_type="Profit and Loss",
+              account_currency="USD", is_group=0),
+    ]
+    for account in report_accounts:
+        db.insert("Account", account)
+    db.commit()
+
+    boundary_date = "2025-12-31"
+
+    def _post_report_line(account, debit, credit, cash_debit, cash_credit):
+        entry = _ReportJE(
+            company="Lambda Corp", posting_date=boundary_date,
+            remark="Report sign and boundary regression",
+            accounts=[
+                _dict(account=account, debit=debit, credit=credit),
+                _dict(account="Report Boundary Cash - LAMB",
+                      debit=cash_debit, credit=cash_credit),
+            ],
+        )
+        entry.save(); entry.submit()
+        return entry
+
+    _post_report_line("Report Normal Income - LAMB", 0, 100, 100, 0)
+    _post_report_line("Report Contra Income - LAMB", 30, 0, 0, 30)
+    _post_report_line("Report Normal Expense - LAMB", 40, 0, 0, 40)
+    _post_report_line("Report Contra Expense - LAMB", 0, 10, 10, 0)
+
+    pl = _profit_and_loss(db, "Lambda Corp", boundary_date, boundary_date)
+    income = {row["account"]: row["amount"] for row in pl["income"]}
+    expense = {row["account"]: row["amount"] for row in pl["expense"]}
+    assert income["Report Normal Income - LAMB"] == 100.0
+    assert income["Report Contra Income - LAMB"] == -30.0
+    assert expense["Report Normal Expense - LAMB"] == 40.0
+    assert expense["Report Contra Expense - LAMB"] == -10.0
+    assert pl["total_income"] == 70.0 and pl["total_expense"] == 30.0
+    assert pl["net_profit"] == 40.0, f"signed P&L should yield 40, got {pl}"
+
+    pl_before = _profit_and_loss(db, "Lambda Corp", "2025-01-01", "2025-12-30")
+    assert not any(row["account"].startswith("Report ") for row in pl_before["income"] + pl_before["expense"])
+
+    tb_before = _trial_balance(db, "Lambda Corp", "2025-01-01", "2025-12-30")
+    tb_through = _trial_balance(db, "Lambda Corp", boundary_date, boundary_date)
+    assert not any(row["account"].startswith("Report ") for row in tb_before["rows"])
+    assert {row["account"] for row in tb_through["rows"]}.issuperset(
+        {account["name"] for account in report_accounts}
+    )
+
+    gl_before = _general_ledger(db, {
+        "account": "Report Boundary Cash - LAMB",
+        "from_date": "2025-01-01", "to_date": "2025-12-30",
+    })
+    gl_through = _general_ledger(db, {
+        "account": "Report Boundary Cash - LAMB",
+        "from_date": boundary_date, "to_date": boundary_date,
+    })
+    assert gl_before["total"] == 0 and gl_through["total"] == 4
+
+    bs_before = _balance_sheet(db, "Lambda Corp", "2025-12-30")
+    bs_through = _balance_sheet(db, "Lambda Corp", boundary_date)
+    assert not any(row["account"] == "Report Boundary Cash - LAMB" for row in bs_before["assets"])
+    boundary_cash = next(row for row in bs_through["assets"]
+                         if row["account"] == "Report Boundary Cash - LAMB")
+    assert boundary_cash["balance"] == 40.0
+    assert any(row["account"] == "Retained Earnings (Current Period)"
+               and row["balance"] == 40.0 for row in bs_through["equity"])
+    print("  Signed income/expense balances correct; 31 December is inclusive in all reports")
+
+    # =====================================================================
+    # PURE BASE-CURRENCY VALUATION IN A JOURNAL ENTRY
+    # =====================================================================
+    print_header("46. JOURNAL ENTRY - base-only foreign-currency valuation")
+
+    db.insert("Account", _dict(
+        name="EUR Valuation Asset - LAMB", account_name="EUR Valuation Asset",
+        parent_account="Current Assets - LAMB", company="Lambda Corp",
+        root_type="Asset", report_type="Balance Sheet", account_type="Bank",
+        account_currency="EUR", is_group=0,
+    ))
+    db.insert("Account", _dict(
+        name="Manual Valuation Gain - LAMB", account_name="Manual Valuation Gain",
+        parent_account="Income - LAMB", company="Lambda Corp",
+        root_type="Income", report_type="Profit and Loss",
+        account_currency="USD", is_group=0,
+    ))
+    db.commit()
+
+    initial_foreign = _ReportJE(
+        company="Lambda Corp", posting_date="2026-01-01",
+        remark="Initial EUR carrying value",
+        accounts=[
+            _dict(account="EUR Valuation Asset - LAMB", debit=120, credit=0,
+                  debit_in_account_currency=100, credit_in_account_currency=0),
+            _dict(account="Opening Balance Equity - LAMB", debit=0, credit=120),
+        ],
+    )
+    initial_foreign.save(); initial_foreign.submit()
+
+    valuation = _ReportJE(
+        company="Lambda Corp", posting_date="2026-01-31",
+        remark="Pure USD valuation of EUR asset",
+        accounts=[
+            _dict(account="EUR Valuation Asset - LAMB", debit=10, credit=0,
+                  debit_in_account_currency=0, credit_in_account_currency=0),
+            _dict(account="Manual Valuation Gain - LAMB", debit=0, credit=10),
+        ],
+    )
+    valuation.save(); valuation.submit()
+
+    valuation_legs = db.get_all(
+        "GL Entry", filters={"voucher_no": valuation.name, "is_cancelled": 0}, fields=["*"],
+    )
+    foreign_leg = next(row for row in valuation_legs
+                       if row["account"] == "EUR Valuation Asset - LAMB")
+    gain_leg = next(row for row in valuation_legs
+                    if row["account"] == "Manual Valuation Gain - LAMB")
+    assert foreign_leg["debit"] == 10.0 and foreign_leg["debit_in_account_currency"] == 0.0
+    assert foreign_leg["account_currency"] == "EUR"
+    assert gain_leg["credit"] == 10.0 and gain_leg["credit_in_account_currency"] == 10.0
+    assert gain_leg["account_currency"] == "USD"
+
+    foreign_base, foreign_ccy = get_account_balances("EUR Valuation Asset - LAMB", "Lambda Corp")
+    assert (foreign_base, foreign_ccy) == (130.0, 100.0)
+
+    valuation.cancel()
+    foreign_base, foreign_ccy = get_account_balances("EUR Valuation Asset - LAMB", "Lambda Corp")
+    assert (foreign_base, foreign_ccy) == (120.0, 100.0)
+    print("  Base carrying value moved 120 -> 130 -> 120 while EUR quantity stayed 100")
+
+    # =====================================================================
     # FINAL SUMMARY
     # =====================================================================
     print_header("TRIAL BALANCE")

@@ -1,6 +1,5 @@
-function iso(d: Date): string {
-  return d.toISOString().split("T")[0];
-}
+import { useTranslation } from "react-i18next";
+import { formatLocalDate } from "@/lib/utils";
 
 function startOfWeek(d: Date): Date {
   const r = new Date(d);
@@ -44,55 +43,62 @@ function endOfYear(d: Date): Date {
 }
 
 interface Preset {
-  label: string;
-  range: () => [string, string];
+  id: string;
+  labelKey: string;
+  range: (now: Date) => [string, string];
 }
 
 const PRESETS: Preset[] = [
   {
-    label: "Today",
-    range: () => {
-      const t = iso(new Date());
+    id: "today",
+    labelKey: "datePresets.today",
+    range: (now) => {
+      const t = formatLocalDate(now);
       return [t, t];
     },
   },
   {
-    label: "This Week",
-    range: () => [iso(startOfWeek(new Date())), iso(endOfWeek(new Date()))],
+    id: "thisWeek",
+    labelKey: "datePresets.thisWeek",
+    range: (now) => [formatLocalDate(startOfWeek(now)), formatLocalDate(endOfWeek(now))],
   },
   {
-    label: "This Month",
-    range: () => [iso(startOfMonth(new Date())), iso(endOfMonth(new Date()))],
+    id: "thisMonth",
+    labelKey: "datePresets.thisMonth",
+    range: (now) => [formatLocalDate(startOfMonth(now)), formatLocalDate(endOfMonth(now))],
   },
   {
-    label: "This Quarter",
-    range: () => [iso(startOfQuarter(new Date())), iso(endOfQuarter(new Date()))],
+    id: "thisQuarter",
+    labelKey: "datePresets.thisQuarter",
+    range: (now) => [formatLocalDate(startOfQuarter(now)), formatLocalDate(endOfQuarter(now))],
   },
   {
-    label: "This Year",
-    range: () => [iso(startOfYear(new Date())), iso(endOfYear(new Date()))],
+    id: "thisYear",
+    labelKey: "datePresets.thisYear",
+    range: (now) => [formatLocalDate(startOfYear(now)), formatLocalDate(endOfYear(now))],
   },
   {
-    label: "Last Month",
-    range: () => {
-      const now = new Date();
+    id: "lastMonth",
+    labelKey: "datePresets.lastMonth",
+    range: (now) => {
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      return [iso(startOfMonth(lastMonth)), iso(endOfMonth(lastMonth))];
+      return [formatLocalDate(startOfMonth(lastMonth)), formatLocalDate(endOfMonth(lastMonth))];
     },
   },
   {
-    label: "Last Quarter",
-    range: () => {
-      const now = new Date();
+    id: "lastQuarter",
+    labelKey: "datePresets.lastQuarter",
+    range: (now) => {
       const lastQuarter = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-      return [iso(startOfQuarter(lastQuarter)), iso(endOfQuarter(lastQuarter))];
+      return [formatLocalDate(startOfQuarter(lastQuarter)), formatLocalDate(endOfQuarter(lastQuarter))];
     },
   },
   {
-    label: "Last Year",
-    range: () => {
-      const lastYear = new Date(new Date().getFullYear() - 1, 6, 1);
-      return [iso(startOfYear(lastYear)), iso(endOfYear(lastYear))];
+    id: "lastYear",
+    labelKey: "datePresets.lastYear",
+    range: (now) => {
+      const lastYear = new Date(now.getFullYear() - 1, 0, 1);
+      return [formatLocalDate(startOfYear(lastYear)), formatLocalDate(endOfYear(lastYear))];
     },
   },
 ];
@@ -102,19 +108,20 @@ interface DateRangePresetsProps {
 }
 
 export function DateRangePresets({ onSelect }: DateRangePresetsProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-wrap gap-1.5">
       {PRESETS.map((p) => (
         <button
-          key={p.label}
+          key={p.id}
           type="button"
           onClick={() => {
-            const [from, to] = p.range();
+            const [from, to] = p.range(new Date());
             onSelect(from, to);
           }}
           className="rounded-full bg-surface px-3 py-1 text-xs text-fg-muted ring-1 ring-line transition-all hover:bg-surface-subtle hover:text-fg hover:ring-brand/30"
         >
-          {p.label}
+          {t(p.labelKey)}
         </button>
       ))}
     </div>
@@ -126,28 +133,28 @@ interface SingleDatePresetsProps {
 }
 
 export function SingleDatePresets({ onSelect }: SingleDatePresetsProps) {
-  const presets: { label: string; value: () => string }[] = [
-    { label: "Today", value: () => iso(new Date()) },
-    { label: "End of This Month", value: () => iso(endOfMonth(new Date())) },
-    { label: "End of Last Month", value: () => {
-      const now = new Date();
-      return iso(endOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
+  const { t } = useTranslation();
+  const presets: { id: string; labelKey: string; value: (now: Date) => string }[] = [
+    { id: "today", labelKey: "datePresets.today", value: (now) => formatLocalDate(now) },
+    { id: "endOfThisMonth", labelKey: "datePresets.endOfThisMonth", value: (now) => formatLocalDate(endOfMonth(now)) },
+    { id: "endOfLastMonth", labelKey: "datePresets.endOfLastMonth", value: (now) => {
+      return formatLocalDate(endOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
     } },
-    { label: "End of This Quarter", value: () => iso(endOfQuarter(new Date())) },
-    { label: "End of This Year", value: () => iso(endOfYear(new Date())) },
-    { label: "End of Last Year", value: () => iso(endOfYear(new Date(new Date().getFullYear() - 1, 0, 1))) },
+    { id: "endOfThisQuarter", labelKey: "datePresets.endOfThisQuarter", value: (now) => formatLocalDate(endOfQuarter(now)) },
+    { id: "endOfThisYear", labelKey: "datePresets.endOfThisYear", value: (now) => formatLocalDate(endOfYear(now)) },
+    { id: "endOfLastYear", labelKey: "datePresets.endOfLastYear", value: (now) => formatLocalDate(endOfYear(new Date(now.getFullYear() - 1, 0, 1))) },
   ];
 
   return (
     <div className="flex flex-wrap gap-1.5">
       {presets.map((p) => (
         <button
-          key={p.label}
+          key={p.id}
           type="button"
-          onClick={() => onSelect(p.value())}
+          onClick={() => onSelect(p.value(new Date()))}
           className="rounded-full bg-surface px-3 py-1 text-xs text-fg-muted ring-1 ring-line transition-all hover:bg-surface-subtle hover:text-fg hover:ring-brand/30"
         >
-          {p.label}
+          {t(p.labelKey)}
         </button>
       ))}
     </div>

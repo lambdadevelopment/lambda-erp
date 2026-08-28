@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LinkField } from "@/components/document/link-field";
 import { DateRangePresets } from "@/components/ui/date-range-presets";
+import { ReportPeriod } from "@/components/reports/report-period";
 import { formatCurrency as fmtCurrency } from "@/lib/utils";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 
@@ -59,6 +60,7 @@ export default function ProfitLossPage() {
         setToDate(to);
         patchUrl({ from, to });
       }} />
+      <ReportPeriod from={urlFromDate} to={urlToDate} />
 
       {isLoading ? (
         <p className="text-gray-500">{t("common.loading")}</p>
