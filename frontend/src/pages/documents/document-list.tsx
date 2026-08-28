@@ -10,6 +10,7 @@ import {
   createColumnHelper,
   type ColumnDef,
 } from "@tanstack/react-table";
+import { api } from "@/api/client";
 import { useDocumentList } from "@/hooks/use-document-list";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -19,6 +20,7 @@ import { linkRefHref } from "@/pages/documents/document-form";
 import { StatusBadge } from "@/components/document/status-badge";
 import { ListPager } from "@/components/list-pager";
 import { Button } from "@/components/ui/button";
+import { SmartListSearch, type SmartSearchField } from "@/components/smart-list-search";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { DateRangePresets } from "@/components/ui/date-range-presets";
@@ -93,12 +95,20 @@ export default function DocumentListPage() {
   // field names are dynamic. Each names a select field whose options drive the
   // dropdown; the selection is sent as a plain column filter.
   const configFilters = config?.listFilters ?? [];
-  const filterValues = useMemo(() => {
+  const queryFilterValues = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const out: Record<string, string> = {};
-    for (const f of configFilters) out[f] = params.get(f) ?? "";
+    const controls = new Set(["q", "page", "per_page", "from", "to", "discarded", "order_by", "order"]);
+    for (const [key, value] of params.entries()) {
+      if (!controls.has(key) && value && value !== "All") out[key] = value;
+    }
     return out;
-  }, [location.search, configFilters]);
+  }, [location.search]);
+  const filterValues = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const field of configFilters) out[field] = queryFilterValues[field] ?? "";
+    return out;
+  }, [configFilters, queryFilterValues]);
 
   // All user-facing filter state lives in the URL. The param names are the
   // short human-readable form (`from` / `to` / `per_page`); the backend still
@@ -170,6 +180,37 @@ export default function DocumentListPage() {
     for (const c of SYSTEM_COLUMNS) push(c.name, t(`fields.${c.label}`, { defaultValue: c.label }));
     return out;
   }, [config, t]);
+  const smartFields = useMemo<SmartSearchField[]>(() => {
+    if (!config) return [];
+    const configured = new Map(config.fields.map((field) => [field.name, field]));
+    const names = new Set<string>([
+      "name",
+      ...config.fields.map((field) => field.name),
+      ...config.listColumns,
+      ...searchFields,
+      ...SYSTEM_COLUMNS.map((column) => column.name),
+    ]);
+    return [...names].map((name) => {
+      const field = configured.get(name);
+      const rawLabel = field?.label ?? availableCols.find((column) => column.name === name)?.label ??
+        name.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+      const configuredOptions = field?.options?.map((option) =>
+        typeof option === "string"
+          ? { value: option, label: option }
+          : { value: option.value, label: option.label }
+      );
+      const options = configuredOptions ?? (name === "status" && configFilters.length === 0
+        ? STATUS_OPTIONS.filter((option) => option !== "All").map((option) => ({ value: option, label: option }))
+        : undefined);
+      return {
+        name,
+        label: t(`fields.${rawLabel}`, { defaultValue: rawLabel }),
+        type: field?.type ?? (isDateColumn(name) ? "date" : "text"),
+        options,
+        suggestOnEmpty: !!options?.length || configFilters.includes(name),
+      };
+    });
+  }, [availableCols, config, configFilters, searchFields, t]);
   const toggleColumn = (col: string) => {
     const set = effectiveCols.includes(col)
       ? effectiveCols.filter((c) => c !== col)          // remove
@@ -219,6 +260,9 @@ export default function DocumentListPage() {
     for (const key of configFilters) {
       if (filterValues[key]) f[key] = filterValues[key];
     }
+    for (const [key, value] of Object.entries(queryFilterValues)) {
+      f[key] = value;
+    }
     // Free-text search across the config's searchFields (the committed URL `q`).
     if (searchFields.length > 0 && urlQ) {
       f.search = urlQ;
@@ -230,7 +274,7 @@ export default function DocumentListPage() {
     f.limit = pageSize;
     f.offset = page * pageSize;
     return f;
-  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, searchFields, urlQ, activeSortCol, activeSortDir, fieldsParam]);
+  }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, queryFilterValues, searchFields, urlQ, activeSortCol, activeSortDir, fieldsParam]);
 
   const { data, isLoading } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
@@ -413,13 +457,20 @@ export default function DocumentListPage() {
 
       <div className="flex flex-wrap items-end gap-4">
         {searchFields.length > 0 && (
-          <Input
-            label={t("common.search", { defaultValue: "Search" })}
-            type="search"
-            placeholder={t("common.searchPlaceholder", { defaultValue: "Search…" })}
+          <SmartListSearch
+            scope={`document:${doctype}`}
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="min-w-[16rem]"
+            onChange={setSearchInput}
+            fields={smartFields}
+            filters={queryFilterValues}
+            onFiltersChange={(updates) => patchUrl({ ...updates, page: null })}
+            loadValues={(field, prefix) =>
+              api.documentFilterValues(doctype!, field, prefix, 12).then((result) => result.values)
+            }
+            hiddenChipFields={[
+              ...configFilters,
+              ...(configFilters.length === 0 ? ["status"] : []),
+            ]}
           />
         )}
         {configFilters.length === 0 ? (

@@ -59,6 +59,30 @@
     "endOfThisYear": "End of This Year",
     "endOfLastYear": "End of Last Year"
   },
+  "smartSearch": {
+    "placeholder": "Search or enter field:value…",
+    "addFilter": "+ Filter",
+    "availableFields": "Available fields",
+    "fieldHelp": "Choose a field or type its technical name followed by a colon.",
+    "field": "Field",
+    "valueFor": "Value for {{label}}",
+    "allFields": "All fields",
+    "typeForValues": "Start typing to find values in this field.",
+    "noValues": "No matching values found.",
+    "noFields": "No matching fields found.",
+    "useValue": "Use “{{value}}”",
+    "removeFilter": "Remove {{label}} filter",
+    "types": {
+      "text": "Text",
+      "textarea": "Long text",
+      "select": "Selection",
+      "link": "Linked record",
+      "date": "Date",
+      "datetime": "Date and time",
+      "number": "Number",
+      "currency": "Amount"
+    }
+  },
   "language": {
     "title": "Language",
     "help": "Choose the language for the interface. Your choice is saved in this browser.",

@@ -18,6 +18,7 @@ import { setListContext } from "@/lib/doc-list-context";
 import { getMasterConfig, type MasterFilterDef } from "@/lib/masters";
 import { ListPager } from "@/components/list-pager";
 import { Button } from "@/components/ui/button";
+import { SmartListSearch, type SmartSearchField } from "@/components/smart-list-search";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -126,14 +127,20 @@ export default function MasterListPage() {
   }, [searchInput, urlQ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filterDefs = config?.listFilters ?? MASTER_FILTERS[type ?? ""] ?? [];
-  // Each configured filter's committed value lives in the URL (?field=value).
-  const filterValues = useMemo(() => {
+  // Every non-control URL key is a validated equality field filter. This lets
+  // SmartListSearch address any real field while preserving the existing
+  // config-driven dropdowns and shareable URLs.
+  const queryFilterValues = useMemo(() => {
     const p = new URLSearchParams(location.search);
     const out: Record<string, string> = {};
-    for (const f of filterDefs) { const v = p.get(f.field); if (v) out[f.field] = v; }
+    const controls = new Set(["q", "page", "per_page", "include_disabled", "order_by", "order"]);
+    for (const [key, value] of p.entries()) {
+      if (!controls.has(key) && value) out[key] = value;
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, type]);
+  const filterValues = queryFilterValues;
 
   const listParams = useMemo(() => ({
       limit: pageSize,
@@ -143,8 +150,8 @@ export default function MasterListPage() {
       ...(config?.searchFields?.length ? { search_fields: config.searchFields.join(",") } : {}),
       ...(config?.columnOptions?.length ? { fields: config.columnOptions.join(",") } : {}),
       ...(activeSortCol ? { order_by: activeSortCol, order: activeSortDir } : {}),
-      ...filterValues,
-    }), [page, pageSize, showDisabled, urlQ, filterValues, config, activeSortCol, activeSortDir]);
+      ...queryFilterValues,
+    }), [page, pageSize, showDisabled, urlQ, queryFilterValues, config, activeSortCol, activeSortDir]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["masters", type, listParams],
@@ -174,6 +181,30 @@ export default function MasterListPage() {
     () => config?.columnOptions ?? (rows.length ? Object.keys(rows[0]) : []),
     [config, rows],
   );
+  const smartFields = useMemo<SmartSearchField[]>(() => {
+    const configured = new Map((config?.fields ?? []).map((field) => [field.name, field]));
+    const names = new Set<string>([
+      ...allColumns,
+      ...(config?.fields ?? []).map((field) => field.name),
+      ...filterDefs.map((filter) => filter.field),
+    ]);
+    return [...names].map((name) => {
+      const field = configured.get(name);
+      const rawLabel = field?.label ?? humanizeCol(name);
+      const options = field?.options?.map((option) =>
+        typeof option === "string"
+          ? { value: option, label: option }
+          : { value: option.value, label: option.label }
+      );
+      return {
+        name,
+        label: t(`fields.${rawLabel}`, { defaultValue: rawLabel }),
+        type: field?.type ?? (isDateColumn(name) ? "date" : "text"),
+        options,
+        suggestOnEmpty: !!options?.length || filterDefs.some((filter) => filter.field === name),
+      };
+    });
+  }, [allColumns, config, filterDefs, t]);
   const savedCols = useMemo(
     () => (settings[`columns.master:${type}`] || "").split(",").map((s) => s.trim()).filter(Boolean),
     [settings, type],
@@ -263,12 +294,17 @@ export default function MasterListPage() {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="search"
+        <SmartListSearch
+          scope={`master:${type}`}
           value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder={t("common.searchPlaceholder", { defaultValue: "Search…" })}
-          className="h-8 w-56 rounded-md bg-surface px-3 text-sm text-fg ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-brand/30"
+          onChange={setSearchInput}
+          fields={smartFields}
+          filters={queryFilterValues}
+          onFiltersChange={(updates) => patchUrl({ ...updates, page: null })}
+          loadValues={(field, prefix) =>
+            api.masterFilterValues(type!, field, prefix, 12).then((result) => result.values)
+          }
+          hiddenChipFields={filterDefs.map((filter) => filter.field)}
         />
         {filterDefs.map((f) => (
           <MasterFilterSelect

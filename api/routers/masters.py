@@ -16,6 +16,7 @@ from api.services import (
     _search_clause, _where_from_filters, master_search_columns, count_query_cached,
 )
 from api.auth import require_role, require_non_public_manager
+from api.list_values import distinct_list_values
 
 router = APIRouter(prefix="/masters", tags=["masters"])
 
@@ -374,6 +375,8 @@ def _master_order_sql(column: str, direction: str, *, reverse: bool = False) -> 
 def master_filter_values(
     master_type: str,
     field: str,
+    q: str = "",
+    limit: int = Query(default=200, ge=1, le=200),
     _user: dict = _viewer,
 ):
     """Distinct non-empty values of one column — populates a master-list filter
@@ -382,14 +385,11 @@ def master_filter_values(
     if not doctype:
         raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
     db = get_db()
-    if field not in db._get_table_columns(doctype):
+    try:
+        values = distinct_list_values(db, doctype, field, q, limit)
+    except KeyError:
         raise HTTPException(status_code=400, detail=f"Unknown field: {field}")
-    rows = db.sql(
-        f'SELECT DISTINCT "{field}" AS v FROM "{doctype}" '
-        f'WHERE "{field}" IS NOT NULL AND "{field}" <> \'\' '
-        f'ORDER BY "{field}" LIMIT 200'
-    )
-    return {"values": [r["v"] for r in rows]}
+    return {"values": values}
 
 
 @router.get("/{master_type}")

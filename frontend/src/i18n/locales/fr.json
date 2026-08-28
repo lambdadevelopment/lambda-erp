@@ -59,6 +59,30 @@
     "endOfThisYear": "Fin de l’année en cours",
     "endOfLastYear": "Fin de l’année dernière"
   },
+  "smartSearch": {
+    "placeholder": "Rechercher ou saisir champ:valeur…",
+    "addFilter": "+ Filtre",
+    "availableFields": "Champs disponibles",
+    "fieldHelp": "Choisissez un champ ou saisissez son nom technique suivi de deux-points.",
+    "field": "Champ",
+    "valueFor": "Valeur pour {{label}}",
+    "allFields": "Tous les champs",
+    "typeForValues": "Commencez à saisir pour rechercher des valeurs dans ce champ.",
+    "noValues": "Aucune valeur correspondante.",
+    "noFields": "Aucun champ correspondant.",
+    "useValue": "Utiliser « {{value}} »",
+    "removeFilter": "Supprimer le filtre {{label}}",
+    "types": {
+      "text": "Texte",
+      "textarea": "Texte long",
+      "select": "Sélection",
+      "link": "Enregistrement lié",
+      "date": "Date",
+      "datetime": "Date et heure",
+      "number": "Nombre",
+      "currency": "Montant"
+    }
+  },
   "language": {
     "title": "Langue",
     "help": "Choisissez la langue de l'interface. Votre choix est enregistré dans ce navigateur.",

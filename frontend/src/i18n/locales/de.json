@@ -59,6 +59,30 @@
     "endOfThisYear": "Ende dieses Jahres",
     "endOfLastYear": "Ende des letzten Jahres"
   },
+  "smartSearch": {
+    "placeholder": "Suchen oder Feld:Wert eingeben…",
+    "addFilter": "+ Filter",
+    "availableFields": "Verfügbare Felder",
+    "fieldHelp": "Feld auswählen oder den technischen Namen mit Doppelpunkt eingeben.",
+    "field": "Feld",
+    "valueFor": "Wert für {{label}}",
+    "allFields": "Alle Felder",
+    "typeForValues": "Tippen, um Werte in diesem Feld zu finden.",
+    "noValues": "Keine passenden Werte gefunden.",
+    "noFields": "Keine passenden Felder gefunden.",
+    "useValue": "„{{value}}“ verwenden",
+    "removeFilter": "Filter {{label}} entfernen",
+    "types": {
+      "text": "Text",
+      "textarea": "Langtext",
+      "select": "Auswahl",
+      "link": "Verknüpfter Eintrag",
+      "date": "Datum",
+      "datetime": "Datum und Uhrzeit",
+      "number": "Zahl",
+      "currency": "Betrag"
+    }
+  },
   "language": {
     "title": "Sprache",
     "help": "Wählen Sie die Sprache der Oberfläche. Ihre Auswahl wird in diesem Browser gespeichert.",

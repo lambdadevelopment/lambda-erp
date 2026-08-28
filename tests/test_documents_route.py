@@ -111,10 +111,48 @@ def check_documents_route():
         vals = r.json()["values"]
         assert "Commercial" in vals and "Retail" in vals, vals
 
+        # Smart-list autocomplete narrows distinct values by prefix and keeps
+        # the response bounded. It works for both text and numeric columns.
+        r = client.get(
+            "/api/masters/customer/filter-values?field=customer_name&q=Mus&limit=1",
+            headers=h,
+        )
+        assert r.status_code == 200, r.text[:200]
+        assert r.json()["values"] == ["Muster Test AG"], r.json()
+        assert client.get(
+            "/api/masters/customer/filter-values?field=nope&q=x", headers=h
+        ).status_code == 400
+
+        db.insert("Quotation", {
+            "name": "QTN-FILTER-1", "customer": "CUST-T1",
+            "customer_name": "Muster Test AG", "grand_total": 150.0,
+            "status": "Draft", "docstatus": 0, "discarded": 0,
+        })
+        db.insert("Quotation", {
+            "name": "QTN-FILTER-2", "customer": "CUST-T2",
+            "customer_name": "Other GmbH", "grand_total": 250.0,
+            "status": "Submitted", "docstatus": 1, "discarded": 0,
+        })
+        db.conn.commit()
+        r = client.get(
+            "/api/documents/quotation/filter-values?field=customer_name&q=Mus&limit=12",
+            headers=h,
+        )
+        assert r.status_code == 200, r.text[:200]
+        assert r.json()["values"] == ["Muster Test AG"], r.json()
+        r = client.get(
+            "/api/documents/quotation/filter-values?field=grand_total&q=1&limit=12",
+            headers=h,
+        )
+        assert r.status_code == 200 and r.json()["values"] == [150.0], r.text[:200]
+        assert client.get(
+            "/api/documents/quotation/filter-values?field=nope", headers=h
+        ).status_code == 400
+
         # an unknown filter field IS a 400 — filters affect the query, so stay strict
         r = client.get("/api/masters/customer?nonsense_col=x", headers=h)
         assert r.status_code == 400, f"unknown filter field must 400: {r.status_code} {r.text[:150]}"
-        print("  masters: search + filters + validated deterministic sorting")
+        print("  lists: search + filters + field-aware value suggestions")
 
     print("PASS")
 

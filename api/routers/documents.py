@@ -17,6 +17,8 @@ from api.services import (
 )
 from api.pdf import generate_pdf
 from api.auth import require_role
+from api.list_values import distinct_list_values
+from lambda_erp.database import get_db
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -181,6 +183,27 @@ def search_docs(doctype_slug: str, q: str = "", limit: int = Query(default=10, l
     if q:
         docs = [d for d in docs if q.lower() in d.get("name", "").lower()]
     return [{"name": d["name"]} for d in docs]
+
+
+@router.get("/{doctype_slug}/filter-values")
+def document_filter_values(
+    doctype_slug: str,
+    field: str,
+    q: str = "",
+    limit: int = Query(default=200, ge=1, le=200),
+    _user: dict = _viewer,
+):
+    """Distinct values for the generic list's field autocomplete."""
+    from api.services import SLUG_TO_DOCTYPE
+
+    doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
+    if not doctype:
+        raise HTTPException(status_code=404, detail=f"Unknown document type: {doctype_slug}")
+    try:
+        values = distinct_list_values(get_db(), doctype, field, q, limit)
+    except KeyError:
+        raise HTTPException(status_code=400, detail=f"Unknown field: {field}")
+    return {"values": values}
 
 
 @router.get("/{doctype_slug}/{name}/pdf")
