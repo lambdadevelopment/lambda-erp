@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.20] - 2026-08-28
+
 ### Added
 - Master and document lists now share a field-aware search control with
   discoverable `field:value` filters, data-backed value suggestions, removable
@@ -1486,7 +1488,9 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.17...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.20...HEAD
+[0.8.20]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.19...v0.8.20
+[0.8.19]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.18...v0.8.19
 [0.8.17]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.16...v0.8.17
 [0.6.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.6.2...v0.6.3
