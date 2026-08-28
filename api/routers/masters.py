@@ -13,7 +13,8 @@ from api.services import (
     MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_NAME_DIGITS, MASTER_RANDOM_NAME_TYPES,
     MASTER_IDENTITY_ALIAS,
     MASTER_REFERENCE_CHECKS,
-    _search_clause, _where_from_filters, master_search_columns, count_query_cached,
+    _filter_atom, _search_clause, _where_from_filters, count_query_cached,
+    master_search_columns, parse_list_filter,
 )
 from api.auth import require_role, require_non_public_manager
 from api.list_values import distinct_list_values
@@ -301,7 +302,9 @@ def update_master_record(master_type: str, name: str, data: dict) -> dict:
 
 
 # Query params list_masters consumes itself — anything else is treated as an
-# ad-hoc equality field filter (validated against the master's real columns).
+# ad-hoc field filter (validated against the master's real columns). Plain keys
+# are exact; text columns additionally support the explicit ``__contains``
+# suffix used by Smart Search.
 _MASTER_LIST_RESERVED = {
     "limit", "offset", "include_disabled", "search", "search_fields", "fields",
     "order_by", "order",
@@ -329,10 +332,18 @@ def _master_list_where(db, doctype: str, master_type: str, request: Request,
     for key, value in request.query_params.items():
         if key in _MASTER_LIST_RESERVED:
             continue
-        if key not in columns:
+        try:
+            field, parsed_value = parse_list_filter(db, doctype, key, value)
+        except KeyError:
             raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
-        where_parts.append(f'"{key}" = ?')
-        params.append(value)
+        except TypeError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Contains filter is only supported for text fields: {key}",
+            )
+        clause, clause_params = _filter_atom(field, parsed_value)
+        where_parts.append(clause)
+        params.extend(clause_params)
 
     if search:
         requested = [f.strip() for f in (search_fields or "").split(",") if f.strip()]
@@ -436,7 +447,13 @@ def list_masters(
         query += f" OFFSET {int(offset)}"
     rows = db.sql(query, params)
 
-    return {"rows": rows, "total": total, "limit": limit, "offset": offset}
+    return {
+        "rows": rows,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "text_fields": sorted(db._get_text_columns(doctype)),
+    }
 
 
 @router.get("/{master_type}/search")

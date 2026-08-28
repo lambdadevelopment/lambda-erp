@@ -179,37 +179,6 @@ export default function DocumentListPage() {
     for (const c of SYSTEM_COLUMNS) push(c.name, t(`fields.${c.label}`, { defaultValue: c.label }));
     return out;
   }, [config, t]);
-  const smartFields = useMemo<SmartSearchField[]>(() => {
-    if (!config) return [];
-    const configured = new Map(config.fields.map((field) => [field.name, field]));
-    const names = new Set<string>([
-      "name",
-      ...config.fields.map((field) => field.name),
-      ...config.listColumns,
-      ...searchFields,
-      ...SYSTEM_COLUMNS.map((column) => column.name),
-    ]);
-    return [...names].map((name) => {
-      const field = configured.get(name);
-      const rawLabel = field?.label ?? availableCols.find((column) => column.name === name)?.label ??
-        name.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
-      const configuredOptions = field?.options?.map((option) =>
-        typeof option === "string"
-          ? { value: option, label: option }
-          : { value: option.value, label: option.label }
-      );
-      const options = configuredOptions ?? (name === "status" && configFilters.length === 0
-        ? STATUS_OPTIONS.filter((option) => option !== "All").map((option) => ({ value: option, label: option }))
-        : undefined);
-      return {
-        name,
-        label: t(`fields.${rawLabel}`, { defaultValue: rawLabel }),
-        type: field?.type ?? (isDateColumn(name) ? "date" : "text"),
-        options,
-        suggestOnEmpty: !!options?.length || configFilters.includes(name),
-      };
-    });
-  }, [availableCols, config, configFilters, searchFields, t]);
   const toggleColumn = (col: string) => {
     const set = effectiveCols.includes(col)
       ? effectiveCols.filter((c) => c !== col)          // remove
@@ -273,6 +242,39 @@ export default function DocumentListPage() {
   const { data, isLoading } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
+  const textFields = useMemo(() => new Set(data?.text_fields ?? []), [data?.text_fields]);
+  const smartFields = useMemo<SmartSearchField[]>(() => {
+    if (!config) return [];
+    const configured = new Map(config.fields.map((field) => [field.name, field]));
+    const names = new Set<string>([
+      "name",
+      ...config.fields.map((field) => field.name),
+      ...config.listColumns,
+      ...searchFields,
+      ...SYSTEM_COLUMNS.map((column) => column.name),
+    ]);
+    return [...names].map((name) => {
+      const field = configured.get(name);
+      const rawLabel = field?.label ?? availableCols.find((column) => column.name === name)?.label ??
+        name.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+      const configuredOptions = field?.options?.map((option) =>
+        typeof option === "string"
+          ? { value: option, label: option }
+          : { value: option.value, label: option.label }
+      );
+      const options = configuredOptions ?? (name === "status" && configFilters.length === 0
+        ? STATUS_OPTIONS.filter((option) => option !== "All").map((option) => ({ value: option, label: option }))
+        : undefined);
+      return {
+        name,
+        label: t(`fields.${rawLabel}`, { defaultValue: rawLabel }),
+        type: field?.type ?? (isDateColumn(name) ? "date" : "text"),
+        options,
+        contains: textFields.has(name),
+        suggestOnEmpty: !!options?.length || configFilters.includes(name),
+      };
+    });
+  }, [availableCols, config, configFilters, searchFields, t, textFields]);
 
   // Remember this list's filters + URL so a detail page's prev/next (DocPager)
   // follows it, and "back to list" returns here. Pagination is dropped — it's

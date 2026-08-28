@@ -14,6 +14,8 @@ from api.services import (
     count_documents,
     document_columns,
     adjacent_documents,
+    parse_list_filter,
+    SLUG_TO_DOCTYPE,
 )
 from api.pdf import generate_pdf
 from api.auth import require_role
@@ -26,7 +28,8 @@ _viewer = Depends(require_role("viewer"))
 _manager = Depends(require_role("manager"))
 
 # Query params the list endpoint interprets itself — everything else is treated
-# as an ad-hoc column=value filter (validated against the doctype's columns).
+# as an ad-hoc field filter (validated against the doctype's columns). Plain
+# keys are exact; ``field__contains`` is available for real text columns.
 _LIST_RESERVED = {
     "status", "party", "from_date", "to_date", "docstatus",
     "include_discarded", "limit", "offset", "order_by", "order",
@@ -66,16 +69,23 @@ def list_docs(
     if to_date:
         filters["to_date"] = to_date
 
-    # Ad-hoc equality filters: any remaining query param that names a real column
-    # of this doctype (e.g. /documents/activity?lead_id=LEAD-3316). Validate
-    # against the live columns so an unknown field is a 400, never interpolated.
+    # Ad-hoc filters: any remaining query param must name a real column, with an
+    # optional __contains suffix for schema-confirmed text columns.
     columns = document_columns(doctype_slug)
+    doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     for key, value in request.query_params.items():
         if key in _LIST_RESERVED:
             continue
-        if key not in columns:
+        try:
+            field, parsed_value = parse_list_filter(get_db(), doctype, key, value)
+        except KeyError:
             raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
-        filters[key] = value
+        except TypeError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Contains filter is only supported for text fields: {key}",
+            )
+        filters[field] = parsed_value
 
     # Which column from_date/to_date filter on. The frontend passes its declared
     # dateField so plugin doctypes get working date filters without a server-side
@@ -117,7 +127,13 @@ def list_docs(
                           include_discarded=include_discarded, order_by=order_by, order=order,
                           fields=projection)
     total = count_documents(doctype_slug, filters=filters, include_discarded=include_discarded)
-    return {"rows": rows, "total": total, "limit": limit, "offset": offset}
+    return {
+        "rows": rows,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "text_fields": sorted(get_db()._get_text_columns(doctype)),
+    }
 
 
 @router.get("/{doctype_slug}/{name}/adjacent")
@@ -153,12 +169,20 @@ def adjacent_doc(
     if to_date:
         filters["to_date"] = to_date
     columns = document_columns(doctype_slug)
+    doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     for key, value in request.query_params.items():
         if key in _LIST_RESERVED:
             continue
-        if key not in columns:
+        try:
+            field, parsed_value = parse_list_filter(get_db(), doctype, key, value)
+        except KeyError:
             raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
-        filters[key] = value
+        except TypeError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Contains filter is only supported for text fields: {key}",
+            )
+        filters[field] = parsed_value
     if date_field:
         filters["date_field"] = date_field
     if search:

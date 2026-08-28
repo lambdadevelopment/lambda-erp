@@ -80,6 +80,19 @@ def check_documents_route():
         assert r.status_code == 200, r.text[:200]
         names = [row.get("customer_name") for row in r.json()["rows"]]
         assert any("Muster" in (n or "") for n in names) and all("Other" not in (n or "") for n in names), names
+        assert "customer_name" in r.json()["text_fields"]
+        assert "credit_limit" not in r.json()["text_fields"]
+
+        # Smart Search makes text-field intent explicit in the URL. Contains is
+        # a literal, case-insensitive substring; plain field=value stays exact.
+        r = client.get("/api/masters/customer?customer_name__contains=uStEr", headers=h)
+        assert r.status_code == 200, r.text[:200]
+        assert [row["name"] for row in r.json()["rows"]] == ["CUST-T1"], r.text[:300]
+        r = client.get("/api/masters/customer?customer_name=Muster%20Test%20AG", headers=h)
+        assert r.status_code == 200 and r.json()["total"] == 1, r.text[:200]
+        assert client.get(
+            "/api/masters/customer?credit_limit__contains=1", headers=h
+        ).status_code == 400
 
         # equality field filter narrows to the group
         r = client.get("/api/masters/customer?customer_group=Retail", headers=h)
@@ -149,9 +162,23 @@ def check_documents_route():
             "/api/documents/quotation/filter-values?field=nope", headers=h
         ).status_code == 400
 
+        r = client.get(
+            "/api/documents/quotation?customer_name__contains=UsTeR", headers=h
+        )
+        assert r.status_code == 200, r.text[:200]
+        assert [row["name"] for row in r.json()["rows"]] == ["QTN-FILTER-1"], r.text[:300]
+        assert "customer_name" in r.json()["text_fields"]
+        assert "grand_total" not in r.json()["text_fields"]
+        assert client.get(
+            "/api/documents/quotation?grand_total__contains=15", headers=h
+        ).status_code == 400
+
         # an unknown filter field IS a 400 — filters affect the query, so stay strict
         r = client.get("/api/masters/customer?nonsense_col=x", headers=h)
         assert r.status_code == 400, f"unknown filter field must 400: {r.status_code} {r.text[:150]}"
+        assert client.get(
+            "/api/masters/customer?nonsense_col__contains=x", headers=h
+        ).status_code == 400
         print("  lists: search + filters + field-aware value suggestions")
 
     print("PASS")

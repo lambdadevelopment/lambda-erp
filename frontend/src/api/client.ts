@@ -167,7 +167,7 @@ export const api = {
 
   // Documents
   listDocuments: (doctype: string, params?: Record<string, string | number | undefined>) =>
-    request<{ rows: any[]; total: number; limit: number; offset: number }>(
+    request<{ rows: any[]; total: number; limit: number; offset: number; text_fields: string[] }>(
       `/documents/${doctype}${qs(params)}`,
     ),
 
@@ -243,7 +243,7 @@ export const api = {
 
   // Masters
   listMasters: (type: string, params?: Record<string, string | number | undefined>) =>
-    request<{ rows: any[]; total: number; limit: number; offset: number }>(
+    request<{ rows: any[]; total: number; limit: number; offset: number; text_fields: string[] }>(
       `/masters/${type}${qs(params)}`,
     ),
 

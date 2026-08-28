@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const CONTAINS_SUFFIX = "__contains";
+
 export interface SmartSearchOption {
   value: string;
   label: string;
@@ -15,6 +17,8 @@ export interface SmartSearchField {
   label: string;
   type?: string;
   options?: SmartSearchOption[];
+  /** The backend schema confirms that this column supports __contains. */
+  contains?: boolean;
   /** Low-cardinality fields may suggest values before the user types a prefix. */
   suggestOnEmpty?: boolean;
 }
@@ -32,7 +36,7 @@ interface SmartListSearchProps {
   fields: SmartSearchField[];
   filters: Record<string, string>;
   onFiltersChange: (updates: Record<string, string | null>) => void;
-  onSubmit: (search: string, updates: Record<string, string>) => void;
+  onSubmit: (search: string, updates: Record<string, string | null>) => void;
   loadValues: (field: string, prefix: string) => Promise<Array<string | number>>;
   hiddenChipFields?: string[];
   className?: string;
@@ -59,18 +63,28 @@ function withoutToken(value: string, token: QualifierToken): string {
   return value.slice(0, token.start).trim().replace(/\s+/g, " ");
 }
 
+function filterKey(field: SmartSearchField): string {
+  return field.contains ? `${field.name}${CONTAINS_SUFFIX}` : field.name;
+}
+
+function alternateFilterKey(field: SmartSearchField): string {
+  return field.contains ? field.name : `${field.name}${CONTAINS_SUFFIX}`;
+}
+
 function extractQualifiers(value: string, fields: SmartSearchField[]) {
-  const known = new Set(fields.map((field) => field.name));
-  const updates: Record<string, string> = {};
+  const known = new Map(fields.map((field) => [field.name, field]));
+  const updates: Record<string, string | null> = {};
   const spans: Array<{ start: number; end: number }> = [];
   const pattern = /(?:^|\s)([A-Za-z_][\w-]*):(?:"([^"]*)"|([^\s]+))/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(value)) !== null) {
-    if (!known.has(match[1])) continue;
+    const field = known.get(match[1]);
+    if (!field) continue;
     const selectedValue = match[2] ?? match[3] ?? "";
     if (!selectedValue) continue;
     const leadingSpace = match[0].startsWith(" ") ? 1 : 0;
-    updates[match[1]] = selectedValue;
+    updates[filterKey(field)] = selectedValue;
+    updates[alternateFilterKey(field)] = null;
     spans.push({ start: (match.index ?? 0) + leadingSpace, end: pattern.lastIndex });
   }
   let text = value;
@@ -115,8 +129,8 @@ export function SmartListSearch({
       !fieldQuery || field.name.toLowerCase().includes(fieldQuery) || field.label.toLowerCase().includes(fieldQuery)
     );
     return ranked.sort((a, b) => {
-      const aSelected = filters[a.name] ? 1 : 0;
-      const bSelected = filters[b.name] ? 1 : 0;
+      const aSelected = filters[a.name] || filters[`${a.name}${CONTAINS_SUFFIX}`] ? 1 : 0;
+      const bSelected = filters[b.name] || filters[`${b.name}${CONTAINS_SUFFIX}`] ? 1 : 0;
       if (aSelected !== bSelected) return bSelected - aSelected;
       const aSuggested = a.suggestOnEmpty ? 1 : 0;
       const bSuggested = b.suggestOnEmpty ? 1 : 0;
@@ -177,7 +191,10 @@ export function SmartListSearch({
 
   const commitQualifier = (selectedValue: string) => {
     if (!qualifier || !selectedValue) return;
-    onFiltersChange({ [qualifier.field.name]: selectedValue });
+    onFiltersChange({
+      [filterKey(qualifier.field)]: selectedValue,
+      [alternateFilterKey(qualifier.field)]: null,
+    });
     onChange(withoutToken(value, qualifier));
     setAppendMode(false);
     setOpen(false);
@@ -200,9 +217,14 @@ export function SmartListSearch({
 
   const visibleChips = Object.entries(filters)
     .filter(([, filterValue]) => filterValue !== "")
-    .filter(([field]) => !hiddenChipFields.includes(field))
-    .map(([field, filterValue]) => ({
-      field: fields.find((candidate) => candidate.name === field),
+    .map(([key, filterValue]) => {
+      const fieldName = key.endsWith(CONTAINS_SUFFIX) ? key.slice(0, -CONTAINS_SUFFIX.length) : key;
+      return { key, fieldName, filterValue };
+    })
+    .filter(({ fieldName }) => !hiddenChipFields.includes(fieldName))
+    .map(({ key, fieldName, filterValue }) => ({
+      key,
+      field: fields.find((candidate) => candidate.name === fieldName),
       value: filterValue,
     }))
     .filter((entry) => !!entry.field);
@@ -248,11 +270,11 @@ export function SmartListSearch({
         {t("smartSearch.addFilter")}
       </Button>
 
-      {visibleChips.map(({ field, value: filterValue }) => (
+      {visibleChips.map(({ key, field, value: filterValue }) => (
         <button
-          key={field!.name}
+          key={key}
           type="button"
-          onClick={() => onFiltersChange({ [field!.name]: null })}
+          onClick={() => onFiltersChange({ [key]: null })}
           title={t("smartSearch.removeFilter", { label: field!.label })}
           className="inline-flex h-8 items-center gap-1.5 rounded-full bg-brand/10 px-3 text-sm font-medium text-brand hover:bg-brand/15"
         >

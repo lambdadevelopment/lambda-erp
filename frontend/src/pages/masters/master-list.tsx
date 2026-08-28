@@ -133,6 +133,7 @@ export default function MasterListPage() {
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
+  const textFields = useMemo(() => new Set(data?.text_fields ?? []), [data?.text_fields]);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const rangeStart = total === 0 ? 0 : page * pageSize + 1;
   const rangeEnd = Math.min(total, (page + 1) * pageSize);
@@ -168,10 +169,11 @@ export default function MasterListPage() {
         label: t(`fields.${rawLabel}`, { defaultValue: rawLabel }),
         type: field?.type ?? (isDateColumn(name) ? "date" : "text"),
         options,
+        contains: textFields.has(name),
         suggestOnEmpty: !!options?.length || filterDefs.some((filter) => filter.field === name),
       };
     });
-  }, [allColumns, config, filterDefs, t, type]);
+  }, [allColumns, config, filterDefs, t, textFields, type]);
   const savedCols = useMemo(
     () => (settings[`columns.master:${type}`] || "").split(",").map((s) => s.trim()).filter(Boolean),
     [settings, type],

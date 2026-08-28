@@ -709,6 +709,7 @@ _FILTER_OPS = {
     "=": "=", "==": "=", "!=": "!=", "<>": "!=",
     ">": ">", "<": "<", ">=": ">=", "<=": "<=",
     "like": "LIKE", "not like": "NOT LIKE",
+    "contains": "CONTAINS",
     "is null": "IS NULL", "is not null": "IS NOT NULL",
 }
 _NULLARY_OPS = {"IS NULL", "IS NOT NULL"}  # take no bound value
@@ -744,11 +745,51 @@ def _filter_atom(col: str, value):
             op = _resolve_op(value[0])
             if op in _NULLARY_OPS:
                 return f'"{col}" {op}', []  # value ignored for IS [NOT] NULL
+            if op == "CONTAINS":
+                # Literal, case-insensitive substring search. Escape LIKE's two
+                # wildcard characters so a user-entered '%' or '_' keeps its
+                # ordinary meaning. The REST layer only permits this operator
+                # for schema-confirmed text columns.
+                escaped = str(value[1]).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                return f'LOWER("{col}") LIKE LOWER(?) ESCAPE \'\\\'', [f"%{escaped}%"]
             return f'"{col}" {op} ?', [value[1]]
         raise ValueError(
             f"Malformed filter for {col!r}: expected a scalar, [op], or [op, value]"
         )
     return f'"{col}" = ?', [value]
+
+
+def parse_list_filter(db, doctype: str, raw_key: str, value):
+    """Parse one REST list-filter query parameter.
+
+    Plain ``field=value`` parameters retain their historical equality
+    semantics. ``field__contains=value`` becomes the internal whitelisted
+    ``contains`` operator, but only when the live schema says ``field`` is a
+    text column. Unknown fields raise ``KeyError``; applying ``contains`` to a
+    non-text field raises ``TypeError``. Callers translate both into HTTP 400.
+    """
+    suffix = "__contains"
+    field = raw_key[:-len(suffix)] if raw_key.endswith(suffix) else raw_key
+    if not field or field not in db._get_table_columns(doctype):
+        raise KeyError(field or raw_key)
+    if raw_key.endswith(suffix):
+        if field not in db._get_text_columns(doctype):
+            raise TypeError(field)
+        return field, ("contains", value)
+    return field, value
+
+
+def _validate_typed_filters(db, doctype: str, filters: dict) -> None:
+    """Keep type-sensitive operators honest for REST, chat, and direct calls."""
+    text_columns = db._get_text_columns(doctype)
+    for field, value in filters.items():
+        if (
+            isinstance(value, (list, tuple))
+            and len(value) == 2
+            and str(value[0]).strip().lower() == "contains"
+            and field not in text_columns
+        ):
+            raise ValueError(f"Contains filter is only supported for text fields: {field}")
 
 
 def _where_from_filters(db_filters: dict):
@@ -806,6 +847,7 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
                 db_filters[key] = value
 
     _exclude_discarded(db, doctype, db_filters, include_discarded)
+    _validate_typed_filters(db, doctype, db_filters)
 
     # Date range filtering via the doctype's primary date field
     date_field = _resolve_date_field(db, doctype, date_field_override)
@@ -961,6 +1003,7 @@ def _count_documents_uncached(doctype_slug: str, filters: dict = None, include_d
                 db_filters[key] = value
 
     _exclude_discarded(db, doctype, db_filters, include_discarded)
+    _validate_typed_filters(db, doctype, db_filters)
 
     date_field = _resolve_date_field(db, doctype, date_field_override)
     where_parts = []
@@ -1010,6 +1053,7 @@ def _filter_where(db, doctype: str, doctype_slug: str, filters: dict, include_di
         else:
             db_filters[key] = value
     _exclude_discarded(db, doctype, db_filters, include_discarded)
+    _validate_typed_filters(db, doctype, db_filters)
 
     date_field = _resolve_date_field(db, doctype, date_field_override)
     where_parts, params = [], []
