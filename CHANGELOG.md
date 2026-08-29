@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.21] - 2026-08-29
+
+### Added
+- MCP clients can inspect document schemas through `get_document_fields` and
+  discover searchable text fields for registered masters.
+- Master searches over MCP support typed filters, case-insensitive substring
+  matching, sorting, pagination, and result-field projection.
+
+### Changed
+- REST and MCP master searches now use the same validated query path and
+  therefore return consistent filtered and ordered results.
+- Free-text document searches derive safe default fields from the document
+  schema when callers do not explicitly provide search fields.
+- The REST API documentation now describes search operators, sorting,
+  pagination, field projection, and the distinction between list search and
+  autocomplete endpoints.
+
 ## [0.8.20] - 2026-08-28
 
 ### Added
@@ -1488,7 +1505,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.20...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.21...HEAD
+[0.8.21]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.20...v0.8.21
 [0.8.20]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.19...v0.8.20
 [0.8.19]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.18...v0.8.19
 [0.8.17]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.16...v0.8.17

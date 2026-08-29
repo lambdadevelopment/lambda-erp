@@ -92,6 +92,32 @@ The verbs mirror the document lifecycle: `POST /api/documents/{type}` (create),
 `/api/masters/{type}`, reports under `/api/reports/…`. Whatever the web app can
 call, a suitably-roled key can call.
 
+### Search and filter lists
+
+The master and document list endpoints are the same field-aware lists used by
+the web UI. Plain field parameters are exact. Add `__contains` to a real text
+column for a literal, case-insensitive substring search:
+
+```bash
+# exact non-text/select value + partial text value
+curl 'https://erp.example.com/api/masters/customer?disabled=0&customer_name__contains=acme' \
+  -H "Authorization: Bearer sk_erp_…"
+
+# combine filters, sort, page, and project only needed columns
+curl 'https://erp.example.com/api/documents/quotation?status=Draft&customer_name__contains=acme&order_by=modified&order=desc&limit=20&offset=0&fields=name,customer_name,status' \
+  -H "Authorization: Bearer sk_erp_…"
+```
+
+`__contains` is rejected for numeric, date, and boolean columns; use exact
+values for those. Multiple field filters are combined with `AND`. A broader
+free-text lookup uses `search=...` and may be narrowed with the comma-separated
+`search_fields=field_a,field_b`. Responses include `text_fields`, which tells a
+generic client which columns support `__contains`.
+
+The narrower `/masters/{type}/search` and `/documents/{type}/search` routes are
+link-field autocomplete helpers. Use the normal list endpoints above for
+complete querying, sorting, and pagination.
+
 ## Responses
 
 | Status | Meaning |

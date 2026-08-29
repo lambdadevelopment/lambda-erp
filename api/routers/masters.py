@@ -13,8 +13,8 @@ from api.services import (
     MASTER_TABLES, MASTER_NAME_PREFIXES, MASTER_NAME_DIGITS, MASTER_RANDOM_NAME_TYPES,
     MASTER_IDENTITY_ALIAS,
     MASTER_REFERENCE_CHECKS,
-    _filter_atom, _search_clause, _where_from_filters, count_query_cached,
-    master_search_columns, parse_list_filter,
+    _filter_atom, _search_clause, _where_from_filters,
+    list_master_records, master_search_columns, parse_list_filter,
 )
 from api.auth import require_role, require_non_public_manager
 from api.list_values import distinct_list_values
@@ -359,6 +359,25 @@ def _master_list_where(db, doctype: str, master_type: str, request: Request,
     return where_parts, params, columns
 
 
+def _master_request_filters(db, doctype: str, request: Request) -> dict:
+    """Parse the REST query-string field filters into the shared internal form."""
+    filters = {}
+    for key, value in request.query_params.items():
+        if key in _MASTER_LIST_RESERVED:
+            continue
+        try:
+            field, parsed_value = parse_list_filter(db, doctype, key, value)
+        except KeyError:
+            raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
+        except TypeError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Contains filter is only supported for text fields: {key}",
+            )
+        filters[field] = parsed_value
+    return filters
+
+
 def _master_order(columns: set, order_by: str | None, order: str) -> tuple[str, str]:
     if order_by is not None and order_by not in columns:
         raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
@@ -421,39 +440,26 @@ def list_masters(
     if not doctype:
         return {"detail": f"Unknown master type: {master_type}"}
     db = get_db()
-    where_parts, params, columns = _master_list_where(
-        db, doctype, master_type, request, include_disabled, search, search_fields,
-    )
-    sort_column, sort_direction = _master_order(columns, order_by, order)
-
-    where = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
-    total = count_query_cached(f'SELECT COUNT(*) as c FROM "{doctype}"{where}', params)
-
-    requested_fields = [f.strip() for f in (fields or "").split(",") if f.strip()]
-    if requested_fields:
-        unknown = [f for f in requested_fields if f not in columns]
-        if unknown:
-            raise HTTPException(status_code=400, detail=f"Unknown list fields: {', '.join(unknown)}")
-        if "name" not in requested_fields:
-            requested_fields.insert(0, "name")
-        projection = ", ".join(f'"{f}"' for f in requested_fields)
-    else:
-        projection = "*"
-    query = (
-        f'SELECT {projection} FROM "{doctype}"{where} '
-        f'ORDER BY {_master_order_sql(sort_column, sort_direction)} LIMIT {int(limit)}'
-    )
-    if offset:
-        query += f" OFFSET {int(offset)}"
-    rows = db.sql(query, params)
-
-    return {
-        "rows": rows,
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-        "text_fields": sorted(db._get_text_columns(doctype)),
-    }
+    field_filters = _master_request_filters(db, doctype, request)
+    requested_search_fields = [
+        field.strip() for field in (search_fields or "").split(",") if field.strip()
+    ]
+    requested_fields = [field.strip() for field in (fields or "").split(",") if field.strip()]
+    try:
+        return list_master_records(
+            master_type,
+            filters=field_filters,
+            search=search,
+            search_fields=requested_search_fields or None,
+            include_disabled=include_disabled,
+            order_by=order_by,
+            order=order,
+            limit=limit,
+            offset=offset,
+            fields=requested_fields or None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/{master_type}/search")

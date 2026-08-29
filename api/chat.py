@@ -481,6 +481,20 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "get_document_fields",
+            "description": "List the available columns of a document type and identify which are text fields. Call this before building list_documents filters when you are unsure of a field name or whether it supports the case-insensitive contains operator. Also returns the default fields used by free-text search.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "doctype": {"type": "string", "enum": DOCUMENT_SLUGS},
+                },
+                "required": ["doctype"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_document",
             "description": "Load a specific document by its name/ID. Returns the full document with all fields and child tables.",
             "parameters": {
@@ -627,7 +641,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_masters",
-            "description": "Search master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). Case-insensitive, with fuzzy fallback for misspellings. By default matches across standard text fields (name, display name, address/city/zip); large free-text columns like description/templates are skipped unless named in `fields`. PREFER passing `fields` whenever you know which attribute you're matching on (e.g. a city, an email, a tax id) — it's faster, more precise, and avoids false hits from other columns. Returns ALL matching records by default (no cap); pass `limit` only to bound a large list.",
+            "description": "Search and filter master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). `query` is a case-insensitive free-text lookup with fuzzy fallback for simple misspellings. Use `filters` for deterministic field-aware queries and for combining different values across fields. Returns ALL matching records by default (no cap); pass `limit` only to bound a large list.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -638,7 +652,20 @@ TOOLS = [
                         "items": {"type": "string"},
                         "description": "Recommended: the column(s) to search, e.g. [\"city\"] or [\"customer_name\"]. Narrowing here is faster and avoids matching unrelated columns. Omit only when you genuinely don't know which field holds the value, to search all standard text fields.",
                     },
+                    "filters": {
+                        "type": "object",
+                        "description": "Optional deterministic filters on any real column, ANDed together and with `query`. Scalar values are exact: {\"disabled\": 0}. Text substring: {\"legal_form\": [\"contains\", \"AG\"]}. Comparisons and NULL checks use the same forms as list_documents. `contains` is only valid for schema-confirmed text fields.",
+                        "default": {},
+                    },
+                    "order_by": {"type": "string", "description": "Optional real column to sort by. Defaults to name."},
+                    "order": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction (default asc).", "default": "asc"},
                     "limit": {"type": "integer", "description": "Optional max number of results. OMIT for no cap — returns ALL matches (e.g. to see the entire chart of accounts). Pass a number only to bound a large list."},
+                    "offset": {"type": "integer", "description": "Skip this many matching rows. Use with limit for pagination.", "default": 0},
+                    "result_fields": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional result projection. Returns only these real columns plus name. This is separate from `fields`, which selects columns searched by `query`.",
+                    },
                     "include_disabled": {"type": "boolean", "description": "Default false (active records only). Set true to ALSO return disabled/archived records — needed to find a record you must inspect, re-enable, or reference, or to answer 'what's disabled'. Retry with this if a lookup for a record you know exists comes back empty."},
                 },
                 "required": ["master_type"],
@@ -649,7 +676,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_master_fields",
-            "description": "List the available columns of a master type (customer, supplier, item, ...). Call this WHENEVER you're unsure which columns exist: before passing `fields` to search_masters, and before building a `data` payload for create_master/update_master when you're not certain a field exists or where a value belongs (e.g. a contact person, a tax id, a payment term). It lets you target real fields instead of guessing — or wrongly concluding a value can't be stored. Returns: `fields` (all columns), `default_search_fields` (what search_masters searches when `fields` is omitted), and `bulk_text_fields` (large text columns searched only when named in `fields`).",
+            "description": "List the available columns of a master type (customer, supplier, item, ...). Call this WHENEVER you're unsure which columns exist: before passing `fields` or `filters` to search_masters, and before building a create/update payload. Returns all fields, text fields (the columns that support `contains`), default free-text search fields, and bulk text fields that are searched only when explicitly named.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1326,18 +1353,6 @@ def _handle_list_documents(args):
     # within the tool-result budget. Use get_document to drill into one doc.
     doctype = args["doctype"]
     filters = args.get("filters") or {}
-    # Chat callers routinely pass `search` but omit `search_fields`; with no fields
-    # the free-text search silently no-ops and returns the newest N by creation
-    # (2026-08-13: tag lookups on leads "found nothing"). Default the columns to the
-    # doctype's registered chat fields so document search matches a record the way
-    # search_masters already does for masters. The frontend never hits this — its
-    # UI config always sends search_fields.
-    if filters.get("search") and not filters.get("search_fields"):
-        registered = (services.CHAT_DOCTYPES.get(doctype) or {}).get("fields") or []
-        valid = set(services.document_columns(doctype) or [])
-        default_fields = [f for f in registered if f in valid]
-        if default_fields:
-            filters = {**filters, "search_fields": default_fields}
     err = _validate_filter_columns(doctype, filters)
     if err:
         return {"error": err}
@@ -1367,6 +1382,23 @@ def _handle_list_documents(args):
             for key in child_keys:
                 row.pop(key, None)
     return rows
+
+
+def _handle_get_document_fields(args):
+    doctype = args["doctype"]
+    table = services.SLUG_TO_DOCTYPE.get(doctype)
+    if not table:
+        return {"error": f"Unknown document type: {doctype}"}
+    db = get_db()
+    cls = services.DOCUMENT_CLASSES.get(table)
+    return {
+        "doctype": doctype,
+        "fields": sorted(db._get_table_columns(table)),
+        "text_fields": sorted(db._get_text_columns(table)),
+        "default_search_fields": services.document_search_columns(db, doctype),
+        "child_tables": sorted((cls.CHILD_TABLES or {}).keys()) if cls else [],
+        "link_fields": dict(getattr(cls, "LINK_FIELDS", None) or {}) if cls else {},
+    }
 
 
 def _handle_get_document(args):
@@ -1407,22 +1439,6 @@ def _handle_convert_document(args):
     return services.convert_document(args["doctype"], args["name"], args["target_doctype"])
 
 
-# Columns that are technically text but are noise for free-text master search.
-_MASTER_SEARCH_SKIP_COLUMNS = {
-    "naming_series",
-    "owner",
-    "modified_by",
-    "creation",
-    "modified",
-    "created_at",
-    "updated_at",
-}
-
-# Large free-text columns excluded from the DEFAULT search: scanning/fuzzing a
-# big blob (e.g. an item description or an HTML template) is costly and rarely
-# how you identify a record. Still searchable on demand via the `fields` arg.
-_MASTER_BULK_TEXT_COLUMNS = {"description", "notes", "remarks", "terms", "comments"}
-
 # Minimum difflib similarity for a fuzzy (misspelled) match to be returned.
 _MASTER_FUZZY_THRESHOLD = 0.6
 # Bounds for the fuzzy scorer so a single large value can't blow up cost:
@@ -1431,18 +1447,9 @@ _FUZZY_MAX_VALUE_LEN = 200
 _FUZZY_MAX_TOKENS = 16
 
 
-def _is_bulk_text_column(col):
-    return (col in _MASTER_BULK_TEXT_COLUMNS
-            or col.endswith("_template") or col.endswith("_html"))
-
-
 def _master_search_columns(db, doctype):
-    """Text columns worth matching a query against by default. Discovered from
-    the live schema (new text fields become searchable automatically), minus
-    audit noise and large free-text/template columns."""
-    cols = db._get_text_columns(doctype) - _MASTER_SEARCH_SKIP_COLUMNS
-    # Deterministic order keeps generated SQL and fuzzy scoring stable.
-    return sorted(c for c in cols if not _is_bulk_text_column(c))
+    """Compatibility wrapper for the shared REST/MCP field policy."""
+    return services.master_search_columns(db, doctype)
 
 
 def _fuzzy_master_search(db, doctype, search_cols, query, has_disabled, limit):
@@ -1485,10 +1492,11 @@ def _handle_get_master_fields(args):
         return {"error": f"Unknown master type: {master_type}"}
     doctype, _ = entry
     default_search = _master_search_columns(db, doctype)
-    bulk = sorted(c for c in db._get_text_columns(doctype) if _is_bulk_text_column(c))
+    bulk = services.master_bulk_text_columns(db, doctype)
     return {
         "master_type": master_type,
         "fields": sorted(db._get_table_columns(doctype)),
+        "text_fields": sorted(db._get_text_columns(doctype)),
         # What search_masters searches when `fields` is omitted.
         "default_search_fields": default_search,
         # Large text fields searched ONLY when named in search_masters `fields`.
@@ -1517,23 +1525,20 @@ def _handle_search_masters(args):
         return {"error": f"Unknown master type: {master_type}"}
 
     doctype, _name_field = entry
-    has_disabled = "disabled" in db._get_table_columns(doctype)
+    columns = set(db._get_table_columns(doctype))
+    has_disabled = "disabled" in columns
     # Active-only by default (retired/archived records are hidden — you shouldn't
     # book to them or wade through them). Set include_disabled to reach a disabled
     # record you need to inspect, re-enable, or reference. Only meaningful when the
     # table has a `disabled` column.
     filter_disabled = has_disabled and not bool(args.get("include_disabled"))
 
-    if not query:
-        filters = {"disabled": 0} if filter_disabled else None
-        return db.get_all(doctype, filters=filters, fields=["*"], limit=limit)
-
     # Optional `fields` narrows the search to specific columns — cheaper, more
     # precise, and the only way to reach bulk columns (description, templates)
     # that the default search skips. Unknown names are ignored.
     requested = args.get("fields") or []
     if requested:
-        valid = set(db._get_table_columns(doctype))
+        valid = columns
         # The identity alias (e.g. "item_code") is what the model calls the code
         # everywhere else — create_master, document lines, the asset/reservation
         # prompt — so it naturally passes fields=["item_code"]. But the real
@@ -1556,22 +1561,36 @@ def _handle_search_masters(args):
     else:
         search_cols = _master_search_columns(db, doctype)
 
-    active_prefix = "disabled = 0 AND " if filter_disabled else ""
+    filters = args.get("filters") or {}
+    result_fields = args.get("result_fields") or None
+    offset = args.get("offset", 0) or 0
+    order_by = args.get("order_by")
+    order = args.get("order", "asc")
+    try:
+        result = services.list_master_records(
+            master_type,
+            filters=filters,
+            search=query or None,
+            search_fields=search_cols if query else None,
+            include_disabled=bool(args.get("include_disabled")),
+            order_by=order_by,
+            order=order,
+            limit=limit,
+            offset=offset,
+            fields=result_fields,
+            with_total=False,
+        )
+    except (TypeError, ValueError) as exc:
+        return {"error": str(exc)}
+    rows = [dict(row) for row in result["rows"]]
+    if rows or not query:
+        return rows
 
-    # Case-insensitive substring match. lower() on both sides is portable (bare
-    # LIKE is case-insensitive on SQLite but case-sensitive on Postgres, which
-    # silently broke prod search); CAST lets targeted non-text columns match too.
-    where = " OR ".join(f'lower(CAST("{col}" AS TEXT)) LIKE ?' for col in search_cols)
-    pattern = f"%{query.lower()}%"
-    limit_sql = f" LIMIT {limit}" if limit else ""
-    rows = db.sql(
-        f'SELECT * FROM "{doctype}" WHERE {active_prefix}({where}){limit_sql}',
-        [pattern] * len(search_cols),
-    )
-    if rows:
-        return [dict(r) for r in rows]
-
-    # Nothing matched literally — try fuzzy matching to catch misspellings.
+    # Preserve the established fuzzy fallback for a simple lookup. A
+    # deterministic field-filter query must return exactly its literal result;
+    # relaxing only the free-text part could otherwise select the wrong record.
+    if filters or offset or order_by or result_fields:
+        return []
     return _fuzzy_master_search(db, doctype, search_cols, query, filter_disabled, limit=limit)
 
 
@@ -1932,6 +1951,7 @@ def _handle_apply_company_setup(args):
 
 TOOL_HANDLERS = {
     "list_documents": _handle_list_documents,
+    "get_document_fields": _handle_get_document_fields,
     "get_document": _handle_get_document,
     "create_document": _handle_create_document,
     "update_document": _handle_update_document,
@@ -2405,10 +2425,10 @@ Every master record has a primary key (the `name` column) and a human-readable d
 When you fill in `item_code`, `customer`, `supplier`, `warehouse`, `company`, etc. in a document or child-table row, you MUST use the **primary key**, never the display name. `"item_code": "Project Management"` is ALWAYS wrong — it's a name, not a code.
 
 If the user refers to something by its human name ("bill them 8 hours of project mgmt", "add Redstone to the quote"), resolve the key first:
-- `search_masters(master_type="item", q="project management")` → returns `[{{name: "SVC-005", item_name: "Project Management"}}]`. Use `name` as `item_code`.
+- `search_masters(master_type="item", query="project management")` → returns `[{{name: "SVC-005", item_name: "Project Management"}}]`. Use `name` as `item_code`.
 - Same for customers, suppliers, warehouses, etc. — `search_masters` is **case-insensitive** and falls back to **fuzzy matching for misspellings**, so a typo'd name ("Meynex") still resolves. Trust its results instead of concluding "not found" after one narrow try.
 - **Prefer narrowing with `fields`** whenever you know the attribute: search a customer by city with `fields=["city"]`, by email with `fields=["contact_email"]`, etc. It's faster and avoids false matches from unrelated columns. Omitting `fields` searches all standard text fields (a good fallback when you're unsure where the value lives), but large free-text columns (e.g. item `description`) are only searched when you name them explicitly in `fields`.
-- **Don't guess column names** — call `get_master_fields(master_type=...)` first to see the real columns (and which are searched by default), then pass the exact names to `search_masters` `fields`. This also tells you which large text fields (like `description`) you must name explicitly to search.
+- **Don't guess column names** — call `get_master_fields(master_type=...)` first to see the real columns, which support `contains`, and which are searched by default. Use `query` + `fields` for a fuzzy lookup; use `filters` for exact, combined field conditions. For documents, use `get_document_fields` before constructing unfamiliar `list_documents` filters.
 - **When unsure where a value belongs, discover the schema — don't guess or give up.** Before a `create_master`/`update_master` where you're not certain a field exists or which column fits (the user gives a contact person, a VAT/tax id, a payment term, an IBAN, …), call `get_master_fields(master_type=...)` and map the value onto the real column. Never tell the user you can't store something without checking the fields first — the master usually has a column for it (e.g. a customer's contact person goes in `contact_person`/`contact_phone`/`contact_email`, not the company-level `phone`/`email`).
 
 When you list masters back to the user (items on an invoice, customers on a report), include the key in parentheses so follow-ups are unambiguous. Example: "Project Management (SVC-005) — 16 Hour".

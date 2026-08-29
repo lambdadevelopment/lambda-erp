@@ -10,6 +10,7 @@ write-denial, notifications, and the no-key rejection.
 Run:  python -m tests.test_mcp
       LAMBDA_ERP_TEST_DB=postgresql://... python -m tests.test_mcp
 """
+import json
 import os
 import sys
 
@@ -70,11 +71,15 @@ def check_mcp():
         assert rpc(api, {"jsonrpc": "2.0", "method": "notifications/initialized"}, mgr_h).status_code == 202
 
         # tools/list — manager sees writes; viewer does not.
-        mgr_tools = {t["name"] for t in rpc(api, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, mgr_h).json()["result"]["tools"]}
+        listed_tools = rpc(api, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, mgr_h).json()["result"]["tools"]
+        tools_by_name = {tool["name"]: tool for tool in listed_tools}
+        mgr_tools = set(tools_by_name)
         vwr_tools = {t["name"] for t in rpc(api, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, vwr_h).json()["result"]["tools"]}
-        assert {"list_documents", "get_document", "create_document"} <= mgr_tools, mgr_tools
+        assert {"list_documents", "get_document_fields", "get_document", "create_document"} <= mgr_tools, mgr_tools
         assert "list_documents" in vwr_tools and "create_document" not in vwr_tools, vwr_tools
         assert "delete_master" not in mgr_tools, "delete_master is admin-only"
+        search_props = tools_by_name["search_masters"]["inputSchema"]["properties"]
+        assert {"filters", "order_by", "order", "offset", "result_fields"} <= set(search_props), search_props
         # Chat-session tools are excluded from MCP.
         assert "retrieve_chat_history" not in mgr_tools
 
@@ -91,9 +96,102 @@ def check_mcp():
         # tools/call — a write round-trip (manager creates a customer master).
         create = {"jsonrpc": "2.0", "id": 5, "method": "tools/call",
                   "params": {"name": "create_master",
-                             "arguments": {"master_type": "customer", "data": {"customer_name": "MCP Test AG"}}}}
+                             "arguments": {"master_type": "customer", "data": {
+                                 "customer_name": "MCP Test AG", "customer_group": "Retail",
+                                 "territory": "Zurich", "credit_limit": 100,
+                             }}}}
         out = rpc(api, create, mgr_h).json()["result"]
         assert out["isError"] is False, out
+
+        # Two more records make combined filters, sorting, projection and
+        # pagination observable. Use the same write tool an external MCP client
+        # uses rather than reaching around the transport.
+        for idx, data in enumerate((
+            {"customer_name": "Bern Retail AG", "customer_group": "Retail", "territory": "Bern", "credit_limit": 100},
+            {"customer_name": "Zurich Wholesale AG", "customer_group": "Wholesale", "territory": "Zurich", "credit_limit": 200},
+        ), start=50):
+            made = rpc(api, {"jsonrpc": "2.0", "id": idx, "method": "tools/call",
+                             "params": {"name": "create_master", "arguments": {
+                                 "master_type": "customer", "data": data,
+                             }}}, mgr_h).json()["result"]
+            assert made["isError"] is False, made
+
+        # REST Smart Search and MCP search_masters now drive the same
+        # deterministic master-list semantics. Each field has its own value;
+        # text uses contains, numeric/date/bool values stay exact.
+        rest = api.get(
+            "/api/masters/customer?customer_group__contains=tail&territory=Zurich"
+            "&credit_limit=100&order_by=customer_name&order=asc&fields=name,customer_name",
+            headers=mgr_h,
+        )
+        assert rest.status_code == 200, rest.text[:300]
+        rest_rows = rest.json()["rows"]
+        call = rpc(api, {"jsonrpc": "2.0", "id": 60, "method": "tools/call",
+                         "params": {"name": "search_masters", "arguments": {
+                             "master_type": "customer",
+                             "filters": {
+                                 "customer_group": ["contains", "tail"],
+                                 "territory": "Zurich",
+                                 "credit_limit": 100,
+                             },
+                             "order_by": "customer_name", "order": "asc",
+                             "result_fields": ["customer_name"],
+                         }}}, mgr_h).json()["result"]
+        assert call["isError"] is False, call
+        mcp_rows = json.loads(call["content"][0]["text"])
+        assert mcp_rows == rest_rows and [row["customer_name"] for row in mcp_rows] == ["MCP Test AG"], (mcp_rows, rest_rows)
+
+        page_call = rpc(api, {"jsonrpc": "2.0", "id": 600, "method": "tools/call",
+                              "params": {"name": "search_masters", "arguments": {
+                                  "master_type": "customer",
+                                  "filters": {"customer_group": ["contains", "tail"]},
+                                  "order_by": "customer_name", "order": "asc",
+                                  "limit": 1, "offset": 1,
+                                  "result_fields": ["customer_name"],
+                              }}}, mgr_h).json()["result"]
+        page_rows = json.loads(page_call["content"][0]["text"])
+        assert [row["customer_name"] for row in page_rows] == ["MCP Test AG"], page_rows
+
+        # Schema discovery tells an agent which columns accept `contains`.
+        meta_call = rpc(api, {"jsonrpc": "2.0", "id": 61, "method": "tools/call",
+                              "params": {"name": "get_master_fields", "arguments": {
+                                  "master_type": "customer",
+                              }}}, mgr_h).json()["result"]
+        meta = json.loads(meta_call["content"][0]["text"])
+        assert "customer_name" in meta["text_fields"] and "credit_limit" not in meta["text_fields"], meta
+
+        bad_contains = rpc(api, {"jsonrpc": "2.0", "id": 62, "method": "tools/call",
+                                 "params": {"name": "search_masters", "arguments": {
+                                     "master_type": "customer",
+                                     "filters": {"credit_limit": ["contains", "10"]},
+                                 }}}, mgr_h).json()["result"]
+        assert bad_contains["isError"] is True, bad_contains
+
+        # Bare document free-text search uses server-side defaults over both
+        # REST and MCP, and get_document_fields exposes those defaults.
+        from lambda_erp.database import get_db
+        db = get_db()
+        db.insert("Quotation", {"name": "QTN-MCP-1", "customer_name": "Needle Customer AG",
+                                "status": "Draft", "docstatus": 0, "discarded": 0})
+        db.insert("Quotation", {"name": "QTN-MCP-2", "customer_name": "Other Customer AG",
+                                "status": "Draft", "docstatus": 0, "discarded": 0})
+        db.conn.commit()
+        rest_docs = api.get("/api/documents/quotation?search=needle&fields=name,customer_name", headers=mgr_h)
+        assert rest_docs.status_code == 200, rest_docs.text[:300]
+        doc_call = rpc(api, {"jsonrpc": "2.0", "id": 63, "method": "tools/call",
+                             "params": {"name": "list_documents", "arguments": {
+                                 "doctype": "quotation", "filters": {"search": "needle"},
+                                 "fields": ["customer_name"],
+                             }}}, mgr_h).json()["result"]
+        mcp_docs = json.loads(doc_call["content"][0]["text"])
+        assert mcp_docs == rest_docs.json()["rows"] and [row["name"] for row in mcp_docs] == ["QTN-MCP-1"], (mcp_docs, rest_docs.json())
+        doc_meta_call = rpc(api, {"jsonrpc": "2.0", "id": 64, "method": "tools/call",
+                                  "params": {"name": "get_document_fields", "arguments": {
+                                      "doctype": "quotation",
+                                  }}}, mgr_h).json()["result"]
+        doc_meta = json.loads(doc_meta_call["content"][0]["text"])
+        assert "customer_name" in doc_meta["text_fields"], doc_meta
+        assert "customer_name" in doc_meta["default_search_fields"], doc_meta
 
         # Viewer is denied writes at call time too (defence in depth).
         denied = rpc(api, {"jsonrpc": "2.0", "id": 6, "method": "tools/call",

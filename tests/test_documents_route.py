@@ -173,6 +173,16 @@ def check_documents_route():
             "/api/documents/quotation?grand_total__contains=15", headers=h
         ).status_code == 400
 
+        # Bare free-text search has deterministic schema-derived defaults. It
+        # must never degrade to the newest unfiltered rows merely because a REST
+        # or MCP caller omitted search_fields.
+        r = client.get("/api/documents/quotation?search=mUsTeR", headers=h)
+        assert r.status_code == 200, r.text[:200]
+        assert [row["name"] for row in r.json()["rows"]] == ["QTN-FILTER-1"], r.text[:300]
+        assert r.json()["total"] == 1, r.text[:300]
+        r = client.get("/api/documents/quotation?search=no-such-customer", headers=h)
+        assert r.status_code == 200 and r.json()["rows"] == [] and r.json()["total"] == 0, r.text[:300]
+
         # an unknown filter field IS a 400 — filters affect the query, so stay strict
         r = client.get("/api/masters/customer?nonsense_col=x", headers=h)
         assert r.status_code == 400, f"unknown filter field must 400: {r.status_code} {r.text[:150]}"

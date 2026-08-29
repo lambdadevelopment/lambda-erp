@@ -236,8 +236,9 @@ def register_master(slug: str, table: str, name_field: str, *,
     (`/api/masters/{slug}`) and the chat tools (search_masters,
     get_master_fields, create/update/delete_master — their schemas and the
     system prompt are built from the live registry per request). Fields are
-    never declared: they're introspected from the table at call time, so every
-    text column of `table` is immediately searchable.
+    never declared: they're introspected from the table at call time. Ordinary
+    text columns are searched by default; large blobs remain available when a
+    caller names them explicitly.
 
     `name_field` is the human display column (e.g. "company_name").
     `name_prefix` enables auto-generated ids (prefix "LEAD" -> LEAD-001) when a
@@ -634,6 +635,47 @@ def _resolve_date_field(db, doctype: str, override: str | None) -> str | None:
 
 _SEARCH_EXPANSIONS: dict[str, list] = {}  # slug -> [fn(query: str, db) -> Iterable[str]]
 
+# Audit/plumbing columns and large blobs are poor defaults for a free-text
+# lookup. Callers can still target every real column explicitly.
+_SEARCH_SKIP_COLUMNS = {
+    "creation", "modified", "created_at", "updated_at", "owner",
+    "modified_by", "idx", "parent", "parenttype", "parentfield",
+}
+_BULK_TEXT_COLUMNS = {"description", "notes", "remarks", "terms", "comments"}
+
+
+def is_bulk_text_column(column: str) -> bool:
+    return (
+        column in _BULK_TEXT_COLUMNS
+        or column.endswith("_template")
+        or column.endswith("_html")
+    )
+
+
+def _useful_text_columns(db, doctype: str) -> list[str]:
+    return sorted(
+        column for column in db._get_text_columns(doctype) - _SEARCH_SKIP_COLUMNS
+        if not is_bulk_text_column(column)
+    )
+
+
+def document_search_columns(db, doctype_slug: str) -> list[str]:
+    """Default free-text columns for a document REST/MCP list query.
+
+    A registered chat doctype may deliberately provide a smaller field set.
+    Otherwise use schema-discovered text columns, excluding audit noise and
+    large blobs. This prevents ``search`` without ``search_fields`` from
+    silently becoming an unfiltered list.
+    """
+    doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
+    if not doctype:
+        return []
+    columns = db._get_table_columns(doctype)
+    declared = (CHAT_DOCTYPES.get(doctype_slug) or {}).get("fields") or []
+    if declared:
+        return sorted({field for field in declared if field in columns})
+    return _useful_text_columns(db, doctype)
+
 
 def register_search_expansion(doctype_slug: str, fn) -> None:
     """Register a related-table search for a doctype's list. `fn(query, db)`
@@ -652,6 +694,8 @@ def _search_clause(db, doctype: str, doctype_slug: str, search, search_fields):
     tracks the searched list exactly."""
     if not search:
         return None, []
+    if not search_fields:
+        search_fields = document_search_columns(db, doctype_slug)
     cols = db._get_table_columns(doctype)
     like = f"%{search}%"
     parts, params = [], []
@@ -942,18 +986,125 @@ def count_query_cached(query: str, params=None) -> int:
     return total
 
 
-# Audit / plumbing columns never worth matching a free-text list search against.
-_MASTER_SEARCH_SKIP = {
-    "name", "creation", "modified", "owner", "modified_by", "disabled",
-    "idx", "parent", "parenttype", "parentfield", "docstatus",
-}
-
-
 def master_search_columns(db, doctype: str) -> list:
     """Text columns a free-text master-list search matches by default — schema-
     discovered (a new text field becomes searchable automatically), minus audit
-    noise. Mirrors the chat search_masters default so both search the same set."""
-    return sorted(db._get_text_columns(doctype) - _MASTER_SEARCH_SKIP)
+    noise and large blobs. Shared by REST and chat/MCP."""
+    return _useful_text_columns(db, doctype)
+
+
+def master_bulk_text_columns(db, doctype: str) -> list[str]:
+    """Large text fields available for explicit search, but skipped by default."""
+    return sorted(
+        column for column in db._get_text_columns(doctype)
+        if is_bulk_text_column(column)
+    )
+
+
+def _master_sort_sql(column: str, direction: str) -> str:
+    sql = f'"{column}" {direction.upper()}'
+    if column != "name":
+        sql += f" NULLS LAST, name {direction.upper()}"
+    return sql
+
+
+def list_master_records(
+    master_type: str,
+    *,
+    filters: dict | None = None,
+    search: str | None = None,
+    search_fields: list[str] | None = None,
+    include_disabled: bool = False,
+    order_by: str | None = None,
+    order: str = "asc",
+    limit: int | None = 50,
+    offset: int = 0,
+    fields: list[str] | None = None,
+    with_total: bool = True,
+) -> dict:
+    """Deterministic master-list query shared by REST and chat/MCP.
+
+    Scalars are exact filters; the whitelisted operator forms accepted by
+    ``_filter_atom`` provide contains/comparison/NULL filtering. Free text is a
+    separate OR-group and is ANDed with those field filters.
+    """
+    entry = MASTER_TABLES.get(master_type)
+    if not entry:
+        raise ValueError(f"Unknown master type: {master_type}")
+    doctype, _ = entry
+    db = get_db()
+    columns = db._get_table_columns(doctype)
+    text_fields = sorted(db._get_text_columns(doctype))
+
+    db_filters = {
+        key: value for key, value in (filters or {}).items()
+        if value is not None and value != ""
+    }
+    unknown_filters = [key for key in db_filters if key not in columns]
+    if unknown_filters:
+        raise ValueError(
+            f"Unknown filter column(s) for {master_type}: {', '.join(unknown_filters)}"
+        )
+    _validate_typed_filters(db, doctype, db_filters)
+
+    where_parts, params = _where_from_filters(db_filters)
+    if not include_disabled and "disabled" in columns:
+        where_parts.insert(0, '"disabled" = ?')
+        params.insert(0, 0)
+
+    requested_search_fields = list(search_fields or [])
+    unknown_search = [field for field in requested_search_fields if field not in columns]
+    if unknown_search:
+        raise ValueError(f"Unknown search field(s): {', '.join(unknown_search)}")
+    effective_search_fields = requested_search_fields or master_search_columns(db, doctype)
+    search_where, search_params = _search_clause(
+        db, doctype, master_type, search, effective_search_fields,
+    )
+    if search_where:
+        where_parts.append(search_where)
+        params.extend(search_params)
+
+    sort_column = order_by or "name"
+    if sort_column not in columns:
+        raise ValueError(f"Unknown order_by column for {master_type}: {sort_column}")
+    direction = str(order).lower()
+    if direction not in ("asc", "desc"):
+        raise ValueError("order must be 'asc' or 'desc'")
+
+    requested_fields = list(fields or [])
+    unknown_fields = [field for field in requested_fields if field not in columns]
+    if unknown_fields:
+        raise ValueError(f"Unknown result field(s): {', '.join(unknown_fields)}")
+    if requested_fields:
+        if "name" not in requested_fields:
+            requested_fields.insert(0, "name")
+        projection = ", ".join(f'"{field}"' for field in requested_fields)
+    else:
+        projection = "*"
+
+    where = " WHERE " + " AND ".join(where_parts) if where_parts else ""
+    total = (
+        count_query_cached(f'SELECT COUNT(*) AS c FROM "{doctype}"{where}', params)
+        if with_total else None
+    )
+    query = (
+        f'SELECT {projection} FROM "{doctype}"{where} '
+        f'ORDER BY {_master_sort_sql(sort_column, direction)}'
+    )
+    if limit is not None:
+        query += f" LIMIT {max(1, int(limit))}"
+    elif offset and db.dialect == "sqlite":
+        query += " LIMIT -1"
+    if offset:
+        query += f" OFFSET {max(0, int(offset))}"
+
+    return {
+        "rows": db.sql(query, params),
+        "total": total,
+        "limit": limit,
+        "offset": max(0, int(offset)),
+        "text_fields": text_fields,
+    }
 
 
 def count_documents(doctype_slug: str, filters: dict = None, include_discarded: bool = False) -> int:

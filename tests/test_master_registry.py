@@ -109,6 +109,8 @@ def check_master_registry():
             assert "gadget" in by_name["create_master"]["parameters"]["properties"]["master_type"]["enum"]
             d_enum = by_name["list_documents"]["parameters"]["properties"]["doctype"]["enum"]
             assert "gadget" in d_enum, f"list_documents enum missing gadget: {d_enum}"
+            schema_enum = by_name["get_document_fields"]["parameters"]["properties"]["doctype"]["enum"]
+            assert "gadget" in schema_enum, f"get_document_fields enum missing gadget: {schema_enum}"
             # The static template must stay untouched (build_tools deep-copies).
             static = {t["function"]["name"]: t["function"] for t in chat.TOOLS}
             assert "gadget" not in static["search_masters"]["parameters"]["properties"]["master_type"]["enum"]
@@ -124,6 +126,7 @@ def check_master_registry():
             # --- Field discovery is pure introspection. ----------------------
             fields = chat._handle_get_master_fields({"master_type": "gadget"})
             assert "gadget_name" in fields["fields"] and "town" in fields["fields"], fields
+            assert "gadget_name" in fields["text_fields"] and "town" in fields["text_fields"], fields
             assert "gadget_name" in fields["default_search_fields"]
             # `notes` is a generic bulk column: reachable, but not searched by default.
             assert "notes" in fields["bulk_text_fields"]
