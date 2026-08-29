@@ -64,7 +64,7 @@ Each of those is hours of skilled work today. With a capable LLM in the loop, th
                                                ▼
                            ┌──────────────────────────────────────────┐
                            │  LLM orchestrator                        │
-                           │  - GPT-5.4 drives the reasoning loop     │
+                           │  - GPT-5.6 drives the reasoning loop     │
                            │  - Tool-use: document CRUD, search,      │
                            │    reports, aggregations, analytics      │
                            │  - Delegates JS generation to Anthropic  │
