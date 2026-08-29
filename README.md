@@ -421,9 +421,9 @@ replacement file.
 Both the backend seams (document classes, lifecycle hooks, converters, plugin
 loading) and the frontend seams (doctype/route/nav/component registries,
 branding, configurable API base, Tailwind preset) are implemented. The backend
-also builds a clean pip wheel and the frontend a `@lambda-development/erp-core` npm library
-— see [`docs/packaging-distribution-plan.md`](docs/packaging-distribution-plan.md)
-for the publish path.
+ships as a pip package and the frontend as the
+`@lambda-development/erp-core` npm package. See
+[`docs/releasing.md`](docs/releasing.md) for the release process.
 
 ---
 

@@ -5,7 +5,7 @@ historical rate(s) they were booked at. At period end their base value has
 drifted from today's rate; `run_period_revaluation` restates them to the
 closing rate and books the difference as **unrealized** FX gain/loss.
 
-Principles (see docs/multicurrency-phase-4c.md):
+Principles (see docs/foreign-currency-revaluation.md):
 - Never edit posted entries — revaluation posts new GL, and an auto-reversal
   dated the next day backs it out so it doesn't double-count once the balance
   settles (and realized FX is recognized then).

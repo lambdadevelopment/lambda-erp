@@ -4,8 +4,9 @@ Exposes the Reservation availability engine (lambda_erp/assets/reservation.py)
 over REST so the booking form can check "is this free?" before saving and the
 fleet calendar can render free vs booked. Read-only — posts nothing.
 
-See docs/RENTAL_UI_PLAN.md (Phase 1). The overlap rule itself lives in one
-place (reservation.overlapping_reservations); this router only surfaces it.
+The overlap rule itself lives in one place
+(`reservation.overlapping_reservations`); this router only surfaces it. See
+`docs/adr-0002-asset-and-reservation.md` for the reservation semantics.
 """
 
 from fastapi import APIRouter, Depends, Query, HTTPException

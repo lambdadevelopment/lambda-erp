@@ -612,7 +612,7 @@ DEFAULTS = {
     "allow_public_signup": "0",
     # When "1", the programmatic chat API (POST /api/v1/chat, Bearer API keys) is
     # active. Default off — an admin turns it on and issues keys. See
-    # docs/chat-api-plan.md.
+    # docs/chat-api.md.
     "chat_api_enabled": "0",
     # When "1", the same Bearer API keys authenticate the regular REST API
     # (/api/documents, /api/masters, /api/reports, …) in addition to the session

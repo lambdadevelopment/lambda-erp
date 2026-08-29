@@ -134,5 +134,3 @@ so it reaches the iOS app / websocket.)
 | `401` | missing / bad / revoked key |
 | `404` | the API is disabled, or the `session_id` isn't the caller's |
 | `422` | empty `message` |
-
-See [`chat-api-plan.md`](chat-api-plan.md) for the design and rationale.

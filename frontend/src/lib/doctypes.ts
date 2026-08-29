@@ -659,7 +659,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
 
   // --- Rentals: unit-level assets + date-ranged reservations (ADR-0002).
   // These are core doctypes (lambda_erp/assets/); they post nothing to the GL
-  // or stock ledger. See docs/RENTAL_UI_PLAN.md.
+  // or stock ledger. See docs/adr-0002-asset-and-reservation.md.
   "asset": {
     slug: "asset",
     label: "Asset",

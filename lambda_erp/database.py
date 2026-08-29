@@ -1403,7 +1403,7 @@ class Database:
             # (sha256); `key_prefix` is a display-only fragment. `role` bounds the
             # agent's tool access; `session_owner` is the user_id the key's chat
             # sessions are owned under (isolated from human users). See
-            # docs/chat-api-plan.md.
+            # docs/chat-api.md.
             # Per-user API keys (v2): a key BELONGS to a User and can never act
             # above its owner — `role` is only a CAP; the effective role is
             # min(cap, owner's current role) resolved live at auth time, so a

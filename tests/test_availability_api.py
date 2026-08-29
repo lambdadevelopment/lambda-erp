@@ -4,7 +4,8 @@
 Runs the real FastAPI app end-to-end (register admin -> enable rest_api ->
 issue a manager Bearer key -> create an asset-tracked item + 2 units + 1
 booking -> assert availability). The availability ENGINE is covered by
-test_erp_validation; this pins the HTTP surface. See docs/RENTAL_UI_PLAN.md.
+test_erp_validation; this pins the HTTP surface. Reservation semantics are in
+docs/adr-0002-asset-and-reservation.md.
 
 Run:  python -m tests.test_availability_api
       LAMBDA_ERP_TEST_DB=postgresql://... python -m tests.test_availability_api

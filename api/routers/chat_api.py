@@ -6,7 +6,7 @@ default). Lets an external orchestrator (Lambda's own lambda-web infra, then the
 iPhone app) hold a conversation with an ERP instance the way a connector script
 talks to Dynamics NAV.
 
-Statefulness (see docs/chat-api-plan.md):
+Statefulness (see docs/chat-api.md):
   - no `session_id`  -> stateless reasoning: the agent answers using only the
     current message; the turn is still persisted to a rolling audit session for
     visibility, but prior turns are NOT replayed. This suits a caller (the

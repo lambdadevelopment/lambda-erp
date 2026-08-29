@@ -232,7 +232,7 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 ## [0.8.0] - 2026-08-17
 
 ### Added
-- **Rental UI, phase 1** (see `docs/RENTAL_UI_PLAN.md`). Builds on the 0.7.0
+- **Rental UI, phase 1.** Builds on the 0.7.0
   `Asset` + `Reservation` primitives:
   - **`GET /api/availability`** — is an item free over a window? Returns pool
     capacity, committed, available qty, the free units, and the overlapping
@@ -1019,7 +1019,7 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   password → social switch, keeping the same user id and history). Invites can be
   accepted via OAuth. New table `User OAuth Identity` (created at boot — no
   migration; `hashed_password` stays NOT NULL, OAuth-only users carry a
-  non-matchable sentinel). i18n in en/de/fr. See `docs/social-login-plan.md`.
+  non-matchable sentinel). i18n in en/de/fr. See `docs/social-login.md`.
 
 ### Fixed
 - **Read-only Notes / Terms preserved line breaks.** After a quotation became

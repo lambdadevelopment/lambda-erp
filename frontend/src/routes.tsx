@@ -75,7 +75,7 @@ const baseChildRoutes: RouteObject[] = [
   { path: "reports/ap-aging", element: <ApAging /> },
   { path: "reports/analytics", element: <Analytics /> },
 
-  // Rentals (docs/RENTAL_UI_PLAN.md)
+  // Rentals
   { path: "rentals/calendar", element: <FleetCalendar /> },
 
   // Admin
