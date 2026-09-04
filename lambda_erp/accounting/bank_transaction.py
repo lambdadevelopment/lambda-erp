@@ -13,13 +13,30 @@ from lambda_erp.exceptions import ValidationError
 
 class BankTransaction(Document):
     DOCTYPE = "Bank Transaction"
-    CHILD_TABLES = {}
+    CHILD_TABLES = {
+        "details": ("Bank Transaction Detail", None),
+    }
     PREFIX = "BT"
+
+    LINK_FIELDS = {
+        # bank_account is the historical GL Account field. bank_account_id is
+        # the real-world account/IBAN mapping introduced by CAMT imports.
+        "bank_account": "Account",
+        "bank_account_id": "Bank Account",
+        "bank_statement_import": "Bank Statement Import",
+    }
+    ACCOUNT_TYPE_CONSTRAINTS = {
+        "bank_account": {"account_type": "Bank"},
+    }
 
     def validate(self):
         deposit = flt(self.deposit)
         withdrawal = flt(self.withdrawal)
-        if not deposit and not withdrawal:
+        # CAMT statements can contain booked zero-amount informational rows
+        # (for example a quarterly interest close with no interest due). Keep
+        # those for a complete audit trail, while manual transactions still
+        # require an actual movement.
+        if not deposit and not withdrawal and not self.bank_statement_import:
             raise ValidationError("Either Deposit or Withdrawal amount is required")
         if deposit and withdrawal:
             raise ValidationError("Cannot have both Deposit and Withdrawal")
@@ -38,7 +55,9 @@ class BankTransaction(Document):
     def _set_status(self):
         unallocated = flt(self._data.get("unallocated_amount", 0))
         total = flt(self.deposit) or flt(self.withdrawal)
-        if unallocated <= 0 and total > 0:
+        if total == 0 and self.bank_statement_import:
+            self._data["status"] = "Informational"
+        elif unallocated <= 0 and total > 0:
             self._data["status"] = "Reconciled"
         elif flt(self.allocated_amount) > 0:
             self._data["status"] = "Partially Reconciled"

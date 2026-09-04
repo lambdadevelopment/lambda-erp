@@ -405,6 +405,7 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
       items: group.items.filter((item) => {
         // Admin-only items are hidden from non-admins (the route is gated too).
         if (item.adminOnly && user?.role !== "admin") return false;
+        if (item.managerOnly && user?.role !== "manager" && user?.role !== "admin") return false;
         // Company Setup is a one-time step — hide it once a company exists.
         if (item.path === "/setup" && setupStatus?.setup_complete) return false;
         // Settings-gated items (default to shown until settings load).

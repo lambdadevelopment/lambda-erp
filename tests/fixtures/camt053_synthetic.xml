@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>SYNTHETIC-MESSAGE-2025</MsgId>
+      <CreDtTm>2026-01-01T10:00:00+01:00</CreDtTm>
+    </GrpHdr>
+    <Stmt>
+      <Id>SYNTHETIC-STATEMENT-2025</Id>
+      <ElctrncSeqNb>1</ElctrncSeqNb>
+      <FrToDt>
+        <FrDtTm>2025-01-01T00:00:00+01:00</FrDtTm>
+        <ToDtTm>2025-12-31T23:59:59+01:00</ToDtTm>
+      </FrToDt>
+      <Acct>
+        <Id><IBAN>CH3600000000000000000</IBAN></Id>
+        <Ccy>CHF</Ccy>
+        <Nm>Synthetic operating account</Nm>
+        <Svcr><FinInstnId><BICFI>TESTCHZZXXX</BICFI><Nm>Example Bank</Nm></FinInstnId></Svcr>
+      </Acct>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="CHF">1000.00</Amt><CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt><Dt>2025-01-01</Dt></Dt>
+      </Bal>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="CHF">1100.00</Amt><CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt><Dt>2025-12-31</Dt></Dt>
+      </Bal>
+      <Ntry>
+        <Amt Ccy="CHF">250.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><RvslInd>false</RvslInd>
+        <Sts><Cd>BOOK</Cd></Sts><BookgDt><Dt>2025-02-03</Dt></BookgDt><ValDt><Dt>2025-02-03</Dt></ValDt>
+        <AcctSvcrRef>SYNTH-ASR-001</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>RCDT</Cd><SubFmlyCd>DMCT</SubFmlyCd></Fmly></Domn></BkTxCd>
+        <NtryDtls><TxDtls>
+          <Refs><EndToEndId>SYNTH-E2E-001</EndToEndId><UETR>00000000-0000-4000-8000-000000000001</UETR></Refs>
+          <Amt Ccy="CHF">250.00</Amt><CdtDbtInd>CRDT</CdtDbtInd>
+          <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>RCDT</Cd><SubFmlyCd>DMCT</SubFmlyCd></Fmly></Domn></BkTxCd>
+          <RltdPties>
+            <Dbtr><Pty><Nm>Example Customer</Nm></Pty></Dbtr><DbtrAcct><Id><IBAN>CH6300000000000000001</IBAN></Id></DbtrAcct>
+            <Cdtr><Pty><Nm>Synthetic Company</Nm></Pty></Cdtr><CdtrAcct><Id><IBAN>CH3600000000000000000</IBAN></Id></CdtrAcct>
+          </RltdPties>
+          <RmtInf><Strd><CdtrRefInf><Tp><CdOrPrtry><Prtry>QRR</Prtry></CdOrPrtry></Tp><Ref>210000000003139471430009017</Ref></CdtrRefInf><AddtlRmtInf>Synthetic invoice</AddtlRmtInf></Strd></RmtInf>
+        </TxDtls></NtryDtls>
+        <AddtlNtryInf>Synthetic QR receipt</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">150.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><RvslInd>false</RvslInd>
+        <Sts><Cd>BOOK</Cd></Sts><BookgDt><Dt>2025-03-04</Dt></BookgDt><ValDt><Dt>2025-03-04</Dt></ValDt>
+        <AcctSvcrRef>SYNTH-ASR-002</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>ICDT</Cd><SubFmlyCd>AUTT</SubFmlyCd></Fmly></Domn></BkTxCd>
+        <NtryDtls>
+          <Btch><NbOfTxs>2</NbOfTxs></Btch>
+          <TxDtls>
+            <Refs><PmtInfId>SYNTH-BATCH-001</PmtInfId><UETR>00000000-0000-4000-8000-000000000002</UETR></Refs>
+            <Amt Ccy="CHF">100.00</Amt><CdtDbtInd>DBIT</CdtDbtInd>
+            <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>ICDT</Cd><SubFmlyCd>AUTT</SubFmlyCd></Fmly></Domn></BkTxCd>
+            <RltdPties><Dbtr><Pty><Nm>Synthetic Company</Nm></Pty></Dbtr><DbtrAcct><Id><IBAN>CH3600000000000000000</IBAN></Id></DbtrAcct><Cdtr><Pty><Nm>Example Supplier A</Nm></Pty></Cdtr><CdtrAcct><Id><IBAN>CH9000000000000000002</IBAN></Id></CdtrAcct></RltdPties>
+            <RmtInf><Ustrd>Synthetic bill A</Ustrd></RmtInf>
+          </TxDtls>
+          <TxDtls>
+            <Refs><PmtInfId>SYNTH-BATCH-001</PmtInfId><UETR>00000000-0000-4000-8000-000000000003</UETR></Refs>
+            <Amt Ccy="CHF">50.00</Amt><CdtDbtInd>DBIT</CdtDbtInd>
+            <BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>ICDT</Cd><SubFmlyCd>AUTT</SubFmlyCd></Fmly></Domn></BkTxCd>
+            <RltdPties><Dbtr><Pty><Nm>Synthetic Company</Nm></Pty></Dbtr><DbtrAcct><Id><IBAN>CH3600000000000000000</IBAN></Id></DbtrAcct><Cdtr><Pty><Nm>Example Supplier B</Nm></Pty></Cdtr><CdtrAcct><Id><IBAN>CH1700000000000000003</IBAN></Id></CdtrAcct></RltdPties>
+            <RmtInf><Ustrd>Synthetic bill B</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Synthetic payment batch</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">0.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><RvslInd>false</RvslInd>
+        <Sts><Cd>BOOK</Cd></Sts><BookgDt><Dt>2025-12-31</Dt></BookgDt><ValDt><Dt>2025-12-31</Dt></ValDt>
+        <AcctSvcrRef>SYNTH-ASR-003</AcctSvcrRef>
+        <BkTxCd><Domn><Cd>LDAS</Cd><Fmly><Cd>MDOP</Cd><SubFmlyCd>INTR</SubFmlyCd></Fmly></Domn></BkTxCd>
+        <NtryDtls><TxDtls><Amt Ccy="CHF">0.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><BkTxCd><Domn><Cd>LDAS</Cd><Fmly><Cd>MDOP</Cd><SubFmlyCd>INTR</SubFmlyCd></Fmly></Domn></BkTxCd></TxDtls></NtryDtls>
+        <AddtlNtryInf>Synthetic interest close</AddtlNtryInf>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

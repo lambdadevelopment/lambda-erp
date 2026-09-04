@@ -767,7 +767,7 @@ export default function ChatPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,.xlsx,.xls,.ods,.docx,.doc,.odt,.pptx,.ppt,.odp,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.oasis.opendocument.text,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.oasis.opendocument.presentation,text/csv,text/plain"
+            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,.xlsx,.xls,.ods,.docx,.doc,.odt,.pptx,.ppt,.odp,.csv,.txt,.xml,.zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.oasis.opendocument.text,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.oasis.opendocument.presentation,text/csv,text/plain,application/xml,text/xml,application/zip,application/x-zip-compressed"
             multiple
             className="hidden"
             onChange={(e) => {

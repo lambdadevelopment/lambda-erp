@@ -61,6 +61,71 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   return res.json();
 }
 
+async function multipartRequest<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!res.ok) {
+    if (res.status === 401) {
+      window.location.href = "/login";
+      throw new ApiError(401, "Session expired");
+    }
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new ApiError(res.status, formatErrorDetail(body.detail));
+  }
+  return res.json() as Promise<T>;
+}
+
+export interface BankStatementPreview {
+  statement_key: string;
+  file_name: string;
+  schema_version: string;
+  statement_id: string;
+  account_iban_masked: string;
+  account_name: string | null;
+  account_currency: string;
+  bank_name: string | null;
+  bank_bic: string | null;
+  from_date: string | null;
+  to_date: string | null;
+  opening_balance: string | null;
+  closing_balance: string | null;
+  credit_total: string;
+  debit_total: string;
+  entry_count: number;
+  booked_entry_count: number;
+  detail_count: number;
+  batch_entry_count: number;
+  qr_reference_count: number;
+  duplicate_entry_count: number;
+  already_imported: boolean;
+  existing_import: string | null;
+  matched_bank_account: {
+    name: string;
+    account_name: string;
+    company: string;
+    account: string;
+    currency: string;
+    bank_name: string | null;
+    iban_masked: string;
+  } | null;
+  warnings: string[];
+}
+
+export interface BankStatementImportResult {
+  imports: Array<{
+    name: string;
+    bank_account: string;
+    account_iban_masked: string;
+    imported_entry_count: number;
+    duplicate_entry_count: number;
+    skipped_non_booked_count: number;
+  }>;
+  exact_duplicate_imports: string[];
+}
+
 function qs(params?: Record<string, string | number | undefined>) {
   if (!params) return "";
   const clean = Object.fromEntries(
@@ -152,6 +217,25 @@ export const api = {
     }>;
   },
   getChatAttachmentUrl: (id: string) => `${BASE}/chat/attachments/${encodeURIComponent(id)}`,
+
+  previewBankStatements: (files: File[]) => {
+    const form = new FormData();
+    files.forEach((file) => form.append("files", file));
+    return multipartRequest<{ statements: BankStatementPreview[] }>("/bank-statements/preview", form);
+  },
+
+  importBankStatements: (files: File[], mappings: Record<string, string>) => {
+    const form = new FormData();
+    files.forEach((file) => form.append("files", file));
+    form.append("mappings", JSON.stringify(mappings));
+    return multipartRequest<BankStatementImportResult>("/bank-statements/import", form);
+  },
+
+  listBankStatementImports: (limit = 50) =>
+    request<{ rows: any[] }>(`/bank-statements${qs({ limit })}`),
+
+  bankStatementSourceUrl: (name: string) =>
+    `${BASE}/bank-statements/${encodeURIComponent(name)}/source`,
 
   // Chat
   createChatSession: () =>

@@ -59,6 +59,37 @@
     "endOfThisYear": "Fin de l’année en cours",
     "endOfLastYear": "Fin de l’année dernière"
   },
+  "bankStatements": {
+    "title": "Importer un relevé bancaire",
+    "subtitle": "Prévisualisez et importez des relevés ISO 20022 CAMT sans écriture comptable automatique.",
+    "selectFiles": "Fichiers CAMT",
+    "chooseFiles": "Choisir des fichiers XML ou ZIP",
+    "fileHint": "camt.053.001.04 et camt.053.001.08 · plusieurs fichiers acceptés",
+    "preview": "Afficher l’aperçu",
+    "noPosting": "L’aperçu et l’importation ne génèrent aucune écriture comptable.",
+    "alreadyImported": "Déjà importé",
+    "period": "Période",
+    "openingBalance": "Solde initial",
+    "closingBalance": "Solde final",
+    "entries": "Opérations",
+    "credits": "Crédits",
+    "debits": "Débits",
+    "details": "Détails des transactions",
+    "batches": "lots",
+    "qrReferences": "Références QR",
+    "mapping": "Affectation du compte bancaire",
+    "selectBankAccount": "Sélectionner un compte bancaire…",
+    "noBankAccounts": "Aucun compte bancaire n’a encore été configuré.",
+    "createBankAccount": "Configurer un compte bancaire",
+    "mappingRequired": "Affectez chaque nouveau relevé à un compte bancaire avant l’importation.",
+    "import": "Importer les relevés",
+    "importComplete": "Importation terminée",
+    "importCounts": "{{imported}} opérations importées, {{duplicates}} doublons ignorés",
+    "history": "Importations récentes",
+    "importId": "Importation",
+    "bankAccount": "Compte bancaire",
+    "source": "Fichier source"
+  },
   "smartSearch": {
     "placeholder": "Rechercher ou saisir champ:valeur…",
     "search": "Rechercher",
@@ -153,6 +184,10 @@
       "one": "Transaction bancaire",
       "other": "Transactions bancaires"
     },
+    "bank-account": {
+      "one": "Compte bancaire",
+      "other": "Comptes bancaires"
+    },
     "budget": {
       "one": "Budget",
       "other": "Budgets"
@@ -232,6 +267,8 @@
       "Payment Entry": "Paiement",
       "Journal Entry": "Écriture comptable",
       "Bank Transaction": "Transaction bancaire",
+      "Bank Account": "Comptes bancaires",
+      "Bank Statement Import": "Importer un relevé bancaire",
       "Budget": "Budget",
       "Subscription": "Abonnement",
       "Stock Entry": "Mouvement de stock",

@@ -59,6 +59,37 @@
     "endOfThisYear": "Ende dieses Jahres",
     "endOfLastYear": "Ende des letzten Jahres"
   },
+  "bankStatements": {
+    "title": "Kontoauszug importieren",
+    "subtitle": "ISO-20022-CAMT-Kontoauszüge prüfen und ohne automatische Verbuchung importieren.",
+    "selectFiles": "CAMT-Dateien",
+    "chooseFiles": "XML- oder ZIP-Dateien auswählen",
+    "fileHint": "camt.053.001.04 und camt.053.001.08 · mehrere Dateien möglich",
+    "preview": "Vorschau anzeigen",
+    "noPosting": "Vorschau und Import erzeugen keine Buchungssätze.",
+    "alreadyImported": "Bereits importiert",
+    "period": "Zeitraum",
+    "openingBalance": "Anfangssaldo",
+    "closingBalance": "Endsaldo",
+    "entries": "Buchungen",
+    "credits": "Gutschriften",
+    "debits": "Belastungen",
+    "details": "Transaktionsdetails",
+    "batches": "Sammelbuchungen",
+    "qrReferences": "QR-Referenzen",
+    "mapping": "Bankkonto-Zuordnung",
+    "selectBankAccount": "Bankkonto auswählen…",
+    "noBankAccounts": "Es wurde noch kein Bankkonto eingerichtet.",
+    "createBankAccount": "Bankkonto einrichten",
+    "mappingRequired": "Ordnen Sie vor dem Import jeden neuen Auszug einem Bankkonto zu.",
+    "import": "Kontoauszüge importieren",
+    "importComplete": "Import abgeschlossen",
+    "importCounts": "{{imported}} Buchungen importiert, {{duplicates}} Duplikate übersprungen",
+    "history": "Letzte Importe",
+    "importId": "Import",
+    "bankAccount": "Bankkonto",
+    "source": "Quelldatei"
+  },
   "smartSearch": {
     "placeholder": "Suchen oder Feld:Wert eingeben…",
     "search": "Suchen",
@@ -153,6 +184,10 @@
       "one": "Banktransaktion",
       "other": "Banktransaktionen"
     },
+    "bank-account": {
+      "one": "Bankkonto",
+      "other": "Bankkonten"
+    },
     "budget": {
       "one": "Budget",
       "other": "Budgets"
@@ -232,6 +267,8 @@
       "Payment Entry": "Zahlung",
       "Journal Entry": "Buchungssatz",
       "Bank Transaction": "Banktransaktion",
+      "Bank Account": "Bankkonten",
+      "Bank Statement Import": "Kontoauszug importieren",
       "Budget": "Budget",
       "Subscription": "Abonnement",
       "Stock Entry": "Lagerbuchung",

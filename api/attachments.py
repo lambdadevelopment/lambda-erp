@@ -49,10 +49,17 @@ OFFICE_MIME_TYPES = {
 # Plain-text formats — inlined into the prompt as text (no file part needed).
 TEXT_MIME_TYPES = {"text/csv", "text/plain"}
 
+# Structured bank uploads are retained as ordinary chat attachments, but are
+# never dumped wholesale into the LLM context. Dedicated deterministic tools
+# parse them and return a compact preview instead.
+STRUCTURED_TOOL_MIME_TYPES = {
+    "application/xml", "text/xml", "application/zip", "application/x-zip-compressed",
+}
+
 ALLOWED_MIME_TYPES = {
     "image/png", "image/jpeg", "image/gif", "image/webp",
     "application/pdf",
-} | OFFICE_MIME_TYPES | TEXT_MIME_TYPES
+} | OFFICE_MIME_TYPES | TEXT_MIME_TYPES | STRUCTURED_TOOL_MIME_TYPES
 
 # Extension -> canonical mime, so a correctly-named file still uploads when the
 # browser/OS mislabels its type (Office files are frequently sent as
@@ -69,6 +76,8 @@ _EXT_TO_MIME = {
     "odp": "application/vnd.oasis.opendocument.presentation",
     "csv": "text/csv",
     "txt": "text/plain",
+    "xml": "application/xml",
+    "zip": "application/zip",
     "pdf": "application/pdf",
     "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
     "gif": "image/gif", "webp": "image/webp",
@@ -240,7 +249,8 @@ async def upload_attachment(
             raise HTTPException(
                 status_code=400,
                 detail=(f"Unsupported file type: {mime or ext or 'unknown'}. Allowed: images, PDF, "
-                        "spreadsheets (Excel/CSV/ODS), and documents (Word/OpenDocument)."),
+                        "spreadsheets (Excel/CSV/ODS), documents (Word/OpenDocument), "
+                        "and structured bank files (XML/ZIP)."),
             )
 
     data = await file.read()
@@ -388,6 +398,14 @@ def build_multimodal_content(attachment: dict) -> dict:
         return {
             "type": "image_url",
             "image_url": {"url": f"data:{mime};base64,{data_b64}"},
+        }
+    if mime in STRUCTURED_TOOL_MIME_TYPES:
+        return {
+            "type": "text",
+            "text": (
+                f"[Structured attachment: {filename}. Do not retrieve or parse its raw contents in "
+                "the conversation; use the dedicated bank-statement preview tool.]"
+            ),
         }
     if mime in TEXT_MIME_TYPES or mime.startswith("text/"):
         text = attachment["data"].decode("utf-8", errors="replace")

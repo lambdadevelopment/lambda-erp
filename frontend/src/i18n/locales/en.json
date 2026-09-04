@@ -59,6 +59,37 @@
     "endOfThisYear": "End of This Year",
     "endOfLastYear": "End of Last Year"
   },
+  "bankStatements": {
+    "title": "Bank statement import",
+    "subtitle": "Preview and import ISO 20022 CAMT statements without posting to the ledger.",
+    "selectFiles": "CAMT files",
+    "chooseFiles": "Choose XML or ZIP files",
+    "fileHint": "camt.053.001.04 and camt.053.001.08 · multiple files supported",
+    "preview": "Show preview",
+    "noPosting": "Previewing and importing do not post accounting entries.",
+    "alreadyImported": "Already imported",
+    "period": "Period",
+    "openingBalance": "Opening balance",
+    "closingBalance": "Closing balance",
+    "entries": "Entries",
+    "credits": "Credits",
+    "debits": "Debits",
+    "details": "Transaction details",
+    "batches": "batches",
+    "qrReferences": "QR references",
+    "mapping": "Bank account mapping",
+    "selectBankAccount": "Select a Bank Account…",
+    "noBankAccounts": "No Bank Account has been configured yet.",
+    "createBankAccount": "Create Bank Account",
+    "mappingRequired": "Map every new statement to a Bank Account before importing.",
+    "import": "Import bank statements",
+    "importComplete": "Import completed",
+    "importCounts": "{{imported}} entries imported, {{duplicates}} duplicates skipped",
+    "history": "Recent imports",
+    "importId": "Import",
+    "bankAccount": "Bank account",
+    "source": "Source file"
+  },
   "smartSearch": {
     "placeholder": "Search or enter field:value…",
     "search": "Search",
@@ -153,6 +184,10 @@
       "one": "Bank Transaction",
       "other": "Bank Transactions"
     },
+    "bank-account": {
+      "one": "Bank Account",
+      "other": "Bank Accounts"
+    },
     "budget": {
       "one": "Budget",
       "other": "Budgets"
@@ -232,6 +267,8 @@
       "Payment Entry": "Payment Entry",
       "Journal Entry": "Journal Entry",
       "Bank Transaction": "Bank Transaction",
+      "Bank Account": "Bank Accounts",
+      "Bank Statement Import": "Bank Statement Import",
       "Budget": "Budget",
       "Subscription": "Subscription",
       "Stock Entry": "Stock Entry",

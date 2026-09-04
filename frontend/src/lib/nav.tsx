@@ -25,6 +25,8 @@ export interface NavItem {
   path: string;
   // Hide from the sidebar for non-admins (the route is admin-gated too).
   adminOnly?: boolean;
+  // Hide operational write workflows from viewers and the public demo user.
+  managerOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -69,6 +71,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Chart of Accounts", path: "/reports/chart-of-accounts" },
       { label: "Payment Entry", path: "/app/payment-entry" },
       { label: "Journal Entry", path: "/app/journal-entry" },
+      { label: "Bank Account", path: "/app/bank-account" },
+      { label: "Bank Statement Import", path: "/accounting/bank-statements", managerOnly: true },
       { label: "Bank Transaction", path: "/app/bank-transaction" },
       { label: "Budget", path: "/app/budget" },
       { label: "Subscription", path: "/app/subscription" },

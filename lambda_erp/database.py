@@ -1273,15 +1273,107 @@ class Database:
                 FOREIGN KEY (parent) REFERENCES "Subscription"(name)
             )""",
 
-            # --- Bank Transaction ---
+            # --- Bank Accounts / Statement Imports / Transactions ---
+            """CREATE TABLE IF NOT EXISTS "Bank Account" (
+                name TEXT PRIMARY KEY,
+                account_name TEXT NOT NULL,
+                company TEXT NOT NULL,
+                account TEXT NOT NULL,
+                iban TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                bank_name TEXT,
+                bic TEXT,
+                disabled INTEGER DEFAULT 0,
+                docstatus INTEGER DEFAULT 0,
+                creation TEXT,
+                modified TEXT,
+                FOREIGN KEY (company) REFERENCES "Company"(name),
+                FOREIGN KEY (account) REFERENCES "Account"(name)
+            )""",
+
+            """CREATE UNIQUE INDEX IF NOT EXISTS "ux_bank_account_iban"
+                ON "Bank Account" (iban)""",
+
+            """CREATE TABLE IF NOT EXISTS "Bank Statement Import" (
+                name TEXT PRIMARY KEY,
+                bank_account TEXT NOT NULL,
+                company TEXT NOT NULL,
+                source TEXT DEFAULT 'Manual Upload',
+                source_filename TEXT,
+                source_sha256 TEXT NOT NULL,
+                schema_version TEXT,
+                message_id TEXT,
+                statement_id TEXT,
+                statement_index INTEGER DEFAULT 1,
+                electronic_sequence_number TEXT,
+                account_iban TEXT,
+                currency TEXT,
+                from_date TEXT,
+                to_date TEXT,
+                opening_balance REAL,
+                closing_balance REAL,
+                credit_total REAL DEFAULT 0,
+                debit_total REAL DEFAULT 0,
+                entry_count INTEGER DEFAULT 0,
+                booked_entry_count INTEGER DEFAULT 0,
+                detail_count INTEGER DEFAULT 0,
+                imported_entry_count INTEGER DEFAULT 0,
+                duplicate_entry_count INTEGER DEFAULT 0,
+                warning_count INTEGER DEFAULT 0,
+                warnings_json TEXT,
+                status TEXT DEFAULT 'Imported',
+                imported_by TEXT,
+                docstatus INTEGER DEFAULT 0,
+                creation TEXT,
+                modified TEXT,
+                FOREIGN KEY (bank_account) REFERENCES "Bank Account"(name),
+                FOREIGN KEY (company) REFERENCES "Company"(name)
+            )""",
+
+            """CREATE UNIQUE INDEX IF NOT EXISTS "ux_bank_statement_source"
+                ON "Bank Statement Import" (source_sha256, statement_index)""",
+
+            # Kept outside the generic document registry so raw bank XML is
+            # never returned by ordinary list/get-document API calls.
+            """CREATE TABLE IF NOT EXISTS "Bank Statement Source" (
+                import_name TEXT PRIMARY KEY,
+                source_data BLOB NOT NULL,
+                FOREIGN KEY (import_name) REFERENCES "Bank Statement Import"(name)
+            )""",
+
             """CREATE TABLE IF NOT EXISTS "Bank Transaction" (
                 name TEXT PRIMARY KEY,
                 bank_account TEXT,
+                bank_account_id TEXT,
+                bank_statement_import TEXT,
                 posting_date TEXT,
+                value_date TEXT,
                 deposit REAL DEFAULT 0,
                 withdrawal REAL DEFAULT 0,
+                currency TEXT,
                 description TEXT,
+                remittance_information TEXT,
                 reference_number TEXT,
+                external_id TEXT,
+                weak_external_id INTEGER DEFAULT 0,
+                account_service_reference TEXT,
+                entry_reference TEXT,
+                credit_debit_indicator TEXT,
+                reversal_indicator INTEGER DEFAULT 0,
+                bank_transaction_code TEXT,
+                proprietary_bank_code TEXT,
+                batch_transaction_count INTEGER,
+                counterparty_name TEXT,
+                counterparty_iban TEXT,
+                end_to_end_id TEXT,
+                payment_information_id TEXT,
+                uetr TEXT,
+                structured_reference_type TEXT,
+                structured_reference TEXT,
+                exchange_source_currency TEXT,
+                exchange_target_currency TEXT,
+                exchange_rate REAL,
+                detail_count INTEGER DEFAULT 0,
                 allocated_amount REAL DEFAULT 0,
                 unallocated_amount REAL DEFAULT 0,
                 reference_doctype TEXT,
@@ -1289,8 +1381,42 @@ class Database:
                 status TEXT DEFAULT 'Unreconciled',
                 docstatus INTEGER DEFAULT 0,
                 creation TEXT,
-                modified TEXT
+                modified TEXT,
+                FOREIGN KEY (bank_account) REFERENCES "Account"(name),
+                FOREIGN KEY (bank_account_id) REFERENCES "Bank Account"(name),
+                FOREIGN KEY (bank_statement_import) REFERENCES "Bank Statement Import"(name)
             )""",
+
+            """CREATE TABLE IF NOT EXISTS "Bank Transaction Detail" (
+                name TEXT PRIMARY KEY,
+                parent TEXT NOT NULL,
+                idx INTEGER DEFAULT 0,
+                external_id TEXT,
+                amount REAL DEFAULT 0,
+                currency TEXT,
+                credit_debit_indicator TEXT,
+                bank_transaction_code TEXT,
+                proprietary_bank_code TEXT,
+                payment_information_id TEXT,
+                instruction_id TEXT,
+                end_to_end_id TEXT,
+                uetr TEXT,
+                transaction_id TEXT,
+                mandate_id TEXT,
+                debtor_name TEXT,
+                debtor_iban TEXT,
+                creditor_name TEXT,
+                creditor_iban TEXT,
+                ultimate_debtor_name TEXT,
+                ultimate_creditor_name TEXT,
+                creditor_reference_type TEXT,
+                creditor_reference TEXT,
+                remittance_information TEXT,
+                FOREIGN KEY (parent) REFERENCES "Bank Transaction"(name)
+            )""",
+
+            """CREATE INDEX IF NOT EXISTS "ix_bank_transaction_detail_parent"
+                ON "Bank Transaction Detail" (parent, idx)""",
 
             # --- Chat Sessions ---
             """CREATE TABLE IF NOT EXISTS "Chat Session" (
@@ -2216,6 +2342,53 @@ def _m022_company_default_tax_templates(db: "Database") -> None:
     db._add_column_if_missing("Company", "default_purchase_tax_template", "TEXT")
 
 
+def _m023_camt_bank_statement_import(db: "Database") -> None:
+    """Extend existing Bank Transactions with lossless CAMT import metadata.
+
+    The new Bank Account/import/detail tables are created by the normal
+    CREATE TABLE IF NOT EXISTS schema pass before migrations run. Only the
+    pre-existing Bank Transaction table needs additive columns here.
+    """
+    columns = {
+        "bank_account_id": "TEXT",
+        "bank_statement_import": "TEXT",
+        "value_date": "TEXT",
+        "currency": "TEXT",
+        "remittance_information": "TEXT",
+        "external_id": "TEXT",
+        "weak_external_id": "INTEGER DEFAULT 0",
+        "account_service_reference": "TEXT",
+        "entry_reference": "TEXT",
+        "credit_debit_indicator": "TEXT",
+        "reversal_indicator": "INTEGER DEFAULT 0",
+        "bank_transaction_code": "TEXT",
+        "proprietary_bank_code": "TEXT",
+        "batch_transaction_count": "INTEGER",
+        "counterparty_name": "TEXT",
+        "counterparty_iban": "TEXT",
+        "end_to_end_id": "TEXT",
+        "payment_information_id": "TEXT",
+        "uetr": "TEXT",
+        "structured_reference_type": "TEXT",
+        "structured_reference": "TEXT",
+        "exchange_source_currency": "TEXT",
+        "exchange_target_currency": "TEXT",
+        "exchange_rate": "REAL",
+        "detail_count": "INTEGER DEFAULT 0",
+    }
+    existing = db._get_table_columns("Bank Transaction")
+    statements = [
+        f'ALTER TABLE "Bank Transaction" ADD COLUMN {column} {definition}'
+        for column, definition in columns.items()
+        if column not in existing
+    ]
+    statements.append(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ux_bank_transaction_external_id" '
+        'ON "Bank Transaction" (external_id)'
+    )
+    db._alter_table_lock_safe(statements, ["Bank Transaction"])
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2239,6 +2412,7 @@ Database.MIGRATIONS = [
     (20, "chat_attachment_openai_file", _m020_chat_attachment_openai_file),
     (21, "item_is_asset_tracked", _m021_item_is_asset_tracked),
     (22, "company_default_tax_templates", _m022_company_default_tax_templates),
+    (23, "camt_bank_statement_import", _m023_camt_bank_statement_import),
 ]
 
 

@@ -13,6 +13,27 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.22] - 2026-09-04
+
+### Added
+- CAMT.053 bank-statement preview and import for XML and ZIP files, with
+  bounded safe parsing for schema versions `.04` and `.08`.
+- Bank Account mappings connect external IBANs to company ledger accounts.
+- Imported statement entries retain transaction details, structured payment
+  references, counterparties, exchange information, and a private audit copy
+  of the source XML without posting anything to the general ledger.
+- Bank statements can be previewed and imported from the accounting UI or
+  through confirmed chat tools. XML and ZIP files are supported as ordinary
+  chat attachments without injecting their raw contents into model context.
+- Regression coverage for SQLite and PostgreSQL, existing-database upgrades,
+  unsafe XML and ZIP input, audit-source retention, and duplicate imports.
+
+### Changed
+- Bank-transaction deduplication uses stable bank references and bounded
+  set-based lookups, including repeated files and references in one request.
+- Bank-statement importing is restricted to authenticated managers and
+  administrators; previews mask account identifiers.
+
 ## [0.8.21] - 2026-08-29
 
 ### Added

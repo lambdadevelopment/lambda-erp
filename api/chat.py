@@ -448,7 +448,7 @@ DOCUMENT_SLUGS = [
     "purchase-order", "purchase-invoice",
     "payment-entry", "journal-entry", "stock-entry",
     "delivery-note", "purchase-receipt", "pos-invoice",
-    "pricing-rule", "budget", "subscription", "bank-transaction",
+    "pricing-rule", "budget", "subscription", "bank-account", "bank-transaction",
     # Owned equipment and its hire calendar. Core doctypes, so they belong in
     # this list rather than surfacing as "deployment-specific extensions"
     # (_extra_document_slugs is defined as everything NOT named here).
@@ -814,8 +814,56 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_chat_attachments",
-            "description": "List all files the user has uploaded in this chat session — PDFs, images, spreadsheets (Excel/CSV/ODS), and documents (Word/OpenDocument). Returns metadata including id, filename, mime type, size, and upload date. Use this when the user references a previously uploaded file or you need to find an attachment to retrieve.",
+            "description": "List all files the user has uploaded in this chat session — PDFs, images, spreadsheets (Excel/CSV/ODS), documents (Word/OpenDocument), and structured bank files (CAMT XML/ZIP). Returns metadata including id, filename, mime type, size, and upload date. Use this when the user references a previously uploaded file or you need its attachment id.",
             "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "preview_bank_statement_attachments",
+            "description": "Safely parse CAMT.053 XML or ZIP chat attachments and return a compact, read-only import preview: masked account, currency, period, balances, entry/detail/batch/QR counts, duplicates, warnings, and any exact Bank Account mapping. The raw XML is never added to the model context. Always call this before importing bank statements.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "attachment_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "maxItems": 20,
+                        "description": "CAMT XML/ZIP attachment ids from this chat.",
+                    },
+                },
+                "required": ["attachment_ids"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "import_bank_statement_attachments",
+            "description": "Import previously previewed CAMT attachments as Bank Transactions without creating or posting any Payment Entry, Journal Entry, or GL entry. Exact file re-uploads and stable duplicate bank entries are skipped. Use only after showing the preview and receiving explicit user confirmation. Requires manager access and is unavailable in public demo mode.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "attachment_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "maxItems": 20,
+                    },
+                    "mappings": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                        "description": "Optional mapping of statement_key from the preview to Bank Account document name. Exact IBAN matches are used automatically.",
+                    },
+                    "confirmed": {
+                        "type": "boolean",
+                        "description": "Must be true, and only after the user explicitly confirmed the displayed preview.",
+                    },
+                },
+                "required": ["attachment_ids", "confirmed"],
+            },
         },
     },
     {
@@ -1302,15 +1350,20 @@ def build_tools(user_info: dict | None = None):
     extra_docs = _extra_document_slugs()
     extra_masters = _extra_master_types()
     action_tools = services.registered_action_tools()
+    hidden_tools: set[str] = set()
     if user_info is not None:
         role = user_info.get("role")
         action_tools = [
             tool for tool in action_tools
             if services.registered_action_allowed(tool["function"]["name"], role)
         ]
-    if not extra_docs and not extra_masters and not action_tools:
+        if role not in {"manager", "admin"}:
+            hidden_tools.add("import_bank_statement_attachments")
+    if not extra_docs and not extra_masters and not action_tools and not hidden_tools:
         return TOOLS
     tools = copy.deepcopy(TOOLS)
+    if hidden_tools:
+        tools = [tool for tool in tools if tool["function"]["name"] not in hidden_tools]
     for tool in tools:
         props = tool["function"].get("parameters", {}).get("properties", {})
         for schema in props.values():
@@ -1813,6 +1866,98 @@ def _handle_retrieve_chat_attachment(args, session_id: str | None = None, user_i
     }
 
 
+def _load_camt_chat_attachments(args, user_id: str | None):
+    attachment_ids = args.get("attachment_ids") or []
+    if not user_id:
+        return None, {"error": "No authenticated user for bank statement attachments."}
+    if not isinstance(attachment_ids, list) or not 1 <= len(attachment_ids) <= 20:
+        return None, {"error": "attachment_ids must contain between 1 and 20 attachment ids."}
+    from api.attachments import get_attachments_by_ids
+    from lambda_erp.accounting.camt import CamtError, parse_camt_upload
+
+    attachments = get_attachments_by_ids(attachment_ids, user_id)
+    found = {item["id"] for item in attachments}
+    missing = [item for item in attachment_ids if item not in found]
+    if missing:
+        return None, {"error": "One or more attachments were not found or access was denied."}
+    documents = []
+    try:
+        for attachment in attachments:
+            documents.extend(parse_camt_upload(attachment["data"], attachment["filename"]))
+    except CamtError as exc:
+        return None, {"error": str(exc)}
+    return documents, None
+
+
+def _handle_preview_bank_statement_attachments(args, user_id: str | None = None):
+    documents, error = _load_camt_chat_attachments(args, user_id)
+    if error:
+        return error
+    from lambda_erp.accounting.bank_statement_import import preview_documents
+    return preview_documents(documents)
+
+
+def _handle_import_bank_statement_attachments(args, user_info: dict | None = None):
+    role = (user_info or {}).get("role")
+    if role not in {"manager", "admin"}:
+        return {"error": "Importing bank statements requires manager access and is unavailable in demo mode."}
+    if args.get("confirmed") is not True:
+        return {
+            "error": (
+                "Explicit confirmation is required. Show the bank statement preview, ask the user "
+                "to confirm it, and call the import tool in a later turn with confirmed=true."
+            )
+        }
+    user_id = (user_info or {}).get("name")
+    documents, error = _load_camt_chat_attachments(args, user_id)
+    if error:
+        return error
+    from lambda_erp.accounting.bank_statement_import import import_documents, preview_documents
+    from lambda_erp.exceptions import ValidationError
+
+    mappings = args.get("mappings") or {}
+    if not isinstance(mappings, dict):
+        return {"error": "mappings must be an object of statement_key to Bank Account name."}
+    # Exact IBAN matches are safe to fill automatically; anything ambiguous or
+    # unmapped is returned to the model as a focused question for the user.
+    preview = preview_documents(documents)
+    effective_mappings = dict(mappings)
+    missing = []
+    for statement in preview["statements"]:
+        if statement["already_imported"]:
+            continue
+        key = statement["statement_key"]
+        matched = statement.get("matched_bank_account")
+        if key not in effective_mappings and matched:
+            effective_mappings[key] = matched["name"]
+        if key not in effective_mappings:
+            missing.append({
+                "statement_key": key,
+                "file_name": statement["file_name"],
+                "account_iban_masked": statement["account_iban_masked"],
+                "currency": statement["account_currency"],
+            })
+    if missing:
+        return {
+            "error": "Bank Account mapping is required before import.",
+            "unmapped_statements": missing,
+        }
+    try:
+        result = import_documents(
+            documents, effective_mappings, imported_by=user_id
+        )
+    except ValidationError as exc:
+        return {"error": str(exc)}
+    # Keep the model context bounded even for multi-year statements.
+    return {
+        "imports": [
+            {key: value for key, value in item.items() if key != "transactions"}
+            for item in result["imports"]
+        ],
+        "exact_duplicate_imports": result["exact_duplicate_imports"],
+    }
+
+
 def _handle_query_dataset(args):
     from api.routers.analytics import aggregate_semantic_dataset
 
@@ -1970,6 +2115,8 @@ TOOL_HANDLERS = {
     "retrieve_chat_history": lambda args: _handle_retrieve_chat_history(args),
     "list_chat_attachments": _handle_list_chat_attachments,
     "retrieve_chat_attachment": _handle_retrieve_chat_attachment,
+    "preview_bank_statement_attachments": _handle_preview_bank_statement_attachments,
+    "import_bank_statement_attachments": _handle_import_bank_statement_attachments,
     "query_dataset": _handle_query_dataset,
     "create_custom_analytics_report": lambda args: _handle_create_custom_analytics_report(args),
     "get_custom_analytics_report": lambda args: _handle_get_custom_analytics_report(args),
@@ -2203,12 +2350,30 @@ When a user asks you to do something they don't have permission for, explain wha
 ## Available Document Types (use the slug when calling tools)
 - **Selling:** quotation, proposal, sales-order, sales-invoice, pos-invoice
 - **Buying:** purchase-order, purchase-invoice
-- **Accounting:** payment-entry, journal-entry, budget, subscription, bank-transaction
+- **Accounting:** payment-entry, journal-entry, budget, subscription, bank-account, bank-transaction
 - **Stock:** stock-entry, delivery-note, purchase-receipt
 - **Assets & hire:** asset, reservation
 - **Settings:** pricing-rule{extension_doctypes_line}{chat_doctype_section}
 
 ## Document Workflow & What Each Document Does
+
+### CAMT bank statement imports
+CAMT XML/ZIP attachments are structured financial inputs. Never retrieve their raw contents into
+the conversation and never try to interpret the XML manually. Use this workflow:
+1. Find the attachment ids with `list_chat_attachments` when necessary.
+2. Call `preview_bank_statement_attachments` and present its period, masked account, currency,
+   opening/closing balances, credits/debits, entry/detail/batch counts, QR-reference count,
+   duplicate status, warnings, and proposed Bank Account mapping.
+3. If there is no exact mapping, list or create a `bank-account` document. It must link the external
+   IBAN to the correct Company and GL Account; never guess that accounting mapping.
+4. Ask the user for explicit confirmation after showing the preview. Do not call the import tool in
+   the same turn in which you first show the preview.
+5. Only after that confirmation, call `import_bank_statement_attachments` with `confirmed=true`.
+
+The CAMT import creates unposted Bank Transactions and their batch details only. It never creates,
+submits, or posts a Payment Entry, Journal Entry, or GL Entry. Do not imply that invoices have been
+settled or the ledger changed merely because a statement was imported. Matching/reconciliation is a
+separate later step. Keep Bank Account IBANs masked in ordinary chat responses.
 
 ### Sales Cycle
 Quotation → Sales Order → Delivery Note (shipping) / Sales Invoice (billing) → Payment Entry
@@ -3042,6 +3207,12 @@ async def run_thinking_loop(
         tool_handlers["retrieve_chat_history"] = lambda args: _handle_retrieve_chat_history(args, session_id)
         user_id_for_tools = user_info.get("name") if user_info else None
         tool_handlers["list_chat_attachments"] = lambda args: _handle_list_chat_attachments(args, session_id, user_id_for_tools)
+        tool_handlers["preview_bank_statement_attachments"] = (
+            lambda args: _handle_preview_bank_statement_attachments(args, user_id_for_tools)
+        )
+        tool_handlers["import_bank_statement_attachments"] = (
+            lambda args: _handle_import_bank_statement_attachments(args, user_info)
+        )
         _scoped_retrieve_attachment = (
             lambda args: _handle_retrieve_chat_attachment(args, session_id, user_id_for_tools)
         )

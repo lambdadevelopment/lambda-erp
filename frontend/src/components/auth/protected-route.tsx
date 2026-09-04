@@ -43,3 +43,24 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
+
+/** Restrict operational write workflows to real managers and admins.
+ *  In particular this excludes the shared public demo manager account. */
+export function ManagerRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-dvh items-center justify-center">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== "manager" && user.role !== "admin") {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
