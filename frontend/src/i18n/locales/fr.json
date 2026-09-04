@@ -64,6 +64,8 @@
     "subtitle": "Prévisualisez et importez des relevés ISO 20022 CAMT sans écriture comptable automatique.",
     "selectFiles": "Fichiers CAMT",
     "chooseFiles": "Choisir des fichiers XML ou ZIP",
+    "dropFiles": "Déposez les fichiers XML ou ZIP ici",
+    "unsupportedFiles": "Seuls les fichiers CAMT XML ou ZIP sont acceptés : {{files}}",
     "fileHint": "camt.053.001.04 et camt.053.001.08 · plusieurs fichiers acceptés",
     "preview": "Afficher l’aperçu",
     "noPosting": "L’aperçu et l’importation ne génèrent aucune écriture comptable.",

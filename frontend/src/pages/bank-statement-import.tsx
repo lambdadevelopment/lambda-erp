@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { api, type BankStatementImportResult, type BankStatementPreview } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { usePageTitle } from "@/lib/use-page-title";
 
 
@@ -34,6 +35,7 @@ export default function BankStatementImport() {
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [mappings, setMappings] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<any[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [busy, setBusy] = useState<"preview" | "import" | null>(null);
   const [error, setError] = useState("");
   const [result, setResult] = useState<BankStatementImportResult | null>(null);
@@ -67,6 +69,26 @@ export default function BankStatementImport() {
     () => files.map((file) => file.name).join(", "),
     [files],
   );
+
+  const selectFiles = (incoming: FileList | File[]) => {
+    const selected = Array.from(incoming);
+    const unsupported = selected.filter((file) => {
+      const extension = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
+      return extension !== "xml" && extension !== "zip";
+    });
+    if (unsupported.length) {
+      setFiles([]);
+      setError(t("bankStatements.unsupportedFiles", {
+        files: unsupported.map((file) => file.name).join(", "),
+      }));
+    } else {
+      setFiles(selected);
+      setError("");
+    }
+    setStatements([]);
+    setMappings({});
+    setResult(null);
+  };
 
   const preview = async () => {
     if (!files.length) return;
@@ -117,10 +139,37 @@ export default function BankStatementImport() {
       <Card>
         <h2 className="mb-4 text-base font-semibold text-fg">{t("bankStatements.selectFiles")}</h2>
         <div className="space-y-4">
-          <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface-subtle px-4 py-6 text-center transition-colors hover:border-brand/50 hover:bg-brand/5">
+          <label
+            className={cn(
+              "flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-6 text-center transition-colors",
+              isDragOver
+                ? "border-brand bg-brand/10 ring-2 ring-brand/20"
+                : "border-line bg-surface-subtle hover:border-brand/50 hover:bg-brand/5",
+            )}
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes("Files")) {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "copy";
+                setIsDragOver(true);
+              }
+            }}
+            onDragLeave={(event) => {
+              const related = event.relatedTarget as Node | null;
+              if (!related || !(event.currentTarget as Node).contains(related)) {
+                setIsDragOver(false);
+              }
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragOver(false);
+              if (event.dataTransfer.files.length) selectFiles(event.dataTransfer.files);
+            }}
+          >
             <FileUp className="mb-2 h-7 w-7 text-brand" />
             <span className="text-sm font-medium text-fg">
-              {selectedNames || t("bankStatements.chooseFiles")}
+              {isDragOver
+                ? t("bankStatements.dropFiles")
+                : selectedNames || t("bankStatements.chooseFiles")}
             </span>
             <span className="mt-1 text-xs text-fg-muted">{t("bankStatements.fileHint")}</span>
             <input
@@ -128,13 +177,7 @@ export default function BankStatementImport() {
               type="file"
               multiple
               accept=".xml,.zip,application/xml,text/xml,application/zip,application/x-zip-compressed"
-              onChange={(event) => {
-                setFiles(Array.from(event.target.files || []));
-                setStatements([]);
-                setMappings({});
-                setResult(null);
-                setError("");
-              }}
+              onChange={(event) => selectFiles(event.target.files || [])}
             />
           </label>
           <div className="flex flex-wrap items-center gap-3">

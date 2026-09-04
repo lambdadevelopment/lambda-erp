@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.23] - 2026-09-04
+
+### Fixed
+- The chat attachment picker now accepts CAMT XML and ZIP files on browsers
+  that report ZIP uploads as `application/x-zip-compressed`.
+- The CAMT import upload area now implements actual drag-and-drop, including a
+  visible drop state and a clear error for unsupported files.
+
 ## [0.8.22] - 2026-09-04
 
 ### Added

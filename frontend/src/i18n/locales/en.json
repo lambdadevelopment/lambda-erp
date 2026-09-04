@@ -64,6 +64,8 @@
     "subtitle": "Preview and import ISO 20022 CAMT statements without posting to the ledger.",
     "selectFiles": "CAMT files",
     "chooseFiles": "Choose XML or ZIP files",
+    "dropFiles": "Drop XML or ZIP files here",
+    "unsupportedFiles": "Only CAMT XML or ZIP files are supported: {{files}}",
     "fileHint": "camt.053.001.04 and camt.053.001.08 · multiple files supported",
     "preview": "Show preview",
     "noPosting": "Previewing and importing do not post accounting entries.",

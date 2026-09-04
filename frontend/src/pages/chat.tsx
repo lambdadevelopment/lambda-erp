@@ -23,6 +23,8 @@ const ALLOWED_MIMES = new Set([
   "application/vnd.oasis.opendocument.presentation", // odp
   // Delimited / text
   "text/csv", "text/plain",
+  // Structured bank statements
+  "application/xml", "text/xml", "application/zip", "application/x-zip-compressed",
 ]);
 
 // Some browsers/OSes hand us an empty or octet-stream type for Office files, so
@@ -30,6 +32,7 @@ const ALLOWED_MIMES = new Set([
 const ALLOWED_EXTS = new Set([
   "png", "jpg", "jpeg", "gif", "webp", "pdf",
   "xlsx", "xls", "ods", "docx", "doc", "odt", "pptx", "ppt", "odp", "csv", "txt",
+  "xml", "zip",
 ]);
 
 interface PendingAttachment {

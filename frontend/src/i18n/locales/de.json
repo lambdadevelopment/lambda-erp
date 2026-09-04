@@ -64,6 +64,8 @@
     "subtitle": "ISO-20022-CAMT-Kontoauszüge prüfen und ohne automatische Verbuchung importieren.",
     "selectFiles": "CAMT-Dateien",
     "chooseFiles": "XML- oder ZIP-Dateien auswählen",
+    "dropFiles": "XML- oder ZIP-Dateien hier ablegen",
+    "unsupportedFiles": "Es werden nur CAMT-XML- oder ZIP-Dateien unterstützt: {{files}}",
     "fileHint": "camt.053.001.04 und camt.053.001.08 · mehrere Dateien möglich",
     "preview": "Vorschau anzeigen",
     "noPosting": "Vorschau und Import erzeugen keine Buchungssätze.",
