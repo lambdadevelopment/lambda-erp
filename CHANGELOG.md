@@ -13,6 +13,12 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.26] - 2026-09-05
+
+### Fixed
+- The multi-account bank-reconciliation migration now uses portable SQL that
+  passes the full SQLite and PostgreSQL validation workflow.
+
 ## [0.8.25] - 2026-09-05
 
 ### Added

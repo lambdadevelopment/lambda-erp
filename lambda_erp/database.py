@@ -2440,7 +2440,7 @@ def _m025_bank_reconciliation_multi_account_voucher(db: "Database") -> None:
         'DROP INDEX IF EXISTS "ux_bank_reconciliation_active_voucher"',
         'UPDATE "Bank Reconciliation" SET bank_account = ('
         'SELECT bt.bank_account FROM "Bank Transaction" bt '
-        'WHERE bt.name = "Bank Reconciliation".bank_transaction'
+        'WHERE bt.name = bank_transaction'
         ') WHERE bank_account IS NULL',
         'CREATE UNIQUE INDEX IF NOT EXISTS "ux_bank_reconciliation_active_voucher_account" '
         'ON "Bank Reconciliation" (voucher_type, voucher_no, bank_account) '
