@@ -256,10 +256,10 @@ def _voucher_candidates(tx: dict, limit: int) -> list[dict]:
         'AND gle.voucher_type IN (?, ?) '
         'AND NOT EXISTS (SELECT 1 FROM "Bank Reconciliation" br '
         '  WHERE br.voucher_type = gle.voucher_type AND br.voucher_no = gle.voucher_no '
-        '  AND br.status = ?) '
+        '  AND br.status = ? AND br.bank_account = ?) '
         'GROUP BY gle.voucher_type, gle.voucher_no '
         'ORDER BY MIN(gle.posting_date) DESC LIMIT 500',
-        [tx["bank_account"], "Payment Entry", "Journal Entry", "Active"],
+        [tx["bank_account"], "Payment Entry", "Journal Entry", "Active", tx["bank_account"]],
     )
     expected = _amount(tx)
     deposit = _is_deposit(tx)
@@ -311,6 +311,7 @@ def _new_audit(tx: dict, *, mode: str, voucher_type: str, voucher_no: str,
     get_db().insert("Bank Reconciliation", {
         "name": name,
         "bank_transaction": tx["name"],
+        "bank_account": tx["bank_account"],
         "mode": mode,
         "voucher_type": voucher_type,
         "voucher_no": voucher_no,
@@ -360,34 +361,35 @@ def reverse_generated_reconciliation(reconciliation: str | None, *, voucher_type
             "Bank Reconciliation", reconciliation,
             ["name", "bank_transaction", "voucher_type", "voucher_no", "status", "reversed_by"],
         )
+        rows = [row] if row else []
     else:
-        matches = db.sql(
+        rows = db.sql(
             'SELECT name, bank_transaction, voucher_type, voucher_no, status, reversed_by '
             'FROM "Bank Reconciliation" WHERE voucher_type = ? AND voucher_no = ? '
-            'AND status = ? LIMIT 1',
+            'AND status = ?',
             [voucher_type, voucher_no, "Active"],
         )
-        row = matches[0] if matches else None
-    if not row or row.get("status") != "Active":
-        return
-    if row.get("voucher_type") != voucher_type or row.get("voucher_no") != voucher_no:
-        raise ValidationError("Bank reconciliation voucher does not match the cancelled document")
-    tx = _transaction(row["bank_transaction"])
-    db.set_value("Bank Transaction", tx["name"], {
-        "reference_doctype": None,
-        "reference_name": None,
-        "allocated_amount": 0,
-        "unallocated_amount": _amount(tx),
-        "status": "Unreconciled",
-        "reconciled_by": None,
-        "reconciled_at": None,
-        "modified": now(),
-    })
-    db.set_value("Bank Reconciliation", row["name"], {
-        "status": "Reversed",
-        "reversed_by": row.get("reversed_by"),
-        "reversed_at": now(),
-    })
+    for row in rows:
+        if row.get("status") != "Active":
+            continue
+        if row.get("voucher_type") != voucher_type or row.get("voucher_no") != voucher_no:
+            raise ValidationError("Bank reconciliation voucher does not match the cancelled document")
+        tx = _transaction(row["bank_transaction"])
+        db.set_value("Bank Transaction", tx["name"], {
+            "reference_doctype": None,
+            "reference_name": None,
+            "allocated_amount": 0,
+            "unallocated_amount": _amount(tx),
+            "status": "Unreconciled",
+            "reconciled_by": None,
+            "reconciled_at": None,
+            "modified": now(),
+        })
+        db.set_value("Bank Reconciliation", row["name"], {
+            "status": "Reversed",
+            "reversed_by": row.get("reversed_by"),
+            "reversed_at": now(),
+        })
 
 
 def _allocation_profile(tx: dict, allocations: list[dict]) -> tuple[tuple[str, str, str, str], list[dict]]:
@@ -586,7 +588,19 @@ def _validate_existing_voucher(tx: dict, voucher_type: str, voucher_no: str) -> 
         raise ValidationError(f"{voucher_type} {voucher_no} is unavailable or not submitted")
     if document.get("company") != tx["company"]:
         raise ValidationError("Voucher and bank transaction belong to different companies")
-    rows = get_db().sql(
+    db = get_db()
+    used = db.sql(
+        'SELECT bank_transaction FROM "Bank Reconciliation" '
+        'WHERE voucher_type = ? AND voucher_no = ? AND bank_account = ? '
+        'AND status = ? LIMIT 1',
+        [voucher_type, voucher_no, tx["bank_account"], "Active"],
+    )
+    if used:
+        raise ValidationError(
+            f"The {voucher_type} {voucher_no} bank movement on account "
+            f"{tx['bank_account']} is already reconciled with {used[0]['bank_transaction']}"
+        )
+    rows = db.sql(
         'SELECT COALESCE(SUM(debit), 0) AS debit, COALESCE(SUM(credit), 0) AS credit, '
         'COALESCE(SUM(debit_in_account_currency), 0) AS debit_ccy, '
         'COALESCE(SUM(credit_in_account_currency), 0) AS credit_ccy '

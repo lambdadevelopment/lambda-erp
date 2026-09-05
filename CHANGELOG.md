@@ -13,6 +13,26 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.25] - 2026-09-05
+
+### Added
+- ERP chat messages now render Markdown tables, including alignment markers,
+  inline formatting, and horizontal scrolling for wide tables.
+- The table renderer tolerates harmless blank lines between model-generated
+  header, delimiter, and data rows.
+
+### Changed
+- One submitted voucher can reconcile multiple imported bank transactions when
+  they refer to distinct bank-account movements, supporting multi-bank Journal
+  Entries without permitting the same bank leg to be reused.
+- Cancelling a voucher releases every active bank transaction linked to it.
+
+### Fixed
+- Reconciliation suggestions no longer hide an available bank leg merely
+  because another bank account in the same voucher is already reconciled.
+- Existing `0.8.24` reconciliation records are backfilled during migration and
+  moved from voucher-wide uniqueness to voucher-and-bank-account uniqueness.
+
 ## [0.8.24] - 2026-09-05
 
 ### Added

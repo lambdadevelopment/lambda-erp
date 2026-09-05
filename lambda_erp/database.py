@@ -1423,12 +1423,14 @@ class Database:
             """CREATE INDEX IF NOT EXISTS "ix_bank_transaction_detail_parent"
                 ON "Bank Transaction Detail" (parent, idx)""",
 
-            # Immutable-ish audit trail for bank reconciliation decisions. A
-            # transaction can have only one active reconciliation, while old
-            # reversed rows remain available for review.
+            # Audit trail for bank reconciliation decisions. A transaction can
+            # have only one active reconciliation. A multi-bank Journal Entry
+            # may be linked once per bank account; reversed rows remain for
+            # review.
             """CREATE TABLE IF NOT EXISTS "Bank Reconciliation" (
                 name TEXT PRIMARY KEY,
                 bank_transaction TEXT NOT NULL,
+                bank_account TEXT NOT NULL,
                 mode TEXT NOT NULL,
                 voucher_type TEXT NOT NULL,
                 voucher_no TEXT NOT NULL,
@@ -1438,14 +1440,12 @@ class Database:
                 created_at TEXT,
                 reversed_by TEXT,
                 reversed_at TEXT,
-                FOREIGN KEY (bank_transaction) REFERENCES "Bank Transaction"(name)
+                FOREIGN KEY (bank_transaction) REFERENCES "Bank Transaction"(name),
+                FOREIGN KEY (bank_account) REFERENCES "Account"(name)
             )""",
 
             """CREATE UNIQUE INDEX IF NOT EXISTS "ux_bank_reconciliation_active_transaction"
                 ON "Bank Reconciliation" (bank_transaction) WHERE status = 'Active'""",
-
-            """CREATE UNIQUE INDEX IF NOT EXISTS "ux_bank_reconciliation_active_voucher"
-                ON "Bank Reconciliation" (voucher_type, voucher_no) WHERE status = 'Active'""",
 
             # --- Chat Sessions ---
             """CREATE TABLE IF NOT EXISTS "Chat Session" (
@@ -2427,6 +2427,27 @@ def _m024_bank_reconciliation(db: "Database") -> None:
     db._add_column_if_missing("Bank Transaction", "reconciled_at", "TEXT")
 
 
+def _m025_bank_reconciliation_multi_account_voucher(db: "Database") -> None:
+    """Allow one voucher to reconcile one bank movement per bank account.
+
+    Version 24 allowed only one active reconciliation for an entire voucher.
+    That rejects legitimate multi-bank journals (for example one CHF fee and
+    one USD fee collected in a single Journal Entry). Keep the conservative
+    one-use rule at the bank-account leg instead.
+    """
+    db.ensure_column("Bank Reconciliation", "bank_account", "TEXT")
+    db._alter_table_lock_safe([
+        'DROP INDEX IF EXISTS "ux_bank_reconciliation_active_voucher"',
+        'UPDATE "Bank Reconciliation" SET bank_account = ('
+        'SELECT bt.bank_account FROM "Bank Transaction" bt '
+        'WHERE bt.name = "Bank Reconciliation".bank_transaction'
+        ') WHERE bank_account IS NULL',
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ux_bank_reconciliation_active_voucher_account" '
+        'ON "Bank Reconciliation" (voucher_type, voucher_no, bank_account) '
+        "WHERE status = 'Active'",
+    ], ["Bank Reconciliation"])
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2452,6 +2473,7 @@ Database.MIGRATIONS = [
     (22, "company_default_tax_templates", _m022_company_default_tax_templates),
     (23, "camt_bank_statement_import", _m023_camt_bank_statement_import),
     (24, "bank_reconciliation", _m024_bank_reconciliation),
+    (25, "bank_reconciliation_multi_account_voucher", _m025_bank_reconciliation_multi_account_voucher),
 ]
 
 

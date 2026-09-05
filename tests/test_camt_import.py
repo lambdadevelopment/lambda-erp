@@ -112,6 +112,53 @@ def check_existing_database_upgrade():
     print("  [camt] existing-database migration order OK")
 
 
+def check_v24_reconciliation_upgrade():
+    """A deployed v0.8.24 database must replace its voucher-wide index safely."""
+    fd, path = tempfile.mkstemp(suffix=".db", prefix="lambda_reconciliation_upgrade_")
+    os.close(fd)
+    try:
+        from lambda_erp.database import Database
+        initial = Database(path)
+        initial.close()
+        with sqlite3.connect(path) as conn:
+            conn.execute('DROP INDEX "ux_bank_reconciliation_active_voucher_account"')
+            conn.execute('ALTER TABLE "Bank Reconciliation" DROP COLUMN bank_account')
+            conn.execute('DELETE FROM "_SchemaMigrations" WHERE version = 25')
+            conn.execute(
+                'CREATE UNIQUE INDEX "ux_bank_reconciliation_active_voucher" '
+                'ON "Bank Reconciliation" (voucher_type, voucher_no) WHERE status = \'Active\''
+            )
+            conn.execute(
+                'INSERT INTO "Bank Transaction" '
+                '(name, bank_account, withdrawal, currency, status) VALUES (?, ?, ?, ?, ?)',
+                ["BT-LEGACY", "Legacy Bank", 3.30, "CHF", "Reconciled"],
+            )
+            conn.execute(
+                'INSERT INTO "Bank Reconciliation" '
+                '(name, bank_transaction, mode, voucher_type, voucher_no, amount, status) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?)',
+                ["BRC-LEGACY", "BT-LEGACY", "Existing Voucher", "Journal Entry",
+                 "JV-LEGACY", 3.30, "Active"],
+            )
+
+        upgraded = Database(path)
+        assert upgraded.get_value(
+            "Bank Reconciliation", "BRC-LEGACY", "bank_account"
+        ) == "Legacy Bank"
+        indexes = upgraded.sql('PRAGMA index_list("Bank Reconciliation")', as_dict=False)
+        index_names = {row[1] for row in indexes}
+        assert "ux_bank_reconciliation_active_voucher" not in index_names
+        assert "ux_bank_reconciliation_active_voucher_account" in index_names
+        upgraded.close()
+    finally:
+        for suffix in ("", "-wal", "-shm"):
+            try:
+                os.unlink(path + suffix)
+            except OSError:
+                pass
+    print("  [camt] v0.8.24 reconciliation index upgrade OK")
+
+
 def check_api_and_chat():
     db_path = _reset_db()
     backend = "postgres" if db_path.startswith("postgres") else "sqlite (temp file)"
@@ -268,6 +315,7 @@ def main():
     print("CAMT bank statement checks")
     check_parser()
     check_existing_database_upgrade()
+    check_v24_reconciliation_upgrade()
     check_api_and_chat()
     print("All CAMT checks passed.")
 

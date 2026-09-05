@@ -34,6 +34,7 @@ def _seed(db):
     ))
     for name, root, account_type in (
         ("Bank - SYNT", "Asset", "Bank"),
+        ("USD Bank - SYNT", "Asset", "Bank"),
         ("Receivable - SYNT", "Asset", "Receivable"),
         ("Payable - SYNT", "Liability", "Payable"),
         ("Income - SYNT", "Income", None),
@@ -42,7 +43,9 @@ def _seed(db):
         db.insert("Account", _dict(
             name=name, account_name=name.split(" - ")[0], company="Synthetic Co",
             root_type=root, report_type="Profit and Loss" if root in {"Income", "Expense"} else "Balance Sheet",
-            account_type=account_type, account_currency="CHF", is_group=0, disabled=0,
+            account_type=account_type,
+            account_currency="USD" if name == "USD Bank - SYNT" else "CHF",
+            is_group=0, disabled=0,
         ))
     db.insert("Customer", _dict(
         name="CUST-001", customer_name="Example Customer", default_currency="CHF",
@@ -60,6 +63,11 @@ def _seed(db):
         "account_name": "Synthetic operating account", "company": "Synthetic Co",
         "account": "Bank - SYNT", "iban": "CH3600000000000000000",
         "currency": "CHF", "bank_name": "Example Bank",
+    }).save()
+    BankAccount({
+        "account_name": "Synthetic USD account", "company": "Synthetic Co",
+        "account": "USD Bank - SYNT", "iban": "CH9300762011623852957",
+        "currency": "USD", "bank_name": "Example Bank",
     }).save()
 
 
@@ -246,6 +254,91 @@ def check_reconciliation():
         assert "error" in _handle_reconcile_bank_transaction({
             "bank_transaction": withdrawal, "mode": "journal", "confirmed": False,
         }, user)
+
+    # A single existing journal may contain independent movements on several
+    # bank accounts. Each bank leg can be reconciled once, but cannot be reused
+    # for another transaction on the same account.
+    primary_bank_id = db.get_value("Bank Account", {"account": "Bank - SYNT"}, "name")
+    usd_bank_id = db.get_value("Bank Account", {"account": "USD Bank - SYNT"}, "name")
+    for import_name, bank_id, source_hash, currency in (
+        ("BSI-MULTI-CHF", primary_bank_id, "a" * 64, "CHF"),
+        ("BSI-MULTI-USD", usd_bank_id, "b" * 64, "USD"),
+    ):
+        db.insert("Bank Statement Import", {
+            "name": import_name, "bank_account": bank_id, "company": "Synthetic Co",
+            "source_sha256": source_hash, "statement_index": 1, "currency": currency,
+            "status": "Imported",
+        })
+    for name, account, bank_id, import_name, amount, currency in (
+        ("BT-MULTI-CHF", "Bank - SYNT", primary_bank_id, "BSI-MULTI-CHF", 3.30, "CHF"),
+        ("BT-MULTI-USD", "USD Bank - SYNT", usd_bank_id, "BSI-MULTI-USD", 0.41, "USD"),
+        ("BT-MULTI-USD-DUP", "USD Bank - SYNT", usd_bank_id, "BSI-MULTI-USD", 0.41, "USD"),
+    ):
+        db.insert("Bank Transaction", {
+            "name": name, "bank_account": account, "bank_account_id": bank_id,
+            "bank_statement_import": import_name, "posting_date": "2025-12-31",
+            "withdrawal": amount, "currency": currency, "external_id": f"test:{name}",
+            "allocated_amount": 0, "unallocated_amount": amount, "status": "Unreconciled",
+        })
+
+    from lambda_erp.accounting.journal_entry import JournalEntry
+    multi_bank_journal = JournalEntry({
+        "posting_date": "2025-12-31", "company": "Synthetic Co",
+        "voucher_type": "Bank Entry", "remark": "Combined CHF and USD bank fees",
+        "accounts": [
+            {"account": "Expense - SYNT", "debit": 3.65, "credit": 0,
+             "debit_in_account_currency": 3.65, "credit_in_account_currency": 0},
+            {"account": "Bank - SYNT", "debit": 0, "credit": 3.30,
+             "debit_in_account_currency": 0, "credit_in_account_currency": 3.30},
+            {"account": "USD Bank - SYNT", "debit": 0, "credit": 0.35,
+             "debit_in_account_currency": 0, "credit_in_account_currency": 0.41},
+        ],
+    }).submit()
+    assert any(
+        item["voucher_no"] == multi_bank_journal.name
+        for item in suggest_matches("BT-MULTI-CHF")["existing_vouchers"]
+    )
+    reconcile_with_existing_voucher(
+        "BT-MULTI-CHF", "Journal Entry", multi_bank_journal.name,
+        user="USER-001", confirmed=True,
+    )
+    # Matching the CHF leg must not hide the still-available USD leg.
+    assert any(
+        item["voucher_no"] == multi_bank_journal.name
+        for item in suggest_matches("BT-MULTI-USD")["existing_vouchers"]
+    )
+    reconcile_with_existing_voucher(
+        "BT-MULTI-USD", "Journal Entry", multi_bank_journal.name,
+        user="USER-001", confirmed=True,
+    )
+    matches = db.sql(
+        'SELECT bank_transaction, bank_account FROM "Bank Reconciliation" '
+        'WHERE voucher_type = ? AND voucher_no = ? AND status = ? ORDER BY bank_transaction',
+        ["Journal Entry", multi_bank_journal.name, "Active"],
+    )
+    assert [(row["bank_transaction"], row["bank_account"]) for row in matches] == [
+        ("BT-MULTI-CHF", "Bank - SYNT"),
+        ("BT-MULTI-USD", "USD Bank - SYNT"),
+    ]
+    try:
+        reconcile_with_existing_voucher(
+            "BT-MULTI-USD-DUP", "Journal Entry", multi_bank_journal.name,
+            user="USER-001", confirmed=True,
+        )
+        raise AssertionError("A voucher's bank-account movement must not be reused")
+    except Exception as exc:
+        assert "already reconciled" in str(exc).lower()
+
+    # Cancelling a multi-bank voucher must release every linked transaction,
+    # not just whichever audit row happens to be returned first.
+    multi_bank_journal.cancel()
+    assert db.get_value("Bank Transaction", "BT-MULTI-CHF", "status") == "Unreconciled"
+    assert db.get_value("Bank Transaction", "BT-MULTI-USD", "status") == "Unreconciled"
+    assert db.sql(
+        'SELECT COUNT(*) AS c FROM "Bank Reconciliation" '
+        'WHERE voucher_type = ? AND voucher_no = ? AND status = ?',
+        ["Journal Entry", multi_bank_journal.name, "Active"],
+    )[0]["c"] == 0
 
     print(f"  [bank reconciliation] suggestions/payment/existing/journal/undo OK on {backend}")
 

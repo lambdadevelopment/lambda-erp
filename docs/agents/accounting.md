@@ -93,10 +93,12 @@ way to move an imported row from `Unreconciled` to `Reconciled`:
   an explicitly selected non-control account.
 
 Every path creates a `Bank Reconciliation` audit row. Only one reconciliation
-can be active for a bank transaction or voucher. Undo cancels a voucher created
+can be active for a bank transaction. A voucher can be linked once per bank
+account, which permits a multi-bank Journal Entry to reconcile each of its bank
+legs without allowing the same leg to be reused. Undo cancels a voucher created
 by reconciliation (restoring invoice outstanding amounts), but only unlinks a
 voucher that already existed. Cancelling a linked voucher through its ordinary
-document lifecycle also returns the bank transaction to the queue.
+document lifecycle returns all of its linked bank transactions to the queue.
 
 Suggestions are deterministic hints, not authority: amount, document reference,
 counterparty similarity, and date affect their score. Posting, matching, and

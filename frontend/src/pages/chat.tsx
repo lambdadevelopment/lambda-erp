@@ -1024,13 +1024,100 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return null;
 }
 
+type TableAlignment = "left" | "center" | "right";
+
+function splitMarkdownTableRow(line: string): string[] | null {
+  let value = line.trim();
+  if (!value.includes("|")) return null;
+  if (value.startsWith("|")) value = value.slice(1);
+  if (value.endsWith("|")) value = value.slice(0, -1);
+
+  const cells: string[] = [];
+  let cell = "";
+  let inCode = false;
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+    if (char === "\\" && value[i + 1] === "|") {
+      cell += "|";
+      i += 1;
+    } else if (char === "`") {
+      inCode = !inCode;
+      cell += char;
+    } else if (char === "|" && !inCode) {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  cells.push(cell.trim());
+  return cells.length >= 2 ? cells : null;
+}
+
+function tableAlignments(cells: string[] | null): TableAlignment[] | null {
+  if (!cells || !cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()))) return null;
+  return cells.map((cell) => {
+    const marker = cell.trim();
+    if (marker.startsWith(":") && marker.endsWith(":")) return "center";
+    if (marker.endsWith(":")) return "right";
+    return "left";
+  });
+}
+
+function MarkdownTable({
+  header,
+  rows,
+  alignments,
+}: {
+  header: string[];
+  rows: string[][];
+  alignments: TableAlignment[];
+}) {
+  return (
+    <div className="my-3 max-w-full overflow-x-auto rounded-lg border border-line">
+      <table className="min-w-full border-collapse text-sm">
+        <thead className="bg-surface-subtle">
+          <tr>
+            {header.map((cell, index) => (
+              <th
+                key={index}
+                scope="col"
+                className="border-b border-line px-3 py-2 font-semibold text-fg"
+                style={{ textAlign: alignments[index] || "left" }}
+              >
+                {formatInline(cell)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex} className="bg-surface">
+              {header.map((_, cellIndex) => (
+                <td
+                  key={cellIndex}
+                  className="px-3 py-2 align-top text-fg"
+                  style={{ textAlign: alignments[cellIndex] || "left" }}
+                >
+                  {formatInline(row[cellIndex] || "")}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function MarkdownContent({ content }: { content: string }) {
   const lines = content.split("\n");
   const elements: React.ReactNode[] = [];
   let inCodeBlock = false;
   let codeLines: string[] = [];
 
-  lines.forEach((line, i) => {
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
     if (line.startsWith("```")) {
       if (inCodeBlock) {
         elements.push(
@@ -1046,11 +1133,55 @@ function MarkdownContent({ content }: { content: string }) {
       } else {
         inCodeBlock = true;
       }
-      return;
+      continue;
     }
     if (inCodeBlock) {
       codeLines.push(line);
-      return;
+      continue;
+    }
+
+    // Models occasionally put blank lines between Markdown table rows. GFM
+    // considers that invalid, but it is unambiguous once a header and delimiter
+    // row are present, so accept the whitespace rather than exposing raw pipes.
+    const header = splitMarkdownTableRow(line);
+    let separatorIndex = i + 1;
+    while (separatorIndex < lines.length && lines[separatorIndex].trim() === "") {
+      separatorIndex += 1;
+    }
+    const alignments = tableAlignments(
+      separatorIndex < lines.length ? splitMarkdownTableRow(lines[separatorIndex]) : null,
+    );
+    if (header && alignments && header.length === alignments.length) {
+      const rows: string[][] = [];
+      let lastConsumed = separatorIndex;
+      let cursor = separatorIndex + 1;
+      while (cursor < lines.length) {
+        if (lines[cursor].trim() === "") {
+          let next = cursor + 1;
+          while (next < lines.length && lines[next].trim() === "") next += 1;
+          const nextRow = next < lines.length ? splitMarkdownTableRow(lines[next]) : null;
+          if (nextRow && nextRow.length === header.length && !tableAlignments(nextRow)) {
+            cursor = next;
+            continue;
+          }
+          break;
+        }
+        const row = splitMarkdownTableRow(lines[cursor]);
+        if (!row || row.length !== header.length || tableAlignments(row)) break;
+        rows.push(row);
+        lastConsumed = cursor;
+        cursor += 1;
+      }
+      elements.push(
+        <MarkdownTable
+          key={`table-${i}`}
+          header={header}
+          rows={rows}
+          alignments={alignments}
+        />,
+      );
+      i = lastConsumed;
+      continue;
     }
 
     if (line.startsWith("### ")) {
@@ -1085,7 +1216,7 @@ function MarkdownContent({ content }: { content: string }) {
         </p>,
       );
     }
-  });
+  }
 
   return <div>{elements}</div>;
 }
