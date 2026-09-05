@@ -118,6 +118,26 @@ The narrower `/masters/{type}/search` and `/documents/{type}/search` routes are
 link-field autocomplete helpers. Use the normal list endpoints above for
 complete querying, sorting, and pagination.
 
+### Bank reconciliation
+
+CAMT imports and reconciliation are deliberately separate. Import first creates
+immutable `Bank Transaction` evidence without posting to the ledger. A manager
+can then use these endpoints:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/bank-reconciliation/transactions` | List the reconciliation queue (`status=Unreconciled|Reconciled|All`) |
+| `GET` | `/api/bank-reconciliation/transactions/{name}/suggestions` | Get deterministic invoice and exact-voucher candidates |
+| `POST` | `/api/bank-reconciliation/payment` | Create and submit a Payment Entry against selected invoices |
+| `POST` | `/api/bank-reconciliation/journal` | Create and submit a Journal Entry against a selected account |
+| `POST` | `/api/bank-reconciliation/match-existing` | Link an exact submitted Payment/Journal voucher without reposting |
+| `POST` | `/api/bank-reconciliation/undo` | Undo the active reconciliation |
+
+Every write body must contain `"confirmed": true`; preview/suggestion calls do
+not count as confirmation. Created vouchers are cancelled on undo, while an
+already-existing voucher is merely unlinked. All endpoints require `manager` or
+`admin` access.
+
 ## Responses
 
 | Status | Meaning |

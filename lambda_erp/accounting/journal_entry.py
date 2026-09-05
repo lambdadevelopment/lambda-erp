@@ -28,6 +28,7 @@ class JournalEntry(Document):
 
     LINK_FIELDS = {
         "company": "Company",
+        "bank_reconciliation": "Bank Reconciliation",
     }
     CHILD_LINK_FIELDS = {
         "accounts": {
@@ -131,6 +132,12 @@ class JournalEntry(Document):
             )
         make_gl_entries(gl_entries)
         self._update_referenced_outstanding()
+        from lambda_erp.accounting.bank_reconciliation import activate_generated_reconciliation
+        activate_generated_reconciliation(
+            self.bank_reconciliation,
+            voucher_type=self.DOCTYPE,
+            voucher_no=self.name,
+        )
 
     def on_cancel(self):
         make_reverse_gl_entries(
@@ -138,6 +145,12 @@ class JournalEntry(Document):
             voucher_no=self.name,
         )
         self._update_referenced_outstanding(cancel=True)
+        from lambda_erp.accounting.bank_reconciliation import reverse_generated_reconciliation
+        reverse_generated_reconciliation(
+            self.bank_reconciliation,
+            voucher_type=self.DOCTYPE,
+            voucher_no=self.name,
+        )
 
     def _validate_references(self):
         """Referenced party-ledger rows must be coherent with the invoice they
@@ -146,7 +159,7 @@ class JournalEntry(Document):
         """
         db = get_db()
         for idx, row in enumerate(self.get("accounts") or [], start=1):
-            ref_dt = row.get("reference_doctype")
+            ref_dt = row.get("reference_doctype") or row.get("reference_type")
             ref_name = row.get("reference_name")
             if not ref_dt and not ref_name:
                 continue
@@ -208,7 +221,7 @@ class JournalEntry(Document):
         """
         db = get_db()
         for row in self.get("accounts") or []:
-            ref_dt = row.get("reference_doctype")
+            ref_dt = row.get("reference_doctype") or row.get("reference_type")
             ref_name = row.get("reference_name")
             if not ref_dt or not ref_name:
                 continue

@@ -1,13 +1,13 @@
 """
 Bank Transaction.
 
-Bank Transaction represents a single entry from a bank statement.
-It can be matched to Payment Entries or Invoices for reconciliation.
-When matched, it sets clearance_date on the referenced document.
+Bank Transaction represents a single entry from a bank statement. Imported
+rows remain immutable bank evidence; the reconciliation service either links
+them to an existing posting or creates the necessary posting atomically.
 """
 
 from lambda_erp.model import Document
-from lambda_erp.utils import _dict, flt, nowdate
+from lambda_erp.utils import flt, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError
 
@@ -30,6 +30,16 @@ class BankTransaction(Document):
     }
 
     def validate(self):
+        db = get_db()
+        existing = db.get_value(self.DOCTYPE, self.name, "bank_statement_import")
+        # An imported row is immutable bank evidence. Reconciliation metadata is
+        # changed only by the audited reconciliation service (via db.set_value),
+        # never through generic draft editing.
+        if existing:
+            raise ValidationError(
+                "Imported Bank Transactions are read-only; use Bank Reconciliation "
+                "for matching changes"
+            )
         deposit = flt(self.deposit)
         withdrawal = flt(self.withdrawal)
         # CAMT statements can contain booked zero-amount informational rows
@@ -65,31 +75,17 @@ class BankTransaction(Document):
             self._data["status"] = "Unreconciled"
 
 def reconcile_bank_transaction(bank_transaction_name, reference_doctype, reference_name):
-    """Match a bank transaction to a payment entry or invoice.
+    """Compatibility wrapper for the old one-voucher matcher.
 
-    Sets clearance_date on the referenced document and updates the
-    bank transaction's allocated amount and status.
+    Direct invoice matching was unsafe: it marked the bank row reconciled but
+    never posted the cash movement. The replacement therefore accepts only an
+    already-submitted Payment Entry or Journal Entry whose bank leg exactly
+    matches the imported transaction.
     """
-    db = get_db()
-
-    bt = BankTransaction.load(bank_transaction_name)
-    total = flt(bt.deposit) or flt(bt.withdrawal)
-    unallocated = flt(bt._data.get("unallocated_amount", total))
-
-    if unallocated <= 0:
-        raise ValidationError("Bank Transaction is already fully reconciled")
-
-    # Set reference on bank transaction
-    bt._data["reference_doctype"] = reference_doctype
-    bt._data["reference_name"] = reference_name
-    bt._data["allocated_amount"] = total
-    bt._calculate_unallocated()
-    bt._set_status()
-    bt._persist()
-
-    # Set clearance_date on the referenced document
-    if db.exists(reference_doctype, reference_name):
-        db.set_value(reference_doctype, reference_name, "clearance_date", bt.posting_date)
-        db.commit()
-
-    return bt.as_dict()
+    from lambda_erp.accounting.bank_reconciliation import reconcile_with_existing_voucher
+    return reconcile_with_existing_voucher(
+        bank_transaction_name,
+        reference_doctype,
+        reference_name,
+        confirmed=True,
+    )

@@ -79,6 +79,29 @@ This keeps AR/AP aging in sync with GL when bookkeepers do write-offs
 via JE. `JournalEntry._update_referenced_outstanding` implements it;
 `_validate_references` blocks cross-party and over-reduction.
 
+## CAMT import and bank reconciliation
+
+Imported `Bank Transaction` rows are immutable bank evidence. Importing a CAMT
+statement does not create ledger entries. Reconciliation is the only supported
+way to move an imported row from `Unreconciled` to `Reconciled`:
+
+- Link an existing submitted Payment Entry or Journal Entry only when its bank
+  leg exactly matches the transaction amount and direction.
+- For an invoice payment, create and submit a Payment Entry and update the
+  invoice outstanding amount in the same database transaction.
+- For another cash movement, create and submit a two-sided Journal Entry against
+  an explicitly selected non-control account.
+
+Every path creates a `Bank Reconciliation` audit row. Only one reconciliation
+can be active for a bank transaction or voucher. Undo cancels a voucher created
+by reconciliation (restoring invoice outstanding amounts), but only unlinks a
+voucher that already existed. Cancelling a linked voucher through its ordinary
+document lifecycle also returns the bank transaction to the queue.
+
+Suggestions are deterministic hints, not authority: amount, document reference,
+counterparty similarity, and date affect their score. Posting, matching, and
+undo all require a separate explicit confirmation.
+
 ## What to sanity-check after any accounting change
 
 1. Trial balance at the end of `test_erp_validation` still nets to zero.

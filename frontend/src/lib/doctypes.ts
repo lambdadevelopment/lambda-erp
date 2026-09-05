@@ -335,6 +335,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "paid_amount", label: "Paid Amount", type: "currency", required: true,
         hint: "The total amount of money changing hands. This is the amount that hits the bank account.",
       },
+      { name: "bank_reconciliation", label: "Bank Reconciliation", type: "text", readOnly: true },
     ],
     childTables: [
       {
@@ -372,6 +373,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "remark", label: "Remark", type: "textarea" },
       { name: "total_debit", label: "Total Debit", type: "currency", readOnly: true },
       { name: "total_credit", label: "Total Credit", type: "currency", readOnly: true },
+      { name: "bank_reconciliation", label: "Bank Reconciliation", type: "text", readOnly: true },
     ],
     childTables: [
       {
@@ -653,10 +655,12 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "counterparty_iban", label: "Counterparty IBAN", type: "text", readOnly: true },
       { name: "structured_reference", label: "Structured Reference", type: "text", readOnly: true },
       { name: "bank_transaction_code", label: "Bank Transaction Code", type: "text", readOnly: true },
-      { name: "reference_doctype", label: "Matched Type", type: "select", options: ["", "Payment Entry", "Sales Invoice", "Purchase Invoice", "Journal Entry"] },
-      { name: "reference_name", label: "Matched Doc", type: "link", linkDoctypeField: "reference_doctype" },
+      { name: "reference_doctype", label: "Matched Type", type: "text", readOnly: true },
+      { name: "reference_name", label: "Matched Doc", type: "link", linkDoctypeField: "reference_doctype", readOnly: true },
       { name: "allocated_amount", label: "Allocated", type: "currency", readOnly: true },
       { name: "unallocated_amount", label: "Unallocated", type: "currency", readOnly: true },
+      { name: "reconciled_by", label: "Reconciled By", type: "text", readOnly: true },
+      { name: "reconciled_at", label: "Reconciled At", type: "datetime", readOnly: true },
       { name: "status", label: "Status", type: "text", readOnly: true },
     ],
     childTables: [{

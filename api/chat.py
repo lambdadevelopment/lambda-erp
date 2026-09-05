@@ -869,6 +869,83 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "list_bank_reconciliation_queue",
+            "description": "List imported bank transactions awaiting reconciliation, or recently reconciled rows. Returns compact transaction details with masked counterparty IBANs. Requires manager access.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string", "enum": ["Unreconciled", "Reconciled", "All"], "default": "Unreconciled"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "suggest_bank_reconciliation",
+            "description": "Return deterministic candidates for one imported Bank Transaction: exact existing Payment/Journal vouchers and open invoice matches scored by amount, document reference, counterparty and date. This is read-only and must be called before proposing a reconciliation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bank_transaction": {"type": "string"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 12},
+                },
+                "required": ["bank_transaction"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reconcile_bank_transaction",
+            "description": "Reconcile one imported bank transaction after explicit user confirmation. mode=invoice_payment creates and submits a Payment Entry allocated to one or more invoices; mode=existing_voucher links an already-submitted Payment Entry or Journal Entry with an exactly matching bank leg; mode=journal creates and submits a two-sided Journal Entry against a non-bank, non-AR/AP account. This posts or links real accounting data. Never call in the same turn as the first proposal; confirmed must reflect a later explicit confirmation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bank_transaction": {"type": "string"},
+                    "mode": {"type": "string", "enum": ["invoice_payment", "existing_voucher", "journal"]},
+                    "allocations": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "reference_doctype": {"type": "string", "enum": ["Sales Invoice", "Purchase Invoice"]},
+                                "reference_name": {"type": "string"},
+                                "allocated_amount": {"type": "number", "exclusiveMinimum": 0},
+                            },
+                            "required": ["reference_doctype", "reference_name", "allocated_amount"],
+                        },
+                    },
+                    "voucher_type": {"type": "string", "enum": ["Payment Entry", "Journal Entry"]},
+                    "voucher_no": {"type": "string"},
+                    "counterparty_account": {"type": "string"},
+                    "conversion_rate": {"type": "number", "exclusiveMinimum": 0},
+                    "remarks": {"type": "string"},
+                    "confirmed": {"type": "boolean"},
+                },
+                "required": ["bank_transaction", "mode", "confirmed"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "undo_bank_reconciliation",
+            "description": "Reverse an active bank reconciliation after explicit user confirmation. Vouchers created by reconciliation are cancelled and reversed; an existing linked voucher is only unlinked and remains submitted. Never call without explaining that distinction and receiving confirmation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bank_transaction": {"type": "string"},
+                    "confirmed": {"type": "boolean"},
+                },
+                "required": ["bank_transaction", "confirmed"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "retrieve_chat_attachment",
             "description": "Retrieve a previously uploaded file (PDF, image, spreadsheet, or document) by its id and inject it back into the conversation so you can read/analyze it — e.g. to cross-check a spreadsheet of companies against the CRM. Use this when the user asks a follow-up about a file they uploaded earlier in the chat but it's no longer in the immediate context. Call list_chat_attachments first if you don't know the id.",
             "parameters": {
@@ -1958,6 +2035,97 @@ def _handle_import_bank_statement_attachments(args, user_info: dict | None = Non
     }
 
 
+def _bank_reconciliation_access(user_info: dict | None):
+    if (user_info or {}).get("role") not in {"manager", "admin"}:
+        return {"error": "Bank reconciliation requires manager access and is unavailable in demo mode."}
+    return None
+
+
+def _handle_list_bank_reconciliation_queue(args, user_info: dict | None = None):
+    denied = _bank_reconciliation_access(user_info)
+    if denied:
+        return denied
+    from lambda_erp.accounting.bank_reconciliation import list_bank_transactions
+    return list_bank_transactions(
+        status=args.get("status") or "Unreconciled",
+        limit=args.get("limit") or 100,
+    )
+
+
+def _handle_suggest_bank_reconciliation(args, user_info: dict | None = None):
+    denied = _bank_reconciliation_access(user_info)
+    if denied:
+        return denied
+    from lambda_erp.accounting.bank_reconciliation import suggest_matches
+    try:
+        return suggest_matches(args.get("bank_transaction"), limit=args.get("limit") or 12)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def _handle_reconcile_bank_transaction(args, user_info: dict | None = None):
+    denied = _bank_reconciliation_access(user_info)
+    if denied:
+        return denied
+    if args.get("confirmed") is not True:
+        return {
+            "error": (
+                "Explicit confirmation is required. Show the exact bank transaction, proposed "
+                "voucher/allocations and any on-account remainder, then ask the user to confirm. "
+                "Call this tool in a later turn with confirmed=true."
+            )
+        }
+    from lambda_erp.accounting.bank_reconciliation import (
+        reconcile_with_existing_voucher,
+        reconcile_with_journal,
+        reconcile_with_payment,
+    )
+    user = (user_info or {}).get("name")
+    mode = args.get("mode")
+    try:
+        if mode == "invoice_payment":
+            return reconcile_with_payment(
+                args.get("bank_transaction"), args.get("allocations") or [],
+                conversion_rate=args.get("conversion_rate"), user=user, confirmed=True,
+            )
+        if mode == "existing_voucher":
+            return reconcile_with_existing_voucher(
+                args.get("bank_transaction"), args.get("voucher_type"), args.get("voucher_no"),
+                user=user, confirmed=True,
+            )
+        if mode == "journal":
+            return reconcile_with_journal(
+                args.get("bank_transaction"), args.get("counterparty_account"),
+                conversion_rate=args.get("conversion_rate"), remarks=args.get("remarks"),
+                user=user, confirmed=True,
+            )
+        return {"error": "mode must be invoice_payment, existing_voucher, or journal"}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def _handle_undo_bank_reconciliation(args, user_info: dict | None = None):
+    denied = _bank_reconciliation_access(user_info)
+    if denied:
+        return denied
+    if args.get("confirmed") is not True:
+        return {
+            "error": (
+                "Explicit confirmation is required. Explain whether the linked voucher will be "
+                "cancelled or only unlinked, then ask the user to confirm."
+            )
+        }
+    from lambda_erp.accounting.bank_reconciliation import undo_reconciliation
+    try:
+        return undo_reconciliation(
+            args.get("bank_transaction"),
+            user=(user_info or {}).get("name"),
+            confirmed=True,
+        )
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 def _handle_query_dataset(args):
     from api.routers.analytics import aggregate_semantic_dataset
 
@@ -2117,6 +2285,10 @@ TOOL_HANDLERS = {
     "retrieve_chat_attachment": _handle_retrieve_chat_attachment,
     "preview_bank_statement_attachments": _handle_preview_bank_statement_attachments,
     "import_bank_statement_attachments": _handle_import_bank_statement_attachments,
+    "list_bank_reconciliation_queue": _handle_list_bank_reconciliation_queue,
+    "suggest_bank_reconciliation": _handle_suggest_bank_reconciliation,
+    "reconcile_bank_transaction": _handle_reconcile_bank_transaction,
+    "undo_bank_reconciliation": _handle_undo_bank_reconciliation,
     "query_dataset": _handle_query_dataset,
     "create_custom_analytics_report": lambda args: _handle_create_custom_analytics_report(args),
     "get_custom_analytics_report": lambda args: _handle_get_custom_analytics_report(args),
@@ -2372,8 +2544,21 @@ the conversation and never try to interpret the XML manually. Use this workflow:
 
 The CAMT import creates unposted Bank Transactions and their batch details only. It never creates,
 submits, or posts a Payment Entry, Journal Entry, or GL Entry. Do not imply that invoices have been
-settled or the ledger changed merely because a statement was imported. Matching/reconciliation is a
-separate later step. Keep Bank Account IBANs masked in ordinary chat responses.
+settled or the ledger changed merely because a statement was imported. Keep Bank Account IBANs
+masked in ordinary chat responses.
+
+### Bank reconciliation
+Use `list_bank_reconciliation_queue` and then `suggest_bank_reconciliation`; never guess from a raw
+description alone. Explain one exact proposal before doing anything. Reconciliation has three safe
+paths: (1) link an existing submitted Payment/Journal voucher whose bank leg matches exactly,
+(2) create and submit a Payment Entry allocated to one or more open invoices of the same party, or
+(3) create and submit a Journal Entry against a user-selected non-bank, non-AR/AP account. A created
+voucher changes the GL and may change invoice outstanding amounts. Ask for explicit confirmation in
+a later user turn, then call `reconcile_bank_transaction` with `confirmed=true`. Clearly disclose any
+unallocated on-account remainder. Never match a Bank Transaction directly to an invoice because that
+would omit the cash posting. For reversals, first explain whether the voucher was created by the
+reconciliation (it will be cancelled and reversed) or merely linked (it will only be unlinked), and
+then require explicit confirmation before `undo_bank_reconciliation`.
 
 ### Sales Cycle
 Quotation → Sales Order → Delivery Note (shipping) / Sales Invoice (billing) → Payment Entry
@@ -3212,6 +3397,18 @@ async def run_thinking_loop(
         )
         tool_handlers["import_bank_statement_attachments"] = (
             lambda args: _handle_import_bank_statement_attachments(args, user_info)
+        )
+        tool_handlers["list_bank_reconciliation_queue"] = (
+            lambda args: _handle_list_bank_reconciliation_queue(args, user_info)
+        )
+        tool_handlers["suggest_bank_reconciliation"] = (
+            lambda args: _handle_suggest_bank_reconciliation(args, user_info)
+        )
+        tool_handlers["reconcile_bank_transaction"] = (
+            lambda args: _handle_reconcile_bank_transaction(args, user_info)
+        )
+        tool_handlers["undo_bank_reconciliation"] = (
+            lambda args: _handle_undo_bank_reconciliation(args, user_info)
         )
         _scoped_retrieve_attachment = (
             lambda args: _handle_retrieve_chat_attachment(args, session_id, user_id_for_tools)

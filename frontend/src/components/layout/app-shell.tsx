@@ -9,6 +9,7 @@ import { Sidebar, FLASH_STYLES } from "@/components/layout/sidebar";
 import { useAuth } from "@/contexts/auth-context";
 import { useMySettings } from "@/hooks/use-my-settings";
 import { cn } from "@/lib/utils";
+import { getListContext } from "@/lib/doc-list-context";
 
 const titleCase = (slug: string) =>
   slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -22,6 +23,8 @@ function deriveTitle(pathname: string, t: TFunction): string {
   if (parts[0] === "setup") return t("titles.setup");
   if (parts[0] === "tutorial") return t("titles.tutorial");
   if (parts[0] === "chat") return t("titles.chat");
+  if (parts[0] === "accounting" && parts[1] === "bank-statements") return t("bankStatements.title");
+  if (parts[0] === "accounting" && parts[1] === "bank-reconciliation") return t("bankReconciliation.title");
 
   if (parts[0] === "reports") {
     const slug = parts[1] || "";
@@ -96,13 +99,18 @@ function AppShellContent() {
 
   const handleBack = () => {
     if (!backPath) return;
-    // Prefer real history (restores the list's scroll/filter state); the
-    // parent path is the fallback for deep links with no in-app history.
-    if (window.history.state?.idx > 0) {
-      navigate(-1);
-    } else {
-      navigate(backPath);
+    // The large arrow means "back to the parent list". Browser history is
+    // wrong after DocPager navigation because it merely opens the previous
+    // record again. Restore the list's remembered filters deterministically;
+    // the small chevrons remain the only previous/next-record controls.
+    const parts = pathname.split("/").filter(Boolean);
+    let search = "";
+    if (parts[0] === "app" && parts[1]) {
+      search = getListContext(parts[1])?.search || "";
+    } else if (parts[0] === "masters" && parts[1]) {
+      search = getListContext(`master:${parts[1]}`)?.search || "";
     }
+    navigate(`${backPath}${search}`);
   };
   const [mobileOpen, setMobileOpen] = useState(false);
 

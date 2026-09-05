@@ -49,6 +49,14 @@ curl -X POST https://erp.example.com/api/v1/chat \
 The call **blocks** until the agent finishes (it may run several tool calls
 internally).
 
+For bank statements, the agent can preview and import CAMT XML/ZIP attachments,
+list unreconciled transactions, and propose deterministic invoice or voucher
+matches. Import never posts accounting entries. Reconciliation and undo require
+the user to confirm the concrete proposal in a later message; the agent then
+creates a Payment/Journal Entry or links an exact existing voucher through the
+same audited reconciliation service as the web UI. These operations require a
+`manager` or `admin` key.
+
 **The reply is written for an external caller, not the ERP web UI.** On this
 programmatic surface the agent is told its answer is relayed to another app, so it
 refers to records by their identifier (e.g. "Quotation QTN-2298") in plain text

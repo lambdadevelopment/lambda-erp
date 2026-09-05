@@ -912,6 +912,7 @@ class Database:
                 conversion_rate REAL DEFAULT 1.0,
                 reference_no TEXT,
                 reference_date TEXT,
+                bank_reconciliation TEXT,
                 cost_center TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
@@ -941,6 +942,7 @@ class Database:
                 voucher_type TEXT DEFAULT 'Journal Entry',
                 total_debit REAL DEFAULT 0,
                 total_credit REAL DEFAULT 0,
+                bank_reconciliation TEXT,
                 remark TEXT,
                 status TEXT DEFAULT 'Draft',
                 docstatus INTEGER DEFAULT 0,
@@ -962,6 +964,7 @@ class Database:
                 debit REAL DEFAULT 0,
                 credit REAL DEFAULT 0,
                 reference_type TEXT,
+                reference_doctype TEXT,
                 reference_name TEXT,
                 FOREIGN KEY (parent) REFERENCES "Journal Entry"(name)
             )""",
@@ -1378,6 +1381,8 @@ class Database:
                 unallocated_amount REAL DEFAULT 0,
                 reference_doctype TEXT,
                 reference_name TEXT,
+                reconciled_by TEXT,
+                reconciled_at TEXT,
                 status TEXT DEFAULT 'Unreconciled',
                 docstatus INTEGER DEFAULT 0,
                 creation TEXT,
@@ -1417,6 +1422,30 @@ class Database:
 
             """CREATE INDEX IF NOT EXISTS "ix_bank_transaction_detail_parent"
                 ON "Bank Transaction Detail" (parent, idx)""",
+
+            # Immutable-ish audit trail for bank reconciliation decisions. A
+            # transaction can have only one active reconciliation, while old
+            # reversed rows remain available for review.
+            """CREATE TABLE IF NOT EXISTS "Bank Reconciliation" (
+                name TEXT PRIMARY KEY,
+                bank_transaction TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                voucher_type TEXT NOT NULL,
+                voucher_no TEXT NOT NULL,
+                amount REAL NOT NULL,
+                status TEXT DEFAULT 'Active',
+                created_by TEXT,
+                created_at TEXT,
+                reversed_by TEXT,
+                reversed_at TEXT,
+                FOREIGN KEY (bank_transaction) REFERENCES "Bank Transaction"(name)
+            )""",
+
+            """CREATE UNIQUE INDEX IF NOT EXISTS "ux_bank_reconciliation_active_transaction"
+                ON "Bank Reconciliation" (bank_transaction) WHERE status = 'Active'""",
+
+            """CREATE UNIQUE INDEX IF NOT EXISTS "ux_bank_reconciliation_active_voucher"
+                ON "Bank Reconciliation" (voucher_type, voucher_no) WHERE status = 'Active'""",
 
             # --- Chat Sessions ---
             """CREATE TABLE IF NOT EXISTS "Chat Session" (
@@ -2389,6 +2418,15 @@ def _m023_camt_bank_statement_import(db: "Database") -> None:
     db._alter_table_lock_safe(statements, ["Bank Transaction"])
 
 
+def _m024_bank_reconciliation(db: "Database") -> None:
+    """Add auditable CAMT reconciliation links to existing accounting data."""
+    db._add_column_if_missing("Payment Entry", "bank_reconciliation", "TEXT")
+    db._add_column_if_missing("Journal Entry", "bank_reconciliation", "TEXT")
+    db._add_column_if_missing("Journal Entry Account", "reference_doctype", "TEXT")
+    db._add_column_if_missing("Bank Transaction", "reconciled_by", "TEXT")
+    db._add_column_if_missing("Bank Transaction", "reconciled_at", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2413,6 +2451,7 @@ Database.MIGRATIONS = [
     (21, "item_is_asset_tracked", _m021_item_is_asset_tracked),
     (22, "company_default_tax_templates", _m022_company_default_tax_templates),
     (23, "camt_bank_statement_import", _m023_camt_bank_statement_import),
+    (24, "bank_reconciliation", _m024_bank_reconciliation),
 ]
 
 

@@ -95,6 +95,11 @@ def check_existing_database_upgrade():
         from lambda_erp.database import Database
         upgraded = Database(path)
         assert "external_id" in upgraded._get_table_columns("Bank Transaction")
+        assert "reconciled_at" in upgraded._get_table_columns("Bank Transaction")
+        assert "bank_reconciliation" in upgraded._get_table_columns("Payment Entry")
+        assert "bank_reconciliation" in upgraded._get_table_columns("Journal Entry")
+        assert "reference_doctype" in upgraded._get_table_columns("Journal Entry Account")
+        assert "bank_transaction" in upgraded._get_table_columns("Bank Reconciliation")
         indexes = upgraded.sql('PRAGMA index_list("Bank Transaction")', as_dict=False)
         assert any(row[1] == "ux_bank_transaction_external_id" for row in indexes)
         upgraded.close()

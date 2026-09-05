@@ -481,6 +481,7 @@ function DocumentActions({
   onDiscard,
   onSoftCancel,
   softCancelDone,
+  draftReadOnly,
 }: {
   isNew: boolean;
   doctype?: string;
@@ -496,6 +497,8 @@ function DocumentActions({
   onDiscard: () => void;
   onSoftCancel: () => void;
   softCancelDone?: boolean;
+  /** Hide draft mutation actions for externally sourced immutable records. */
+  draftReadOnly?: boolean;
 }) {
   const { t } = useTranslation();
   // Two-step cancel: clicking "Cancel" doesn't cancel — it arms confirmation.
@@ -522,7 +525,7 @@ function DocumentActions({
           {t("common.pdf")}
         </Button>
       )}
-      {docstatus < 1 && !discarded && (
+      {docstatus < 1 && !discarded && !draftReadOnly && (
         <Button onClick={onSave} disabled={saving}>
           {saving ? t("common.saving") : t("common.save")}
         </Button>
@@ -882,8 +885,9 @@ export default function DocumentFormPage() {
 
   const docstatus: number = formData.docstatus ?? 0;
   const discarded = !!formData.discarded;
+  const importedBankTransaction = doctype === "bank-transaction" && !!formData.bank_statement_import;
   // A discarded draft is voided/terminal — lock it like a submitted document.
-  const readOnly = docstatus >= 1 || discarded;
+  const readOnly = docstatus >= 1 || discarded || importedBankTransaction;
 
   // The document's currency drives how amounts are formatted (€/£/¥ vs $).
   // Documents without a currency field (Stock Entry, …) store their values in
@@ -941,6 +945,7 @@ export default function DocumentFormPage() {
             !!config.softCancel &&
             formData[config.softCancel.field] === config.softCancel.value
           }
+          draftReadOnly={importedBankTransaction}
         />
       </div>
 

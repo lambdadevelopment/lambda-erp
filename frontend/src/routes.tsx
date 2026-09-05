@@ -24,6 +24,7 @@ import Login from "@/pages/login";
 import Demo from "@/pages/demo";
 import OpeningBalances from "@/pages/opening-balances";
 import BankStatementImport from "@/pages/bank-statement-import";
+import BankReconciliation from "@/pages/bank-reconciliation";
 import { AdminRoute } from "@/components/auth/protected-route";
 import Users from "@/pages/admin/users";
 import GeneralSettings from "@/pages/admin/settings";
@@ -46,6 +47,7 @@ const baseChildRoutes: RouteObject[] = [
   { path: "setup", element: <Setup /> },
   { path: "setup/opening-balances", element: <AdminRoute><OpeningBalances /></AdminRoute> },
   { path: "accounting/bank-statements", element: <ManagerRoute><BankStatementImport /></ManagerRoute> },
+  { path: "accounting/bank-reconciliation", element: <ManagerRoute><BankReconciliation /></ManagerRoute> },
   { path: "tutorial", element: <Tutorial /> },
   { path: "chat", element: <Chat /> },
   { path: "chat/:sessionId", element: <Chat /> },

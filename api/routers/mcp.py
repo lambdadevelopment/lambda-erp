@@ -48,8 +48,13 @@ _WRITE = {
     "create_document", "update_document", "batch_update_documents",
     "submit_document", "cancel_document",
     "discard_document", "convert_document", "create_master", "update_master",
+    "reconcile_bank_transaction", "undo_bank_reconciliation",
 }
 _ADMIN = {"delete_master"}
+_MANAGER_ONLY = {
+    "list_bank_reconciliation_queue", "suggest_bank_reconciliation",
+    "reconcile_bank_transaction", "undo_bank_reconciliation",
+}
 
 
 def _can_write(role) -> bool:
@@ -63,6 +68,8 @@ def _allowed(name: str, role) -> bool:
         return services.registered_action_allowed(name, role)
     if name in _ADMIN:
         return role == "admin"
+    if name in _MANAGER_ONLY:
+        return role in ("manager", "admin")
     if name in _WRITE:
         return _can_write(role)
     return True
@@ -99,6 +106,18 @@ def _call(name: str, args: dict, user: dict):
     # delete_master needs the caller's role (admin-only); handled by the chat's
     # role-aware variant.
     handlers["delete_master"] = lambda a: chat_mod._handle_delete_master(a, user)
+    handlers["list_bank_reconciliation_queue"] = (
+        lambda a: chat_mod._handle_list_bank_reconciliation_queue(a, user)
+    )
+    handlers["suggest_bank_reconciliation"] = (
+        lambda a: chat_mod._handle_suggest_bank_reconciliation(a, user)
+    )
+    handlers["reconcile_bank_transaction"] = (
+        lambda a: chat_mod._handle_reconcile_bank_transaction(a, user)
+    )
+    handlers["undo_bank_reconciliation"] = (
+        lambda a: chat_mod._handle_undo_bank_reconciliation(a, user)
+    )
     handlers.update(services.registered_action_handlers(user))
     handler = handlers.get(name)
     if handler is None:

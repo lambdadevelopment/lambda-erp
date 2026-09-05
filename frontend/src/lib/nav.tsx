@@ -73,6 +73,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Journal Entry", path: "/app/journal-entry" },
       { label: "Bank Account", path: "/app/bank-account" },
       { label: "Bank Statement Import", path: "/accounting/bank-statements", managerOnly: true },
+      { label: "Bank Reconciliation", path: "/accounting/bank-reconciliation", managerOnly: true },
       { label: "Bank Transaction", path: "/app/bank-transaction" },
       { label: "Budget", path: "/app/budget" },
       { label: "Subscription", path: "/app/subscription" },

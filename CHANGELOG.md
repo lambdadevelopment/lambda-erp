@@ -13,6 +13,29 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.24] - 2026-09-05
+
+### Added
+- Auditable bank reconciliation for imported CAMT transactions, including
+  deterministic invoice and exact-voucher suggestions.
+- Confirmed reconciliation can create and submit invoice Payment Entries,
+  classify other movements through Journal Entries, or link an existing exact
+  posting without duplicating it.
+- Bank reconciliation is available through a dedicated accounting page, chat,
+  REST, and MCP, with manager-only permissions and masked counterparty IBANs.
+- Reconciliation undo cancels vouchers created by the workflow or safely
+  unlinks pre-existing vouchers, while preserving the audit history.
+
+### Changed
+- Imported Bank Transactions are immutable evidence and can only be matched
+  through the reconciliation workflow.
+- CI now exercises reconciliation end to end on SQLite and PostgreSQL.
+
+### Fixed
+- The large back arrow on document and master detail pages now always returns
+  to the remembered list view instead of revisiting a previous record after
+  next/previous navigation.
+
 ## [0.8.23] - 2026-09-04
 
 ### Fixed

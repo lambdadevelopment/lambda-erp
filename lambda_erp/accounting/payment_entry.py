@@ -38,6 +38,7 @@ class PaymentEntry(Document):
         "company": "Company",
         "paid_from": "Account",
         "paid_to": "Account",
+        "bank_reconciliation": "Bank Reconciliation",
     }
     # `party` and `references[].reference_name` are dynamic — target doctype
     # resolves from party_type / reference_doctype at validation time.
@@ -238,6 +239,12 @@ class PaymentEntry(Document):
         gl_entries = self._get_gl_entries()
         make_gl_entries(gl_entries)
         self._update_outstanding()
+        from lambda_erp.accounting.bank_reconciliation import activate_generated_reconciliation
+        activate_generated_reconciliation(
+            self.bank_reconciliation,
+            voucher_type=self.DOCTYPE,
+            voucher_no=self.name,
+        )
 
     def on_cancel(self):
         make_reverse_gl_entries(
@@ -245,6 +252,12 @@ class PaymentEntry(Document):
             voucher_no=self.name,
         )
         self._update_outstanding(cancel=True)
+        from lambda_erp.accounting.bank_reconciliation import reverse_generated_reconciliation
+        reverse_generated_reconciliation(
+            self.bank_reconciliation,
+            voucher_type=self.DOCTYPE,
+            voucher_no=self.name,
+        )
 
     def _party_ledger_base(self):
         """Base value of the party ledger (AR/AP) this payment clears.

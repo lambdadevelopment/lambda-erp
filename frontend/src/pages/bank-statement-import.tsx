@@ -134,6 +134,9 @@ export default function BankStatementImport() {
       <div>
         <h1 className="text-2xl font-semibold text-fg">{t("bankStatements.title")}</h1>
         <p className="mt-1 text-sm text-fg-muted">{t("bankStatements.subtitle")}</p>
+        <Link className="mt-2 inline-block text-sm text-brand underline" to="/accounting/bank-reconciliation">
+          {t("bankStatements.openReconciliation")}
+        </Link>
       </div>
 
       <Card>

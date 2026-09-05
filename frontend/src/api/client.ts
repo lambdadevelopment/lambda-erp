@@ -126,6 +126,69 @@ export interface BankStatementImportResult {
   exact_duplicate_imports: string[];
 }
 
+export interface BankReconciliationTransaction {
+  name: string;
+  bank_account: string;
+  bank_account_id: string;
+  bank_statement_import: string;
+  company: string;
+  base_currency: string;
+  bank_currency: string;
+  posting_date: string;
+  value_date: string | null;
+  deposit: number;
+  withdrawal: number;
+  amount: number;
+  currency: string;
+  description: string | null;
+  remittance_information: string | null;
+  reference_number: string | null;
+  counterparty_name: string | null;
+  counterparty_iban_masked: string;
+  structured_reference: string | null;
+  status: string;
+  reference_doctype: string | null;
+  reference_name: string | null;
+  reconciled_by: string | null;
+  reconciled_at: string | null;
+}
+
+export interface BankInvoiceSuggestion {
+  kind: "invoice";
+  reference_doctype: "Sales Invoice" | "Purchase Invoice";
+  reference_name: string;
+  party_type: "Customer" | "Supplier";
+  party: string;
+  party_name: string;
+  payment_type: "Receive" | "Pay";
+  posting_date: string;
+  due_date: string | null;
+  currency: string;
+  grand_total: number;
+  outstanding_amount: number;
+  suggested_allocation: number;
+  score: number;
+  reasons: string[];
+}
+
+export interface BankVoucherSuggestion {
+  kind: "existing_voucher";
+  voucher_type: "Payment Entry" | "Journal Entry";
+  voucher_no: string;
+  posting_date: string;
+  amount: number;
+  currency: string;
+  score: number;
+  reasons: string[];
+}
+
+export interface BankReconciliationSuggestions {
+  transaction: BankReconciliationTransaction;
+  active_reconciliation: Record<string, any> | null;
+  existing_vouchers: BankVoucherSuggestion[];
+  invoices: BankInvoiceSuggestion[];
+}
+
 function qs(params?: Record<string, string | number | undefined>) {
   if (!params) return "";
   const clean = Object.fromEntries(
@@ -236,6 +299,44 @@ export const api = {
 
   bankStatementSourceUrl: (name: string) =>
     `${BASE}/bank-statements/${encodeURIComponent(name)}/source`,
+
+  listBankReconciliationTransactions: (status = "Unreconciled", limit = 100) =>
+    request<{ rows: BankReconciliationTransaction[] }>(
+      `/bank-reconciliation/transactions${qs({ status, limit })}`,
+    ),
+
+  getBankReconciliationSuggestions: (name: string, limit = 12) =>
+    request<BankReconciliationSuggestions>(
+      `/bank-reconciliation/transactions/${encodeURIComponent(name)}/suggestions${qs({ limit })}`,
+    ),
+
+  reconcileBankPayment: (data: {
+    bank_transaction: string;
+    allocations: Array<{ reference_doctype: string; reference_name: string; allocated_amount: number }>;
+    conversion_rate?: number;
+    confirmed: boolean;
+  }) => request<any>("/bank-reconciliation/payment", { method: "POST", body: JSON.stringify(data) }),
+
+  reconcileBankJournal: (data: {
+    bank_transaction: string;
+    counterparty_account: string;
+    conversion_rate?: number;
+    remarks?: string;
+    confirmed: boolean;
+  }) => request<any>("/bank-reconciliation/journal", { method: "POST", body: JSON.stringify(data) }),
+
+  reconcileBankExistingVoucher: (data: {
+    bank_transaction: string;
+    voucher_type: string;
+    voucher_no: string;
+    confirmed: boolean;
+  }) => request<any>("/bank-reconciliation/match-existing", { method: "POST", body: JSON.stringify(data) }),
+
+  undoBankReconciliation: (bankTransaction: string) =>
+    request<any>("/bank-reconciliation/undo", {
+      method: "POST",
+      body: JSON.stringify({ bank_transaction: bankTransaction, confirmed: true }),
+    }),
 
   // Chat
   createChatSession: () =>
