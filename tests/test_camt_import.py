@@ -121,9 +121,29 @@ def check_v24_reconciliation_upgrade():
         initial = Database(path)
         initial.close()
         with sqlite3.connect(path) as conn:
+            # Recreate the table as it existed in v0.8.24. Dropping the new
+            # column directly is not portable across SQLite versions because
+            # current schema metadata also contains its foreign key.
             conn.execute('DROP INDEX "ux_bank_reconciliation_active_voucher_account"')
-            conn.execute('ALTER TABLE "Bank Reconciliation" DROP COLUMN bank_account')
+            conn.execute(
+                'ALTER TABLE "Bank Reconciliation" '
+                'RENAME TO "_Bank Reconciliation v25"'
+            )
+            conn.execute(
+                'CREATE TABLE "Bank Reconciliation" ('
+                'name TEXT PRIMARY KEY, bank_transaction TEXT NOT NULL, '
+                'mode TEXT NOT NULL, voucher_type TEXT NOT NULL, '
+                'voucher_no TEXT NOT NULL, amount REAL NOT NULL, '
+                "status TEXT DEFAULT 'Active', created_by TEXT, created_at TEXT, "
+                'reversed_by TEXT, reversed_at TEXT, '
+                'FOREIGN KEY (bank_transaction) REFERENCES "Bank Transaction"(name))'
+            )
+            conn.execute('DROP TABLE "_Bank Reconciliation v25"')
             conn.execute('DELETE FROM "_SchemaMigrations" WHERE version = 25')
+            conn.execute(
+                'CREATE UNIQUE INDEX "ux_bank_reconciliation_active_transaction" '
+                'ON "Bank Reconciliation" (bank_transaction) WHERE status = \'Active\''
+            )
             conn.execute(
                 'CREATE UNIQUE INDEX "ux_bank_reconciliation_active_voucher" '
                 'ON "Bank Reconciliation" (voucher_type, voucher_no) WHERE status = \'Active\''
