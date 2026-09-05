@@ -2,9 +2,10 @@
 
 An imported Bank Transaction is evidence from the bank, not a ledger posting.
 Reconciliation either links that evidence to an existing submitted voucher or
-creates and submits the appropriate Payment Entry / Journal Entry.  The active
-link is unique and every reversal remains in ``Bank Reconciliation`` as audit
-history.
+creates and submits the appropriate Payment Entry / Journal Entry. One exact
+voucher bank leg may cover a group of imported transactions, but it can only be
+consumed by one active group. Every transaction keeps its own audit row and
+every reversal remains in ``Bank Reconciliation`` as history.
 """
 
 from __future__ import annotations
@@ -59,6 +60,10 @@ def _is_deposit(tx: dict) -> bool:
     return flt(tx.get("deposit")) > 0
 
 
+def _signed_amount(tx: dict) -> float:
+    return _amount(tx) if _is_deposit(tx) else -_amount(tx)
+
+
 def _active_reconciliation(bank_transaction: str) -> dict | None:
     rows = get_db().sql(
         'SELECT * FROM "Bank Reconciliation" '
@@ -66,6 +71,25 @@ def _active_reconciliation(bank_transaction: str) -> dict | None:
         [bank_transaction, "Active"],
     )
     return dict(rows[0]) if rows else None
+
+
+def _group_rows(group_id: str | None, *, status: str = "Active") -> list[dict]:
+    if not group_id:
+        return []
+    return [dict(row) for row in get_db().sql(
+        'SELECT * FROM "Bank Reconciliation" '
+        'WHERE group_id = ? AND status = ? ORDER BY group_head DESC, name',
+        [group_id, status],
+    )]
+
+
+def _public_active_reconciliation(active: dict | None) -> dict | None:
+    if not active:
+        return None
+    result = dict(active)
+    rows = _group_rows(result.get("group_id"))
+    result["bank_transactions"] = [row["bank_transaction"] for row in rows]
+    return result
 
 
 def _ensure_available(tx: dict) -> None:
@@ -244,6 +268,93 @@ def _invoice_candidates(tx: dict, limit: int) -> list[dict]:
     return candidates[:limit]
 
 
+def _compact_group_transaction(tx: dict) -> dict:
+    return {
+        "name": tx.get("name"),
+        "posting_date": tx.get("posting_date"),
+        "amount": _amount(tx),
+        "deposit": flt(tx.get("deposit"), 2),
+        "withdrawal": flt(tx.get("withdrawal"), 2),
+        "counterparty_name": tx.get("counterparty_name"),
+        "description": tx.get("description"),
+    }
+
+
+def _same_day_group_pool(tx: dict, voucher_date: str) -> list[dict] | None:
+    rows = [dict(row) for row in get_db().sql(
+        'SELECT name, posting_date, deposit, withdrawal, counterparty_name, description '
+        'FROM "Bank Transaction" WHERE bank_account = ? AND currency = ? '
+        'AND posting_date = ? AND status = ? AND bank_statement_import IS NOT NULL '
+        'ORDER BY name LIMIT 101',
+        [tx["bank_account"], tx.get("currency"), voucher_date, "Unreconciled"],
+    )]
+    return None if len(rows) > 100 else rows
+
+
+def _same_day_transaction_group(tx: dict, target_movement: float,
+                                voucher_date: str | None,
+                                pool: list[dict] | None) -> list[dict] | None:
+    """Find a deterministic exact same-day subset that includes ``tx``.
+
+    Group suggestions intentionally stay conservative: automatic grouping is
+    limited to imported, unreconciled transactions on the exact voucher date,
+    bank account, currency, and movement direction. Explicit reconciliation
+    still validates the complete supplied group independently.
+    """
+    if not voucher_date or tx.get("posting_date") != voucher_date:
+        return None
+    if (target_movement > 0) != _is_deposit(tx):
+        return None
+    target_cents = round(abs(target_movement) * 100)
+    selected_cents = round(_amount(tx) * 100)
+    if selected_cents <= 0 or selected_cents >= target_cents:
+        return None
+
+    if pool is None:
+        return None
+    selected = next((row for row in pool if row["name"] == tx["name"]), None)
+    if not selected:
+        return None
+    companions = [
+        row for row in pool
+        if row["name"] != tx["name"]
+        and (_is_deposit(row) == _is_deposit(tx))
+        and 0 < round(_amount(row) * 100) <= target_cents - selected_cents
+    ]
+    remainder = target_cents - selected_cents
+
+    if companions and sum(round(_amount(row) * 100) for row in companions) == remainder:
+        return [selected, *companions]
+
+    # Retain up to two ways to reach each subtotal. A suggestion is emitted only
+    # when the exact subset is unique; ambiguity is left for manual review.
+    states: dict[int, list[tuple[dict, ...]]] = {0: [()]}
+    for row in companions:
+        cents = round(_amount(row) * 100)
+        additions: dict[int, list[tuple[dict, ...]]] = {}
+        for subtotal, variants in list(states.items()):
+            for members in variants:
+                if len(members) >= 19:
+                    continue
+                new_total = subtotal + cents
+                if new_total > remainder:
+                    continue
+                bucket = additions.setdefault(new_total, [])
+                candidate = (*members, row)
+                if candidate not in bucket and len(bucket) < 2:
+                    bucket.append(candidate)
+        for subtotal, variants in additions.items():
+            bucket = states.setdefault(subtotal, [])
+            for variant in variants:
+                if variant not in bucket and len(bucket) < 2:
+                    bucket.append(variant)
+        # Refuse an expensive or ambiguous search instead of guessing.
+        if len(states) > 50_000:
+            return None
+    matches = states.get(remainder, [])
+    return [selected, *matches[0]] if len(matches) == 1 else None
+
+
 def _voucher_candidates(tx: dict, limit: int) -> list[dict]:
     db = get_db()
     rows = db.sql(
@@ -256,7 +367,7 @@ def _voucher_candidates(tx: dict, limit: int) -> list[dict]:
         'AND gle.voucher_type IN (?, ?) '
         'AND NOT EXISTS (SELECT 1 FROM "Bank Reconciliation" br '
         '  WHERE br.voucher_type = gle.voucher_type AND br.voucher_no = gle.voucher_no '
-        '  AND br.status = ? AND br.bank_account = ?) '
+        '  AND br.status = ? AND br.bank_account = ? AND br.group_head = 1) '
         'GROUP BY gle.voucher_type, gle.voucher_no '
         'ORDER BY MIN(gle.posting_date) DESC LIMIT 500',
         [tx["bank_account"], "Payment Entry", "Journal Entry", "Active", tx["bank_account"]],
@@ -264,6 +375,8 @@ def _voucher_candidates(tx: dict, limit: int) -> list[dict]:
     expected = _amount(tx)
     deposit = _is_deposit(tx)
     out = []
+    same_day_pool: list[dict] | None = None
+    same_day_pool_loaded = False
     for row in rows:
         item = dict(row)
         debit_ccy = flt(item.get("debit_ccy"), 2)
@@ -271,7 +384,7 @@ def _voucher_candidates(tx: dict, limit: int) -> list[dict]:
         movement = debit_ccy - credit_ccy
         if not tx.get("currency") or tx.get("currency") == tx.get("base_currency"):
             movement = flt(item.get("debit"), 2) - flt(item.get("credit"), 2)
-        if (movement > 0) != deposit or abs(abs(movement) - expected) > 0.01:
+        if (movement > 0) != deposit:
             continue
         try:
             days = abs((date.fromisoformat(tx["posting_date"]) - date.fromisoformat(item["posting_date"])).days)
@@ -279,16 +392,34 @@ def _voucher_candidates(tx: dict, limit: int) -> list[dict]:
             days = 9999
         if days > 45:
             continue
+        exact = abs(abs(movement) - expected) <= 0.01
+        group = None
+        if not exact and item.get("posting_date") == tx.get("posting_date"):
+            if not same_day_pool_loaded:
+                same_day_pool = _same_day_group_pool(tx, item["posting_date"])
+                same_day_pool_loaded = True
+            group = _same_day_transaction_group(
+                tx, movement, item.get("posting_date"), same_day_pool,
+            )
+        if not exact and not group:
+            continue
         score = 80 + (20 if days == 0 else max(0, 15 - days))
         out.append({
-            "kind": "existing_voucher",
+            "kind": "existing_voucher" if exact else "existing_voucher_group",
             "voucher_type": item["voucher_type"],
             "voucher_no": item["voucher_no"],
             "posting_date": item["posting_date"],
-            "amount": expected,
+            "amount": abs(flt(movement, 2)),
             "currency": tx.get("currency"),
             "score": score,
-            "reasons": ["exact_bank_movement", "same_date" if days == 0 else "date_near"],
+            "reasons": [
+                "exact_bank_movement" if exact else "exact_grouped_bank_movement",
+                "same_date" if days == 0 else "date_near",
+            ],
+            "bank_transactions": [
+                _compact_group_transaction(member)
+                for member in (group or [tx])
+            ],
         })
     out.sort(key=lambda item: (-item["score"], item["voucher_no"]))
     return out[:limit]
@@ -299,19 +430,22 @@ def suggest_matches(bank_transaction: str, *, limit: int = 12) -> dict:
     active = _active_reconciliation(bank_transaction)
     return {
         "transaction": _public_transaction(tx),
-        "active_reconciliation": active,
+        "active_reconciliation": _public_active_reconciliation(active),
         "existing_vouchers": [] if active else _voucher_candidates(tx, limit),
         "invoices": [] if active else _invoice_candidates(tx, limit),
     }
 
 
 def _new_audit(tx: dict, *, mode: str, voucher_type: str, voucher_no: str,
-               user: str | None) -> str:
+               user: str | None, group_id: str | None = None,
+               group_head: bool = True) -> str:
     name = new_name("BRC")
     get_db().insert("Bank Reconciliation", {
         "name": name,
         "bank_transaction": tx["name"],
         "bank_account": tx["bank_account"],
+        "group_id": group_id or name,
+        "group_head": 1 if group_head else 0,
         "mode": mode,
         "voucher_type": voucher_type,
         "voucher_no": voucher_no,
@@ -359,12 +493,12 @@ def reverse_generated_reconciliation(reconciliation: str | None, *, voucher_type
     if reconciliation:
         row = db.get_value(
             "Bank Reconciliation", reconciliation,
-            ["name", "bank_transaction", "voucher_type", "voucher_no", "status", "reversed_by"],
+            ["name", "bank_transaction", "group_id", "voucher_type", "voucher_no", "status", "reversed_by"],
         )
-        rows = [row] if row else []
+        rows = _group_rows(row.get("group_id")) if row else []
     else:
         rows = db.sql(
-            'SELECT name, bank_transaction, voucher_type, voucher_no, status, reversed_by '
+            'SELECT name, bank_transaction, group_id, voucher_type, voucher_no, status, reversed_by '
             'FROM "Bank Reconciliation" WHERE voucher_type = ? AND voucher_no = ? '
             'AND status = ?',
             [voucher_type, voucher_no, "Active"],
@@ -580,25 +714,38 @@ def reconcile_with_journal(bank_transaction: str, counterparty_account: str, *,
     }
 
 
-def _validate_existing_voucher(tx: dict, voucher_type: str, voucher_no: str) -> None:
+def _validate_existing_voucher_group(transactions: list[dict], voucher_type: str,
+                                     voucher_no: str) -> None:
+    if not transactions:
+        raise ValidationError("At least one bank transaction is required")
     if voucher_type not in _VOUCHER_TYPES:
         raise ValidationError("Only submitted Payment Entries or Journal Entries can be matched")
     document = get_db().get_value(voucher_type, voucher_no, ["docstatus", "company"])
     if not document or flt(document.get("docstatus")) != 1:
         raise ValidationError(f"{voucher_type} {voucher_no} is unavailable or not submitted")
-    if document.get("company") != tx["company"]:
+    first = transactions[0]
+    if document.get("company") != first["company"]:
         raise ValidationError("Voucher and bank transaction belong to different companies")
+    for tx in transactions[1:]:
+        if tx.get("company") != first.get("company"):
+            raise ValidationError("All grouped bank transactions must belong to the same company")
+        if tx.get("bank_account") != first.get("bank_account"):
+            raise ValidationError("All grouped bank transactions must use the same bank account")
+        if tx.get("currency") != first.get("currency"):
+            raise ValidationError("All grouped bank transactions must use the same currency")
+        if _is_deposit(tx) != _is_deposit(first):
+            raise ValidationError("Grouped bank transactions must have the same movement direction")
     db = get_db()
     used = db.sql(
-        'SELECT bank_transaction FROM "Bank Reconciliation" '
+        'SELECT group_id, bank_transaction FROM "Bank Reconciliation" '
         'WHERE voucher_type = ? AND voucher_no = ? AND bank_account = ? '
-        'AND status = ? LIMIT 1',
-        [voucher_type, voucher_no, tx["bank_account"], "Active"],
+        'AND status = ? AND group_head = 1 LIMIT 1',
+        [voucher_type, voucher_no, first["bank_account"], "Active"],
     )
     if used:
         raise ValidationError(
             f"The {voucher_type} {voucher_no} bank movement on account "
-            f"{tx['bank_account']} is already reconciled with {used[0]['bank_transaction']}"
+            f"{first['bank_account']} is already reconciled by group {used[0]['group_id']}"
         )
     rows = db.sql(
         'SELECT COALESCE(SUM(debit), 0) AS debit, COALESCE(SUM(credit), 0) AS credit, '
@@ -606,36 +753,75 @@ def _validate_existing_voucher(tx: dict, voucher_type: str, voucher_no: str) -> 
         'COALESCE(SUM(credit_in_account_currency), 0) AS credit_ccy '
         'FROM "GL Entry" WHERE voucher_type = ? AND voucher_no = ? '
         'AND account = ? AND is_cancelled = 0',
-        [voucher_type, voucher_no, tx["bank_account"]],
+        [voucher_type, voucher_no, first["bank_account"]],
     )
     row = rows[0]
     movement = flt(row["debit_ccy"], 2) - flt(row["credit_ccy"], 2)
-    if tx.get("currency") == tx.get("base_currency"):
+    if first.get("currency") == first.get("base_currency"):
         movement = flt(row["debit"], 2) - flt(row["credit"], 2)
-    expected = _amount(tx) if _is_deposit(tx) else -_amount(tx)
+    expected = flt(sum(_signed_amount(tx) for tx in transactions), 2)
     if abs(movement - expected) > 0.01:
         raise ValidationError(
-            f"Voucher bank movement ({movement}) does not equal transaction movement ({expected})"
+            f"Voucher bank movement ({movement}) does not equal grouped transaction movement ({expected})"
         )
 
 
-def reconcile_with_existing_voucher(bank_transaction: str, voucher_type: str, voucher_no: str, *,
-                                    user: str | None = None, confirmed: bool = False) -> dict:
+def _begin_existing_voucher_transaction(db, voucher_type: str, voucher_no: str) -> None:
+    """Serialize consumers of one voucher while the group is validated."""
+    db._in_transaction = True
+    if db.dialect == "sqlite":
+        db.conn.execute("BEGIN IMMEDIATE")
+    else:
+        # ``voucher_type`` is checked against the fixed allowlist before this
+        # helper is called, so quoting the table name is safe.
+        db.conn.execute(
+            f'SELECT name FROM "{voucher_type}" WHERE name = ? FOR UPDATE',
+            [voucher_no],
+        ).fetchone()
+
+
+def reconcile_with_existing_voucher_group(bank_transactions: list[str], voucher_type: str,
+                                           voucher_no: str, *, user: str | None = None,
+                                           confirmed: bool = False) -> dict:
+    """Atomically link an exact group to one submitted voucher bank leg."""
     if confirmed is not True:
         raise ValidationError("Explicit confirmation is required before matching an existing voucher")
-    tx = _transaction(bank_transaction)
-    _ensure_available(tx)
-    _validate_existing_voucher(tx, voucher_type, voucher_no)
+    if voucher_type not in _VOUCHER_TYPES:
+        raise ValidationError("Only submitted Payment Entries or Journal Entries can be matched")
+    if not isinstance(bank_transactions, list) or not bank_transactions:
+        raise ValidationError("At least one bank transaction is required")
+    names = []
+    for value in bank_transactions:
+        name = str(value or "").strip()
+        if not name:
+            raise ValidationError("Every grouped bank transaction needs a name")
+        if name in names:
+            raise ValidationError(f"Bank Transaction {name} occurs more than once in the group")
+        names.append(name)
+
     db = get_db()
-    db._in_transaction = True
     try:
-        reconciliation = _new_audit(
-            tx, mode="Existing Voucher", voucher_type=voucher_type,
-            voucher_no=voucher_no, user=user,
-        )
-        activate_generated_reconciliation(
-            reconciliation, voucher_type=voucher_type, voucher_no=voucher_no,
-        )
+        _begin_existing_voucher_transaction(db, voucher_type, voucher_no)
+        transactions = [_transaction(name) for name in names]
+        for tx in transactions:
+            _ensure_available(tx)
+        _validate_existing_voucher_group(transactions, voucher_type, voucher_no)
+
+        reconciliations: list[str] = []
+        group_id = None
+        for index, tx in enumerate(transactions):
+            reconciliation = _new_audit(
+                tx, mode="Existing Voucher", voucher_type=voucher_type,
+                voucher_no=voucher_no, user=user, group_id=group_id,
+                group_head=index == 0,
+            )
+            if group_id is None:
+                group_id = reconciliation
+            reconciliations.append(reconciliation)
+        for reconciliation in reconciliations:
+            activate_generated_reconciliation(
+                reconciliation, voucher_type=voucher_type, voucher_no=voucher_no,
+            )
         db.commit()
     except Exception:
         db.conn.rollback()
@@ -643,12 +829,25 @@ def reconcile_with_existing_voucher(bank_transaction: str, voucher_type: str, vo
     finally:
         db._in_transaction = False
     return {
-        "bank_transaction": bank_transaction,
-        "reconciliation": reconciliation,
+        "bank_transaction": names[0],
+        "bank_transactions": names,
+        "reconciliation": reconciliations[0],
+        "reconciliations": reconciliations,
+        "group_id": group_id,
         "voucher_type": voucher_type,
         "voucher_no": voucher_no,
         "status": "Reconciled",
+        "amount": flt(sum(_amount(tx) for tx in transactions), 2),
+        "currency": transactions[0].get("currency"),
     }
+
+
+def reconcile_with_existing_voucher(bank_transaction: str, voucher_type: str, voucher_no: str, *,
+                                    user: str | None = None, confirmed: bool = False) -> dict:
+    return reconcile_with_existing_voucher_group(
+        [bank_transaction], voucher_type, voucher_no,
+        user=user, confirmed=confirmed,
+    )
 
 
 def undo_reconciliation(bank_transaction: str, *, user: str | None = None,
@@ -674,15 +873,18 @@ def undo_reconciliation(bank_transaction: str, *, user: str | None = None,
     else:
         db._in_transaction = True
         try:
-            db.set_value("Bank Reconciliation", audit["name"], {
-                "status": "Reversed", "reversed_by": user, "reversed_at": now(),
-            })
-            db.set_value("Bank Transaction", bank_transaction, {
-                "reference_doctype": None, "reference_name": None,
-                "allocated_amount": 0, "unallocated_amount": _amount(tx),
-                "status": "Unreconciled", "reconciled_by": None,
-                "reconciled_at": None, "modified": now(),
-            })
+            group = _group_rows(audit.get("group_id")) or [audit]
+            for member in group:
+                member_tx = _transaction(member["bank_transaction"])
+                db.set_value("Bank Reconciliation", member["name"], {
+                    "status": "Reversed", "reversed_by": user, "reversed_at": now(),
+                })
+                db.set_value("Bank Transaction", member_tx["name"], {
+                    "reference_doctype": None, "reference_name": None,
+                    "allocated_amount": 0, "unallocated_amount": _amount(member_tx),
+                    "status": "Unreconciled", "reconciled_by": None,
+                    "reconciled_at": None, "modified": now(),
+                })
             db.commit()
         except Exception:
             db.conn.rollback()
@@ -691,6 +893,10 @@ def undo_reconciliation(bank_transaction: str, *, user: str | None = None,
             db._in_transaction = False
     return {
         "bank_transaction": bank_transaction,
+        "bank_transactions": [
+            row["bank_transaction"]
+            for row in (_group_rows(audit.get("group_id"), status="Reversed") or [audit])
+        ],
         "reversed_reconciliation": audit["name"],
         "voucher_type": audit["voucher_type"],
         "voucher_no": audit["voucher_no"],

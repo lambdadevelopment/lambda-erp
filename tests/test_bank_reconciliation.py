@@ -123,6 +123,7 @@ def check_reconciliation():
 
     from lambda_erp.accounting.bank_reconciliation import (
         reconcile_with_existing_voucher,
+        reconcile_with_existing_voucher_group,
         reconcile_with_journal,
         reconcile_with_payment,
         suggest_matches,
@@ -339,6 +340,126 @@ def check_reconciliation():
         'WHERE voucher_type = ? AND voucher_no = ? AND status = ?',
         ["Journal Entry", multi_bank_journal.name, "Active"],
     )[0]["c"] == 0
+
+    # One legacy voucher may consolidate several statement movements on the
+    # same bank account into one GL bank leg. The deterministic suggestion must
+    # identify an exact same-day subset, excluding unrelated same-day noise,
+    # and the complete group must be linked or reversed atomically.
+    for name, amount in (
+        ("BT-GROUP-SMALL", 147.20),
+        ("BT-GROUP-LARGE", 130811.90),
+        ("BT-GROUP-NOISE", 25.00),
+    ):
+        db.insert("Bank Transaction", {
+            "name": name, "bank_account": "Bank - SYNT", "bank_account_id": primary_bank_id,
+            "bank_statement_import": "BSI-MULTI-CHF", "posting_date": "2025-01-07",
+            "deposit": amount, "currency": "CHF", "external_id": f"test:{name}",
+            "allocated_amount": 0, "unallocated_amount": amount, "status": "Unreconciled",
+        })
+    grouped_journal = JournalEntry({
+        "posting_date": "2025-01-07", "company": "Synthetic Co",
+        "voucher_type": "Bank Entry", "remark": "Consolidated same-account deposits",
+        "accounts": [
+            {"account": "Bank - SYNT", "debit": 130959.10, "credit": 0,
+             "debit_in_account_currency": 130959.10, "credit_in_account_currency": 0},
+            {"account": "Income - SYNT", "debit": 0, "credit": 130959.10,
+             "debit_in_account_currency": 0, "credit_in_account_currency": 130959.10},
+        ],
+    }).submit()
+    grouped_candidates = [
+        item for item in suggest_matches("BT-GROUP-LARGE")["existing_vouchers"]
+        if item["voucher_no"] == grouped_journal.name
+    ]
+    assert len(grouped_candidates) == 1
+    grouped_candidate = grouped_candidates[0]
+    assert grouped_candidate["kind"] == "existing_voucher_group"
+    assert {row["name"] for row in grouped_candidate["bank_transactions"]} == {
+        "BT-GROUP-SMALL", "BT-GROUP-LARGE",
+    }
+    for invalid_group in (
+        ["BT-GROUP-LARGE"],
+        ["BT-GROUP-LARGE", "BT-GROUP-SMALL", "BT-GROUP-NOISE"],
+    ):
+        try:
+            reconcile_with_existing_voucher_group(
+                invalid_group, "Journal Entry", grouped_journal.name,
+                user="USER-001", confirmed=True,
+            )
+            raise AssertionError("Partial or excessive voucher groups must fail")
+        except Exception as exc:
+            assert "does not equal grouped transaction movement" in str(exc).lower()
+    assert all(
+        db.get_value("Bank Transaction", name, "status") == "Unreconciled"
+        for name in ("BT-GROUP-SMALL", "BT-GROUP-LARGE", "BT-GROUP-NOISE")
+    )
+    grouped_result = reconcile_with_existing_voucher_group(
+        ["BT-GROUP-LARGE", "BT-GROUP-SMALL"],
+        "Journal Entry", grouped_journal.name,
+        user="USER-001", confirmed=True,
+    )
+    assert grouped_result["amount"] == 130959.10
+    assert all(
+        db.get_value("Bank Transaction", name, "status") == "Reconciled"
+        for name in ("BT-GROUP-SMALL", "BT-GROUP-LARGE")
+    )
+    group_audits = db.sql(
+        'SELECT bank_transaction, group_id, group_head FROM "Bank Reconciliation" '
+        'WHERE voucher_type = ? AND voucher_no = ? AND status = ? ORDER BY bank_transaction',
+        ["Journal Entry", grouped_journal.name, "Active"],
+    )
+    assert len(group_audits) == 2
+    assert len({row["group_id"] for row in group_audits}) == 1
+    assert sorted(row["group_head"] for row in group_audits) == [0, 1]
+    try:
+        reconcile_with_existing_voucher(
+            "BT-GROUP-NOISE", "Journal Entry", grouped_journal.name,
+            user="USER-001", confirmed=True,
+        )
+        raise AssertionError("A grouped voucher bank leg must not be reused")
+    except Exception as exc:
+        assert "already reconciled" in str(exc).lower()
+
+    group_undo = undo_reconciliation("BT-GROUP-SMALL", user="USER-001", confirmed=True)
+    assert set(group_undo["bank_transactions"]) == {"BT-GROUP-SMALL", "BT-GROUP-LARGE"}
+    assert all(
+        db.get_value("Bank Transaction", name, "status") == "Unreconciled"
+        for name in ("BT-GROUP-SMALL", "BT-GROUP-LARGE")
+    )
+
+    # REST and chat both accept the exact group returned by the read-only
+    # suggestion and pass it to the same atomic service.
+    with TestClient(app) as group_client:
+        login = group_client.post("/api/auth/login", json={
+            "email": "admin@example.com", "password": "test-password-123",
+        })
+        assert login.status_code == 200, login.text
+        response = group_client.post("/api/bank-reconciliation/match-existing", json={
+            "bank_transaction": "BT-GROUP-LARGE",
+            "bank_transactions": ["BT-GROUP-LARGE", "BT-GROUP-SMALL"],
+            "voucher_type": "Journal Entry",
+            "voucher_no": grouped_journal.name,
+            "confirmed": True,
+        })
+        assert response.status_code == 200, response.text
+        assert set(response.json()["bank_transactions"]) == {
+            "BT-GROUP-SMALL", "BT-GROUP-LARGE",
+        }
+    undo_reconciliation("BT-GROUP-LARGE", user="USER-001", confirmed=True)
+
+    chat_group = _handle_reconcile_bank_transaction({
+        "bank_transaction": "BT-GROUP-LARGE",
+        "bank_transactions": ["BT-GROUP-LARGE", "BT-GROUP-SMALL"],
+        "mode": "existing_voucher",
+        "voucher_type": "Journal Entry",
+        "voucher_no": grouped_journal.name,
+        "confirmed": True,
+    }, user)
+    assert chat_group.get("status") == "Reconciled", chat_group
+    grouped_journal.cancel()
+    assert all(
+        db.get_value("Bank Transaction", name, "status") == "Unreconciled"
+        for name in ("BT-GROUP-SMALL", "BT-GROUP-LARGE")
+    )
 
     print(f"  [bank reconciliation] suggestions/payment/existing/journal/undo OK on {backend}")
 

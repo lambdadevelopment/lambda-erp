@@ -6,6 +6,7 @@ from api.auth import require_role
 from lambda_erp.accounting.bank_reconciliation import (
     list_bank_transactions,
     reconcile_with_existing_voucher,
+    reconcile_with_existing_voucher_group,
     reconcile_with_journal,
     reconcile_with_payment,
     suggest_matches,
@@ -58,6 +59,15 @@ def post_journal(data: dict, user: dict = Depends(require_role("manager"))):
 
 @router.post("/bank-reconciliation/match-existing")
 def match_existing(data: dict, user: dict = Depends(require_role("manager"))):
+    bank_transactions = data.get("bank_transactions")
+    if bank_transactions:
+        return reconcile_with_existing_voucher_group(
+            bank_transactions,
+            data.get("voucher_type"),
+            data.get("voucher_no"),
+            user=user.get("name"),
+            confirmed=data.get("confirmed") is True,
+        )
     return reconcile_with_existing_voucher(
         data.get("bank_transaction"),
         data.get("voucher_type"),

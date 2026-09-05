@@ -134,12 +134,29 @@ export default function BankReconciliation() {
 
   const runExisting = async (candidate: BankVoucherSuggestion) => {
     if (!transaction) return;
+    const group = candidate.bank_transactions || [];
+    const grouped = candidate.kind === "existing_voucher_group" && group.length > 1;
     const ok = await confirm({
       title: t("bankReconciliation.confirmExistingTitle"),
-      body: t("bankReconciliation.confirmExistingBody", {
-        transaction: transaction.name,
-        voucher: `${candidate.voucher_type} ${candidate.voucher_no}`,
-      }),
+      body: grouped ? (
+        <div className="space-y-2">
+          <p>{t("bankReconciliation.confirmGroupBody", {
+            count: group.length,
+            amount: money(candidate.amount, candidate.currency),
+            voucher: `${candidate.voucher_type} ${candidate.voucher_no}`,
+          })}</p>
+          <ul className="list-disc space-y-1 pl-5 text-sm">
+            {group.map((member) => (
+              <li key={member.name}>
+                {member.name} · {member.deposit ? "+" : "−"}{money(member.amount, candidate.currency)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : t("bankReconciliation.confirmExistingBody", {
+          transaction: transaction.name,
+          voucher: `${candidate.voucher_type} ${candidate.voucher_no}`,
+        }),
       confirmLabel: t("bankReconciliation.match"),
     });
     if (!ok) return;
@@ -147,11 +164,14 @@ export default function BankReconciliation() {
     try {
       await api.reconcileBankExistingVoucher({
         bank_transaction: transaction.name,
+        bank_transactions: grouped ? group.map((member) => member.name) : undefined,
         voucher_type: candidate.voucher_type,
         voucher_no: candidate.voucher_no,
         confirmed: true,
       });
-      await afterMutation(t("bankReconciliation.reconciledNotice"));
+      await afterMutation(grouped
+        ? t("bankReconciliation.groupReconciledNotice", { count: group.length })
+        : t("bankReconciliation.reconciledNotice"));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally { setBusy(false); }
@@ -227,11 +247,17 @@ export default function BankReconciliation() {
   const runUndo = async () => {
     if (!transaction || !suggestions?.active_reconciliation) return;
     const created = suggestions.active_reconciliation.mode !== "Existing Voucher";
+    const activeGroup = suggestions.active_reconciliation.bank_transactions || [transaction.name];
     const ok = await confirm({
       title: t("bankReconciliation.undoTitle"),
       body: created
         ? t("bankReconciliation.undoCreatedBody")
-        : t("bankReconciliation.undoExistingBody"),
+        : activeGroup.length > 1
+          ? t("bankReconciliation.undoExistingGroupBody", {
+              count: activeGroup.length,
+              transactions: activeGroup.join(", "),
+            })
+          : t("bankReconciliation.undoExistingBody"),
       confirmLabel: t("bankReconciliation.undo"),
       danger: true,
     });
@@ -337,6 +363,11 @@ export default function BankReconciliation() {
               <Card>
                 <h2 className="text-base font-semibold text-fg">{t("bankReconciliation.activeMatch")}</h2>
                 <p className="mt-2 text-sm text-fg-muted">{suggestions.active_reconciliation.mode}</p>
+                {suggestions.active_reconciliation.bank_transactions?.length > 1 && (
+                  <p className="mt-1 text-sm text-fg-muted">
+                    {suggestions.active_reconciliation.bank_transactions.join(" + ")}
+                  </p>
+                )}
                 <Link className="mt-1 inline-block text-sm text-brand underline" to={voucherPath(suggestions.active_reconciliation.voucher_type, suggestions.active_reconciliation.voucher_no)}>
                   {suggestions.active_reconciliation.voucher_type} {suggestions.active_reconciliation.voucher_no}
                 </Link>
@@ -353,7 +384,18 @@ export default function BankReconciliation() {
                     <div className="mt-3 divide-y divide-line">
                       {suggestions.existing_vouchers.map((item) => (
                         <div key={`${item.voucher_type}:${item.voucher_no}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                          <div><Link className="font-medium text-brand underline" to={voucherPath(item.voucher_type, item.voucher_no)}>{item.voucher_type} {item.voucher_no}</Link><p className="text-xs text-fg-muted">{item.posting_date} · {money(item.amount, item.currency)}</p></div>
+                          <div>
+                            <Link className="font-medium text-brand underline" to={voucherPath(item.voucher_type, item.voucher_no)}>{item.voucher_type} {item.voucher_no}</Link>
+                            <p className="text-xs text-fg-muted">
+                              {item.posting_date} · {money(item.amount, item.currency)}
+                              {item.kind === "existing_voucher_group" && ` · ${t("bankReconciliation.groupedTransactions", { count: item.bank_transactions.length })}`}
+                            </p>
+                            {item.kind === "existing_voucher_group" && (
+                              <p className="mt-1 text-xs text-fg-muted">
+                                {item.bank_transactions.map((member) => member.name).join(" + ")}
+                              </p>
+                            )}
+                          </div>
                           <Button variant="secondary" disabled={busy} onClick={() => runExisting(item)}>{t("bankReconciliation.match")}</Button>
                         </div>
                       ))}

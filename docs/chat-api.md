@@ -56,6 +56,10 @@ the user to confirm the concrete proposal in a later message; the agent then
 creates a Payment/Journal Entry or links an exact existing voucher through the
 same audited reconciliation service as the web UI. These operations require a
 `manager` or `admin` key.
+When one voucher consolidates several same-day movements on the same bank
+account, the agent can propose their unique exact combination and, after
+confirmation, reconcile the whole group atomically without creating a new
+ledger entry.
 
 **The reply is written for an external caller, not the ERP web UI.** On this
 programmatic surface the agent is told its answer is relayed to another app, so it

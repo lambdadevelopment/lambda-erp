@@ -127,16 +127,22 @@ can then use these endpoints:
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `/api/bank-reconciliation/transactions` | List the reconciliation queue (`status=Unreconciled|Reconciled|All`) |
-| `GET` | `/api/bank-reconciliation/transactions/{name}/suggestions` | Get deterministic invoice and exact-voucher candidates |
+| `GET` | `/api/bank-reconciliation/transactions/{name}/suggestions` | Get deterministic invoice, exact-voucher, and exact same-account group candidates |
 | `POST` | `/api/bank-reconciliation/payment` | Create and submit a Payment Entry against selected invoices |
 | `POST` | `/api/bank-reconciliation/journal` | Create and submit a Journal Entry against a selected account |
-| `POST` | `/api/bank-reconciliation/match-existing` | Link an exact submitted Payment/Journal voucher without reposting |
+| `POST` | `/api/bank-reconciliation/match-existing` | Link one transaction or an exact transaction group to a submitted Payment/Journal voucher without reposting |
 | `POST` | `/api/bank-reconciliation/undo` | Undo the active reconciliation |
 
 Every write body must contain `"confirmed": true`; preview/suggestion calls do
 not count as confirmation. Created vouchers are cancelled on undo, while an
 already-existing voucher is merely unlinked. All endpoints require `manager` or
 `admin` access.
+
+For an `existing_voucher_group` suggestion, send its complete transaction list
+back unchanged as `bank_transactions`, alongside the selected
+`bank_transaction`, `voucher_type`, and `voucher_no`. The group total must equal
+the voucher's movement on that bank account. The complete group is linked or
+rejected atomically; partial and over-allocated groups are not accepted.
 
 ## Responses
 

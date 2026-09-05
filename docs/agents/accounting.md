@@ -86,19 +86,22 @@ statement does not create ledger entries. Reconciliation is the only supported
 way to move an imported row from `Unreconciled` to `Reconciled`:
 
 - Link an existing submitted Payment Entry or Journal Entry only when its bank
-  leg exactly matches the transaction amount and direction.
+  leg exactly matches the amount and direction of one transaction or a
+  confirmed group of transactions on the same bank account and currency.
 - For an invoice payment, create and submit a Payment Entry and update the
   invoice outstanding amount in the same database transaction.
 - For another cash movement, create and submit a two-sided Journal Entry against
   an explicitly selected non-control account.
 
-Every path creates a `Bank Reconciliation` audit row. Only one reconciliation
-can be active for a bank transaction. A voucher can be linked once per bank
-account, which permits a multi-bank Journal Entry to reconcile each of its bank
-legs without allowing the same leg to be reused. Undo cancels a voucher created
-by reconciliation (restoring invoice outstanding amounts), but only unlinks a
-voucher that already existed. Cancelling a linked voucher through its ordinary
-document lifecycle returns all of its linked bank transactions to the queue.
+Every path creates a `Bank Reconciliation` audit row per bank transaction. Only
+one reconciliation can be active for a bank transaction. A voucher can be
+linked by one group per bank account, which supports both multi-bank Journal
+Entries and consolidated same-account bank movements without allowing a bank
+leg to be reused. Groups are linked and unlinked atomically. Undo cancels a
+voucher created by reconciliation (restoring invoice outstanding amounts), but
+only unlinks a voucher that already existed. Cancelling a linked voucher through
+its ordinary document lifecycle returns all of its linked bank transactions to
+the queue.
 
 Suggestions are deterministic hints, not authority: amount, document reference,
 counterparty similarity, and date affect their score. Posting, matching, and

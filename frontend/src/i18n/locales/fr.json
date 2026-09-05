@@ -125,6 +125,8 @@
     "undo": "Annuler le rapprochement",
     "confirmExistingTitle": "Rapprocher l’écriture existante ?",
     "confirmExistingBody": "Rapprocher {{transaction}} avec {{voucher}} ? Aucune nouvelle écriture ne sera comptabilisée.",
+    "confirmGroupBody": "Rapprocher les {{count}} transactions, pour un total de {{amount}}, avec {{voucher}} ? Aucune nouvelle écriture ne sera comptabilisée.",
+    "groupedTransactions": "{{count}} transactions groupées",
     "confirmPaymentTitle": "Comptabiliser le paiement et rapprocher ?",
     "confirmPaymentBody": "Cette action valide un paiement de {{amount}} pour {{transaction}} et l’affecte à {{count}} facture(s).",
     "onAccountWarning": "{{amount}} resteront comme paiement non affecté pour ce tiers.",
@@ -134,7 +136,9 @@
     "undoTitle": "Annuler le rapprochement ?",
     "undoCreatedBody": "La pièce créée par ce rapprochement sera annulée, ses écritures extournées et les affectations aux factures restaurées.",
     "undoExistingBody": "La pièce existante sera uniquement dissociée. Elle restera validée et ses écritures ne seront pas modifiées.",
+    "undoExistingGroupBody": "Les {{count}} transactions groupées ({{transactions}}) seront toutes dissociées ensemble. La pièce existante restera validée et ses écritures ne seront pas modifiées.",
     "reconciledNotice": "Transaction bancaire rapprochée.",
+    "groupReconciledNotice": "{{count}} transactions bancaires ont été rapprochées en groupe.",
     "undoneNotice": "Rapprochement annulé."
   },
   "smartSearch": {

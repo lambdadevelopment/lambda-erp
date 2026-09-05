@@ -125,6 +125,8 @@
     "undo": "Abstimmung rückgängig machen",
     "confirmExistingTitle": "Bestehende Buchung zuordnen?",
     "confirmExistingBody": "{{transaction}} mit {{voucher}} abstimmen? Es wird kein neuer Buchungssatz erzeugt.",
+    "confirmGroupBody": "Alle {{count}} Transaktionen über insgesamt {{amount}} mit {{voucher}} abstimmen? Es wird kein neuer Buchungssatz erzeugt.",
+    "groupedTransactions": "{{count}} gruppierte Transaktionen",
     "confirmPaymentTitle": "Zahlung buchen und abstimmen?",
     "confirmPaymentBody": "Damit wird für {{transaction}} eine Zahlung über {{amount}} eingereicht und auf {{count}} Rechnung(en) verteilt.",
     "onAccountWarning": "{{amount}} bleibt als nicht zugewiesene Zahlung bei dieser Partei bestehen.",
@@ -134,7 +136,9 @@
     "undoTitle": "Abstimmung rückgängig machen?",
     "undoCreatedBody": "Der durch diese Abstimmung erstellte Beleg wird storniert, seine Hauptbuchungen werden umgekehrt und Rechnungszuweisungen wiederhergestellt.",
     "undoExistingBody": "Der bestehende Beleg wird nur von der Banktransaktion getrennt. Er bleibt eingereicht und seine Buchungen werden nicht verändert.",
+    "undoExistingGroupBody": "Alle {{count}} gruppierten Banktransaktionen ({{transactions}}) werden gemeinsam vom Beleg getrennt. Der bestehende Beleg bleibt eingereicht und seine Buchungen werden nicht verändert.",
     "reconciledNotice": "Banktransaktion wurde abgestimmt.",
+    "groupReconciledNotice": "{{count}} Banktransaktionen wurden als Gruppe abgestimmt.",
     "undoneNotice": "Abstimmung wurde rückgängig gemacht."
   },
   "smartSearch": {

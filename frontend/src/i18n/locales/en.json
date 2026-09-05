@@ -125,6 +125,8 @@
     "undo": "Undo reconciliation",
     "confirmExistingTitle": "Match existing entry?",
     "confirmExistingBody": "Match {{transaction}} to {{voucher}}? No new ledger entry will be posted.",
+    "confirmGroupBody": "Match all {{count}} transactions totalling {{amount}} to {{voucher}}? No new ledger entry will be posted.",
+    "groupedTransactions": "{{count}} grouped transactions",
     "confirmPaymentTitle": "Post payment and reconcile?",
     "confirmPaymentBody": "This submits a payment of {{amount}} for {{transaction}} and allocates it across {{count}} invoice(s).",
     "onAccountWarning": "{{amount}} will remain as an on-account payment for this party.",
@@ -134,7 +136,9 @@
     "undoTitle": "Undo reconciliation?",
     "undoCreatedBody": "The voucher created by this reconciliation will be cancelled, its ledger entries reversed, and invoice allocations restored.",
     "undoExistingBody": "The existing voucher will only be unlinked. It remains submitted and its ledger entries are not changed.",
+    "undoExistingGroupBody": "All {{count}} grouped transactions ({{transactions}}) will be unlinked together. The existing voucher remains submitted and its ledger entries are not changed.",
     "reconciledNotice": "Bank transaction reconciled.",
+    "groupReconciledNotice": "{{count}} bank transactions reconciled as one group.",
     "undoneNotice": "Reconciliation reversed."
   },
   "smartSearch": {

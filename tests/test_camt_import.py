@@ -124,7 +124,7 @@ def check_v24_reconciliation_upgrade():
             # Recreate the table as it existed in v0.8.24. Dropping the new
             # column directly is not portable across SQLite versions because
             # current schema metadata also contains its foreign key.
-            conn.execute('DROP INDEX "ux_bank_reconciliation_active_voucher_account"')
+            conn.execute('DROP INDEX "ux_bank_reconciliation_active_group_head"')
             conn.execute(
                 'ALTER TABLE "Bank Reconciliation" '
                 'RENAME TO "_Bank Reconciliation v25"'
@@ -139,7 +139,7 @@ def check_v24_reconciliation_upgrade():
                 'FOREIGN KEY (bank_transaction) REFERENCES "Bank Transaction"(name))'
             )
             conn.execute('DROP TABLE "_Bank Reconciliation v25"')
-            conn.execute('DELETE FROM "_SchemaMigrations" WHERE version = 25')
+            conn.execute('DELETE FROM "_SchemaMigrations" WHERE version IN (25, 26)')
             conn.execute(
                 'CREATE UNIQUE INDEX "ux_bank_reconciliation_active_transaction" '
                 'ON "Bank Reconciliation" (bank_transaction) WHERE status = \'Active\''
@@ -165,10 +165,14 @@ def check_v24_reconciliation_upgrade():
         assert upgraded.get_value(
             "Bank Reconciliation", "BRC-LEGACY", "bank_account"
         ) == "Legacy Bank"
+        assert upgraded.get_value(
+            "Bank Reconciliation", "BRC-LEGACY", ["group_id", "group_head"]
+        ) == {"group_id": "BRC-LEGACY", "group_head": 1}
         indexes = upgraded.sql('PRAGMA index_list("Bank Reconciliation")', as_dict=False)
         index_names = {row[1] for row in indexes}
         assert "ux_bank_reconciliation_active_voucher" not in index_names
-        assert "ux_bank_reconciliation_active_voucher_account" in index_names
+        assert "ux_bank_reconciliation_active_voucher_account" not in index_names
+        assert "ux_bank_reconciliation_active_group_head" in index_names
         upgraded.close()
     finally:
         for suffix in ("", "-wal", "-shm"):

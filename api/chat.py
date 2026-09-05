@@ -899,11 +899,18 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "reconcile_bank_transaction",
-            "description": "Reconcile one imported bank transaction after explicit user confirmation. mode=invoice_payment creates and submits a Payment Entry allocated to one or more invoices; mode=existing_voucher links an already-submitted Payment Entry or Journal Entry with an exactly matching bank leg; mode=journal creates and submits a two-sided Journal Entry against a non-bank, non-AR/AP account. This posts or links real accounting data. Never call in the same turn as the first proposal; confirmed must reflect a later explicit confirmation.",
+            "description": "Reconcile imported bank transactions after explicit user confirmation. mode=invoice_payment creates and submits a Payment Entry allocated to one or more invoices; mode=existing_voucher links an already-submitted Payment Entry or Journal Entry with an exactly matching bank leg. If suggest_bank_reconciliation returns an existing_voucher_group, pass every exact bank transaction it lists in bank_transactions; the complete group is linked atomically. mode=journal creates and submits a two-sided Journal Entry against a non-bank, non-AR/AP account. This posts or links real accounting data. Never call in the same turn as the first proposal; confirmed must reflect a later explicit confirmation.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "bank_transaction": {"type": "string"},
+                    "bank_transactions": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 2,
+                        "maxItems": 100,
+                        "description": "For an existing_voucher_group only: all exact Bank Transaction names returned by the suggestion, including bank_transaction.",
+                    },
                     "mode": {"type": "string", "enum": ["invoice_payment", "existing_voucher", "journal"]},
                     "allocations": {
                         "type": "array",
@@ -932,7 +939,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "undo_bank_reconciliation",
-            "description": "Reverse an active bank reconciliation after explicit user confirmation. Vouchers created by reconciliation are cancelled and reversed; an existing linked voucher is only unlinked and remains submitted. Never call without explaining that distinction and receiving confirmation.",
+            "description": "Reverse an active bank reconciliation after explicit user confirmation. Vouchers created by reconciliation are cancelled and reversed; an existing linked voucher is only unlinked and remains submitted. If the selected transaction belongs to a group, every transaction in that group is unlinked atomically. Never call without listing the affected group, explaining that distinction, and receiving confirmation.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -2077,6 +2084,7 @@ def _handle_reconcile_bank_transaction(args, user_info: dict | None = None):
         }
     from lambda_erp.accounting.bank_reconciliation import (
         reconcile_with_existing_voucher,
+        reconcile_with_existing_voucher_group,
         reconcile_with_journal,
         reconcile_with_payment,
     )
@@ -2089,6 +2097,14 @@ def _handle_reconcile_bank_transaction(args, user_info: dict | None = None):
                 conversion_rate=args.get("conversion_rate"), user=user, confirmed=True,
             )
         if mode == "existing_voucher":
+            group = args.get("bank_transactions")
+            if group:
+                if args.get("bank_transaction") not in group:
+                    return {"error": "bank_transactions must include bank_transaction"}
+                return reconcile_with_existing_voucher_group(
+                    group, args.get("voucher_type"), args.get("voucher_no"),
+                    user=user, confirmed=True,
+                )
             return reconcile_with_existing_voucher(
                 args.get("bank_transaction"), args.get("voucher_type"), args.get("voucher_no"),
                 user=user, confirmed=True,
@@ -2550,15 +2566,20 @@ masked in ordinary chat responses.
 ### Bank reconciliation
 Use `list_bank_reconciliation_queue` and then `suggest_bank_reconciliation`; never guess from a raw
 description alone. Explain one exact proposal before doing anything. Reconciliation has three safe
-paths: (1) link an existing submitted Payment/Journal voucher whose bank leg matches exactly,
+paths: (1) link an existing submitted Payment/Journal voucher whose bank leg matches exactly—either
+one transaction or every transaction in an exact `existing_voucher_group`,
 (2) create and submit a Payment Entry allocated to one or more open invoices of the same party, or
 (3) create and submit a Journal Entry against a user-selected non-bank, non-AR/AP account. A created
 voucher changes the GL and may change invoice outstanding amounts. Ask for explicit confirmation in
 a later user turn, then call `reconcile_bank_transaction` with `confirmed=true`. Clearly disclose any
-unallocated on-account remainder. Never match a Bank Transaction directly to an invoice because that
+unallocated on-account remainder. Disclose all group members and their total before asking for
+confirmation; for a group, copy the complete
+`bank_transactions` list from the suggestion into the reconciliation call and never add or omit IDs.
+Never match a Bank Transaction directly to an invoice because that
 would omit the cash posting. For reversals, first explain whether the voucher was created by the
 reconciliation (it will be cancelled and reversed) or merely linked (it will only be unlinked), and
-then require explicit confirmation before `undo_bank_reconciliation`.
+whether the selected transaction belongs to a group that will be unlinked together, and then require
+explicit confirmation before `undo_bank_reconciliation`.
 
 ### Sales Cycle
 Quotation → Sales Order → Delivery Note (shipping) / Sales Invoice (billing) → Payment Entry

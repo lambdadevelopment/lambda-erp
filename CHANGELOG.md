@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.27] - 2026-09-05
+
+### Added
+- Bank reconciliation can now match a unique, exact group of same-day bank
+  transactions to one consolidated voucher movement on the same account and
+  currency through the web UI, REST API, and chat tools.
+
+### Changed
+- Grouped reconciliations are created and reversed atomically and retain one
+  audit row per imported bank transaction.
+- Reconciliation prompts show every grouped transaction and the combined total
+  before confirmation.
+
 ## [0.8.26] - 2026-09-05
 
 ### Fixed
@@ -1583,7 +1596,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.21...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.27...HEAD
+[0.8.27]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.26...v0.8.27
 [0.8.21]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.20...v0.8.21
 [0.8.20]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.19...v0.8.20
 [0.8.19]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.18...v0.8.19

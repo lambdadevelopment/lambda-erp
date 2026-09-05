@@ -172,7 +172,7 @@ export interface BankInvoiceSuggestion {
 }
 
 export interface BankVoucherSuggestion {
-  kind: "existing_voucher";
+  kind: "existing_voucher" | "existing_voucher_group";
   voucher_type: "Payment Entry" | "Journal Entry";
   voucher_no: string;
   posting_date: string;
@@ -180,6 +180,15 @@ export interface BankVoucherSuggestion {
   currency: string;
   score: number;
   reasons: string[];
+  bank_transactions: Array<{
+    name: string;
+    posting_date: string;
+    amount: number;
+    deposit: number;
+    withdrawal: number;
+    counterparty_name: string | null;
+    description: string | null;
+  }>;
 }
 
 export interface BankReconciliationSuggestions {
@@ -327,6 +336,7 @@ export const api = {
 
   reconcileBankExistingVoucher: (data: {
     bank_transaction: string;
+    bank_transactions?: string[];
     voucher_type: string;
     voucher_no: string;
     confirmed: boolean;
