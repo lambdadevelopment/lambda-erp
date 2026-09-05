@@ -13,6 +13,13 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.28] - 2026-09-05
+
+### Fixed
+- The chat reconciliation tool now uses one unambiguous transaction list for
+  both individual and grouped matches, preventing the agent from mistaking the
+  two-item minimum of a group for a restriction on individual matches.
+
 ## [0.8.27] - 2026-09-05
 
 ### Added
@@ -1596,7 +1603,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.27...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.28...HEAD
+[0.8.28]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.27...v0.8.28
 [0.8.27]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.26...v0.8.27
 [0.8.21]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.20...v0.8.21
 [0.8.20]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.19...v0.8.20

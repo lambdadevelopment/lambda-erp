@@ -59,7 +59,8 @@ same audited reconciliation service as the web UI. These operations require a
 When one voucher consolidates several same-day movements on the same bank
 account, the agent can propose their unique exact combination and, after
 confirmation, reconcile the whole group atomically without creating a new
-ledger entry.
+ledger entry. The write tool uses one uniform `bank_transactions` list: one ID
+for an individual reconciliation, or the complete suggested list for a group.
 
 **The reply is written for an external caller, not the ERP web UI.** On this
 programmatic surface the agent is told its answer is relayed to another app, so it

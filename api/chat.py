@@ -899,17 +899,16 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "reconcile_bank_transaction",
-            "description": "Reconcile imported bank transactions after explicit user confirmation. mode=invoice_payment creates and submits a Payment Entry allocated to one or more invoices; mode=existing_voucher links an already-submitted Payment Entry or Journal Entry with an exactly matching bank leg. If suggest_bank_reconciliation returns an existing_voucher_group, pass every exact bank transaction it lists in bank_transactions; the complete group is linked atomically. mode=journal creates and submits a two-sided Journal Entry against a non-bank, non-AR/AP account. This posts or links real accounting data. Never call in the same turn as the first proposal; confirmed must reflect a later explicit confirmation.",
+            "description": "Reconcile imported bank transactions after explicit user confirmation. Always pass bank_transactions: use a one-item list for an individual reconciliation and the complete list returned by an existing_voucher_group suggestion for a grouped reconciliation. mode=invoice_payment creates and submits a Payment Entry allocated to one or more invoices; mode=existing_voucher links an already-submitted Payment Entry or Journal Entry with an exactly matching bank leg, atomically for a group; mode=journal creates and submits a two-sided Journal Entry against a non-bank, non-AR/AP account. invoice_payment and journal accept exactly one bank transaction. This posts or links real accounting data. Never call in the same turn as the first proposal; confirmed must reflect a later explicit confirmation.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "bank_transaction": {"type": "string"},
                     "bank_transactions": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "minItems": 2,
+                        "minItems": 1,
                         "maxItems": 100,
-                        "description": "For an existing_voucher_group only: all exact Bank Transaction names returned by the suggestion, including bank_transaction.",
+                        "description": "Bank Transaction names to reconcile: exactly one for an individual match/payment/journal, or the complete exact group returned by the suggestion.",
                     },
                     "mode": {"type": "string", "enum": ["invoice_payment", "existing_voucher", "journal"]},
                     "allocations": {
@@ -931,7 +930,7 @@ TOOLS = [
                     "remarks": {"type": "string"},
                     "confirmed": {"type": "boolean"},
                 },
-                "required": ["bank_transaction", "mode", "confirmed"],
+                "required": ["bank_transactions", "mode", "confirmed"],
             },
         },
     },
@@ -2083,35 +2082,32 @@ def _handle_reconcile_bank_transaction(args, user_info: dict | None = None):
             )
         }
     from lambda_erp.accounting.bank_reconciliation import (
-        reconcile_with_existing_voucher,
         reconcile_with_existing_voucher_group,
         reconcile_with_journal,
         reconcile_with_payment,
     )
     user = (user_info or {}).get("name")
     mode = args.get("mode")
+    bank_transactions = args.get("bank_transactions")
+    if not isinstance(bank_transactions, list) or not bank_transactions:
+        return {"error": "bank_transactions must contain at least one Bank Transaction name"}
+    if mode in {"invoice_payment", "journal"} and len(bank_transactions) != 1:
+        return {"error": f"mode={mode} requires exactly one bank transaction"}
+    bank_transaction = bank_transactions[0]
     try:
         if mode == "invoice_payment":
             return reconcile_with_payment(
-                args.get("bank_transaction"), args.get("allocations") or [],
+                bank_transaction, args.get("allocations") or [],
                 conversion_rate=args.get("conversion_rate"), user=user, confirmed=True,
             )
         if mode == "existing_voucher":
-            group = args.get("bank_transactions")
-            if group:
-                if args.get("bank_transaction") not in group:
-                    return {"error": "bank_transactions must include bank_transaction"}
-                return reconcile_with_existing_voucher_group(
-                    group, args.get("voucher_type"), args.get("voucher_no"),
-                    user=user, confirmed=True,
-                )
-            return reconcile_with_existing_voucher(
-                args.get("bank_transaction"), args.get("voucher_type"), args.get("voucher_no"),
+            return reconcile_with_existing_voucher_group(
+                bank_transactions, args.get("voucher_type"), args.get("voucher_no"),
                 user=user, confirmed=True,
             )
         if mode == "journal":
             return reconcile_with_journal(
-                args.get("bank_transaction"), args.get("counterparty_account"),
+                bank_transaction, args.get("counterparty_account"),
                 conversion_rate=args.get("conversion_rate"), remarks=args.get("remarks"),
                 user=user, confirmed=True,
             )
@@ -2573,8 +2569,9 @@ one transaction or every transaction in an exact `existing_voucher_group`,
 voucher changes the GL and may change invoice outstanding amounts. Ask for explicit confirmation in
 a later user turn, then call `reconcile_bank_transaction` with `confirmed=true`. Clearly disclose any
 unallocated on-account remainder. Disclose all group members and their total before asking for
-confirmation; for a group, copy the complete
-`bank_transactions` list from the suggestion into the reconciliation call and never add or omit IDs.
+confirmation. Every reconciliation call uses `bank_transactions`: pass a one-item list for an
+individual reconciliation; for a group, copy the complete list from the suggestion and never add or
+omit IDs.
 Never match a Bank Transaction directly to an invoice because that
 would omit the cash posting. For reversals, first explain whether the voucher was created by the
 reconciliation (it will be cancelled and reversed) or merely linked (it will only be unlinked), and

@@ -243,17 +243,25 @@ def check_reconciliation():
         assert response.status_code == 422 and "confirmation" in response.text.lower()
 
         from api.chat import (
+            TOOLS,
             _handle_list_bank_reconciliation_queue,
             _handle_reconcile_bank_transaction,
             _handle_suggest_bank_reconciliation,
         )
         user = client.get("/api/auth/me").json()
+        reconcile_schema = next(
+            tool["function"]["parameters"] for tool in TOOLS
+            if tool.get("function", {}).get("name") == "reconcile_bank_transaction"
+        )
+        assert "bank_transaction" not in reconcile_schema["properties"]
+        assert reconcile_schema["properties"]["bank_transactions"]["minItems"] == 1
+        assert "bank_transactions" in reconcile_schema["required"]
         assert len(_handle_list_bank_reconciliation_queue({}, user)["rows"]) == 2
         assert _handle_suggest_bank_reconciliation(
             {"bank_transaction": deposit}, user,
         )["transaction"]["name"] == deposit
         assert "error" in _handle_reconcile_bank_transaction({
-            "bank_transaction": withdrawal, "mode": "journal", "confirmed": False,
+            "bank_transactions": [withdrawal], "mode": "journal", "confirmed": False,
         }, user)
 
     # A single existing journal may contain independent movements on several
@@ -299,10 +307,15 @@ def check_reconciliation():
         item["voucher_no"] == multi_bank_journal.name
         for item in suggest_matches("BT-MULTI-CHF")["existing_vouchers"]
     )
-    reconcile_with_existing_voucher(
-        "BT-MULTI-CHF", "Journal Entry", multi_bank_journal.name,
-        user="USER-001", confirmed=True,
-    )
+    chat_single = _handle_reconcile_bank_transaction({
+        "bank_transactions": ["BT-MULTI-CHF"],
+        "mode": "existing_voucher",
+        "voucher_type": "Journal Entry",
+        "voucher_no": multi_bank_journal.name,
+        "confirmed": True,
+    }, user)
+    assert chat_single.get("status") == "Reconciled", chat_single
+    assert chat_single["bank_transactions"] == ["BT-MULTI-CHF"]
     # Matching the CHF leg must not hide the still-available USD leg.
     assert any(
         item["voucher_no"] == multi_bank_journal.name
@@ -447,7 +460,6 @@ def check_reconciliation():
     undo_reconciliation("BT-GROUP-LARGE", user="USER-001", confirmed=True)
 
     chat_group = _handle_reconcile_bank_transaction({
-        "bank_transaction": "BT-GROUP-LARGE",
         "bank_transactions": ["BT-GROUP-LARGE", "BT-GROUP-SMALL"],
         "mode": "existing_voucher",
         "voucher_type": "Journal Entry",
