@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.29] - 2026-09-06
+
+### Security
+- Enforce a shared role policy at chat and MCP tool execution, including
+  document and master changes and currency revaluation. Unknown tools and
+  unknown caller roles are denied by default.
+- Filter chat tools by caller permissions while preserving the separate
+  document-write, master-data, administrator, and public-demo permissions.
+- Add regression checks on SQLite and PostgreSQL and a private reporting policy.
+
 ## [0.8.28] - 2026-09-05
 
 ### Fixed

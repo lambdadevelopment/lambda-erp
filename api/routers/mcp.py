@@ -25,6 +25,7 @@ from api.auth import get_current_user
 from api import services
 from api import chat as chat_mod
 from api.chat import TOOL_HANDLERS, build_tools
+from api.tool_permissions import tool_allowed
 
 router = APIRouter(tags=["mcp"])
 
@@ -42,37 +43,10 @@ _EXCLUDE = {
     "plan_company_setup",
     "apply_company_setup",
 }
-# Mirror the REST permission model: reads are viewer+, writes are manager+,
-# delete_master is admin-only (the handler also re-checks).
-_WRITE = {
-    "create_document", "update_document", "batch_update_documents",
-    "submit_document", "cancel_document",
-    "discard_document", "convert_document", "create_master", "update_master",
-    "reconcile_bank_transaction", "undo_bank_reconciliation",
-}
-_ADMIN = {"delete_master"}
-_MANAGER_ONLY = {
-    "list_bank_reconciliation_queue", "suggest_bank_reconciliation",
-    "reconcile_bank_transaction", "undo_bank_reconciliation",
-}
-
-
-def _can_write(role) -> bool:
-    return role in ("manager", "admin", "public_manager")
 
 
 def _allowed(name: str, role) -> bool:
-    if name in _EXCLUDE:
-        return False
-    if name in services.REGISTERED_ACTIONS:
-        return services.registered_action_allowed(name, role)
-    if name in _ADMIN:
-        return role == "admin"
-    if name in _MANAGER_ONLY:
-        return role in ("manager", "admin")
-    if name in _WRITE:
-        return _can_write(role)
-    return True
+    return name not in _EXCLUDE and tool_allowed(name, role)
 
 
 def _require_caller(request: Request) -> dict:
@@ -99,6 +73,9 @@ def _tools(role) -> list:
 
 
 def _call(name: str, args: dict, user: dict):
+    # Preserve MCP's unknown-tool error without dispatching an unclassified tool.
+    if name not in TOOL_HANDLERS and name != "delete_master" and name not in services.REGISTERED_ACTIONS:
+        raise KeyError(name)
     role = user.get("role")
     if not _allowed(name, role):
         return {"error": f"'{name}' is not available to a {role or 'viewer'} key."}

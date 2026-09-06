@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends as _Depends, HTTPException, WebSocket, We
 from openai import OpenAI
 
 from api import services
+from api.tool_permissions import tool_allowed, tool_permission_error
 from api.demo_limits import (
     demo_call_reserve_usd,
     demo_max_completion_tokens,
@@ -1438,10 +1439,12 @@ def build_tools(user_info: dict | None = None):
         role = user_info.get("role")
         action_tools = [
             tool for tool in action_tools
-            if services.registered_action_allowed(tool["function"]["name"], role)
+            if tool_allowed(tool["function"]["name"], role)
         ]
-        if role not in {"manager", "admin"}:
-            hidden_tools.add("import_bank_statement_attachments")
+        hidden_tools = {
+            tool["function"]["name"] for tool in TOOLS
+            if not tool_allowed(tool["function"]["name"], role)
+        }
     if not extra_docs and not extra_masters and not action_tools and not hidden_tools:
         return TOOLS
     tools = copy.deepcopy(TOOLS)
@@ -3556,7 +3559,8 @@ async def run_thinking_loop(
             # If GPT is delegating report code-gen to the Anthropic specialist,
             # surface the handoff in the UI.
             will_delegate_to_code_specialist = (
-                fn_name in ("create_custom_analytics_report", "update_custom_analytics_report")
+                tool_allowed(fn_name, user_role)
+                and fn_name in ("create_custom_analytics_report", "update_custom_analytics_report")
                 and not fn_args.get("transform_js")
                 and not fn_args.get("data_requests")
             )
@@ -3569,7 +3573,12 @@ async def run_thinking_loop(
                 })
 
             handler = tool_handlers.get(fn_name)
-            if not handler:
+            # The model's tool list and prompt are not authorization controls.
+            # Check the caller at execution even for invented or replayed calls.
+            if not tool_allowed(fn_name, user_role):
+                result = tool_permission_error(fn_name, user_role)
+                success = False
+            elif not handler:
                 result = {"error": f"Unknown tool: {fn_name}"}
                 success = False
             else:
