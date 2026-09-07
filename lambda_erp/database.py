@@ -1539,6 +1539,22 @@ class Database:
                 FOREIGN KEY (user_name) REFERENCES "User"(name)
             )""",
 
+            # Short-lived, one-use browser binding for OIDC login/link flows.
+            # The raw verifier lives only in an HttpOnly cookie; only its hash
+            # is persisted, so a leaked database row is not a usable flow token.
+            """CREATE TABLE IF NOT EXISTS "OAuth Flow" (
+                id TEXT PRIMARY KEY,
+                verifier_hash TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                user_name TEXT,
+                invite_token TEXT,
+                nonce TEXT NOT NULL,
+                expires_at INTEGER NOT NULL,
+                consumed INTEGER DEFAULT 0,
+                creation TEXT DEFAULT CURRENT_TIMESTAMP
+            )""",
+
             """CREATE TABLE IF NOT EXISTS "Settings" (
                 key TEXT PRIMARY KEY,
                 value TEXT

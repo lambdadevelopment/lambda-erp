@@ -238,6 +238,12 @@ async def upload_attachment(
     user: dict = Depends(require_role("viewer")),
 ):
     """Upload a chat attachment. Returns metadata the client uses to attach it to a message."""
+    db = get_db()
+    sessions = db.sql('SELECT user_id FROM "Chat Session" WHERE id = ?', [session_id])
+    if not sessions or sessions[0].get("user_id") != user.get("name"):
+        # Keep foreign session IDs indistinguishable from nonexistent ones.
+        raise HTTPException(status_code=404, detail="Chat session not found")
+
     mime = (file.content_type or "application/octet-stream").lower()
     if mime not in ALLOWED_MIME_TYPES:
         # Browsers/OSes often mislabel Office files (e.g. octet-stream) — fall
@@ -253,9 +259,14 @@ async def upload_attachment(
                         "and structured bank files (XML/ZIP)."),
             )
 
-    data = await file.read()
-    if len(data) > MAX_ATTACHMENT_SIZE:
-        raise HTTPException(status_code=413, detail=f"File too large. Maximum {MAX_ATTACHMENT_SIZE // (1024 * 1024)} MB.")
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await file.read(1024 * 1024):
+        size += len(chunk)
+        if size > MAX_ATTACHMENT_SIZE:
+            raise HTTPException(status_code=413, detail=f"File too large. Maximum {MAX_ATTACHMENT_SIZE // (1024 * 1024)} MB.")
+        chunks.append(chunk)
+    data = b"".join(chunks)
     if not data:
         raise HTTPException(status_code=400, detail="Empty file.")
 
@@ -275,7 +286,6 @@ async def upload_attachment(
                 ),
             )
 
-    db = get_db()
     # Sanity-cap the number of attachments per session
     cnt = db.sql('SELECT COUNT(*) as c FROM "Chat Attachment" WHERE session_id = ?', [session_id])
     if cnt and cnt[0]["c"] >= MAX_ATTACHMENTS_PER_SESSION:

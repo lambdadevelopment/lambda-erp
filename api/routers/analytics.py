@@ -10,10 +10,10 @@ This module now exposes two layers:
 
 import json
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from api.auth import require_role
 from lambda_erp.database import get_db
@@ -309,29 +309,186 @@ def analytics(
 
 
 class RuntimeDataRequest(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
     dataset: str
-    fields: list[str] | None = None
-    filters: dict[str, Any] = Field(default_factory=dict)
+    fields: list[str] | None = Field(default=None, max_length=64)
+    filters: dict[str, Any] = Field(default_factory=dict, max_length=32)
     limit: int | None = None
 
 
 class RuntimeFetchPayload(BaseModel):
-    requests: list[RuntimeDataRequest]
+    requests: list[RuntimeDataRequest] = Field(min_length=1, max_length=10)
 
 
-class ReportDraftPayload(BaseModel):
-    title: str
-    description: str | None = None
-    data_requests: list[RuntimeDataRequest]
-    transform_js: str
+class StrictReportModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
-class ReportDraftUpdatePayload(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    data_requests: list[RuntimeDataRequest] | None = None
-    transform_js: str | None = None
+class ReportColumn(StrictReportModel):
+    key: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    label: str = Field(max_length=200)
+    type: Literal["currency", "percent", "number", "string", "date"] = "string"
+
+
+class ReportDimension(StrictReportModel):
+    field: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    key: str | None = Field(default=None, pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    bucket: Literal["month", "quarter", "year"] | None = None
+    fallback: str | None = Field(default=None, max_length=200)
+
+
+class ReportMeasure(StrictReportModel):
+    key: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    label: str | None = Field(default=None, max_length=200)
+    op: Literal["sum", "count", "avg", "min", "max"]
+    field: str | None = Field(default=None, pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    type: Literal["currency", "percent", "number"] = "number"
+
+    @model_validator(mode="after")
+    def require_value_field(self):
+        if self.op != "count" and not self.field:
+            raise ValueError(f"Measure operation '{self.op}' requires a field")
+        return self
+
+
+class ReportSort(StrictReportModel):
+    field: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    direction: Literal["asc", "desc"] = "asc"
+
+
+class ReportTableDefinition(StrictReportModel):
+    id: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    title: str = Field(max_length=200)
+    source: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    dimensions: list[ReportDimension] = Field(default_factory=list, max_length=8)
+    measures: list[ReportMeasure] = Field(default_factory=list, max_length=16)
+    columns: list[ReportColumn] = Field(min_length=1, max_length=32)
+    sort: list[ReportSort] = Field(default_factory=list, max_length=8)
+    limit: int | None = Field(default=None, ge=1, le=5000)
+
+
+class ReportKpiDefinition(StrictReportModel):
+    label: str = Field(max_length=200)
+    source: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    op: Literal["sum", "count", "avg", "min", "max"]
+    field: str | None = Field(default=None, pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    format: Literal["currency", "percent", "number", "date"] = "number"
+
+    @model_validator(mode="after")
+    def require_value_field(self):
+        if self.op != "count" and not self.field:
+            raise ValueError(f"KPI operation '{self.op}' requires a field")
+        return self
+
+
+class ReportChartDefinition(StrictReportModel):
+    id: str | None = Field(default=None, pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    title: str = Field(max_length=200)
+    type: Literal["bar", "line", "pie"]
+    data_table: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    x: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    y: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+
+
+class DeclarativeReportDefinition(StrictReportModel):
+    version: Literal[1] = 1
+    summary: str | None = Field(default=None, max_length=2000)
+    kpis: list[ReportKpiDefinition] = Field(default_factory=list, max_length=16)
+    tables: list[ReportTableDefinition] = Field(min_length=1, max_length=16)
+    charts: list[ReportChartDefinition] = Field(default_factory=list, max_length=16)
+
+
+class ReportDraftPayload(StrictReportModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    data_requests: list[RuntimeDataRequest] = Field(min_length=1, max_length=10)
+    report: DeclarativeReportDefinition
+
+    @model_validator(mode="after")
+    def validate_references(self):
+        request_fields: dict[str, set[str]] = {}
+        for request in self.data_requests:
+            dataset = SEMANTIC_DATASETS.get(request.dataset)
+            if not dataset:
+                raise ValueError(f"Unknown semantic dataset '{request.dataset}'")
+            source = request.name or request.dataset
+            if source in request_fields:
+                raise ValueError(f"Duplicate report data source '{source}'")
+            fields = set(request.fields or dataset["fields"])
+            unknown = fields - set(dataset["fields"])
+            if unknown:
+                raise ValueError(
+                    f"Unknown fields for dataset '{request.dataset}': {', '.join(sorted(unknown))}"
+                )
+            request_fields[source] = fields
+
+        source_fields = dict(request_fields)
+        table_fields: dict[str, set[str]] = {}
+        for table in self.report.tables:
+            available = source_fields.get(table.source)
+            if available is None:
+                raise ValueError(
+                    f"Table '{table.id}' references unknown or later source '{table.source}'"
+                )
+            if table.id in source_fields:
+                raise ValueError(f"Duplicate report source/table id '{table.id}'")
+
+            dimension_keys = [dimension.key or dimension.field for dimension in table.dimensions]
+            measure_keys = [measure.key for measure in table.measures]
+            output_keys = dimension_keys + measure_keys
+            if not output_keys:
+                output_keys = list(available)
+            if len(set(output_keys)) != len(output_keys):
+                raise ValueError(f"Table '{table.id}' has duplicate output keys")
+            for dimension in table.dimensions:
+                if dimension.field not in available:
+                    raise ValueError(
+                        f"Table '{table.id}' dimension references unknown field '{dimension.field}'"
+                    )
+            for measure in table.measures:
+                if measure.field and measure.field not in available:
+                    raise ValueError(
+                        f"Table '{table.id}' measure references unknown field '{measure.field}'"
+                    )
+            output = set(output_keys)
+            for column in table.columns:
+                if column.key not in output:
+                    raise ValueError(
+                        f"Table '{table.id}' column references unknown output '{column.key}'"
+                    )
+            for sort in table.sort:
+                if sort.field not in output:
+                    raise ValueError(
+                        f"Table '{table.id}' sort references unknown output '{sort.field}'"
+                    )
+            source_fields[table.id] = output
+            table_fields[table.id] = output
+
+        for kpi in self.report.kpis:
+            available = source_fields.get(kpi.source)
+            if available is None:
+                raise ValueError(f"KPI '{kpi.label}' references unknown source '{kpi.source}'")
+            if kpi.field and kpi.field not in available:
+                raise ValueError(f"KPI '{kpi.label}' references unknown field '{kpi.field}'")
+
+        for chart in self.report.charts:
+            available = table_fields.get(chart.data_table)
+            if available is None:
+                raise ValueError(
+                    f"Chart '{chart.title}' references unknown table '{chart.data_table}'"
+                )
+            if chart.x not in available or chart.y not in available:
+                raise ValueError(
+                    f"Chart '{chart.title}' references unknown x/y table output"
+                )
+        return self
+
+
+class ReportDraftUpdatePayload(StrictReportModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    data_requests: list[RuntimeDataRequest] | None = Field(default=None, min_length=1, max_length=10)
+    report: DeclarativeReportDefinition | None = None
 
 
 SEMANTIC_DATASETS: dict[str, dict[str, Any]] = {
@@ -750,7 +907,14 @@ def aggregate_semantic_dataset(
     for field in group_by:
         select_parts.append(f"{spec['field_sql'][field]} AS \"{field}\"")
 
-    for alias, definition in measures.items():
+    # Public aliases are response labels, never SQL identifiers. Generated
+    # identifiers keep arbitrary caller strings entirely out of the statement.
+    measure_sql_names: dict[str, str] = {}
+    for measure_idx, (alias, definition) in enumerate(measures.items()):
+        if not isinstance(alias, str) or not alias or alias in group_by:
+            raise HTTPException(400, "Measure aliases must be non-empty and distinct from group_by fields.")
+        sql_name = f"__measure_{measure_idx}"
+        measure_sql_names[alias] = sql_name
         if not isinstance(definition, (list, tuple)) or len(definition) < 1:
             raise HTTPException(400, f"Measure '{alias}' must be [op] or [op, field].")
         op = str(definition[0]).lower()
@@ -761,14 +925,14 @@ def aggregate_semantic_dataset(
             )
         field = definition[1] if len(definition) > 1 else "*"
         if op == "count" and field in (None, "*"):
-            select_parts.append(f"COUNT(*) AS \"{alias}\"")
+            select_parts.append(f'COUNT(*) AS "{sql_name}"')
             continue
         if field not in spec["fields"]:
             raise HTTPException(
                 400,
                 f"Measure '{alias}' references unknown field '{field}' for dataset '{dataset}'.",
             )
-        select_parts.append(f"{op.upper()}({spec['field_sql'][field]}) AS \"{alias}\"")
+        select_parts.append(f'{op.upper()}({spec["field_sql"][field]}) AS "{sql_name}"')
 
     params: list[Any] = []
     where = _build_dataset_filter_clauses(spec, filters or {}, params)
@@ -780,7 +944,7 @@ def aggregate_semantic_dataset(
         if direction not in ("asc", "desc"):
             raise HTTPException(400, f"Invalid order direction '{direction}'.")
         if field in measures:
-            order_clauses.append(f'"{field}" {direction}')
+            order_clauses.append(f'"{measure_sql_names[field]}" {direction}')
         elif field in group_by:
             order_clauses.append(f'"{field}" {direction}')
         else:
@@ -800,7 +964,11 @@ def aggregate_semantic_dataset(
         {'ORDER BY ' + ', '.join(order_clauses) if order_clauses else ''}
         LIMIT {resolved_limit}
     """
-    rows = [dict(row) for row in get_db().sql(sql, params)]
+    public_aliases = {sql_name: alias for alias, sql_name in measure_sql_names.items()}
+    rows = [
+        {public_aliases.get(key, key): value for key, value in dict(row).items()}
+        for row in get_db().sql(sql, params)
+    ]
     return {
         "dataset": dataset,
         "group_by": group_by,
@@ -841,20 +1009,25 @@ def create_report_draft_record(
     user: dict | None = None,
     source_chat_session_id: str | None = None,
 ) -> dict[str, Any]:
+    try:
+        validated = ReportDraftPayload.model_validate(payload).model_dump()
+    except ValidationError as exc:
+        raise HTTPException(422, f"Invalid declarative report: {exc.errors()[0]['msg']}") from exc
     db = get_db()
     draft_id = f"RPT-{str(uuid.uuid4())[:8].upper()}"
     definition = {
-        "title": payload["title"],
-        "description": payload.get("description"),
-        "data_requests": payload.get("data_requests", []),
-        "transform_js": payload.get("transform_js", ""),
+        "runtime_version": 1,
+        "title": validated["title"],
+        "description": validated.get("description"),
+        "data_requests": validated["data_requests"],
+        "report": validated["report"],
     }
     db.sql(
         'INSERT INTO "Report Draft" (id, title, description, definition_json, created_by, source_chat_session_id) VALUES (?, ?, ?, ?, ?, ?)',
         [
             draft_id,
-            payload["title"],
-            payload.get("description"),
+            validated["title"],
+            validated.get("description"),
             json.dumps(definition),
             (user or {}).get("name"),
             source_chat_session_id,
@@ -863,8 +1036,8 @@ def create_report_draft_record(
     db.conn.commit()
     return {
         "id": draft_id,
-        "title": payload["title"],
-        "description": payload.get("description"),
+        "title": validated["title"],
+        "description": validated.get("description"),
         "definition": definition,
         "url": f"/reports/analytics?report_id={draft_id}",
         "created_by": (user or {}).get("name"),
@@ -907,17 +1080,20 @@ def update_report_draft_record(report_id: str, payload: dict[str, Any], user: di
     if not existing:
         return None
 
-    definition = dict(existing["definition"])
-    title = payload.get("title", existing["title"])
-    description = payload.get("description", existing.get("description"))
-    if payload.get("title") is not None:
-        definition["title"] = payload["title"]
-    if payload.get("description") is not None:
-        definition["description"] = payload["description"]
-    if payload.get("data_requests") is not None:
-        definition["data_requests"] = payload["data_requests"]
-    if payload.get("transform_js") is not None:
-        definition["transform_js"] = payload["transform_js"]
+    current = existing["definition"]
+    candidate = {
+        "title": payload.get("title", existing["title"]),
+        "description": payload.get("description", existing.get("description")),
+        "data_requests": payload.get("data_requests", current.get("data_requests")),
+        "report": payload.get("report", current.get("report")),
+    }
+    try:
+        validated = ReportDraftPayload.model_validate(candidate).model_dump()
+    except ValidationError as exc:
+        raise HTTPException(422, f"Invalid declarative report: {exc.errors()[0]['msg']}") from exc
+    title = validated["title"]
+    description = validated.get("description")
+    definition = {"runtime_version": 1, **validated}
 
     db = get_db()
     db.sql(

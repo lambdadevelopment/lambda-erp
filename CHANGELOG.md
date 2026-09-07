@@ -13,6 +13,36 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.30] - 2026-09-07
+
+### Security
+- Keep semantic-report measure aliases out of generated SQL and map internal
+  result identifiers back to caller-facing labels after the query.
+- Distinguish browser sessions, API keys, and the public demo with
+  request-scoped authentication principals. API keys retain their existing
+  business REST, chat, and MCP access but can no longer set credentials, link
+  OAuth identities, or administer users, invites, API keys, and auth settings.
+- Bind OAuth login/link state to an expiring, single-use server transaction and
+  an HttpOnly browser verifier cookie.
+- Replace stored custom-report JavaScript with a strictly validated,
+  declarative version-1 report language and a non-evaluating browser
+  interpreter.
+- Revalidate live roles, enabled users, and API-key revocation before every
+  WebSocket message and again at chat tool execution.
+- Hide company contact/tax metadata from unauthenticated setup checks and
+  verify chat-session access before reading attachment upload bodies.
+- Refresh frontend dependency locks to versions with no reported npm audit
+  vulnerabilities.
+
+### Compatibility
+- Existing users, session cookies, API-key tokens, REST integrations, chat API
+  clients, and MCP connections require no migration, rotation, or reconnect.
+- Password, first-user, public, invite, and OAuth signup/login flows continue to
+  issue the existing session cookie. Legacy custom-report drafts are left
+  intact but intentionally inert and can be recreated in the new format.
+- Add synthetic SQLite and PostgreSQL regression coverage for the security
+  boundaries and compatibility guarantees above.
+
 ## [0.8.29] - 2026-09-06
 
 ### Security

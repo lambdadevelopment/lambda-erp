@@ -196,6 +196,87 @@ class SetPasswordRequest(BaseModel):
 ROLE_HIERARCHY = {"admin": 3, "manager": 2, "public_manager": 2, "viewer": 1}
 ASSIGNABLE_ROLES = {"admin", "manager", "viewer"}
 
+SESSION_CREDENTIAL = "session"
+API_KEY_CREDENTIAL = "api_key"
+PUBLIC_DEMO_CREDENTIAL = "public_demo"
+
+
+def make_auth_principal(
+    user: dict,
+    credential_type: str,
+    *,
+    name: str | None = None,
+    api_key_id: str | None = None,
+) -> dict:
+    """Return the request-scoped identity used by authorization checks.
+
+    ``User`` and ``Api Key`` rows remain the persistence model.  A principal is
+    deliberately ephemeral: it records both *who* the owner is and *how* this
+    request authenticated, so a role-capped API key cannot be mistaken for an
+    interactive browser session at credential-management endpoints.
+    """
+    principal = dict(user)
+    principal["user_id"] = user["name"]
+    principal["name"] = name or user["name"]
+    principal["credential_type"] = credential_type
+    if api_key_id:
+        principal["api_key_id"] = api_key_id
+    return principal
+
+
+def refresh_auth_principal(principal: dict | None) -> dict | None:
+    """Re-resolve an authenticated principal from live database state.
+
+    Used at long-lived boundaries (notably chat WebSockets and tool dispatch)
+    so disabling/demoting a user or revoking a key takes effect without waiting
+    for the connection to close.  Legacy in-process callers without an explicit
+    credential type are returned unchanged; every real HTTP/WS auth path sets it.
+    """
+    if not principal:
+        return None
+    credential_type = principal.get("credential_type")
+    if not credential_type:
+        return principal
+
+    db = get_db()
+    if credential_type == API_KEY_CREDENTIAL:
+        key_id = principal.get("api_key_id")
+        rows = db.sql(
+            'SELECT id, owner, role, session_owner, revoked FROM "Api Key" WHERE id = ?',
+            [key_id],
+        )
+        if not rows or rows[0].get("revoked"):
+            return None
+        key = dict(rows[0])
+        owner = db.get_value(
+            "User", key["owner"], ["name", "email", "full_name", "role", "enabled"]
+        )
+        if not owner or not owner.get("enabled"):
+            return None
+        owner = dict(owner)
+        effective_role = (
+            key["role"] if _role_rank(key["role"]) <= _role_rank(owner["role"])
+            else owner["role"]
+        )
+        owner["role"] = effective_role
+        return make_auth_principal(
+            owner,
+            API_KEY_CREDENTIAL,
+            name=principal.get("name") or key.get("session_owner") or owner["name"],
+            api_key_id=key["id"],
+        )
+
+    user_id = principal.get("user_id") or principal.get("name")
+    user = db.get_value(
+        "User", user_id, ["name", "email", "full_name", "role", "enabled"]
+    )
+    if not user or not user.get("enabled"):
+        return None
+    user = dict(user)
+    if credential_type == PUBLIC_DEMO_CREDENTIAL and user.get("role") != "public_manager":
+        return None
+    return make_auth_principal(user, credential_type)
+
 
 def get_current_user(request: Request) -> dict:
     """FastAPI dependency: resolve the caller for every cookie-gated REST route.
@@ -223,26 +304,23 @@ def get_current_user(request: Request) -> dict:
         if user_name:
             user = db.get_value("User", user_name, ["name", "email", "full_name", "role", "enabled"])
             if user and user.get("enabled"):
-                return dict(user)
+                return make_auth_principal(dict(user), SESSION_CREDENTIAL)
 
     bearer = _bearer_token(request)
     if bearer is not None:
         if not _setting_enabled(db, "rest_api_enabled"):
             raise HTTPException(status_code=401, detail="REST API key access is disabled")
         key, owner, effective_role = _lookup_api_key(db, bearer)
-        return {
-            "name": owner["name"],
-            "email": owner.get("email"),
-            "full_name": owner.get("full_name"),
-            "role": effective_role,
-            "enabled": owner.get("enabled"),
-            "api_key_id": key["id"],
-        }
+        owner = dict(owner)
+        owner["role"] = effective_role
+        return make_auth_principal(
+            owner, API_KEY_CREDENTIAL, api_key_id=key["id"]
+        )
 
     # Fall back to public manager (demo mode)
     pub = db.sql('SELECT name, email, full_name, role, enabled FROM "User" WHERE role = \'public_manager\' AND enabled = 1')
     if pub:
-        return dict(pub[0])
+        return make_auth_principal(dict(pub[0]), PUBLIC_DEMO_CREDENTIAL)
 
     raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -270,6 +348,34 @@ def require_role(minimum_role: str):
 require_admin = require_role("admin")
 require_manager = require_role("manager")
 require_viewer = require_role("viewer")
+
+
+def require_interactive_user(user: dict = Depends(get_current_user)) -> dict:
+    """Require a real browser session for account/credential management."""
+    if user.get("credential_type") != SESSION_CREDENTIAL:
+        raise HTTPException(
+            status_code=403,
+            detail="This account-security operation requires an interactive sign-in.",
+        )
+    return user
+
+
+def require_interactive_role(minimum_role: str):
+    """Require both a browser session and the requested live account role."""
+    min_level = ROLE_HIERARCHY[minimum_role]
+
+    def checker(user: dict = Depends(require_interactive_user)) -> dict:
+        if ROLE_HIERARCHY.get(user.get("role"), 0) < min_level:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Requires {minimum_role} role or higher",
+            )
+        return user
+
+    return checker
+
+
+require_interactive_admin = require_interactive_role("admin")
 
 
 def require_non_public_manager(user: dict = Depends(get_current_user)) -> dict:
@@ -404,7 +510,7 @@ def me(user: dict = Depends(get_current_user)):
 
 
 @router.post("/change-password")
-def change_password(data: ChangePasswordRequest, user: dict = Depends(get_current_user)):
+def change_password(data: ChangePasswordRequest, user: dict = Depends(require_interactive_user)):
     """Change the signed-in user's own password (verifies the current one)."""
     # The public_manager is a shared demo account — no real password to change.
     if user["role"] == "public_manager":
@@ -426,7 +532,7 @@ def change_password(data: ChangePasswordRequest, user: dict = Depends(get_curren
 
 
 @router.post("/set-password")
-def set_password(data: SetPasswordRequest, user: dict = Depends(get_current_user)):
+def set_password(data: SetPasswordRequest, user: dict = Depends(require_interactive_user)):
     """Set a first password for an account that has none — e.g. a user created
     via social login who wants an email+password fallback. Requires an
     authenticated session; refuses if a usable password already exists (that
@@ -451,7 +557,7 @@ def set_password(data: SetPasswordRequest, user: dict = Depends(get_current_user
 
 
 @router.post("/invite")
-def create_invite(data: InviteRequest, user: dict = Depends(require_admin)):
+def create_invite(data: InviteRequest, user: dict = Depends(require_interactive_admin)):
     db = get_db()
 
     validate_assignable_role(data.role)
@@ -474,14 +580,14 @@ def create_invite(data: InviteRequest, user: dict = Depends(require_admin)):
 
 
 @router.get("/users")
-def list_users(user: dict = Depends(require_admin)):
+def list_users(user: dict = Depends(require_interactive_admin)):
     db = get_db()
     rows = db.sql('SELECT name, email, full_name, role, enabled, creation FROM "User" ORDER BY creation')
     return [dict(r) for r in rows]
 
 
 @router.put("/users/{user_name}/role")
-def change_role(user_name: str, data: ChangeRoleRequest, user: dict = Depends(require_admin)):
+def change_role(user_name: str, data: ChangeRoleRequest, user: dict = Depends(require_interactive_admin)):
     validate_assignable_role(data.role)
 
     db = get_db()
@@ -498,7 +604,7 @@ def change_role(user_name: str, data: ChangeRoleRequest, user: dict = Depends(re
 
 
 @router.delete("/users/{user_name}")
-def disable_user(user_name: str, user: dict = Depends(require_admin)):
+def disable_user(user_name: str, user: dict = Depends(require_interactive_admin)):
     if user_name == user["name"]:
         raise HTTPException(status_code=409, detail="Cannot disable yourself")
 
@@ -511,14 +617,14 @@ def disable_user(user_name: str, user: dict = Depends(require_admin)):
 
 
 @router.get("/invites")
-def list_invites(user: dict = Depends(require_admin)):
+def list_invites(user: dict = Depends(require_interactive_admin)):
     db = get_db()
     rows = db.sql('SELECT token, email, role, used, creation FROM "Invite" ORDER BY creation DESC')
     return [dict(r) for r in rows]
 
 
 @router.delete("/invites/{token}")
-def revoke_invite(token: str, user: dict = Depends(require_admin)):
+def revoke_invite(token: str, user: dict = Depends(require_interactive_admin)):
     """Revoke a pending (unused) invite so its link no longer works."""
     db = get_db()
     rows = db.sql('SELECT token, used FROM "Invite" WHERE token = ?', [token])
@@ -532,7 +638,7 @@ def revoke_invite(token: str, user: dict = Depends(require_admin)):
 
 
 @router.post("/public-manager")
-def create_public_manager(user: dict = Depends(require_admin)):
+def create_public_manager(user: dict = Depends(require_interactive_admin)):
     """Create (or re-enable) the public manager account for demo mode.
 
     Also seeds the chat-replay artefacts the "Enter Live Demo" script
@@ -580,7 +686,7 @@ def create_public_manager(user: dict = Depends(require_admin)):
 
 
 @router.delete("/public-manager")
-def remove_public_manager(user: dict = Depends(require_admin)):
+def remove_public_manager(user: dict = Depends(require_interactive_admin)):
     """Disable the public manager account."""
     db = get_db()
     existing = db.sql('SELECT name FROM "User" WHERE role = \'public_manager\'')
@@ -690,7 +796,7 @@ def ensure_seed_admin() -> dict | None:
 
 
 @router.get("/settings")
-def get_settings(user: dict = Depends(get_current_user)):
+def get_settings(user: dict = Depends(require_interactive_user)):
     db = get_db()
     rows = db.sql('SELECT key, value FROM "Settings"')
     settings = {r["key"]: r["value"] for r in rows}
@@ -702,7 +808,7 @@ def get_settings(user: dict = Depends(get_current_user)):
 
 
 @router.put("/settings")
-def update_settings(data: dict, user: dict = Depends(require_admin)):
+def update_settings(data: dict, user: dict = Depends(require_interactive_admin)):
     db = get_db()
     for key, value in data.items():
         existing = db.sql('SELECT key FROM "Settings" WHERE key = ?', [key])
@@ -857,13 +963,17 @@ def get_api_caller(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")
     key, owner, effective_role = _lookup_api_key(db, token)
 
-    return {
-        "name": key["session_owner"],
-        "full_name": f"{owner.get('full_name') or key['owner']} (API)",
-        "role": effective_role,
-        "api_key_id": key["id"],
-        "api_key_user": key["owner"],
-    }
+    owner = dict(owner)
+    owner["role"] = effective_role
+    principal = make_auth_principal(
+        owner,
+        API_KEY_CREDENTIAL,
+        name=key["session_owner"],
+        api_key_id=key["id"],
+    )
+    principal["full_name"] = f"{owner.get('full_name') or key['owner']} (API)"
+    principal["api_key_user"] = key["owner"]
+    return principal
 
 
 class ApiKeyCreate(BaseModel):
@@ -904,7 +1014,7 @@ def _require_key_access(key: dict, user: dict) -> None:
 
 
 @router.get("/api-keys")
-def list_api_keys(user: dict = Depends(require_viewer)):
+def list_api_keys(user: dict = Depends(require_interactive_user)):
     """List API keys (metadata only — the token is never returned).
 
     Users see their own keys; admins see everyone's. Each key carries its
@@ -930,7 +1040,7 @@ def list_api_keys(user: dict = Depends(require_viewer)):
 
 
 @router.post("/api-keys")
-def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_viewer)):
+def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_interactive_user)):
     """Create an API key for YOURSELF. Returns the full token exactly once.
 
     Self-service: any logged-in (non-demo) user can mint keys, because a key
@@ -975,7 +1085,7 @@ def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_viewer)):
 
 
 @router.post("/api-keys/{key_id}/revoke")
-def revoke_api_key(key_id: str, user: dict = Depends(require_viewer)):
+def revoke_api_key(key_id: str, user: dict = Depends(require_interactive_user)):
     """Revoke (soft-disable) an API key. Owner or admin."""
     db = get_db()
     key = _get_key_or_404(db, key_id)
@@ -986,7 +1096,7 @@ def revoke_api_key(key_id: str, user: dict = Depends(require_viewer)):
 
 
 @router.delete("/api-keys/{key_id}")
-def delete_api_key(key_id: str, user: dict = Depends(require_viewer)):
+def delete_api_key(key_id: str, user: dict = Depends(require_interactive_user)):
     """Hard-delete a REVOKED API key. Owner or admin.
 
     Two-step by design: a live key must be revoked first (409 otherwise), so a

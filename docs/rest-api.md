@@ -19,13 +19,21 @@ live role capped at the key's role:
 
 - A document the key creates is attributed to the real user.
 - Every role check behaves exactly as if that user had logged in — a `viewer`
-  key can read but not write; a `manager` key can create/cancel documents; only
-  an `admin` key can touch admin-only endpoints (settings, user management).
+  key can read but not write; a `manager` key can create/cancel documents; an
+  `admin` key can use admin-only *business* endpoints.
 - Lowering the owner's role, disabling them, or revoking the key constrains or
   kills access **immediately** — the role is resolved on every request.
 
+Account and credential controls under `/api/auth` deliberately require an
+interactive browser session, even for an admin-capped key. A Bearer key cannot
+set/change passwords, link OAuth identities, manage users/invites/API keys, or
+change global authentication/API settings. This boundary prevents a leaked
+integration token from turning itself into a durable human login. It does not
+change the token or its access to documents, masters, reports, accounting, or
+MCP, and key rotation is not required when upgrading.
+
 There is no separate write API to learn: the key opens the front door of the
-REST API the frontend already speaks.
+business REST API the frontend already speaks.
 
 ## Enable it
 
@@ -53,7 +61,7 @@ curl -X POST https://erp.example.com/api/auth/api-keys \
 > `sync@your-co.example`) with the least role the job needs (`manager` to write
 > documents), and issue the key from that account. Attribution stays clean, and
 > you can rotate or disable it without touching your own access. A key can never
-> out-rank its owner, so a manager-owned key can never reach admin endpoints.
+> out-rank its owner, and no key can reach interactive account-security controls.
 
 ## Use it
 
@@ -89,8 +97,9 @@ curl https://erp.example.com/api/documents/sales-invoice/SINV-0001/pdf \
 The verbs mirror the document lifecycle: `POST /api/documents/{type}` (create),
 `PUT /api/documents/{type}/{name}` (update a draft), and
 `.../submit`, `.../cancel`, `.../discard`, `.../convert`. Masters live under
-`/api/masters/{type}`, reports under `/api/reports/…`. Whatever the web app can
-call, a suitably-roled key can call.
+`/api/masters/{type}`, reports under `/api/reports/…`. Authentication, user,
+credential, key-management, and global API-setting operations remain
+browser-session-only.
 
 ### Search and filter lists
 
@@ -150,7 +159,7 @@ rejected atomically; partial and over-allocated groups are not accepted.
 |---|---|
 | `200` | success |
 | `401` | REST-key access is disabled, or the key is missing / malformed / invalid / revoked, or its owner is disabled |
-| `403` | the key's role is too low for this endpoint (e.g. a `viewer` key writing) |
+| `403` | the key's role is too low, or the endpoint is an interactive account-security control |
 | `404` | unknown document/record |
 | `409` / `422` | validation error (see the message) |
 
@@ -159,9 +168,10 @@ attempt (`401`), never a silent downgrade to demo access.
 
 ## Scope & limits (v1)
 
-- **Role is the only scope.** A key is capped at `viewer` / `manager` / `admin`;
-  there are no per-endpoint or per-doctype scopes yet. Give a sync job the
-  lowest role that does the work.
+- **Role plus the credential boundary.** A key is capped at `viewer` / `manager`
+  / `admin`; within the business API there are no per-doctype scopes yet.
+  Interactive account-security controls are excluded for every key. Give a sync
+  job the lowest role that does the work.
 - **Independent of the Chat API.** Enabling REST keys does not enable
   `POST /api/v1/chat`, and vice versa — they are separate Settings flags over
   one shared set of keys.

@@ -609,7 +609,7 @@ export const api = {
       filters?: Record<string, unknown>;
       limit?: number;
     }>;
-    transform_js: string;
+    report: Record<string, unknown>;
   }) =>
     request<{
       id: string;
@@ -653,7 +653,7 @@ export const api = {
     }),
 
   // Setup
-  setupStatus: () => request<{ setup_complete: boolean; companies: any[] }>("/setup/status"),
+  setupStatus: () => request<{ setup_complete: boolean; companies?: any[] }>("/setup/status"),
 
   createCompany: (data: {
     name: string;

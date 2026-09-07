@@ -58,8 +58,8 @@ Each of those is hours of skilled work today. With a capable LLM in the loop, th
 │  - Document forms          │    │  - Document CRUD API       │
 │  - Reports / Analytics     │    │  - Report endpoints        │
 │  - Chat (WebSocket)        │    │  - Auth (JWT cookie)       │
-│  - Client-side JS runtime  │    │  - WebSocket chat gateway  │
-│    (Web Worker) for charts │    └────────────┬───────────────┘
+│  - Declarative report      │    │  - WebSocket chat gateway  │
+│    interpreter for charts  │    └────────────┬───────────────┘
 └────────────────────────────┘                 │
                                                ▼
                            ┌──────────────────────────────────────────┐
@@ -67,8 +67,8 @@ Each of those is hours of skilled work today. With a capable LLM in the loop, th
                            │  - GPT-5.6 drives the reasoning loop     │
                            │  - Tool-use: document CRUD, search,      │
                            │    reports, aggregations, analytics      │
-                           │  - Delegates JS generation to Anthropic  │
-                           │    code-specialist sub-agent             │
+                           │  - Delegates report specs to Anthropic   │
+                           │    report-specialist model               │
                            └──────────────────┬───────────────────────┘
                                               │
                                               ▼
@@ -88,9 +88,9 @@ Each of those is hours of skilled work today. With a capable LLM in the loop, th
 - **Extensions are first-class to the AI.** A customer deployment registers its own doctypes and master types through plugin seams (`register_doctype`, `register_master`) and the chat discovers them automatically - tool schemas and the system prompt are built per request from the live registries, and fields are introspected from the live table, so there is nothing to teach per type. A CRM lead added by a plugin is searchable in chat from day one, with zero prompt or tool edits.
 - **One shape for every document.** Invoices, sales orders, stock entries, payments - all share a single `Document` base class and the same three-state lifecycle (Draft → Submitted → Cancelled) with `on_submit`/`on_cancel` hooks. The LLM learns the pattern once and drives every doctype the same way. Leading open-source and commercial ERPs have per-model action verbs spread across 150+ core models; each one is a separate tool the model has to get right.
 - **Metadata-driven UI, shared with the LLM.** A single React form component renders every doctype from `frontend/src/lib/doctypes.ts`. The schema the model reasons over and the schema the user sees are literally the same file. Adding a field is two lines - one in the Python class, one in the config - not a new module with hand-written views and inheritance overlays.
-- **Two-model orchestration.** A planner model handles reasoning and tool-use. When it needs to generate code for a custom report, it delegates to a code-specialist sub-agent. This keeps each model doing what it's best at and keeps latency down on simple turns.
+- **Two-model orchestration.** A planner model handles reasoning and tool-use. When it needs a custom report, it delegates a bounded declarative report specification to a report-specialist model. No generated report JavaScript is executed in the browser.
 - **Semantic datasets, not free SQL.** The LLM can't write raw SQL; it calls whitelisted semantic datasets (`sales_invoices`, `purchase_invoices`, `ar_open_items`, `stock_balances`, etc.) with whitelisted filters and group-bys. This makes the system auditable without sacrificing flexibility.
-- **Client-side analytics runtime.** Custom report JS executes in a sandboxed Web Worker in the user's browser. The server never runs untrusted JS. Charts are persisted as portable specs, not screenshots.
+- **Client-side analytics runtime.** A bounded declarative interpreter groups, aggregates, sorts, and charts whitelisted semantic datasets. Report drafts contain portable JSON specifications, never executable code.
 - **Double-entry invariant enforced.** Every submitted document that touches the GL must balance to zero. The engine adds round-off entries for rounding gaps and refuses to post imbalanced vouchers.
 - **One deployment per customer, simple to operate.** Lambda ERP is built to be self-hosted by a single company for its own books - not as a multi-tenant SaaS. One FastAPI process, one database, one VPS is enough. If you want a hosted offering, we'll ship a dedicated instance per customer.
 
@@ -157,7 +157,7 @@ The result is booked in one step — chart of accounts, sensible default account
 Four things had to be true for this to work, and they all became true in the last ~18 months:
 
 1. **LLMs can reliably call tools.** A year ago, models would hallucinate tool calls, mangle JSON, or drift after 2–3 steps. Today's frontier models can run an 8-step reasoning loop over a real tool inventory without falling off.
-2. **Costs collapsed.** Generating a custom report via a code-specialist sub-agent is cents of compute. Even keeping a human reviewer fully in the loop, the marginal cost of "one more report" or "one more dashboard" drops by orders of magnitude — which means companies actually ask for them, instead of living with the defaults.
+2. **Costs collapsed.** Generating a custom report via a report-specialist model is cents of compute. Even keeping a human reviewer fully in the loop, the marginal cost of "one more report" or "one more dashboard" drops by orders of magnitude — which means companies actually ask for them, instead of living with the defaults.
 3. **Structured output + function calling are first-class.** We can constrain the LLM's outputs to valid tool-call schemas, safe SQL parameters, and typed JSON - which is what makes an AI-native ERP even conceivable as a safe thing to run.
 4. **Greenfield is finally cheaper than retrofit.** Twenty-year ERP codebases have hundreds of bespoke models and thousands of hand-written forms - teaching an LLM to drive that reliably means curating a custom tool layer over every quirk. Starting from scratch around one Document lifecycle and a metadata-driven UI is now cheaper than retrofitting an existing platform.
 
@@ -233,14 +233,14 @@ Open `http://localhost:5173`. Vite proxies `/api/*` to the backend.
 
 ```
 OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...    # optional, used for the code-specialist sub-agent
+ANTHROPIC_API_KEY=sk-ant-...    # optional, used for the report-specialist model
 ANTHROPIC_CODE_MODEL=claude-opus-4-7   # optional, default shown
 LAMBDA_ERP_ADMIN_EMAIL=admin@example.com   # optional, seeds the admin at boot
 LAMBDA_ERP_ADMIN_PASSWORD=...              # optional, required with the line above
 LAMBDA_ERP_ADMIN_NAME=Administrator        # optional, display name for the seeded admin
 ```
 
-Chat needs `OPENAI_API_KEY`. Custom-report code generation uses `ANTHROPIC_API_KEY` when set; otherwise it falls back and the chat will tell you it can't generate reports.
+Chat needs `OPENAI_API_KEY`. Custom-report specification generation uses `ANTHROPIC_API_KEY` when set; otherwise the chat will tell you it can't generate reports.
 
 **Seeded admin.** By default the first person to register becomes the admin. Set `LAMBDA_ERP_ADMIN_EMAIL` + `LAMBDA_ERP_ADMIN_PASSWORD` to instead provision that admin automatically at startup — useful when the database is recreated on every deploy, so a redeployed instance can't be claimed by whoever visits first. It's create-if-missing and idempotent (an existing account with that email is promoted to an enabled admin; its password is left untouched), and the password is only ever read from the environment.
 

@@ -812,7 +812,7 @@
     },
     "caTitle": "Dynamic Analytics — Chat Your Way to Any Chart",
     "caBadge": "Signature Feature",
-    "caBody": "Need a report the presets can’t give you? Just describe it in chat. The assistant calls a code-specialist model that writes the report for you, runs it live over your ERP data, and returns a sharable link. The chart or table renders in seconds and is saved as a draft under Custom Analytics in the sidebar — you can reopen it, share the URL with teammates, or ask the assistant to refine it.",
+    "caBody": "Need a report the presets can’t give you? Just describe it in chat. The assistant calls a report-specialist model that creates a validated declarative report over your ERP data and returns a sharable link. The chart or table renders in seconds and is saved as a draft under Custom Analytics in the sidebar — you can reopen it, share the URL with teammates, or ask the assistant to refine it.",
     "caTryAsking": "Try asking (click to prefill in chat):",
     "caPrompt1": "Show me top 10 customers by revenue this year as a bar chart",
     "caPrompt2": "Monthly purchases trend by supplier over all months and label x-axis with supplier name",

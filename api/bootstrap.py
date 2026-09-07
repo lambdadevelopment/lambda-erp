@@ -373,49 +373,21 @@ def _ensure_top_customer_snapshots(db) -> None:
 def _ensure_top7_report_draft(db) -> None:
     """Create the 'Top 7 Customers by Revenue' analytics draft the chat
     replay links to, so clicking the bar-chart link opens a real report."""
-    if _get_setting(db, SETTING_DEMO_TOP7_REPORT_ID):
-        return
+    existing_id = _get_setting(db, SETTING_DEMO_TOP7_REPORT_ID)
+    if existing_id:
+        rows = db.sql('SELECT definition_json FROM "Report Draft" WHERE id = ?', [existing_id])
+        if rows:
+            try:
+                if json.loads(rows[0]["definition_json"]).get("runtime_version") == 1:
+                    return
+            except (TypeError, ValueError):
+                pass
+        # Legacy executable drafts are inert in the new runtime. Recreate only
+        # this known demo asset; user-authored drafts are never auto-migrated.
+        db.sql('DELETE FROM "Report Draft" WHERE id = ?', [existing_id])
+        db.conn.commit()
 
     from api.routers.analytics import create_report_draft_record
-
-    transform_js = (
-        "const grouped = helpers.group(sales, ['customer', 'customer_name'], {\n"
-        "  revenue: ['sum', 'net_total'],\n"
-        "});\n"
-        "const sorted = helpers.sortBy(grouped, 'revenue', 'desc');\n"
-        "const top = helpers.topN(sorted, 7);\n"
-        "const rows = top.map(function(r) { return {\n"
-        "  customer: r.customer,\n"
-        "  customer_name: r.customer_name || r.customer,\n"
-        "  revenue: r.revenue,\n"
-        "}; });\n"
-        "return {\n"
-        "  title: 'Top 7 Customers by Revenue',\n"
-        "  kpis: [\n"
-        "    { label: 'Total Revenue (Top 7)', value: helpers.sum(rows, 'revenue'), format: 'currency' },\n"
-        "    { label: 'Customers Shown', value: rows.length, format: 'number' },\n"
-        "  ],\n"
-        "  tables: [\n"
-        "    {\n"
-        "      title: 'Top 7 Customers by Revenue',\n"
-        "      columns: [\n"
-        "        { key: 'customer_name', label: 'Customer', type: 'string' },\n"
-        "        { key: 'revenue', label: 'Revenue', type: 'currency' },\n"
-        "      ],\n"
-        "      rows: rows,\n"
-        "    },\n"
-        "  ],\n"
-        "  charts: [\n"
-        "    {\n"
-        "      title: 'Top 7 Customers by Revenue',\n"
-        "      type: 'bar',\n"
-        "      x: 'customer_name',\n"
-        "      y: 'revenue',\n"
-        "      dataTable: 'Top 7 Customers by Revenue',\n"
-        "    },\n"
-        "  ],\n"
-        "};"
-    )
 
     payload = {
         "title": "Top 7 Customers by Revenue",
@@ -428,7 +400,39 @@ def _ensure_top7_report_draft(db) -> None:
                 "filters": {"is_return": 0},
             }
         ],
-        "transform_js": transform_js,
+        "report": {
+            "version": 1,
+            "kpis": [
+                {"label": "Total Revenue (Top 7)", "source": "top_customers", "op": "sum", "field": "revenue", "format": "currency"},
+                {"label": "Customers Shown", "source": "top_customers", "op": "count", "format": "number"},
+            ],
+            "tables": [{
+                "id": "top_customers",
+                "title": "Top 7 Customers by Revenue",
+                "source": "sales",
+                "dimensions": [
+                    {"field": "customer"},
+                    {"field": "customer_name", "fallback": "—"},
+                ],
+                "measures": [
+                    {"key": "revenue", "op": "sum", "field": "net_total", "type": "currency"},
+                ],
+                "columns": [
+                    {"key": "customer_name", "label": "Customer", "type": "string"},
+                    {"key": "revenue", "label": "Revenue", "type": "currency"},
+                ],
+                "sort": [{"field": "revenue", "direction": "desc"}],
+                "limit": 7,
+            }],
+            "charts": [{
+                "id": "top_customers_chart",
+                "title": "Top 7 Customers by Revenue",
+                "type": "bar",
+                "data_table": "top_customers",
+                "x": "customer_name",
+                "y": "revenue",
+            }],
+        },
     }
     # Own the draft as the public_manager so the demo user can see it in
     # the Custom Analytics sidebar and open it without hitting the 403

@@ -111,11 +111,13 @@ def check_rest_api():
             assert api.get("/api/documents/quotation", headers=v_h).status_code == 200
             r = api.post("/api/masters/customer", json={"customer_name": "Nope"}, headers=v_h)
             assert r.status_code == 403, f"viewer key write → {r.status_code}: {r.text[:200]}"
-            # Admin-only endpoint: manager key 403s, admin key 200s.
+            # Account-security/configuration endpoints require an interactive
+            # browser session regardless of a key's role. Admin keys retain
+            # admin authority on business REST endpoints, not /auth controls.
             assert api.put("/api/auth/settings", json={"pdf_page_size": "A4"},
                            headers=mgr_h).status_code == 403
             assert api.put("/api/auth/settings", json={"pdf_page_size": "A4"},
-                           headers=adm_h).status_code == 200
+                           headers=adm_h).status_code == 403
 
             # --- Revoke → the key stops working immediately. -----------------
             client.post(f"/api/auth/api-keys/{mgr['id']}/revoke")

@@ -3,7 +3,7 @@
 import hashlib
 import random
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from lambda_erp.database import get_db
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.accounting.chart_of_accounts import setup_chart_of_accounts, setup_cost_center
@@ -13,7 +13,7 @@ from lambda_erp.accounting.setup import (
     list_profiles,
     list_packs,
 )
-from api.auth import require_role
+from api.auth import get_current_user, require_role, PUBLIC_DEMO_CREDENTIAL
 
 # Sample US corporate addresses (streets, cities, states) used to auto-fill
 # the company profile when the user doesn't supply one.
@@ -54,9 +54,19 @@ router = APIRouter(prefix="/setup", tags=["setup"])
 
 
 @router.get("/status")
-def setup_status():
-    """Check if any company exists (for first-run detection)."""
+def setup_status(request: Request):
+    """Public first-run status; company metadata only for authenticated users."""
     db = get_db()
+    count = db.sql('SELECT COUNT(*) AS c FROM "Company"')[0]["c"]
+    result = {"setup_complete": count > 0}
+    try:
+        user = get_current_user(request)
+    except HTTPException:
+        return result
+    # The shared public demo is intentionally unauthenticated internet access;
+    # do not turn it into a company-profile disclosure oracle.
+    if user.get("credential_type") == PUBLIC_DEMO_CREDENTIAL:
+        return result
     companies = db.get_all(
         "Company",
         fields=[
@@ -64,10 +74,8 @@ def setup_status():
             "email", "phone", "address", "city", "zip_code", "country", "tax_id",
         ],
     )
-    return {
-        "setup_complete": len(companies) > 0,
-        "companies": [dict(c) for c in companies],
-    }
+    result["companies"] = [dict(c) for c in companies]
+    return result
 
 
 @router.post("/company")

@@ -150,6 +150,7 @@ def chat_doctypes():
 async def ws_chat(websocket: WebSocket):
     # Authenticate via cookie, fall back to public_manager for demo mode
     from lambda_erp.database import get_db
+    from api.auth import make_auth_principal, SESSION_CREDENTIAL, PUBLIC_DEMO_CREDENTIAL
 
     token = websocket.cookies.get(COOKIE_NAME)
     user_name = decode_token(token) if token else None
@@ -160,11 +161,13 @@ async def ws_chat(websocket: WebSocket):
         user = db.get_value("User", user_name, ["name", "full_name", "role", "enabled"])
         if user and not user.get("enabled"):
             user = None
+        elif user:
+            user = make_auth_principal(dict(user), SESSION_CREDENTIAL)
 
     # Fall back to public manager
     if not user:
         pub = db.sql('SELECT name, full_name, role, enabled FROM "User" WHERE role = \'public_manager\' AND enabled = 1')
-        user = pub[0] if pub else None
+        user = make_auth_principal(dict(pub[0]), PUBLIC_DEMO_CREDENTIAL) if pub else None
 
     if not user:
         await websocket.accept()

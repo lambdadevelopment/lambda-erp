@@ -14,12 +14,10 @@ Design notes:
 - No extra dependency: httpx (already a dep) does discovery + token exchange,
   python-jose (already a dep) validates the ID token against the provider JWKS
   and signs Apple's client secret.
-- CSRF / flow state travels in the OAuth `state` parameter as a JWT signed with
-  our own secret and a 10-minute expiry (carrying mode/uid/invite/nonce). We do
-  not use a state cookie: Apple posts the callback cross-site (form_post), which
-  a SameSite=Lax cookie would drop, and a signed+short-lived state avoids that
-  minefield while still being unforgeable. The OIDC `nonce` is echoed in the ID
-  token and checked, binding the token to this flow.
+- OAuth `state` is signed and short-lived, and is additionally bound to a
+  one-use server-side flow plus an HttpOnly browser verifier cookie. The cookie
+  uses SameSite=None on HTTPS so Apple's cross-site `form_post` callback works.
+  The OIDC nonce is stored with that flow and verified in the ID token.
 - A provider is simply *disabled* (its buttons hidden) whenever its env vars are
   absent, so local/dev runs need no OAuth setup.
 """
@@ -28,6 +26,8 @@ import os
 import json
 import time
 import uuid
+import hmac
+import hashlib
 import secrets as _secrets
 
 import httpx
@@ -43,6 +43,8 @@ from api.auth import (
     create_access_token,
     set_auth_cookie,
     get_current_user,
+    require_interactive_user,
+    _is_https_request,
     validate_assignable_role,
     _setting_enabled,
 )
@@ -56,6 +58,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 OAUTH_PASSWORD_SENTINEL = "oauth$no-password"
 
 STATE_TTL_SECONDS = 600
+FLOW_COOKIE_PREFIX = "lambda_erp_oauth_flow_"
 
 # ---------------------------------------------------------------------------
 # Provider registry
@@ -193,6 +196,97 @@ def _decode_state(state: str) -> dict:
         raise HTTPException(status_code=400, detail="Invalid or expired sign-in state")
 
 
+def _flow_cookie_name(flow_id: str) -> str:
+    return FLOW_COOKIE_PREFIX + flow_id
+
+
+def _flow_verifier_hash(verifier: str) -> str:
+    return hashlib.sha256(verifier.encode("utf-8")).hexdigest()
+
+
+def _set_flow_cookie(request: Request, response: Response, flow_id: str, verifier: str) -> None:
+    is_https = _is_https_request(request)
+    response.set_cookie(
+        key=_flow_cookie_name(flow_id),
+        value=verifier,
+        httponly=True,
+        secure=is_https,
+        samesite="none" if is_https else "lax",
+        max_age=STATE_TTL_SECONDS,
+        path=f"/api/auth/",
+    )
+
+
+def _clear_flow_cookie(response: Response, flow_id: str) -> None:
+    response.delete_cookie(key=_flow_cookie_name(flow_id), path="/api/auth/")
+
+
+def _create_flow(
+    provider: str,
+    mode: str,
+    user_name: str | None,
+    invite_token: str | None,
+    nonce: str,
+) -> tuple[str, str, str]:
+    flow_id = uuid.uuid4().hex
+    verifier = _secrets.token_urlsafe(32)
+    db = get_db()
+    # Opportunistic bounded cleanup avoids turning one short-lived row per
+    # sign-in attempt into permanent database growth. Replays remain invalid
+    # whether their consumed row is retained or removed.
+    db.sql(
+        'DELETE FROM "OAuth Flow" WHERE consumed = 1 OR expires_at < ?',
+        [int(time.time())],
+    )
+    db.insert("OAuth Flow", {
+        "id": flow_id,
+        "verifier_hash": _flow_verifier_hash(verifier),
+        "provider": provider,
+        "mode": mode,
+        "user_name": user_name,
+        "invite_token": invite_token,
+        "nonce": nonce,
+        "expires_at": int(time.time()) + STATE_TTL_SECONDS,
+        "consumed": 0,
+        "creation": now(),
+    })
+    state = _encode_state(provider=provider, sid=flow_id)
+    return flow_id, verifier, state
+
+
+def _load_browser_bound_flow(request: Request, provider: str, state: str) -> dict:
+    state_claims = _decode_state(state)
+    flow_id = state_claims.get("sid")
+    if state_claims.get("provider") != provider or not flow_id:
+        raise HTTPException(status_code=400, detail="State/provider mismatch")
+    verifier = request.cookies.get(_flow_cookie_name(flow_id), "")
+    rows = get_db().sql(
+        'SELECT id, verifier_hash, provider, mode, user_name, invite_token, nonce, expires_at '
+        'FROM "OAuth Flow" WHERE id = ? AND consumed = 0',
+        [flow_id],
+    )
+    if not rows:
+        raise HTTPException(status_code=400, detail="Invalid or already-used sign-in state")
+    flow = dict(rows[0])
+    if flow["provider"] != provider or int(flow["expires_at"]) < int(time.time()):
+        raise HTTPException(status_code=400, detail="Invalid or expired sign-in state")
+    if not verifier or not hmac.compare_digest(
+        flow["verifier_hash"], _flow_verifier_hash(verifier)
+    ):
+        raise HTTPException(status_code=400, detail="Sign-in state does not belong to this browser")
+    return flow
+
+
+def _consume_flow(flow_id: str) -> None:
+    rows = get_db().sql(
+        'UPDATE "OAuth Flow" SET consumed = 1 WHERE id = ? AND consumed = 0 RETURNING id',
+        [flow_id],
+    )
+    get_db().conn.commit()
+    if not rows:
+        raise HTTPException(status_code=400, detail="Sign-in state was already used")
+
+
 # ---------------------------------------------------------------------------
 # ID-token verification
 # ---------------------------------------------------------------------------
@@ -321,7 +415,7 @@ def oauth_providers():
 
 
 @router.get("/oauth/identities")
-def list_identities(user: dict = Depends(get_current_user)):
+def list_identities(user: dict = Depends(require_interactive_user)):
     """The signed-in user's linked providers (for a 'Linked accounts' UI)."""
     db = get_db()
     rows = db.sql(
@@ -344,16 +438,12 @@ def oauth_login(provider: str, request: Request, link: int = 0, invite: str | No
         # Linking requires a real active session; capture who is linking. The
         # shared public_manager demo account must never be a link target.
         current = get_current_user(request)
-        if current["role"] == "public_manager":
-            raise HTTPException(status_code=403, detail="Demo accounts cannot link a provider")
+        require_interactive_user(current)
         mode = "link"
         uid = current["name"]
 
     nonce = _secrets.token_urlsafe(16)
-    state = _encode_state(
-        provider=provider, mode=mode, uid=uid, invite=invite,
-        nonce=nonce, sid=_secrets.token_urlsafe(8),
-    )
+    flow_id, verifier, state = _create_flow(provider, mode, uid, invite, nonce)
     redirect_uri = _redirect_uri(request, provider)
     params = {
         "client_id": _client_id(provider),
@@ -368,7 +458,9 @@ def oauth_login(provider: str, request: Request, link: int = 0, invite: str | No
 
     authorization_endpoint = _discovery(provider)["authorization_endpoint"]
     url = str(httpx.URL(authorization_endpoint, params=params))
-    return RedirectResponse(url=url, status_code=303)
+    response = RedirectResponse(url=url, status_code=303)
+    _set_flow_cookie(request, response, flow_id, verifier)
+    return response
 
 
 async def _read_callback_params(request: Request) -> dict:
@@ -380,10 +472,12 @@ async def _read_callback_params(request: Request) -> dict:
     return dict(request.query_params)
 
 
-def _login_redirect(request: Request, user_name: str) -> RedirectResponse:
+def _login_redirect(request: Request, user_name: str, flow_id: str | None = None) -> RedirectResponse:
     token = create_access_token(user_name)
     resp = RedirectResponse(url="/", status_code=303)
     set_auth_cookie(request, resp, token)
+    if flow_id:
+        _clear_flow_cookie(resp, flow_id)
     return resp
 
 
@@ -414,9 +508,7 @@ async def oauth_callback(provider: str, request: Request):
     if not code or not state:
         return RedirectResponse(url="/login?oauth_error=missing_code", status_code=303)
 
-    flow = _decode_state(state)
-    if flow.get("provider") != provider:
-        raise HTTPException(status_code=400, detail="State/provider mismatch")
+    flow = _load_browser_bound_flow(request, provider, state)
 
     # Exchange the code for tokens.
     token_endpoint = _discovery(provider)["token_endpoint"]
@@ -441,23 +533,29 @@ async def oauth_callback(provider: str, request: Request):
         raise HTTPException(status_code=400, detail="Identity token missing subject")
 
     db = get_db()
+    _consume_flow(flow["id"])
 
     # --- Link mode: attach this provider identity to the current account ------
     if flow.get("mode") == "link":
-        uid = flow.get("uid")
+        uid = flow.get("user_name")
+        target = db.get_value("User", uid, ["name", "enabled"])
+        if not target or not target.get("enabled"):
+            raise HTTPException(status_code=400, detail="Link target is no longer active")
         existing = _find_by_identity(db, provider, subject)
         if existing and existing["name"] != uid:
             return RedirectResponse(url="/login?oauth_error=identity_taken", status_code=303)
         if not existing:
             _link_identity(db, uid, provider, subject, email)
-        return RedirectResponse(url="/?linked=" + provider, status_code=303)
+        response = RedirectResponse(url="/?linked=" + provider, status_code=303)
+        _clear_flow_cookie(response, flow["id"])
+        return response
 
     # --- Login mode -----------------------------------------------------------
     user = _find_by_identity(db, provider, subject)
     if user:
         if not user.get("enabled"):
             return RedirectResponse(url="/login?oauth_error=account_disabled", status_code=303)
-        return _login_redirect(request, user["name"])
+        return _login_redirect(request, user["name"], flow["id"])
 
     # No identity yet. We need a provider-verified email to go further.
     if not email or not _email_is_verified(claims):
@@ -472,10 +570,10 @@ async def oauth_callback(provider: str, request: Request):
 
     full_name = claims.get("name") or _apple_full_name(params) or ""
     try:
-        new_user = _create_user(db, email, full_name, flow.get("invite"))
+        new_user = _create_user(db, email, full_name, flow.get("invite_token"))
     except HTTPException as exc:
         reason = "registration_closed" if exc.status_code == 403 else "invite_invalid"
         return RedirectResponse(url=f"/login?oauth_error={reason}", status_code=303)
 
     _link_identity(db, new_user["name"], provider, subject, email)
-    return _login_redirect(request, new_user["name"])
+    return _login_redirect(request, new_user["name"], flow["id"])

@@ -19,15 +19,14 @@ import { useUrlState } from "@/hooks/use-url-state";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/components/chat/chat-provider";
-// Inlined (?worker&inline) so the published library bundle carries the worker
-// as an embedded blob rather than an external /assets/*.js reference. A bare
-// `new Worker(new URL(...))` makes Vite emit an absolute /assets URL that a
-// downstream consumer's build resolves against its own public/ dir and fails
-// to find. Inlining keeps the package consumer-buildable.
-import ReportRuntimeWorker from "@/workers/report-runtime.worker.ts?worker&inline";
 import { flt, formatCurrency, formatDate, formatLocalDate, formatNumber } from "@/lib/utils";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { api } from "@/api/client";
+import {
+  executeDeclarativeReport,
+  type DeclarativeReportSpec,
+  type RuntimeReportOutput,
+} from "@/lib/report-runtime";
 
 type RuntimeDatasetResult = {
   name: string;
@@ -37,27 +36,6 @@ type RuntimeDatasetResult = {
   row_count: number;
   truncated: boolean;
   limit: number;
-};
-
-type RuntimeReportOutput = {
-  title?: string;
-  summary?: string;
-  kpis?: Array<{ label: string; value: number | string; format?: "currency" | "percent" | "number" | "date" }>;
-  tables?: Array<{
-    id?: string;
-    title: string;
-    columns: Array<{ key: string; label: string; type?: string; format?: string }>;
-    rows: Array<Record<string, unknown>>;
-  }>;
-  charts?: Array<{
-    id?: string;
-    title: string;
-    type: "bar" | "line" | "pie";
-    dataTable?: string;
-    data?: Array<Record<string, unknown>>;
-    x: string;
-    y: string;
-  }>;
 };
 
 type RuntimeReportTable = NonNullable<RuntimeReportOutput["tables"]>[number];
@@ -92,47 +70,45 @@ function buildExampleCustomReport(): string {
           },
         },
       ],
-      transform_js: `const grouped = helpers.group(sales, ['customer', 'customer_name'], {
-  revenue: ['sum', 'net_total'],
-  invoice_count: ['count', 'net_total'],
-});
-const sorted = helpers.sortBy(grouped, 'revenue', 'desc');
-const top = helpers.topN(sorted, 10);
-const totalRevenue = helpers.sum(grouped, 'revenue');
-
-return {
-  title: 'Top Customers by Revenue — Last 12 Months',
-  kpis: [
-    { label: 'Total Revenue', value: totalRevenue, format: 'currency' },
-    { label: 'Top 10 Revenue', value: helpers.sum(top, 'revenue'), format: 'currency' },
-    { label: 'Customers Shown', value: top.length, format: 'number' },
-  ],
-  tables: [
-    {
-      title: 'Top Customers by Revenue',
-      columns: [
-        { key: 'customer_name', label: 'Customer', type: 'string' },
-        { key: 'invoice_count', label: 'Invoices', type: 'number' },
-        { key: 'revenue', label: 'Revenue', type: 'currency' },
-      ],
-      rows: top.map(function(r) { return {
-        customer: r.customer,
-        customer_name: r.customer_name || r.customer,
-        invoice_count: r.invoice_count,
-        revenue: r.revenue,
-      }; }),
-    },
-  ],
-  charts: [
-    {
-      title: 'Top Customers by Revenue',
-      type: 'bar',
-      x: 'customer_name',
-      y: 'revenue',
-      dataTable: 'Top Customers by Revenue',
-    },
-  ],
-};`,
+      report: {
+        version: 1,
+        kpis: [
+          { label: "Total Revenue", source: "sales", op: "sum", field: "net_total", format: "currency" },
+          { label: "Customers Shown", source: "top_customers", op: "count", format: "number" },
+        ],
+        tables: [
+          {
+            id: "top_customers",
+            title: "Top Customers by Revenue",
+            source: "sales",
+            dimensions: [
+              { field: "customer" },
+              { field: "customer_name", fallback: "—" },
+            ],
+            measures: [
+              { key: "invoice_count", op: "count", type: "number" },
+              { key: "revenue", op: "sum", field: "net_total", type: "currency" },
+            ],
+            columns: [
+              { key: "customer_name", label: "Customer", type: "string" },
+              { key: "invoice_count", label: "Invoices", type: "number" },
+              { key: "revenue", label: "Revenue", type: "currency" },
+            ],
+            sort: [{ field: "revenue", direction: "desc" }],
+            limit: 10,
+          },
+        ],
+        charts: [
+          {
+            id: "top_customers_chart",
+            title: "Top Customers by Revenue",
+            type: "bar",
+            data_table: "top_customers",
+            x: "customer_name",
+            y: "revenue",
+          },
+        ],
+      },
     },
     null,
     2,
@@ -159,7 +135,6 @@ export default function AnalyticsPage() {
   const [running, setRunning] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [sourceChatSessionId, setSourceChatSessionId] = useState("");
-  const workerRef = useRef<Worker | null>(null);
   const loadedDraftRef = useRef<string>("");
   const loadedSpecRef = useRef<string>("");
   // Monotonic counter so stale runs (e.g. superseded by a StrictMode
@@ -184,36 +159,11 @@ export default function AnalyticsPage() {
     setRunning(true);
     try {
       const source = specText ?? customSpec;
-      const spec = JSON.parse(source);
+      const spec = JSON.parse(source) as DeclarativeReportSpec;
       const dataResponse = await api.runtimeData({ requests: spec.data_requests || [] });
       if (!isCurrent()) return;
       setRuntimeData(dataResponse.datasets);
-
-      workerRef.current?.terminate();
-      const worker = new ReportRuntimeWorker();
-      workerRef.current = worker;
-
-      const result = await new Promise<RuntimeReportOutput>((resolve, reject) => {
-        const timer = window.setTimeout(() => {
-          worker.terminate();
-          reject(new Error("Report runtime exceeded 4 seconds"));
-        }, 4000);
-        worker.onmessage = (event) => {
-          window.clearTimeout(timer);
-          worker.terminate();
-          if (workerRef.current === worker) workerRef.current = null;
-          if (event.data?.ok) {
-            resolve(event.data.output);
-          } else {
-            reject(new Error(event.data?.error || "Runtime failed"));
-          }
-        };
-        worker.postMessage({
-          datasets: dataResponse.datasets,
-          params: {},
-          transformJs: spec.transform_js || "return {};",
-        });
-      });
+      const result = executeDeclarativeReport(spec, dataResponse.datasets);
 
       if (!isCurrent()) return;
       setRuntimeOutput(result);
@@ -551,8 +501,7 @@ function buildChartTableIndex<T extends { id: string; title?: string }>(
   tables: T[],
 ): Map<string, T> {
   // Charts can reference a table by either its id or its title. Build a
-  // lookup map keyed by both so the specialist model — which naturally
-  // reaches for "<table title>" — gets a match.
+  // lookup map keyed by both for compatibility with renderer output.
   const map = new Map<string, T>();
   for (const table of tables) {
     map.set(table.id, table);
@@ -601,8 +550,6 @@ function buildLegacyRuntimeSpec(args: {
   company?: string;
 }) {
   const title = `${legacyMetricLabel(args.metric)} by ${labelFor(args.groupBy)}`;
-  const timeBucket = args.groupBy === "month" ? "helpers.monthKey" : args.groupBy === "quarter" ? "helpers.quarterKey" : "helpers.yearKey";
-
   if (args.metric === "sales_revenue") {
     return buildGroupedAmountSpec({
       title,
@@ -611,7 +558,6 @@ function buildLegacyRuntimeSpec(args: {
       keyField: args.groupBy === "item" ? "item_code" : args.groupBy === "customer" ? "customer" : "posting_date",
       valueField: args.groupBy === "item" ? "net_amount" : "grand_total",
       groupBy: args.groupBy,
-      timeBucket,
       filters: {
         company: args.company,
         posting_date: args.fromDate || args.toDate ? { from: args.fromDate, to: args.toDate } : undefined,
@@ -632,7 +578,6 @@ function buildLegacyRuntimeSpec(args: {
       keyField: args.groupBy === "customer" ? "customer" : "posting_date",
       valueField: "grand_total",
       groupBy: args.groupBy,
-      timeBucket,
       filters: {
         company: args.company,
         posting_date: args.fromDate || args.toDate ? { from: args.fromDate, to: args.toDate } : undefined,
@@ -651,7 +596,6 @@ function buildLegacyRuntimeSpec(args: {
       keyField: args.groupBy === "item" ? "item_code" : args.groupBy === "supplier" ? "supplier" : "posting_date",
       valueField: args.groupBy === "item" ? "net_amount" : "grand_total",
       groupBy: args.groupBy,
-      timeBucket,
       filters: {
         company: args.company,
         posting_date: args.fromDate || args.toDate ? { from: args.fromDate, to: args.toDate } : undefined,
@@ -673,7 +617,6 @@ function buildLegacyRuntimeSpec(args: {
       keyField: args.groupBy === (isReceived ? "customer" : "supplier") ? "party" : "posting_date",
       valueField: isReceived ? "received_amount" : "paid_amount",
       groupBy: args.groupBy,
-      timeBucket,
       filters: {
         company: args.company,
         posting_date: args.fromDate || args.toDate ? { from: args.fromDate, to: args.toDate } : undefined,
@@ -697,7 +640,6 @@ function buildLegacyRuntimeSpec(args: {
       keyField: partyField,
       valueField: amountField,
       groupBy: partyField,
-      timeBucket,
       filters: {
         company: args.company,
         posting_date: args.fromDate || args.toDate ? { from: args.fromDate, to: args.toDate } : undefined,
@@ -715,7 +657,6 @@ function buildLegacyRuntimeSpec(args: {
       keyField: args.groupBy === "warehouse" ? "warehouse" : "item_code",
       valueField: "stock_value",
       groupBy: args.groupBy,
-      timeBucket,
       filters: {
         company: args.company,
       },
@@ -734,15 +675,12 @@ function buildGroupedAmountSpec(args: {
   keyField: string;
   valueField: string;
   groupBy: string;
-  timeBucket: string;
   filters: Record<string, unknown>;
   fields: string[];
   chartType: "bar" | "line";
 }) {
   const filters = Object.fromEntries(Object.entries(args.filters).filter(([, value]) => value !== undefined));
-  const bucketExpr = ["month", "quarter", "year"].includes(args.groupBy)
-    ? `${args.timeBucket}(row.${args.keyField})`
-    : `row.${args.keyField} || "—"`;
+  const timeGroup = ["month", "quarter", "year"].includes(args.groupBy);
   return {
     title: args.title,
     data_requests: [
@@ -754,45 +692,40 @@ function buildGroupedAmountSpec(args: {
         limit: 5000,
       },
     ],
-    transform_js: `const grouped = helpers.group(
-  datasets.${args.requestName}.map((row) => ({
-    bucket: ${bucketExpr},
-    amount: helpers.flt(row.${args.valueField}),
-  })),
-  ["bucket"],
-  { value: ["sum", "amount"] },
-);
-
-const ordered = helpers.sortBy(grouped, ${["month", "quarter", "year"].includes(args.groupBy) ? `"bucket", "asc"` : `"value", "desc"`});
-
-return {
-  title: ${JSON.stringify(args.title)},
-  kpis: [
-    { label: "Rows", value: ordered.length, format: "number" },
-    { label: "Total", value: helpers.sum(ordered, "value"), format: "currency" }
-  ],
-  tables: [
-    {
-      id: "main",
-      title: ${JSON.stringify(args.title)},
-      columns: [
-        { key: "bucket", label: "Bucket", type: "string" },
-        { key: "value", label: "Value", type: "currency" }
+    report: {
+      version: 1 as const,
+      kpis: [
+        { label: "Rows", source: "main", op: "count" as const, format: "number" as const },
+        { label: "Total", source: args.requestName, op: "sum" as const, field: args.valueField, format: "currency" as const },
       ],
-      rows: ordered
-    }
-  ],
-  charts: [
-    {
-      id: "main_chart",
-      title: ${JSON.stringify(args.title)},
-      type: ${JSON.stringify(args.chartType)},
-      dataTable: "main",
-      x: "bucket",
-      y: "value"
-    }
-  ]
-};`,
+      tables: [
+        {
+          id: "main",
+          title: args.title,
+          source: args.requestName,
+          dimensions: [{
+            field: args.keyField,
+            key: "bucket",
+            bucket: timeGroup ? args.groupBy as "month" | "quarter" | "year" : undefined,
+            fallback: "—",
+          }],
+          measures: [{ key: "value", op: "sum" as const, field: args.valueField, type: "currency" as const }],
+          columns: [
+            { key: "bucket", label: "Bucket", type: "string" as const },
+            { key: "value", label: "Value", type: "currency" as const },
+          ],
+          sort: [{ field: timeGroup ? "bucket" : "value", direction: timeGroup ? "asc" as const : "desc" as const }],
+        },
+      ],
+      charts: [{
+        id: "main_chart",
+        title: args.title,
+        type: args.chartType,
+        data_table: "main",
+        x: "bucket",
+        y: "value",
+      }],
+    },
   };
 }
 

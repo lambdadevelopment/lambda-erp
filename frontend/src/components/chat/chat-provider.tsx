@@ -623,7 +623,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             const model = typeof data.model === "string" ? data.model : undefined;
             const role = typeof data.role === "string" ? data.role : undefined;
             const content = role === "code_specialist"
-              ? "Delegating to code specialist..."
+              ? "Delegating to report specialist..."
               : undefined;
             setSessionThinking(sessionId, true);
             updateSessionMessages(sessionId, (prev) => {
@@ -641,7 +641,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 ));
               }
               // No active thinking bubble (e.g. we're mid-tool_call and the
-              // backend just handed off to the code specialist). Add one so
+              // backend just handed off to the report specialist). Add one so
               // the provider handoff is visible in the UI.
               return [
                 ...prev,

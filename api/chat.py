@@ -42,7 +42,7 @@ from lambda_erp.utils import flt, now, nowdate
 
 load_dotenv()
 
-from api.auth import require_role, get_current_user
+from api.auth import require_role, get_current_user, refresh_auth_principal
 
 router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[_Depends(require_role("viewer"))])
 logger = logging.getLogger("chat")
@@ -1060,86 +1060,18 @@ TOOLS = [
             "description": (
                 "Create a draft custom analytics report that opens in "
                 "/reports/analytics?report_id=... . Use this when the user wants "
-                "a bespoke chart/table that goes beyond the preset metric × "
-                "group_by analytics.\n\n"
-                "**Preferred usage:** provide `intent` as a plain-language "
-                "description of what the user wants. The backend will hand "
-                "`intent` to the code specialist model (Anthropic) to generate "
-                "`data_requests` + `transform_js` for you, then persist the "
-                "draft. You do NOT need to write the code yourself — your job "
-                "is to understand the user's request and pass a clear `intent`. "
-                "Only pass `data_requests` + `transform_js` yourself if you "
-                "explicitly want to bypass the code specialist.\n\n"
+                "a bespoke chart/table beyond preset analytics. Prefer passing "
+                "a plain-language `intent`; the report specialist generates a "
+                "validated declarative `data_requests` + `report` specification. "
+                "No executable JavaScript is accepted.\n\n"
                 "Available semantic datasets include: sales_invoices, "
                 "sales_invoice_lines, purchase_invoices, purchase_invoice_lines, "
                 "payments, ar_open_items, ap_open_items, stock_balances, "
                 "stock_movements.\n\n"
-                "Each data_request may include: name, dataset, fields, filters, "
-                "limit. The JS runs client-side over the fetched datasets only; "
-                "it does NOT have SQL, network, or DOM access. The transform "
-                "should end with `return { ... }`. These datasets already focus "
-                "on the accounting-relevant submitted/open records described in "
-                "their names, so avoid redundant filters like `docstatus = 1` "
-                "unless you truly need to surface that field in the output. "
-                "Only request fields that are explicitly exposed by the chosen "
-                "semantic dataset; do not invent fields like `base_grand_total` "
-                "or other ERP-style variants unless the dataset metadata showed "
-                "that exact field name.\n\n"
-                "Choose chart types deliberately. Use `bar` for ranked lists, "
-                "category comparisons, month-by-month business totals, and most "
-                "discrete bucketed ERP reporting. Use `line` when the main goal "
-                "is to show a continuous trend over time across many periods, "
-                "especially when the user explicitly asks for a trend line. Use "
-                "`pie` only for simple part-of-whole breakdowns with a small "
-                "number of categories. If unsure between `bar` and `line`, "
-                "prefer `bar`. If the user asks for a graph, chart, visual, "
-                "breakdown, or comparison, include at least one chart in "
-                "`charts[]` rather than returning only a table. Table-only "
-                "output is appropriate only when the user explicitly asked for "
-                "just a table or list.\n\n"
-                "Use only the supported runtime helper patterns: "
-                "`helpers.sum(rows, 'field')` or `helpers.sum(rows, row => ...)`; "
-                "`helpers.sortBy(rows, 'field', 'asc'|'desc'|true)`; "
-                "`helpers.topN(rows, 'field', n)` or `helpers.topN(rows, n)` if "
-                "already sorted; `helpers.group(rows, ['field1', ...], "
-                "{ alias: ['sum'|'count', 'field'] })` or "
-                "`helpers.group(rows, row => key)` which returns "
-                "`[{ key, rows }]`; plus `helpers.monthKey(...)`, "
-                "`helpers.quarterKey(...)`, `helpers.yearKey(...)`, "
-                "`helpers.leftJoin(...)`, and `helpers.pivot(...)`. Do not use "
-                "unsupported shapes like `helpers.sortBy(rows, row => ...)` or "
-                "`helpers.group(rows, keyFn, reducerFn)`.\n\n"
-                "Return charts and tables in the supported shape. A chart should "
-                "use `{ title, type, x, y, dataTable? , data? }` where `type` is "
-                "`bar`, `line`, or `pie`. Prefer `dataTable` when the chart is "
-                "based on one of your returned tables, otherwise use inline "
-                "`data`. The `y` field MUST be a single string field name such "
-                "as `revenue` or `net_sales` — never an array, never `['revenue']`, "
-                "and never multi-series keys. Do not use unsupported keys like "
-                "`x_key` or `y_keys`. "
-                "A table should use `{ title, columns, rows }` where each column "
-                "uses `{ key, label, type? }` and `type` is things like "
-                "`currency`, `number`, `string`, or `date`.\n\n"
-                "Canonical example: top customers by revenue. Use "
-                "`sales_invoices` with fields like `posting_date`, `customer`, "
-                "`grand_total`; map rows into `{ customer, revenue }`; group with "
-                "`helpers.group(rows, ['customer'], { revenue: ['sum', 'revenue'] })`; "
-                "sort descending by `revenue`; take `helpers.topN(..., 'revenue', 10)`; "
-                "and return a bar chart with `x: 'customer'`, `y: 'revenue'`, "
-                "and inline `data: top10`.\n\n"
-                "Canonical example: best selling items by quantity. Use "
-                "`sales_invoice_lines` with fields `posting_date`, `item_code`, `qty`; "
-                "clean into `{ item_code, qty }`; group with "
-                "`helpers.group(clean, ['item_code'], { qty_sold: ['sum', 'qty'], "
-                "line_count: ['count', 'qty'] })`; sort descending by `qty_sold`; "
-                "take `helpers.topN(sorted, 10)`; and return a bar chart with "
-                "`x: 'item_code'`, `y: 'qty_sold'`, and inline `data: top10`. "
-                "Do not request unsupported line fields like `item_name`, `amount`, "
-                "or `grand_total` from `sales_invoice_lines`.\n\n"
-                "For the first version, prefer simple transforms using helpers "
-                "like helpers.group(...), helpers.sortBy(...), helpers.topN(...), "
-                "helpers.monthKey(...), helpers.sum(...). Always include the URL "
-                "returned by this tool verbatim in your response."
+                "The report language supports grouped dimensions, month/quarter/year "
+                "date buckets, sum/count/avg/min/max measures and KPIs, sorting, "
+                "limits, tables, and bar/line/pie charts. Request only fields "
+                "exposed by dataset metadata. Always include the returned URL."
             ),
             "parameters": {
                 "type": "object",
@@ -1150,8 +1082,8 @@ TOOLS = [
                         "type": "string",
                         "description": (
                             "Plain-language description of what the user wants "
-                            "in this report — the code specialist will use this "
-                            "to generate data_requests + transform_js. Include "
+                            "in this report — the report specialist will use this "
+                            "to generate data_requests + report. Include "
                             "any specific filters, groupings, sort orders, or "
                             "chart preferences the user mentioned."
                         ),
@@ -1182,7 +1114,7 @@ TOOLS = [
                             "required": ["dataset"],
                         },
                     },
-                    "transform_js": {"type": "string"},
+                    "report": {"type": "object"},
                 },
                 "required": ["title"],
             },
@@ -1220,11 +1152,10 @@ TOOLS = [
                 "\"chart is empty because grand_total is not in "
                 "sales_invoice_lines; use amount instead\", or \"add a line "
                 "chart showing monthly trend\"). The backend will hand both "
-                "the current draft and your feedback to the code specialist "
-                "model (Anthropic) to rewrite the spec. You do NOT need to "
-                "write code yourself.\n\n"
-                "Only pass `data_requests` or `transform_js` directly if you "
-                "want to bypass the code specialist for a trivial change."
+                "the current draft and your feedback to the report specialist "
+                "model (Anthropic) to rewrite the declarative spec.\n\n"
+                "Only pass `data_requests` or `report` directly if you already "
+                "have a complete version-1 declarative definition."
             ),
             "parameters": {
                 "type": "object",
@@ -1266,7 +1197,7 @@ TOOLS = [
                             "required": ["dataset"],
                         },
                     },
-                    "transform_js": {"type": "string"},
+                    "report": {"type": "object"},
                 },
                 "required": ["report_id"],
             },
@@ -2170,11 +2101,11 @@ def _handle_create_custom_analytics_report(args, user_info: dict | None = None, 
     from api.routers.analytics import create_report_draft_record
 
     # GPT may pass intent + (optionally) a sketch. If the code spec is
-    # missing, delegate to the Anthropic code specialist.
-    if not args.get("transform_js") or not args.get("data_requests"):
+    # missing, delegate to the Anthropic report-spec specialist.
+    if not args.get("report") or not args.get("data_requests"):
         intent = args.get("intent") or args.get("description") or args.get("title")
         if not intent:
-            return {"error": "Provide either `intent` or a complete spec (data_requests + transform_js)."}
+            return {"error": "Provide either `intent` or a complete spec (data_requests + report)."}
         try:
             spec = _generate_report_spec_via_anthropic(
                 intent,
@@ -2182,9 +2113,9 @@ def _handle_create_custom_analytics_report(args, user_info: dict | None = None, 
                 user_role=(user_info or {}).get("role"),
             )
         except Exception as e:
-            return {"error": f"Code specialist failed: {e}"}
+            return {"error": f"Report specialist failed: {e}"}
         args["data_requests"] = spec["data_requests"]
-        args["transform_js"] = spec["transform_js"]
+        args["report"] = spec["report"]
         if not args.get("title"):
             args["title"] = spec.get("title") or (intent[:60] if intent else "Custom Report")
         if not args.get("description") and spec.get("description"):
@@ -2216,9 +2147,9 @@ def _handle_update_custom_analytics_report(args, user_info: dict | None = None, 
 
     feedback = args.get("feedback") or args.get("intent")
     # If the caller provided a feedback/intent hint and didn't already hand-roll
-    # a transform_js or data_requests change, let the code specialist rewrite
+    # a report or data_requests change, let the report specialist rewrite
     # the spec based on the existing draft.
-    if feedback and "transform_js" not in args and "data_requests" not in args:
+    if feedback and "report" not in args and "data_requests" not in args:
         existing = get_report_draft_record(report_id, user_info)
         if not existing:
             return {"error": f"Report draft '{report_id}' not found"}
@@ -2231,9 +2162,9 @@ def _handle_update_custom_analytics_report(args, user_info: dict | None = None, 
                 user_role=(user_info or {}).get("role"),
             )
         except Exception as e:
-            return {"error": f"Code specialist failed: {e}"}
+            return {"error": f"Report specialist failed: {e}"}
         args["data_requests"] = spec["data_requests"]
-        args["transform_js"] = spec["transform_js"]
+        args["report"] = spec["report"]
         if spec.get("title") and "title" not in args:
             args["title"] = spec["title"]
         if spec.get("description") and "description" not in args:
@@ -2831,13 +2762,13 @@ Users can attach PDFs and images (receipts, bills, contracts, screenshots) to th
 
 
 # ---------------------------------------------------------------------------
-# Anthropic code specialist (sub-agent)
+# Anthropic report-spec specialist
 #
 # GPT-5.4 stays as the planner/orchestrator. When it decides a report needs
-# code generated (the user wants a custom analytics view) it calls the
-# create/update custom analytics tools. Those handlers delegate the actual
-# JS spec generation to Anthropic `ANTHROPIC_CODE_MODEL` — a specialist that
-# is stronger at producing the runtime spec than the planner.
+# a custom analytics view it calls the create/update custom analytics tools.
+# Those handlers delegate the bounded declarative spec to Anthropic. The
+# `ANTHROPIC_CODE_MODEL` environment name is retained for deployment backwards
+# compatibility even though executable report code is no longer accepted.
 # ---------------------------------------------------------------------------
 
 
@@ -2860,92 +2791,45 @@ def _anthropic_available() -> tuple[bool, str]:
     return True, ""
 
 
-_REPORT_CODE_SYSTEM_PROMPT = """You are a report-code specialist for the Lambda ERP analytics runtime.
+_REPORT_CODE_SYSTEM_PROMPT = """You are a report-spec specialist for Lambda ERP.
 
-Your only job is to return a strict JSON object describing a custom analytics report. You NEVER write prose, commentary, markdown, or code fences — only the raw JSON object.
+Return only strict JSON: no prose, markdown, or executable code. The browser
+interprets a declarative version-1 report; JavaScript is never accepted.
 
-## Output shape
-
-Return JSON with these top-level fields:
-- `title` (string, short)
-- `description` (string, optional, one sentence)
-- `data_requests` (array of 1+ objects)
-- `transform_js` (string)
-
-Each `data_requests[]` is `{ name, dataset, fields, filters?, limit? }`. `dataset` must be one of the semantic datasets listed below. `fields` must be a subset of that dataset's exposed field list. Never invent fields.
-
-`transform_js` is a function body (NOT a function declaration). It receives the requested datasets injected as top-level variables (named after `data_requests[].name`, or the dataset name if `name` is omitted). It must end with `return { ... }`.
-
-The returned object supports:
-- `kpis: [{ label, value, format? }]`
-- `tables: [{ title, columns: [{ key, label, type? }], rows }]` where `type` is one of `currency`, `number`, `string`, `date`
-- `charts: [{ title, type, x, y, dataTable? , data? }]` where `type` is `bar`, `line`, or `pie`. `y` MUST be a single string — never an array. Prefer `dataTable: '<table title>'` when the chart is based on a returned table; otherwise use inline `data`.
-- `summary: "..."` (string)
-
-## Semantic datasets
-
-Use only these datasets. Exposed fields will be listed in the user message; do not invent others.
-- `sales_invoices`
-- `sales_invoice_lines`
-- `purchase_invoices`
-- `purchase_invoice_lines`
-- `payments`
-- `ar_open_items`
-- `ap_open_items`
-- `stock_balances`
-- `stock_movements`
-
-These datasets already scope to submitted/open records, so do not add `docstatus = 1` filters.
-
-## Filters shape
-
-`data_requests[].filters` MUST be an object (dict) keyed by field name. It is NOT a list of triples and NOT a SQL expression. Supported value shapes per key:
-
-- **Equality:** `{ "customer": "CUST-001" }` → `WHERE customer = 'CUST-001'`
-- **IN list:** `{ "item_code": ["ITEM-A", "ITEM-B"] }` → `WHERE item_code IN (...)`
-- **Date / number range:** `{ "posting_date": { "from": "2025-06-20", "to": "2026-04-20" } }` — use this shape for any from/to range. Either side can be omitted.
-
-A complete example:
-```json
-"filters": {
-  "posting_date": { "from": "2025-01-01", "to": "2025-12-31" },
-  "customer": "CUST-001",
-  "is_return": 0
+Top-level shape:
+{
+  "title": "Short title",
+  "description": "Optional sentence",
+  "data_requests": [{"name":"sales","dataset":"sales_invoices","fields":[...],"filters":{},"limit":5000}],
+  "report": {
+    "version": 1,
+    "summary": "Optional static summary",
+    "kpis": [{"label":"Total","source":"sales","op":"sum","field":"net_total","format":"currency"}],
+    "tables": [{
+      "id":"main", "title":"Table title", "source":"sales",
+      "dimensions":[{"field":"posting_date","key":"period","bucket":"month","fallback":"—"}],
+      "measures":[{"key":"value","op":"sum","field":"net_total","type":"currency"}],
+      "columns":[{"key":"period","label":"Month","type":"string"},{"key":"value","label":"Revenue","type":"currency"}],
+      "sort":[{"field":"period","direction":"asc"}], "limit":100
+    }],
+    "charts": [{"id":"main_chart","title":"Trend","type":"line","data_table":"main","x":"period","y":"value"}]
+  }
 }
-```
 
-Do NOT produce `[["posting_date", ">=", "2025-06-20"], ...]`. That shape will be rejected by the backend.
+Each data request name becomes a report source. Tables are evaluated in order
+and each table id becomes another source for later KPIs/tables. A table with no
+dimensions or measures copies source rows. Dimensions group rows and may bucket
+a date by month, quarter, or year. Measures support sum, count, avg, min, max;
+all except count require a field. KPI operations use the same set. Formats are
+currency, percent, number, date, or string as appropriate. Charts are bar, line,
+or pie and must reference a table id via data_table.
 
-Only filter on fields listed in the dataset's `filter_fields`. If a date range is needed, always use the `{ from, to }` sub-object under the date field, never operator strings like `>=`.
-
-## Supported runtime helpers
-
-Only these patterns work inside `transform_js`:
-- `helpers.sum(rows, 'field')` or `helpers.sum(rows, row => ...)`
-- `helpers.sortBy(rows, 'field', 'asc'|'desc'|true)`
-- `helpers.topN(rows, 'field', n)` or `helpers.topN(rows, n)` when already sorted
-- `helpers.group(rows, ['field1', ...], { alias: ['sum'|'count', 'field'] })`
-- `helpers.group(rows, row => key)` returns `[{ key, rows }]`
-- `helpers.monthKey(value)`, `helpers.quarterKey(value)`, `helpers.yearKey(value)`
-- `helpers.leftJoin(left, right, 'leftKey', 'rightKey')`
-- `helpers.pivot(rows, rowKey, colKey, valueKey)`
-
-Do NOT use unsupported shapes like `helpers.sortBy(rows, row => ...)` or `helpers.group(rows, keyFn, reducerFn)`.
-
-## Chart type selection
-
-- `bar` — ranked lists, category comparisons, month-by-month totals, most discrete bucketed reports. Default when unsure.
-- `line` — continuous trend over many periods when the user explicitly asks for a trend.
-- `pie` — simple part-of-whole with few categories only.
-
-If the user asks for a graph, chart, visual, breakdown, or comparison — include at least one chart. Table-only output is only appropriate if the user explicitly asked for just a table.
-
-## Rules
-
-- Return ONLY the JSON object. No prose, no code fences, no commentary.
-- `transform_js` must be a function body ending in `return { ... }`.
-- Never hallucinate field names — only use fields explicitly listed for the chosen dataset.
-- Prefer simple transforms: group → sortBy → topN → chart.
+Filters are objects keyed by an exposed filter field: equality values, arrays
+for IN, or {"from":...,"to":...} for ranges. Never use SQL or operator strings.
+Use only dataset fields provided in the user message. Identifier fields (name,
+source, id, key, field, x, y) must match [A-Za-z_][A-Za-z0-9_]{0,63}.
+Include a chart when the user asks for a visualization. Prefer bar for rankings,
+line for continuous time trends, and pie only for a small part-of-whole set.
 """
 
 
@@ -2996,11 +2880,12 @@ def _generate_report_spec_via_anthropic(
     user_parts.append(f"## Today's date\n{date.today().isoformat()}")
     user_parts.append("## Available datasets\n" + _dataset_catalog_text())
     if existing_spec:
+        existing_definition = existing_spec.get("definition") or existing_spec
         existing_payload = {
-            "title": existing_spec.get("title"),
-            "description": existing_spec.get("description"),
-            "data_requests": existing_spec.get("data_requests"),
-            "transform_js": existing_spec.get("transform_js"),
+            "title": existing_definition.get("title"),
+            "description": existing_definition.get("description"),
+            "data_requests": existing_definition.get("data_requests"),
+            "report": existing_definition.get("report"),
         }
         user_parts.append(
             "## Existing draft to refine\n"
@@ -3012,7 +2897,7 @@ def _generate_report_spec_via_anthropic(
         user_parts.append("## Intent\n" + intent)
     user_parts.append(
         "Return the updated (or new) report spec as strict JSON "
-        "with fields `title`, `description`, `data_requests`, `transform_js`. "
+        "with fields `title`, `description`, `data_requests`, `report`. "
         "No prose — JSON only."
     )
     user_msg = "\n\n".join(user_parts)
@@ -3067,9 +2952,12 @@ def _generate_report_spec_via_anthropic(
         block.text for block in response.content if getattr(block, "type", "") == "text"
     )
     spec = _extract_json_object(text)
-    if not spec.get("transform_js") or not spec.get("data_requests"):
-        raise RuntimeError("Code specialist returned an incomplete spec.")
-    return spec
+    if not spec.get("report") or not spec.get("data_requests"):
+        raise RuntimeError("Report specialist returned an incomplete spec.")
+    # Validate the complete declarative language before it can be persisted or
+    # sent to a browser. This also rejects legacy executable transform strings.
+    from api.routers.analytics import ReportDraftPayload
+    return ReportDraftPayload.model_validate(spec).model_dump()
 
 
 # ---------------------------------------------------------------------------
@@ -3366,7 +3254,7 @@ async def run_thinking_loop(
     The orchestrator is always OpenAI (gpt-5.6-terra). When GPT decides to call
     `create_custom_analytics_report` or `update_custom_analytics_report`
     with an intent/feedback hint, the tool handler itself delegates the
-    code-generation step to Anthropic (ANTHROPIC_CODE_MODEL). We emit an
+    declarative-spec step to Anthropic (ANTHROPIC_CODE_MODEL). We emit an
     `llm_provider` event around that delegation so the UI can surface it.
     """
     openai_api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -3379,11 +3267,19 @@ async def run_thinking_loop(
         timeout=httpx.Timeout(120.0, connect=10.0),
     )
 
+    # Closures below read through this reference so a live role/key refresh
+    # immediately affects resource-aware handlers as well as the shared policy.
+    principal_ref = [user_info]
     tool_handlers = dict(TOOL_HANDLERS)
     # delete_master needs the caller's role (admin-only) — scoped here rather
     # than in TOOL_HANDLERS, whose handlers are called with (args) only.
-    tool_handlers["delete_master"] = lambda args: _handle_delete_master(args, user_info)
-    tool_handlers.update(services.registered_action_handlers(user_info))
+    tool_handlers["delete_master"] = lambda args: _handle_delete_master(args, principal_ref[0])
+    for action_name in services.REGISTERED_ACTIONS:
+        tool_handlers[action_name] = (
+            lambda args, action=action_name: services.run_registered_action(
+                action, args, principal_ref[0]
+            )
+        )
 
     user_role = user_info.get("role") if user_info else None
     demo_mode = is_demo_role(user_role)
@@ -3417,31 +3313,31 @@ async def run_thinking_loop(
             lambda args: _handle_preview_bank_statement_attachments(args, user_id_for_tools)
         )
         tool_handlers["import_bank_statement_attachments"] = (
-            lambda args: _handle_import_bank_statement_attachments(args, user_info)
+            lambda args: _handle_import_bank_statement_attachments(args, principal_ref[0])
         )
         tool_handlers["list_bank_reconciliation_queue"] = (
-            lambda args: _handle_list_bank_reconciliation_queue(args, user_info)
+            lambda args: _handle_list_bank_reconciliation_queue(args, principal_ref[0])
         )
         tool_handlers["suggest_bank_reconciliation"] = (
-            lambda args: _handle_suggest_bank_reconciliation(args, user_info)
+            lambda args: _handle_suggest_bank_reconciliation(args, principal_ref[0])
         )
         tool_handlers["reconcile_bank_transaction"] = (
-            lambda args: _handle_reconcile_bank_transaction(args, user_info)
+            lambda args: _handle_reconcile_bank_transaction(args, principal_ref[0])
         )
         tool_handlers["undo_bank_reconciliation"] = (
-            lambda args: _handle_undo_bank_reconciliation(args, user_info)
+            lambda args: _handle_undo_bank_reconciliation(args, principal_ref[0])
         )
         _scoped_retrieve_attachment = (
             lambda args: _handle_retrieve_chat_attachment(args, session_id, user_id_for_tools)
         )
         tool_handlers["create_custom_analytics_report"] = (
-            lambda args: _handle_create_custom_analytics_report(args, user_info, session_id, client_ip=client_ip)
+            lambda args: _handle_create_custom_analytics_report(args, principal_ref[0], session_id, client_ip=client_ip)
         )
         tool_handlers["get_custom_analytics_report"] = (
-            lambda args: _handle_get_custom_analytics_report(args, user_info)
+            lambda args: _handle_get_custom_analytics_report(args, principal_ref[0])
         )
         tool_handlers["update_custom_analytics_report"] = (
-            lambda args: _handle_update_custom_analytics_report(args, user_info, client_ip=client_ip)
+            lambda args: _handle_update_custom_analytics_report(args, principal_ref[0], client_ip=client_ip)
         )
 
         # Demo sessions get a per-turn cap on attachment retrieval: each
@@ -3556,12 +3452,18 @@ async def run_thinking_loop(
 
             await on_event({"type": "tool_call", "tool": fn_name, "args": fn_args})
 
-            # If GPT is delegating report code-gen to the Anthropic specialist,
+            # LLM turns can run for many seconds. Re-resolve the principal at
+            # the actual execution boundary so a demotion, disable, or key
+            # revocation that happened after the prompt was built wins.
+            principal_ref[0] = refresh_auth_principal(principal_ref[0])
+            live_role = principal_ref[0].get("role") if principal_ref[0] else None
+
+            # If GPT is delegating report-spec generation to the Anthropic specialist,
             # surface the handoff in the UI.
             will_delegate_to_code_specialist = (
-                tool_allowed(fn_name, user_role)
+                tool_allowed(fn_name, live_role)
                 and fn_name in ("create_custom_analytics_report", "update_custom_analytics_report")
-                and not fn_args.get("transform_js")
+                and not fn_args.get("report")
                 and not fn_args.get("data_requests")
             )
             if will_delegate_to_code_specialist:
@@ -3575,8 +3477,8 @@ async def run_thinking_loop(
             handler = tool_handlers.get(fn_name)
             # The model's tool list and prompt are not authorization controls.
             # Check the caller at execution even for invented or replayed calls.
-            if not tool_allowed(fn_name, user_role):
-                result = tool_permission_error(fn_name, user_role)
+            if not tool_allowed(fn_name, live_role):
+                result = tool_permission_error(fn_name, live_role)
                 success = False
             elif not handler:
                 result = {"error": f"Unknown tool: {fn_name}"}
@@ -3979,6 +3881,13 @@ async def chat_websocket(
 
         while True:
             raw = await websocket.receive_text()
+            live_principal = refresh_auth_principal(user_info)
+            if not live_principal:
+                await send_error("Your account is no longer active. Please sign in again.")
+                await websocket.close(code=4001, reason="Authentication no longer valid")
+                return
+            user_info = live_principal
+            ws_user_role = live_principal.get("role")
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
