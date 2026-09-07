@@ -2138,7 +2138,11 @@ def _handle_create_custom_analytics_report(args, user_info: dict | None = None, 
 
     if not args.get("title"):
         return {"error": "title is required"}
-    return create_report_draft_record(args, user_info, source_chat_session_id=session_id)
+    # ``intent`` is a tool-control field for the specialist handoff, not part
+    # of the persisted declarative report.  Keep every other key so the strict
+    # ReportDraftPayload boundary still rejects unexpected/executable fields.
+    payload = {key: value for key, value in args.items() if key != "intent"}
+    return create_report_draft_record(payload, user_info, source_chat_session_id=session_id)
 
 
 def _handle_get_custom_analytics_report(args, user_info: dict | None = None):

@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.33] - 2026-09-07
+
+### Fixed
+- Remove the report specialist's `intent` control field before passing its
+  validated result to strict report-draft persistence. Intent-only report
+  requests from chat now create the draft instead of failing downstream with
+  `Extra inputs are not permitted`.
+
 ## [0.8.32] - 2026-09-07
 
 ### Fixed

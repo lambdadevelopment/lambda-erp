@@ -354,6 +354,40 @@ def check_security_regressions():
         assert generated["data_requests"][0]["filters"]["posting_date"]["from"] == "2025-01-01"
         assert specialist_call["model"] == "gpt-5.6-terra"
 
+        # The documented intent-only chat path must persist the validated
+        # specialist result. ``intent`` controls the handoff and must not leak
+        # into the strict ReportDraftPayload storage boundary as an extra key.
+        with patch.object(
+            chat,
+            "_generate_report_spec_via_openai",
+            return_value=copy.deepcopy(multi_series_report),
+        ):
+            created_report = chat._handle_create_custom_analytics_report(
+                {
+                    "title": "Monthly income and expenses",
+                    "intent": "Two grouped bars per month for 2025",
+                },
+                {"name": admin_id, "role": "admin"},
+                session_id="report-intent-regression",
+            )
+        assert created_report["id"].startswith("RPT-")
+        assert created_report["source_chat_session_id"] == "report-intent-regression"
+        assert "intent" not in created_report["definition"]
+        assert created_report["definition"]["report"]["charts"][0]["series"][1]["key"] == "expenses"
+        try:
+            chat._handle_create_custom_analytics_report(
+                {
+                    **copy.deepcopy(valid_report),
+                    "intent": "Legitimate specialist control field",
+                    "transform_js": "fetch('/api/auth/users')",
+                },
+                {"name": admin_id, "role": "admin"},
+            )
+        except HTTPException as exc:
+            assert exc.status_code == 422
+        else:
+            raise AssertionError("Only intent may bypass report-draft validation")
+
         # Substantive reference mistakes get one specialist-only retry with a
         # precise field-path summary instead of re-running the full orchestrator.
         invalid_report = copy.deepcopy(multi_series_report)
