@@ -6,12 +6,9 @@ services:
       - "8000:8000"
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      # ANTHROPIC_API_KEY is used by the code-specialist sub-agent that
-      # writes the JS transforms for custom analytics reports. Without it,
-      # the chat can still create draft reports but can't generate code
-      # for them. ANTHROPIC_CODE_MODEL overrides the default Claude model.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_CODE_MODEL: ${ANTHROPIC_CODE_MODEL:-claude-opus-4-7}
+      # The orchestrator and report specialist both default to GPT-5.6 Terra
+      # and share OPENAI_API_KEY. Override only the specialist if needed.
+      LAMBDA_ERP_REPORT_MODEL: ${LAMBDA_ERP_REPORT_MODEL:-gpt-5.6-terra}
       LAMBDA_ERP_AUTO_DEMO: "1"
       # Default container flow: seed company + 3-year simulator, then hand
       # off to the login page where the first user registers as admin.

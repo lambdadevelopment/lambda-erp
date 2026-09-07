@@ -109,6 +109,23 @@ def check_security_regressions():
             "email": "private@synthetic.invalid",
             "tax_id": "SYNTHETIC-TAX-ID",
         })
+        db.insert("Account", {
+            "name": "4000 - SYN", "account_name": "Revenue", "company": "Synthetic Co",
+            "root_type": "Income", "report_type": "Profit and Loss", "is_group": 0,
+        })
+        db.insert("Account", {
+            "name": "6000 - SYN", "account_name": "Operating Expense", "company": "Synthetic Co",
+            "root_type": "Expense", "report_type": "Profit and Loss", "is_group": 0,
+        })
+        for name, posting_date, account, debit, credit in (
+            ("GLE-INCOME", "2025-01-15", "4000 - SYN", 0, 900),
+            ("GLE-EXPENSE", "2025-01-20", "6000 - SYN", 250, 0),
+        ):
+            db.insert("GL Entry", {
+                "name": name, "posting_date": posting_date, "account": account,
+                "debit": debit, "credit": credit, "company": "Synthetic Co",
+                "is_cancelled": 0,
+            })
         db.commit()
 
         # API keys are unchanged for business/identity resolution, but cannot
@@ -119,6 +136,7 @@ def check_security_regressions():
         assert key_response.status_code == 200, key_response.text
         key = key_response.json()
         key_client = TestClient(app, headers={"Authorization": f"Bearer {key['token']}"})
+        assert not key_client.cookies, dict(key_client.cookies)
         me = key_client.get("/api/auth/me")
         assert me.status_code == 200 and me.json()["name"] == admin_id and me.json()["role"] == "viewer"
         assert key_client.get("/api/setup/status").json()["companies"][0]["tax_id"] == "SYNTHETIC-TAX-ID"
@@ -255,6 +273,75 @@ def check_security_regressions():
             },
         }
         analytics.ReportDraftPayload.model_validate(valid_report)
+
+        # Accounting data is available to custom reports independently of the
+        # invoice tables, with normal-balance income/expense fields suitable
+        # for a two-series monthly P&L chart.
+        gl_aggregate = analytics.aggregate_semantic_dataset(
+            dataset="gl_entries",
+            group_by=[],
+            measures={
+                "income": ["sum", "income_amount"],
+                "expenses": ["sum", "expense_amount"],
+            },
+            filters={"posting_date": {"from": "2025-01-01", "to": "2025-12-31"}},
+        )
+        assert gl_aggregate["rows"] == [{"income": 900.0, "expenses": 250.0}]
+
+        multi_series_report = {
+            "title": "Monthly income and expenses",
+            "data_requests": [{
+                "name": "ledger", "dataset": "gl_entries",
+                "fields": ["posting_date", "income_amount", "expense_amount"],
+                "filters": {"posting_date": {"from": "2025-01-01", "to": "2025-12-31"}},
+            }],
+            "report": {
+                "version": 1,
+                "tables": [{
+                    "id": "monthly", "title": "Monthly P&L", "source": "ledger",
+                    "dimensions": [{"field": "posting_date", "key": "month", "bucket": "month"}],
+                    "measures": [
+                        {"key": "income", "op": "sum", "field": "income_amount", "type": "currency"},
+                        {"key": "expenses", "op": "sum", "field": "expense_amount", "type": "currency"},
+                    ],
+                    "columns": [
+                        {"key": "month", "label": "Month"},
+                        {"key": "income", "label": "Income", "type": "currency"},
+                        {"key": "expenses", "label": "Expenses", "type": "currency"},
+                    ],
+                    "sort": [{"field": "month", "direction": "asc"}],
+                }],
+                "charts": [{
+                    "title": "Income vs expenses", "type": "bar", "data_table": "monthly",
+                    "x": "month",
+                    "series": [
+                        {"key": "income", "label": "Income"},
+                        {"key": "expenses", "label": "Expenses"},
+                    ],
+                }],
+            },
+        }
+        analytics.ReportDraftPayload.model_validate(multi_series_report)
+
+        # The specialist uses the existing OpenAI credential and Terra model;
+        # no Anthropic SDK/key is needed. Provider traffic stays mocked here.
+        specialist_call = {}
+
+        def create_specialist_response(**kwargs):
+            specialist_call.update(kwargs)
+            return NS(
+                output_text=json.dumps(multi_series_report),
+                output=[],
+                usage=NS(input_tokens=100, output_tokens=50, input_tokens_details=None),
+            )
+
+        specialist_client = NS(responses=NS(create=create_specialist_response))
+        with patch.object(chat, "OpenAI", return_value=specialist_client):
+            generated = chat._generate_report_spec_via_openai(
+                "Monthly income and expenses for 2025", user_role="admin",
+            )
+        assert generated["report"]["charts"][0]["series"][1]["key"] == "expenses"
+        assert specialist_call["model"] == "gpt-5.6-terra"
         try:
             analytics.ReportDraftPayload.model_validate({
                 **valid_report,

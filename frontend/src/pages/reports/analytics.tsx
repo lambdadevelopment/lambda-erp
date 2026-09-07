@@ -6,6 +6,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -408,6 +409,18 @@ function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
           : rows.map((row) => String(row[chart.x] ?? ""));
         const layout = computeAxisLayout(xLabels);
         const containerHeight = Math.max(320, 200 + layout.axisHeight);
+        const series = chart.series?.length
+          ? chart.series
+          : chart.y
+            ? [{ key: chart.y, label: undefined }]
+            : [];
+        const formatChartValue = (value: unknown, _name: unknown, item: { dataKey?: unknown }) => (
+          formatRuntimeValue(
+            value,
+            inferFormat(table, String(item?.dataKey ?? series[0]?.key ?? "")),
+            baseCurrency,
+          )
+        );
         return (
           <Card key={chart.id || `chart_${idx + 1}`}>
             <div className="pb-3 text-sm font-semibold text-gray-700">{chart.title}</div>
@@ -425,13 +438,24 @@ function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
                       height={layout.axisHeight}
                     />
                     <YAxis tick={{ fill: "#6b7280", fontSize: 12 }} tickFormatter={shortNum} />
-                    <Tooltip formatter={(v) => formatRuntimeValue(v, inferFormat(table, chart.y), baseCurrency)} />
-                    <Line type="monotone" dataKey={chart.y} stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                    <Tooltip formatter={formatChartValue} />
+                    {series.length > 1 && <Legend />}
+                    {series.map((item, seriesIdx) => (
+                      <Line
+                        key={item.key}
+                        type="monotone"
+                        dataKey={item.key}
+                        name={item.label || item.key}
+                        stroke={SERIES_COLORS[seriesIdx % SERIES_COLORS.length]}
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    ))}
                   </LineChart>
                 ) : chart.type === "pie" ? (
                   <PieChart>
-                    <Tooltip formatter={(v) => formatRuntimeValue(v, inferFormat(table, chart.y), baseCurrency)} />
-                    <Pie data={rows} dataKey={chart.y} nameKey={chart.x} outerRadius={110}>
+                    <Tooltip formatter={formatChartValue} />
+                    <Pie data={rows} dataKey={series[0]?.key} nameKey={chart.x} outerRadius={110}>
                       {rows.map((_, rowIdx) => (
                         <Cell key={rowIdx} fill={PIE_COLORS[rowIdx % PIE_COLORS.length]} />
                       ))}
@@ -449,8 +473,17 @@ function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
                       height={layout.axisHeight}
                     />
                     <YAxis tick={{ fill: "#6b7280", fontSize: 12 }} tickFormatter={shortNum} />
-                    <Tooltip formatter={(v) => formatRuntimeValue(v, inferFormat(table, chart.y), baseCurrency)} />
-                    <Bar dataKey={chart.y} fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Tooltip formatter={formatChartValue} />
+                    {series.length > 1 && <Legend />}
+                    {series.map((item, seriesIdx) => (
+                      <Bar
+                        key={item.key}
+                        dataKey={item.key}
+                        name={item.label || item.key}
+                        fill={SERIES_COLORS[seriesIdx % SERIES_COLORS.length]}
+                        radius={[4, 4, 0, 0]}
+                      />
+                    ))}
                   </BarChart>
                 )}
               </ResponsiveContainer>
@@ -526,10 +559,19 @@ function describeRuntimeOutputIssues(output: RuntimeReportOutput | null): string
       issues.push(`Chart "${chart.title}" has no usable data.`);
       continue;
     }
-    if (typeof chart.y !== "string" || !chart.y) {
-      issues.push(`Chart "${chart.title}" has an invalid y field; expected a single string field name.`);
-    } else if (!rows.some((row) => row[chart.y] != null)) {
-      issues.push(`Chart "${chart.title}" does not have any values for y="${chart.y}".`);
+    const series = chart.series?.length
+      ? chart.series
+      : chart.y
+        ? [{ key: chart.y }]
+        : [];
+    if (!series.length) {
+      issues.push(`Chart "${chart.title}" has no value series.`);
+    } else {
+      for (const item of series) {
+        if (!rows.some((row) => row[item.key] != null)) {
+          issues.push(`Chart "${chart.title}" does not have any values for series="${item.key}".`);
+        }
+      }
     }
     if (!chart.x || !rows.some((row) => row[chart.x] != null)) {
       issues.push(`Chart "${chart.title}" does not have any values for x="${chart.x}".`);
@@ -763,7 +805,8 @@ function shortNum(n: number): string {
   return String(n);
 }
 
-const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
+const SERIES_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
+const PIE_COLORS = SERIES_COLORS;
 
 // -----------------------------------------------------------------------------
 // X-axis auto-fit

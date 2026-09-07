@@ -35,7 +35,7 @@ from api.demo_limits import (
     is_demo_role,
     limiter as demo_limiter,
 )
-from api.providers import cost_of_anthropic_call, cost_of_openai_call, cost_of_transcription
+from api.providers import cost_of_openai_call, cost_of_transcription
 from api.routers.masters import create_master_record, update_master_record, delete_master_record, MASTER_IDENTITY_ALIAS
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt, now, nowdate
@@ -985,7 +985,11 @@ TOOLS = [
                 "- `ap_open_items` — outstanding purchase invoice amounts\n"
                 "- `stock_balances` — current stock on hand by item × warehouse\n"
                 "- `stock_movements` — stock ledger entries (movement history); "
-                "`abs_qty` = units moved (use `sum`), `actual_qty` = net flow\n\n"
+                "`abs_qty` = units moved (use `sum`), `actual_qty` = net flow\n"
+                "- `gl_entries` — posted ledger rows; use `income_amount` and "
+                "`expense_amount` for P&L analysis\n"
+                "- `bank_transactions` — imported cash movements; use `deposit` "
+                "and `withdrawal` for bank inflow/outflow analysis\n\n"
                 "Shape your call like: `{dataset, group_by, measures, filters?, "
                 "order_by?, limit?}`. `group_by` is a list of field names. "
                 "`measures` is an object of `{alias: [op, field]}` where `op` "
@@ -1025,6 +1029,9 @@ TOOLS = [
                             "ar_open_items",
                             "ap_open_items",
                             "stock_balances",
+                            "stock_movements",
+                            "gl_entries",
+                            "bank_transactions",
                         ],
                     },
                     "group_by": {
@@ -1067,10 +1074,11 @@ TOOLS = [
                 "Available semantic datasets include: sales_invoices, "
                 "sales_invoice_lines, purchase_invoices, purchase_invoice_lines, "
                 "payments, ar_open_items, ap_open_items, stock_balances, "
-                "stock_movements.\n\n"
+                "stock_movements, gl_entries, bank_transactions.\n\n"
                 "The report language supports grouped dimensions, month/quarter/year "
                 "date buckets, sum/count/avg/min/max measures and KPIs, sorting, "
-                "limits, tables, and bar/line/pie charts. Request only fields "
+                "limits, tables, and single- or multi-series bar/line charts plus "
+                "pie charts. Request only fields "
                 "exposed by dataset metadata. Always include the returned URL."
             ),
             "parameters": {
@@ -1105,6 +1113,9 @@ TOOLS = [
                                         "ar_open_items",
                                         "ap_open_items",
                                         "stock_balances",
+                                        "stock_movements",
+                                        "gl_entries",
+                                        "bank_transactions",
                                     ],
                                 },
                                 "fields": {"type": "array", "items": {"type": "string"}},
@@ -1153,7 +1164,7 @@ TOOLS = [
                 "sales_invoice_lines; use amount instead\", or \"add a line "
                 "chart showing monthly trend\"). The backend will hand both "
                 "the current draft and your feedback to the report specialist "
-                "model (Anthropic) to rewrite the declarative spec.\n\n"
+                "model to rewrite the declarative spec.\n\n"
                 "Only pass `data_requests` or `report` directly if you already "
                 "have a complete version-1 declarative definition."
             ),
@@ -1188,6 +1199,9 @@ TOOLS = [
                                         "ar_open_items",
                                         "ap_open_items",
                                         "stock_balances",
+                                        "stock_movements",
+                                        "gl_entries",
+                                        "bank_transactions",
                                     ],
                                 },
                                 "fields": {"type": "array", "items": {"type": "string"}},
@@ -2100,17 +2114,18 @@ def _handle_query_dataset(args):
 def _handle_create_custom_analytics_report(args, user_info: dict | None = None, session_id: str | None = None, client_ip: str | None = None):
     from api.routers.analytics import create_report_draft_record
 
-    # GPT may pass intent + (optionally) a sketch. If the code spec is
-    # missing, delegate to the Anthropic report-spec specialist.
+    # GPT may pass intent + (optionally) a sketch. If the declarative spec is
+    # missing, delegate to the report-spec specialist.
     if not args.get("report") or not args.get("data_requests"):
         intent = args.get("intent") or args.get("description") or args.get("title")
         if not intent:
             return {"error": "Provide either `intent` or a complete spec (data_requests + report)."}
         try:
-            spec = _generate_report_spec_via_anthropic(
+            spec = _generate_report_spec_via_openai(
                 intent,
                 client_ip=client_ip,
                 user_role=(user_info or {}).get("role"),
+                session_id=session_id,
             )
         except Exception as e:
             return {"error": f"Report specialist failed: {e}"}
@@ -2138,7 +2153,12 @@ def _handle_get_custom_analytics_report(args, user_info: dict | None = None):
     return row
 
 
-def _handle_update_custom_analytics_report(args, user_info: dict | None = None, client_ip: str | None = None):
+def _handle_update_custom_analytics_report(
+    args,
+    user_info: dict | None = None,
+    client_ip: str | None = None,
+    session_id: str | None = None,
+):
     from api.routers.analytics import get_report_draft_record, update_report_draft_record
 
     report_id = args.get("report_id")
@@ -2154,12 +2174,13 @@ def _handle_update_custom_analytics_report(args, user_info: dict | None = None, 
         if not existing:
             return {"error": f"Report draft '{report_id}' not found"}
         try:
-            spec = _generate_report_spec_via_anthropic(
+            spec = _generate_report_spec_via_openai(
                 intent=existing.get("description") or existing.get("title") or "",
                 existing_spec=existing,
                 feedback=feedback,
                 client_ip=client_ip,
                 user_role=(user_info or {}).get("role"),
+                session_id=session_id,
             )
         except Exception as e:
             return {"error": f"Report specialist failed: {e}"}
@@ -2441,11 +2462,11 @@ Only state that something was done — created, changed, enabled/disabled, booke
 
 **Path 2: aggregated facts → `query_dataset`.** For "who is our top customer by revenue", "total sales this month", "outstanding AR by customer", "average invoice size", "count of POs per supplier" — anything that requires summing, counting, ranking, or grouping across many rows — call `query_dataset`. It runs a deterministic SQL aggregation server-side and returns the actual aggregated numbers you can cite in chat. NEVER try to compute a top-N or sum by eyeballing a `list_documents` sample — it defaults to 20 rows and will give a wrong answer on any meaningful dataset.
 
-**Path 3: charts / complex reports → `create_custom_analytics_report`.** Only call this when the user **explicitly asks for** a chart, graph, visualization, dashboard, trend, pivot, breakdown, or saved report — or when the analysis genuinely combines multiple datasets (e.g. purchases vs sales joined by month). Do **not** invoke it for a factual question `query_dataset` could answer in one call.
+**Path 3: charts / complex reports → `create_custom_analytics_report`.** Only call this when the user **explicitly asks for** a chart, graph, visualization, dashboard, trend, pivot, breakdown, or saved report — or when the analysis genuinely needs a reusable report. Do **not** invoke it for a factual question `query_dataset` could answer in one call.
 
-Important constraint on the analytics report tool: the JS transform runs **client-side only** — you never see its output. So you cannot "open the report to read the numbers." If the user asks you to summarise or interpret the result after the fact, tell them you don't have access to the executed data and either (a) re-answer via `query_dataset`, or (b) ask them what they see on the page. Never claim you'll look at the report yourself.
+Important constraint on the analytics report tool: its bounded declarative specification runs **client-side only** — you never see its output. So you cannot "open the report to read the numbers." If the user asks you to summarise or interpret the result after the fact, re-answer via `query_dataset` or a standard financial report; do not infer data coverage from an empty invoice dataset when GL or bank data may exist.
 
-When you do build a custom report, pass a plain-language `intent` to `create_custom_analytics_report` (a specialist model writes the code for you) and reply with the returned `/reports/analytics?report_id=…` link as a markdown link. The draft appears under **Custom Analytics** in the sidebar so the user can reopen or share it.
+When you do build a custom report, pass a plain-language `intent` to `create_custom_analytics_report` (a specialist model writes the bounded declarative spec for you) and reply with the returned `/reports/analytics?report_id=…` link as a markdown link. The draft appears under **Custom Analytics** in the sidebar so the user can reopen or share it.
 
 {markdown_links_section}
 
@@ -2675,9 +2696,9 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 
   When you do call `create_custom_analytics_report`, pass `title` and
   `intent` — a clear plain-language description (filters, groupings, sort
-  orders, chart type). A specialist model writes the JS transform for you.
+  orders, chart type). A specialist model writes the declarative report spec for you.
   Relay the returned `/reports/analytics?report_id=…` link as a markdown
-  link. You will NOT see the executed data — the transform runs in the
+  link. You will NOT see the rendered data — the declarative spec runs in the
   user's browser. So do not promise to "read" or "interpret" the report
   yourself; if the user wants a narrative answer, use `list_documents`
   instead.
@@ -2762,33 +2783,20 @@ Users can attach PDFs and images (receipts, bills, contracts, screenshots) to th
 
 
 # ---------------------------------------------------------------------------
-# Anthropic report-spec specialist
+# OpenAI report-spec specialist
 #
-# GPT-5.4 stays as the planner/orchestrator. When it decides a report needs
+# GPT-5.6 Terra stays as the planner/orchestrator. When it decides a report needs
 # a custom analytics view it calls the create/update custom analytics tools.
-# Those handlers delegate the bounded declarative spec to Anthropic. The
-# `ANTHROPIC_CODE_MODEL` environment name is retained for deployment backwards
-# compatibility even though executable report code is no longer accepted.
+# Those handlers make a separate, narrowly prompted Terra call for the bounded
+# declarative report spec. Both roles use the existing OPENAI_API_KEY.
 # ---------------------------------------------------------------------------
 
 
-def _code_model() -> str:
-    return (
-        os.environ.get("ANTHROPIC_CODE_MODEL")
-        or os.environ.get("ANTHROPIC_REPORT_REPAIR_MODEL")  # legacy fallback
-        or "claude-sonnet-4-20250514"
-    )
+REPORT_SPECIALIST_MODEL = "gpt-5.6-terra"
 
 
-def _anthropic_available() -> tuple[bool, str]:
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key or api_key == "your-anthropic-key-here":
-        return False, "ANTHROPIC_API_KEY is not configured"
-    try:
-        import anthropic  # noqa: F401  # type: ignore
-    except Exception as e:
-        return False, f"Anthropic SDK not available: {e}"
-    return True, ""
+def _report_specialist_model() -> str:
+    return os.environ.get("LAMBDA_ERP_REPORT_MODEL") or REPORT_SPECIALIST_MODEL
 
 
 _REPORT_CODE_SYSTEM_PROMPT = """You are a report-spec specialist for Lambda ERP.
@@ -2824,6 +2832,17 @@ all except count require a field. KPI operations use the same set. Formats are
 currency, percent, number, date, or string as appropriate. Charts are bar, line,
 or pie and must reference a table id via data_table.
 
+For a chart with multiple bars or lines per x value, omit `y` and use
+`series`: [{"key":"income","label":"Income"},{"key":"expenses","label":"Expenses"}].
+Every series key must be an output column of the chart's data_table. Pie charts
+allow only one series. A single-series chart should keep using `y`.
+
+Use `gl_entries` with `income_amount` and `expense_amount` for accounting
+income/expense or profit-and-loss analysis. Use `bank_transactions` with
+`deposit` and `withdrawal` only when the user asks for cash/bank inflows and
+outflows. Do not infer that there is no financial activity merely because the
+sales_invoices or purchase_invoices datasets are empty.
+
 Filters are objects keyed by an exposed filter field: equality values, arrays
 for IN, or {"from":...,"to":...} for ranges. Never use SQL or operator strings.
 Use only dataset fields provided in the user message. Identifier fields (name,
@@ -2856,25 +2875,24 @@ def _extract_json_object(text: str) -> dict:
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1 or end <= start:
-        raise ValueError("Code specialist did not return a JSON object.")
+        raise ValueError("Report specialist did not return a JSON object.")
     candidate = text[start : end + 1]
     return json.loads(candidate)
 
 
-def _generate_report_spec_via_anthropic(
+def _generate_report_spec_via_openai(
     intent: str,
     existing_spec: dict | None = None,
     feedback: str | None = None,
     client_ip: str | None = None,
     user_role: str | None = None,
+    session_id: str | None = None,
 ) -> dict:
-    ok, reason = _anthropic_available()
-    if not ok:
-        raise RuntimeError(reason)
-    import anthropic  # type: ignore
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key or api_key == "sk-your-key-here":
+        raise RuntimeError("OPENAI_API_KEY is not configured")
 
-    model = _code_model()
-    api_key = os.environ["ANTHROPIC_API_KEY"]
+    model = _report_specialist_model()
 
     user_parts: list[str] = []
     user_parts.append(f"## Today's date\n{date.today().isoformat()}")
@@ -2903,10 +2921,13 @@ def _generate_report_spec_via_anthropic(
     user_msg = "\n\n".join(user_parts)
 
     print(
-        f"[chat_llm] provider=anthropic role=code_specialist model={model}",
+        f"[chat_llm] provider=openai role=report_specialist model={model}",
         flush=True,
     )
-    client = anthropic.Anthropic(api_key=api_key, timeout=120.0)
+    client = OpenAI(
+        api_key=api_key,
+        timeout=httpx.Timeout(120.0, connect=10.0),
+    )
     reservation_id = None
     if is_demo_role(user_role):
         _blocked, reservation_id = demo_limiter.reserve(
@@ -2923,11 +2944,12 @@ def _generate_report_spec_via_anthropic(
     # reservation for the process lifetime (or until TTL sweep).
     settled = False
     try:
-        response = client.messages.create(
+        response = client.responses.create(
             model=model,
-            system=_REPORT_CODE_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_msg}],
-            max_tokens=4096,
+            instructions=_REPORT_CODE_SYSTEM_PROMPT,
+            input=user_msg,
+            max_output_tokens=4096,
+            reasoning={"effort": "low"},
         )
         # Log every call for the admin dashboard. Only public_manager rows
         # count against the demo cap — other roles are logged for
@@ -2935,22 +2957,28 @@ def _generate_report_spec_via_anthropic(
         usage = getattr(response, "usage", None)
         demo_limiter.settle(
             reservation_id,
-            actual_cost_usd=cost_of_anthropic_call(model, usage),
+            actual_cost_usd=cost_of_openai_call(model, usage),
             ip=client_ip or "unknown",
             role=user_role,
-            provider="anthropic",
+            provider="openai",
             model=model,
             prompt_tokens=int(getattr(usage, "input_tokens", 0) or 0) if usage else 0,
             completion_tokens=int(getattr(usage, "output_tokens", 0) or 0) if usage else 0,
+            session_id=session_id,
         )
         settled = True
     finally:
         if not settled:
             demo_limiter.release(reservation_id)
 
-    text = "".join(
-        block.text for block in response.content if getattr(block, "type", "") == "text"
-    )
+    text = getattr(response, "output_text", "") or ""
+    if not text:
+        text = "".join(
+            getattr(block, "text", "") or ""
+            for item in (getattr(response, "output", None) or [])
+            for block in (getattr(item, "content", None) or [])
+            if getattr(block, "type", "") in ("output_text", "text")
+        )
     spec = _extract_json_object(text)
     if not spec.get("report") or not spec.get("data_requests"):
         raise RuntimeError("Report specialist returned an incomplete spec.")
@@ -3251,10 +3279,10 @@ async def run_thinking_loop(
 ):
     """Run the agentic reasoning loop.
 
-    The orchestrator is always OpenAI (gpt-5.6-terra). When GPT decides to call
+    The orchestrator and report specialist both use OpenAI gpt-5.6-terra. When GPT decides to call
     `create_custom_analytics_report` or `update_custom_analytics_report`
     with an intent/feedback hint, the tool handler itself delegates the
-    declarative-spec step to Anthropic (ANTHROPIC_CODE_MODEL). We emit an
+    declarative-spec step to a separate narrowly prompted Terra call. We emit an
     `llm_provider` event around that delegation so the UI can surface it.
     """
     openai_api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -3337,7 +3365,9 @@ async def run_thinking_loop(
             lambda args: _handle_get_custom_analytics_report(args, principal_ref[0])
         )
         tool_handlers["update_custom_analytics_report"] = (
-            lambda args: _handle_update_custom_analytics_report(args, principal_ref[0], client_ip=client_ip)
+            lambda args: _handle_update_custom_analytics_report(
+                args, principal_ref[0], client_ip=client_ip, session_id=session_id
+            )
         )
 
         # Demo sessions get a per-turn cap on attachment retrieval: each
@@ -3458,20 +3488,20 @@ async def run_thinking_loop(
             principal_ref[0] = refresh_auth_principal(principal_ref[0])
             live_role = principal_ref[0].get("role") if principal_ref[0] else None
 
-            # If GPT is delegating report-spec generation to the Anthropic specialist,
+            # If the orchestrator is delegating report-spec generation to Terra,
             # surface the handoff in the UI.
-            will_delegate_to_code_specialist = (
+            will_delegate_to_report_specialist = (
                 tool_allowed(fn_name, live_role)
                 and fn_name in ("create_custom_analytics_report", "update_custom_analytics_report")
                 and not fn_args.get("report")
                 and not fn_args.get("data_requests")
             )
-            if will_delegate_to_code_specialist:
+            if will_delegate_to_report_specialist:
                 await on_event({
                     "type": "llm_provider",
-                    "provider": "anthropic",
-                    "model": _code_model(),
-                    "role": "code_specialist",
+                    "provider": "openai",
+                    "model": _report_specialist_model(),
+                    "role": "report_specialist",
                 })
 
             handler = tool_handlers.get(fn_name)

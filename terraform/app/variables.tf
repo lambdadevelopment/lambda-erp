@@ -73,17 +73,10 @@ variable "openai_api_key" {
   default     = "placeholder-will-be-set-by-github-actions"
 }
 
-variable "anthropic_api_key" {
-  description = "Anthropic API key used by the code-specialist sub-agent (custom analytics JS generation)"
+variable "report_specialist_model" {
+  description = "OpenAI model used by the custom-report specialist"
   type        = string
-  sensitive   = true
-  default     = "placeholder-will-be-set-by-github-actions"
-}
-
-variable "anthropic_code_model" {
-  description = "Anthropic model used for the code-specialist sub-agent. Cheapen to claude-haiku-4-5 or similar if demo analytics spend matters."
-  type        = string
-  default     = "claude-opus-4-7"
+  default     = "gpt-5.6-terra"
 }
 
 variable "jwt_secret_key" {
@@ -109,7 +102,7 @@ variable "admin_password" {
 # --------------------------------------------------------------------------
 # Demo spend guardrails
 #
-# The public demo is backed by our OpenAI + Anthropic keys, so visitor
+# The public demo is backed by our OpenAI key, so visitor
 # traffic costs us real money. Two sliding 1-hour windows inside the app
 # cap spend: a global bucket across all visitors, and a per-IP bucket.
 # Defaults: $10/hr global ($240/day cap), with per-IP pinned at the

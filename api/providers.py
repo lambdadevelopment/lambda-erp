@@ -4,8 +4,9 @@ Mirrors the shape of `lambda-web/backend/providers.py`. Only the models
 this app actually calls are listed — refresh this dict when model
 choices change. Prices are USD per 1M tokens.
 
-Consumers import `cost_of_openai_call` / `cost_of_anthropic_call` to
-turn an SDK `response.usage` object into a USD amount.
+Consumers import `cost_of_openai_call` to turn an SDK `response.usage` object
+into a USD amount. Both Chat Completions and Responses usage shapes are
+accepted because the orchestrator and report specialist use different calls.
 """
 
 from __future__ import annotations
@@ -44,14 +45,6 @@ OPENAI_PRICING: dict[str, dict[str, Any]] = {
     "gpt-4o-mini":  {"input": 0.15, "cached_input": 0.075, "output": 0.60},
 }
 
-ANTHROPIC_PRICING: dict[str, dict[str, Any]] = {
-    "claude-opus-4-7":   {"input": 5.00, "output": 25.00, "cache_write": 6.25, "cache_read": 0.50},
-    "claude-opus-4-6":   {"input": 5.00, "output": 25.00, "cache_write": 6.25, "cache_read": 0.50},
-    "claude-sonnet-4-6": {"input": 3.00, "output": 15.00, "cache_write": 3.75, "cache_read": 0.30},
-    "claude-sonnet-4-5": {"input": 3.00, "output": 15.00, "cache_write": 3.75, "cache_read": 0.30},
-    "claude-haiku-4-5":  {"input": 1.00, "output": 5.00,  "cache_write": 1.25, "cache_read": 0.10},
-}
-
 # Speech-to-text, priced per minute of audio (not per token).
 TRANSCRIBE_PRICING: dict[str, dict[str, float]] = {
     "gpt-4o-transcribe":      {"per_minute": 0.006},
@@ -78,27 +71,34 @@ def get_openai_rates(model: str, input_tokens: int = 0) -> dict[str, float]:
     return entry
 
 
-def get_anthropic_rates(model: str) -> dict[str, float]:
-    return ANTHROPIC_PRICING.get(model) or ANTHROPIC_PRICING["claude-opus-4-7"]
-
-
 # ---------------------------------------------------------------------------
 # Cost calculators. `usage` is the SDK's raw usage object; we accept None
 # and degrade to 0 so callers don't need to pre-check.
 # ---------------------------------------------------------------------------
 
 def cost_of_openai_call(model: str, usage: Optional[Any]) -> float:
-    """USD cost of one OpenAI chat.completions call from `response.usage`.
+    """USD cost of one OpenAI Chat Completions or Responses API call.
 
-    Understands the `prompt_tokens_details.cached_tokens` breakdown so cache
-    hits are billed at the discounted rate."""
+    Understands either endpoint's cached-token breakdown so cache hits are
+    billed at the discounted rate."""
     if usage is None:
         return 0.0
-    prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
-    completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+    prompt_tokens = int(
+        getattr(usage, "prompt_tokens", 0)
+        or getattr(usage, "input_tokens", 0)
+        or 0
+    )
+    completion_tokens = int(
+        getattr(usage, "completion_tokens", 0)
+        or getattr(usage, "output_tokens", 0)
+        or 0
+    )
 
     cached = 0
-    details = getattr(usage, "prompt_tokens_details", None)
+    details = (
+        getattr(usage, "prompt_tokens_details", None)
+        or getattr(usage, "input_tokens_details", None)
+    )
     if details is not None:
         cached = int(getattr(details, "cached_tokens", 0) or 0)
 
@@ -111,27 +111,6 @@ def cost_of_openai_call(model: str, usage: Optional[Any]) -> float:
         + completion_tokens * rates["output"]
     )
     return total / 1_000_000
-
-
-def cost_of_anthropic_call(model: str, usage: Optional[Any]) -> float:
-    """USD cost of one Anthropic messages.create call from `response.usage`."""
-    if usage is None:
-        return 0.0
-    input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
-    output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
-    cache_create = int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
-    cache_read = int(getattr(usage, "cache_read_input_tokens", 0) or 0)
-
-    rates = get_anthropic_rates(model)
-    total = (
-        input_tokens * rates["input"]
-        + cache_create * rates.get("cache_write", rates["input"])
-        + cache_read * rates.get("cache_read", rates["input"])
-        + output_tokens * rates["output"]
-    )
-    return total / 1_000_000
-
-
 def cost_of_transcription(model: str, audio_seconds: float) -> float:
     """USD cost of one speech-to-text call, billed per minute of audio.
 

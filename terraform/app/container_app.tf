@@ -51,13 +51,8 @@ resource "azurerm_container_app" "app" {
       }
 
       env {
-        name        = "ANTHROPIC_API_KEY"
-        secret_name = "anthropic-api-key"
-      }
-
-      env {
-        name  = "ANTHROPIC_CODE_MODEL"
-        value = var.anthropic_code_model
+        name  = "LAMBDA_ERP_REPORT_MODEL"
+        value = var.report_specialist_model
       }
 
       env {
@@ -147,11 +142,6 @@ resource "azurerm_container_app" "app" {
   secret {
     name  = "openai-api-key"
     value = var.openai_api_key
-  }
-
-  secret {
-    name  = "anthropic-api-key"
-    value = var.anthropic_api_key
   }
 
   secret {

@@ -3,9 +3,9 @@
 This module now exposes two layers:
 
 1. The original preset analytics API used by the current /reports/analytics page.
-2. A semantic dataset registry + bounded data-fetch endpoint for client-side
-   programmable reports. The browser can request approved datasets, then run an
-   arbitrary JS transform locally in a worker without direct database access.
+2. A semantic dataset registry + bounded data-fetch endpoint for declarative
+   reports. The browser can request approved datasets, then group, aggregate,
+   and chart them without executing report-provided code.
 """
 
 import json
@@ -381,13 +381,31 @@ class ReportKpiDefinition(StrictReportModel):
         return self
 
 
+class ReportChartSeries(StrictReportModel):
+    key: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    label: str | None = Field(default=None, max_length=200)
+
+
 class ReportChartDefinition(StrictReportModel):
     id: str | None = Field(default=None, pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
     title: str = Field(max_length=200)
     type: Literal["bar", "line", "pie"]
     data_table: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
     x: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
-    y: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    # `y` keeps existing single-series v1 drafts working. New reports may use
+    # `series` for grouped bars / multiple lines over the same table.
+    y: str | None = Field(default=None, pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    series: list[ReportChartSeries] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="after")
+    def require_series(self):
+        if bool(self.y) == bool(self.series):
+            raise ValueError("Chart must define exactly one of 'y' or 'series'")
+        if self.type == "pie" and len(self.series) > 1:
+            raise ValueError("Pie charts support only one series")
+        if len({series.key for series in self.series}) != len(self.series):
+            raise ValueError("Chart series keys must be unique")
+        return self
 
 
 class DeclarativeReportDefinition(StrictReportModel):
@@ -477,9 +495,10 @@ class ReportDraftPayload(StrictReportModel):
                 raise ValueError(
                     f"Chart '{chart.title}' references unknown table '{chart.data_table}'"
                 )
-            if chart.x not in available or chart.y not in available:
+            series_keys = [chart.y] if chart.y else [series.key for series in chart.series]
+            if chart.x not in available or any(key not in available for key in series_keys):
                 raise ValueError(
-                    f"Chart '{chart.title}' references unknown x/y table output"
+                    f"Chart '{chart.title}' references unknown x/series table output"
                 )
         return self
 
@@ -671,6 +690,119 @@ SEMANTIC_DATASETS: dict[str, dict[str, Any]] = {
         "default_limit": 1000,
         "max_limit": 10000,
         "default_order_by": "pe.posting_date DESC, pe.name DESC",
+    },
+    "gl_entries": {
+        "label": "General Ledger Entries",
+        "description": (
+            "Posted double-entry accounting rows joined to the chart of accounts. "
+            "Use income_amount and expense_amount for profit-and-loss charts; they "
+            "apply the correct normal-balance sign and are zero for other account "
+            "roots. Use debit/credit for raw ledger movement."
+        ),
+        "sql_from": 'FROM "GL Entry" gle LEFT JOIN "Account" a ON a.name = gle.account',
+        "fields": {
+            "name": "string",
+            "posting_date": "date",
+            "company": "string",
+            "account": "string",
+            "account_name": "string",
+            "root_type": "string",
+            "account_type": "string",
+            "party_type": "string",
+            "party": "string",
+            "cost_center": "string",
+            "voucher_type": "string",
+            "voucher_no": "string",
+            "debit": "number",
+            "credit": "number",
+            "normal_balance_amount": "number",
+            "income_amount": "number",
+            "expense_amount": "number",
+            "is_opening": "string",
+        },
+        "field_sql": {
+            "name": "gle.name",
+            "posting_date": "gle.posting_date",
+            "company": "gle.company",
+            "account": "gle.account",
+            "account_name": "a.account_name",
+            "root_type": "a.root_type",
+            "account_type": "a.account_type",
+            "party_type": "gle.party_type",
+            "party": "gle.party",
+            "cost_center": "gle.cost_center",
+            "voucher_type": "gle.voucher_type",
+            "voucher_no": "gle.voucher_no",
+            "debit": "gle.debit",
+            "credit": "gle.credit",
+            "normal_balance_amount": (
+                "CASE WHEN a.root_type IN ('Liability', 'Equity', 'Income') "
+                "THEN gle.credit - gle.debit ELSE gle.debit - gle.credit END"
+            ),
+            "income_amount": (
+                "CASE WHEN a.root_type = 'Income' THEN gle.credit - gle.debit ELSE 0 END"
+            ),
+            "expense_amount": (
+                "CASE WHEN a.root_type = 'Expense' THEN gle.debit - gle.credit ELSE 0 END"
+            ),
+            "is_opening": "gle.is_opening",
+        },
+        "default_where": ["COALESCE(gle.is_cancelled, 0) = 0"],
+        "filter_fields": {
+            "posting_date", "company", "account", "root_type", "account_type",
+            "party_type", "party", "cost_center", "voucher_type", "voucher_no",
+            "is_opening",
+        },
+        "default_limit": 1000,
+        "max_limit": 10000,
+        "default_order_by": "gle.posting_date DESC, gle.name DESC",
+    },
+    "bank_transactions": {
+        "label": "Bank Transactions",
+        "description": (
+            "Imported bank-statement movements. Use deposit for cash inflows and "
+            "withdrawal for cash outflows. These are cash movements, not accounting "
+            "income/expenses; use gl_entries for a profit-and-loss view."
+        ),
+        "sql_from": 'FROM "Bank Transaction" bt',
+        "fields": {
+            "name": "string",
+            "posting_date": "date",
+            "value_date": "date",
+            "bank_account": "string",
+            "currency": "string",
+            "deposit": "number",
+            "withdrawal": "number",
+            "counterparty_name": "string",
+            "description": "string",
+            "reference_number": "string",
+            "status": "string",
+            "reference_doctype": "string",
+            "reference_name": "string",
+        },
+        "field_sql": {
+            "name": "bt.name",
+            "posting_date": "bt.posting_date",
+            "value_date": "bt.value_date",
+            "bank_account": "bt.bank_account",
+            "currency": "bt.currency",
+            "deposit": "bt.deposit",
+            "withdrawal": "bt.withdrawal",
+            "counterparty_name": "bt.counterparty_name",
+            "description": "bt.description",
+            "reference_number": "bt.reference_number",
+            "status": "bt.status",
+            "reference_doctype": "bt.reference_doctype",
+            "reference_name": "bt.reference_name",
+        },
+        "default_where": ["COALESCE(bt.reversal_indicator, 0) = 0"],
+        "filter_fields": {
+            "posting_date", "value_date", "bank_account", "currency", "status",
+            "reference_doctype", "reference_name",
+        },
+        "default_limit": 1000,
+        "max_limit": 10000,
+        "default_order_by": "bt.posting_date DESC, bt.name DESC",
     },
     "ar_open_items": {
         "label": "AR Open Items",

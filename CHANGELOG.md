@@ -13,6 +13,32 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.31] - 2026-09-07
+
+### Changed
+- Run the custom-report specialist on OpenAI GPT-5.6 Terra using the existing
+  `OPENAI_API_KEY`, matching the chat orchestrator. Remove the Anthropic SDK,
+  runtime credential, model setting, and Terraform secret wiring.
+- Record report-specialist usage as OpenAI spend and associate it with the chat
+  session that requested the report.
+
+### Added
+- Add safe `gl_entries` and `bank_transactions` semantic datasets so custom
+  analytics can distinguish accounting income/expenses from bank cash flows
+  even when no sales or purchase invoices exist.
+- Add multi-series bar and line charts to the declarative report language while
+  retaining the existing single-`y` version-1 chart format.
+
+### Fixed
+- Prevent the report workflow from concluding that a period has no financial
+  activity merely because its invoice datasets are empty.
+- Support monthly income-versus-expense reports with side-by-side bars instead
+  of repeatedly generating a specification the single-series schema rejects.
+
+### Compatibility
+- No database migration, user reauthentication, API-key rotation, or MCP
+  reconfiguration is required. Existing version-1 report drafts remain valid.
+
 ## [0.8.30] - 2026-09-07
 
 ### Security

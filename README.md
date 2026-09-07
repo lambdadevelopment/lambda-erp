@@ -67,8 +67,8 @@ Each of those is hours of skilled work today. With a capable LLM in the loop, th
                            │  - GPT-5.6 drives the reasoning loop     │
                            │  - Tool-use: document CRUD, search,      │
                            │    reports, aggregations, analytics      │
-                           │  - Delegates report specs to Anthropic   │
-                           │    report-specialist model               │
+                           │  - Delegates report specs to a separate │
+                           │    GPT-5.6 Terra specialist call         │
                            └──────────────────┬───────────────────────┘
                                               │
                                               ▼
@@ -104,7 +104,7 @@ Each of those is hours of skilled work today. With a capable LLM in the loop, th
 | Frontend | React + Vite + TypeScript + Tailwind + Recharts |
 | Chat transport | WebSocket |
 | LLM orchestrator | OpenAI (configurable) |
-| Code specialist | Anthropic (configurable) |
+| Report specialist | OpenAI GPT-5.6 Terra (configurable) |
 | Auth | JWT httponly cookie, three roles + demo |
 
 ---
@@ -188,7 +188,7 @@ You need Docker and Compose v2. The canonical installs:
 Then, from the repo root:
 
 ```bash
-cp .env.example .env          # add your OPENAI_API_KEY and ANTHROPIC_API_KEY (for custom analytics)
+cp .env.example .env          # add your OPENAI_API_KEY
 docker compose up --build
 ```
 
@@ -233,14 +233,15 @@ Open `http://localhost:5173`. Vite proxies `/api/*` to the backend.
 
 ```
 OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...    # optional, used for the report-specialist model
-ANTHROPIC_CODE_MODEL=claude-opus-4-7   # optional, default shown
+LAMBDA_ERP_REPORT_MODEL=gpt-5.6-terra  # optional specialist override; default shown
 LAMBDA_ERP_ADMIN_EMAIL=admin@example.com   # optional, seeds the admin at boot
 LAMBDA_ERP_ADMIN_PASSWORD=...              # optional, required with the line above
 LAMBDA_ERP_ADMIN_NAME=Administrator        # optional, display name for the seeded admin
 ```
 
-Chat needs `OPENAI_API_KEY`. Custom-report specification generation uses `ANTHROPIC_API_KEY` when set; otherwise the chat will tell you it can't generate reports.
+Chat and custom-report specification generation share `OPENAI_API_KEY`. Both
+the orchestrator and report specialist default to GPT-5.6 Terra; the specialist
+can be overridden with `LAMBDA_ERP_REPORT_MODEL`.
 
 **Seeded admin.** By default the first person to register becomes the admin. Set `LAMBDA_ERP_ADMIN_EMAIL` + `LAMBDA_ERP_ADMIN_PASSWORD` to instead provision that admin automatically at startup — useful when the database is recreated on every deploy, so a redeployed instance can't be claimed by whoever visits first. It's create-if-missing and idempotent (an existing account with that email is promoted to an enabled admin; its password is left untouched), and the password is only ever read from the environment.
 
@@ -458,4 +459,4 @@ Release notes live in [CHANGELOG.md](./CHANGELOG.md). Releases are tagged
 
 ## Trademarks and affiliations
 
-Lambda ERP and [lambda.dev](https://lambda.dev/) are product and trade names of **TORUS INVESTMENTS AG**. It is not affiliated with, endorsed by, or sponsored by OpenAI, Anthropic, SAP, Oracle, Microsoft, or any other company named in this repository. SAP, Business One, S/4HANA, Oracle, NetSuite, Microsoft, Dynamics, OpenAI, GPT, Anthropic, and Claude are trademarks of their respective owners and are referenced here only for descriptive and comparative purposes (nominative fair use). We interoperate with OpenAI and Anthropic APIs as a customer like anyone else; you supply your own API keys.
+Lambda ERP and [lambda.dev](https://lambda.dev/) are product and trade names of **TORUS INVESTMENTS AG**. It is not affiliated with, endorsed by, or sponsored by OpenAI, Anthropic, SAP, Oracle, Microsoft, or any other company named in this repository. SAP, Business One, S/4HANA, Oracle, NetSuite, Microsoft, Dynamics, OpenAI, GPT, Anthropic, and Claude are trademarks of their respective owners and are referenced here only for descriptive and comparative purposes (nominative fair use). The ERP uses the OpenAI API as a customer; you supply your own API key.

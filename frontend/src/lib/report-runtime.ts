@@ -43,7 +43,8 @@ export type DeclarativeReportDefinition = {
     type: "bar" | "line" | "pie";
     data_table: string;
     x: string;
-    y: string;
+    y?: string;
+    series?: Array<{ key: string; label?: string }>;
   }>;
 };
 
@@ -77,7 +78,8 @@ export type RuntimeReportOutput = {
     dataTable?: string;
     data?: Array<Record<string, unknown>>;
     x: string;
-    y: string;
+    y?: string;
+    series?: Array<{ key: string; label?: string }>;
   }>;
 };
 

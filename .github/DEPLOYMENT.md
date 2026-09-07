@@ -92,7 +92,7 @@ debugging is easier.
 
 ### Actions Secrets
 
-Add three secrets (Secrets tab, same page). These are read by
+Add two secrets (Secrets tab, same page). These are read by
 `terraform-apply.yml` as `TF_VAR_*` env vars on every CI-driven apply
 and written into the Container App's own secret store. `deploy.yml`
 itself doesn't touch them — it just swaps images.
@@ -100,7 +100,6 @@ itself doesn't touch them — it just swaps images.
 | Secret              | Source                                                   |
 |---------------------|----------------------------------------------------------|
 | `OPENAI_API_KEY`    | OpenAI dashboard                                         |
-| `ANTHROPIC_API_KEY` | Anthropic console                                        |
 | `JWT_SECRET_KEY`    | `python -c "import secrets; print(secrets.token_hex(32))"` |
 
 **Do not put these in a local `terraform.tfvars`** once the bootstrap

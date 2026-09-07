@@ -622,7 +622,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             const provider = typeof data.provider === "string" ? data.provider : undefined;
             const model = typeof data.model === "string" ? data.model : undefined;
             const role = typeof data.role === "string" ? data.role : undefined;
-            const content = role === "code_specialist"
+            const content = role === "report_specialist" || role === "code_specialist"
               ? "Delegating to report specialist..."
               : undefined;
             setSessionThinking(sessionId, true);

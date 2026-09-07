@@ -37,7 +37,7 @@ _WINDOW_SECONDS = 3600  # 1 hour
 
 # Upper bound on how long a reservation may hold budget before it's
 # considered stale and ignored. Must exceed the longest provider call
-# timeout (OpenAI/Anthropic clients use 120s) plus a fudge for the
+# timeout (OpenAI clients use 120s) plus a fudge for the
 # event-loop latency between the SDK call returning and settle() firing.
 # Defence-in-depth against cancellation leaks that slip past try/finally.
 _RESERVATION_TTL_SECONDS = 180

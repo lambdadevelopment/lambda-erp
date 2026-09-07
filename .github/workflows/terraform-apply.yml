@@ -1,7 +1,7 @@
 name: Terraform apply
 
 # Runs `terraform apply` in terraform/app/ against Azure. Secrets
-# (OPENAI_API_KEY, ANTHROPIC_API_KEY, JWT_SECRET_KEY,
+# (OPENAI_API_KEY, JWT_SECRET_KEY,
 # LAMBDA_ERP_ADMIN_EMAIL, LAMBDA_ERP_ADMIN_PASSWORD) flow in as TF_VAR_*
 # env vars from GitHub Secrets — they never touch anyone's
 # laptop. This is the authoritative way to update Container App env
@@ -87,7 +87,6 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_subscription_id:   ${{ vars.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_openai_api_key:    ${{ secrets.OPENAI_API_KEY }}
-          TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           TF_VAR_jwt_secret_key:    ${{ secrets.JWT_SECRET_KEY }}
           TF_VAR_admin_email:       ${{ secrets.LAMBDA_ERP_ADMIN_EMAIL }}
           TF_VAR_admin_password:    ${{ secrets.LAMBDA_ERP_ADMIN_PASSWORD }}
@@ -102,7 +101,6 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_subscription_id:   ${{ vars.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_openai_api_key:    ${{ secrets.OPENAI_API_KEY }}
-          TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           TF_VAR_jwt_secret_key:    ${{ secrets.JWT_SECRET_KEY }}
           TF_VAR_admin_email:       ${{ secrets.LAMBDA_ERP_ADMIN_EMAIL }}
           TF_VAR_admin_password:    ${{ secrets.LAMBDA_ERP_ADMIN_PASSWORD }}

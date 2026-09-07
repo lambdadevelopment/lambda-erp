@@ -27,10 +27,8 @@ rate/cost, not the VM.
 ### 1. Gather inputs
 
 - **Azure subscription ID** — `az account show --query id -o tsv`
-- **OpenAI API key** — required; chat orchestration runs on GPT.
-- **Anthropic API key** — required; the code-specialist sub-agent that
-  generates custom-analytics JS runs on Claude. The demo still boots
-  without it but custom-report code generation will fail.
+- **OpenAI API key** — required; chat orchestration and the report specialist
+  both run on GPT-5.6 Terra.
 - **JWT secret** — a stable 64-char hex string used to sign login cookies:
   ```bash
   python -c "import secrets; print(secrets.token_hex(32))"
@@ -38,19 +36,19 @@ rate/cost, not the VM.
   Generate once, keep stable across revisions (users' cookies survive
   rollouts that way).
 
-You collect these four items once, then paste them into GitHub — they
+You collect these three items once, then paste them into GitHub — they
 never need to sit on a laptop during any terraform run:
 
 - **Subscription ID** goes into `terraform.tfvars` in step 3 (also into
   GitHub Actions Variables for CI).
-- **OpenAI key, Anthropic key, JWT secret** go directly into **GitHub
+- **OpenAI key and JWT secret** go directly into **GitHub
   Actions Secrets** in step 6. From that point on, the
   `terraform-apply` workflow reads them as `TF_VAR_*` env vars on
   every CI-driven apply and pushes them into the Container App's
   secret store.
 
 The bootstrap `terraform apply` in step 4 runs with **no real secrets
-at all** — the three secret-backed variables all default to a
+at all** — the two secret-backed variables both default to a
 placeholder string, which terraform writes into the Container App
 alongside the Microsoft quickstart image. The first CI-driven
 `terraform-apply` run (step 7) is where real secrets first reach
@@ -117,8 +115,8 @@ run has to happen from a machine where you can sign in as an owner of
 the subscription + Entra tenant. No further applies will run from a
 laptop after this.
 
-**No secrets go in on this run.** The three secret-backed variables
-(`openai_api_key`, `anthropic_api_key`, `jwt_secret_key`) all default
+**No secrets go in on this run.** The two secret-backed variables
+(`openai_api_key`, `jwt_secret_key`) both default
 to the placeholder string `"placeholder-will-be-set-by-github-actions"`;
 terraform writes that string into the Container App's secret store,
 which is fine because the app image isn't real yet either (the
@@ -175,7 +173,6 @@ Under **Secrets** tab (same page), add:
 | Secret              | Value                                         |
 |---------------------|-----------------------------------------------|
 | `OPENAI_API_KEY`    | your OpenAI key                               |
-| `ANTHROPIC_API_KEY` | your Anthropic key                            |
 | `JWT_SECRET_KEY`    | the 64-hex-char string from step 1            |
 
 These are what the `terraform-apply` workflow reads as `TF_VAR_*` env
@@ -208,7 +205,7 @@ From this point on, **no secret ever sits on a laptop**:
 |----------------------------------------------|---------------------------------------------------------------------------|
 | New app code (Python/React)                  | Push to `master`. `deploy.yml` builds, pushes, rolls the revision.        |
 | New infra, env var, or demo cap              | Edit `terraform/app/*.tf`, push, then run `terraform-apply` workflow.     |
-| Rotate `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | Update the GitHub Secret, then run `terraform-apply` with `action=apply`. |
+| Rotate `OPENAI_API_KEY`                       | Update the GitHub Secret, then run `terraform-apply` with `action=apply`. |
 | Rotate `JWT_SECRET_KEY`                      | Same as above. All existing login cookies will become invalid.            |
 
 The `terraform-apply` workflow has a `plan | apply` dropdown on manual
@@ -217,8 +214,8 @@ before applying.
 
 ## Secrets: who owns what
 
-- **Container App secrets** (`openai-api-key`, `anthropic-api-key`,
-  `jwt-secret-key`) live in **GitHub Secrets** and are applied to
+- **Container App secrets** (`openai-api-key`, `jwt-secret-key`) live in
+  **GitHub Secrets** and are applied to
   Azure by the `terraform-apply` workflow, which passes them as
   `TF_VAR_*` env vars. Terraform then writes them into the Container
   App's own secret store. No copy on disk anywhere else.
@@ -269,7 +266,7 @@ Set `custom_domain = "erp-demo.example.com"` in `terraform.tfvars`. After
 | Log Analytics (minimal)                  | ~$5                |
 | **Total infra**                          | **~$40**           |
 
-LLM usage is billed separately by OpenAI/Anthropic. The demo cap above
+LLM usage is billed separately by OpenAI. The demo cap above
 targets ~$50/day ceiling for visitor traffic, so the worst-case combined
 monthly bill is roughly $40 infra + $1500 LLM if the demo is slammed
 24/7.

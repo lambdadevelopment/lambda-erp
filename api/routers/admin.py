@@ -83,8 +83,8 @@ def demo_spend_overview(_user: dict = Depends(require_admin)):
     Only `public_manager` spend counts against the demo cap — `demo_usd`
     in each window is the number the global cap compares against. Non-
     demo calls (your own admin/manager sessions) are included in
-    `total_usd` so you can see the full OpenAI + Anthropic bill from this
-    deployment.
+    `total_usd` so you can see the full model bill from this deployment,
+    including historical provider rows recorded before a provider change.
     """
     init_schema()
     now = time.time()
