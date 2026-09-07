@@ -2880,6 +2880,118 @@ def _extract_json_object(text: str) -> dict:
     return json.loads(candidate)
 
 
+def _report_validation_summary(exc: Exception, *, max_errors: int = 4) -> str:
+    """Return useful schema paths without logging report contents.
+
+    Pydantic's full error string embeds rejected input values. Report intents
+    can contain customer/account labels, so provider diagnostics deliberately
+    retain only the field path, error type, and message.
+    """
+    errors = getattr(exc, "errors", None)
+    if not callable(errors):
+        return f"{type(exc).__name__}: {exc}"
+    error_items = errors()
+    parts: list[str] = []
+    for error in error_items[:max_errors]:
+        location = ".".join(str(part) for part in error.get("loc", ())) or "report"
+        error_type = error.get("type") or "validation_error"
+        message = error.get("msg") or "Invalid value"
+        parts.append(f"{location} [{error_type}]: {message}")
+    remaining = len(error_items) - len(parts)
+    if remaining > 0:
+        parts.append(f"+{remaining} more")
+    return "; ".join(parts) or type(exc).__name__
+
+
+def _report_validation_log_summary(exc: Exception, *, max_errors: int = 4) -> str:
+    """Return paths/types only, keeping model-generated labels out of logs."""
+    errors = getattr(exc, "errors", None)
+    if not callable(errors):
+        return type(exc).__name__
+    error_items = errors()
+    parts = []
+    for error in error_items[:max_errors]:
+        location = ".".join(str(part) for part in error.get("loc", ())) or "report"
+        error_type = error.get("type") or "validation_error"
+        parts.append(f"{location}[{error_type}]")
+    remaining = len(error_items) - len(parts)
+    if remaining > 0:
+        parts.append(f"+{remaining}_more")
+    return ",".join(parts) or type(exc).__name__
+
+
+def _strip_report_model_extras(value, annotation):
+    """Copy a report value through its declared Pydantic model shape.
+
+    Dictionaries used as actual values (notably RuntimeDataRequest.filters)
+    stay untouched. Only dictionaries representing report models are narrowed
+    to declared fields, recursively through nested model lists/optionals. This
+    avoids depending on the per-validation ``extra=`` override added by newer
+    Pydantic releases; Lambda ERP still supports Pydantic 2.x generally.
+    """
+    from typing import get_args, get_origin
+    from pydantic import BaseModel
+
+    def is_model(candidate) -> bool:
+        return isinstance(candidate, type) and issubclass(candidate, BaseModel)
+
+    if is_model(annotation):
+        if not isinstance(value, dict):
+            return value
+        return {
+            name: _strip_report_model_extras(value[name], field.annotation)
+            for name, field in annotation.model_fields.items()
+            if name in value
+        }
+
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+    if origin is list and args and isinstance(value, list):
+        return [_strip_report_model_extras(item, args[0]) for item in value]
+
+    # The report models only use unions for optional fields. Follow the model
+    # or model-list branch when one exists; primitive unions need no traversal.
+    for candidate in args:
+        candidate_origin = get_origin(candidate)
+        if is_model(candidate) or candidate_origin is list:
+            return _strip_report_model_extras(value, candidate)
+    return value
+
+
+def _validate_report_specialist_spec(spec: dict, *, response_id: str) -> dict:
+    """Normalize harmless model-only fields, then enforce the canonical model.
+
+    ReportDraftPayload remains strict for every stored/browser-facing report.
+    The lenient pass exists only at this LLM boundary: it removes invented
+    presentation hints such as ``stacked`` or ``color``. Serializing that model
+    produces a canonical object which is immediately validated strictly again,
+    so ignored input can never reach persistence or the browser.
+    """
+    from pydantic import ValidationError
+    from api.routers.analytics import ReportDraftPayload
+
+    try:
+        return ReportDraftPayload.model_validate(spec).model_dump()
+    except ValidationError as strict_error:
+        extra_paths = [
+            ".".join(str(part) for part in error.get("loc", ())) or "report"
+            for error in strict_error.errors()
+            if error.get("type") == "extra_forbidden"
+        ]
+        if not extra_paths:
+            raise
+
+        stripped = _strip_report_model_extras(spec, ReportDraftPayload)
+        normalized = ReportDraftPayload.model_validate(stripped).model_dump()
+        canonical = ReportDraftPayload.model_validate(normalized).model_dump()
+        print(
+            "[report_specialist] "
+            f"response_id={response_id} normalized_extra_fields={','.join(extra_paths)}",
+            flush=True,
+        )
+        return canonical
+
+
 def _generate_report_spec_via_openai(
     intent: str,
     existing_spec: dict | None = None,
@@ -2920,72 +3032,96 @@ def _generate_report_spec_via_openai(
     )
     user_msg = "\n\n".join(user_parts)
 
-    print(
-        f"[chat_llm] provider=openai role=report_specialist model={model}",
-        flush=True,
-    )
     client = OpenAI(
         api_key=api_key,
         timeout=httpx.Timeout(120.0, connect=10.0),
     )
-    reservation_id = None
-    if is_demo_role(user_role):
-        _blocked, reservation_id = demo_limiter.reserve(
-            client_ip or "unknown",
-            estimated_usd=demo_call_reserve_usd(),
-            role=user_role,
-        )
-        if _blocked:
-            raise RuntimeError(_blocked)
+    validation_feedback: str | None = None
+    max_attempts = 2
 
-    # try/finally + `settled` flag guarantees reservation release even if
-    # a CancelledError slips between the SDK call returning and settle()
-    # completing. Without this, a cancelled coroutine could leak the
-    # reservation for the process lifetime (or until TTL sweep).
-    settled = False
-    try:
-        response = client.responses.create(
-            model=model,
-            instructions=_REPORT_CODE_SYSTEM_PROMPT,
-            input=user_msg,
-            max_output_tokens=4096,
-            reasoning={"effort": "low"},
-        )
-        # Log every call for the admin dashboard. Only public_manager rows
-        # count against the demo cap — other roles are logged for
-        # visibility but exempt from rate limiting.
-        usage = getattr(response, "usage", None)
-        demo_limiter.settle(
-            reservation_id,
-            actual_cost_usd=cost_of_openai_call(model, usage),
-            ip=client_ip or "unknown",
-            role=user_role,
-            provider="openai",
-            model=model,
-            prompt_tokens=int(getattr(usage, "input_tokens", 0) or 0) if usage else 0,
-            completion_tokens=int(getattr(usage, "output_tokens", 0) or 0) if usage else 0,
-            session_id=session_id,
-        )
-        settled = True
-    finally:
-        if not settled:
-            demo_limiter.release(reservation_id)
+    for attempt in range(1, max_attempts + 1):
+        attempt_input = user_msg
+        if validation_feedback:
+            attempt_input += (
+                "\n\n## Validation errors from the previous attempt\n"
+                + validation_feedback
+                + "\nRegenerate the complete report spec and correct these errors."
+            )
 
-    text = getattr(response, "output_text", "") or ""
-    if not text:
-        text = "".join(
-            getattr(block, "text", "") or ""
-            for item in (getattr(response, "output", None) or [])
-            for block in (getattr(item, "content", None) or [])
-            if getattr(block, "type", "") in ("output_text", "text")
+        print(
+            f"[chat_llm] provider=openai role=report_specialist model={model} attempt={attempt}",
+            flush=True,
         )
-    spec = _extract_json_object(text)
-    if not spec.get("report") or not spec.get("data_requests"):
-        raise RuntimeError("Report specialist returned an incomplete spec.")
-    # Validate the complete declarative language before it can be persisted or
-    # sent to a browser. This also rejects legacy executable transform strings.
-    from api.routers.analytics import ReportDraftPayload
-    return ReportDraftPayload.model_validate(spec).model_dump()
+        reservation_id = None
+        if is_demo_role(user_role):
+            _blocked, reservation_id = demo_limiter.reserve(
+                client_ip or "unknown",
+                estimated_usd=demo_call_reserve_usd(),
+                role=user_role,
+            )
+            if _blocked:
+                raise RuntimeError(_blocked)
+
+        # try/finally + `settled` flag guarantees reservation release even if
+        # a CancelledError slips between the SDK call returning and settle()
+        # completing. Without this, a cancelled coroutine could leak the
+        # reservation for the process lifetime (or until TTL sweep).
+        settled = False
+        try:
+            response = client.responses.create(
+                model=model,
+                instructions=_REPORT_CODE_SYSTEM_PROMPT,
+                input=attempt_input,
+                max_output_tokens=4096,
+                reasoning={"effort": "low"},
+            )
+            # Log every call for the admin dashboard. Only public_manager rows
+            # count against the demo cap — other roles are logged for
+            # visibility but exempt from rate limiting.
+            usage = getattr(response, "usage", None)
+            demo_limiter.settle(
+                reservation_id,
+                actual_cost_usd=cost_of_openai_call(model, usage),
+                ip=client_ip or "unknown",
+                role=user_role,
+                provider="openai",
+                model=model,
+                prompt_tokens=int(getattr(usage, "input_tokens", 0) or 0) if usage else 0,
+                completion_tokens=int(getattr(usage, "output_tokens", 0) or 0) if usage else 0,
+                session_id=session_id,
+            )
+            settled = True
+        finally:
+            if not settled:
+                demo_limiter.release(reservation_id)
+
+        response_id = str(getattr(response, "id", None) or "unknown")
+        try:
+            text = getattr(response, "output_text", "") or ""
+            if not text:
+                text = "".join(
+                    getattr(block, "text", "") or ""
+                    for item in (getattr(response, "output", None) or [])
+                    for block in (getattr(item, "content", None) or [])
+                    if getattr(block, "type", "") in ("output_text", "text")
+                )
+            spec = _extract_json_object(text)
+            return _validate_report_specialist_spec(spec, response_id=response_id)
+        except Exception as exc:
+            validation_feedback = _report_validation_summary(exc)
+            print(
+                "[report_specialist] "
+                f"response_id={response_id} attempt={attempt} "
+                f"validation_error={_report_validation_log_summary(exc)}",
+                flush=True,
+            )
+            if attempt == max_attempts:
+                raise RuntimeError(
+                    "Report specialist returned an invalid spec after "
+                    f"{max_attempts} attempts: {validation_feedback}"
+                ) from exc
+
+    raise RuntimeError("Report specialist did not return a report spec.")
 
 
 # ---------------------------------------------------------------------------

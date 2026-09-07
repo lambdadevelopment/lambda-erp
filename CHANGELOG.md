@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.32] - 2026-09-07
+
+### Fixed
+- Normalize harmless model-invented report presentation fields before a final
+  strict canonical validation, and retry substantive report-schema errors once
+  inside the specialist with precise validation feedback. This prevents an
+  otherwise valid report request from failing with `Extra inputs are not
+  permitted` and avoids re-running the full chat orchestrator for a correction.
+- Log report-specialist response IDs and validation field paths without logging
+  report contents, so provider failures can be diagnosed without exposing
+  business data.
+
 ## [0.8.31] - 2026-09-07
 
 ### Changed

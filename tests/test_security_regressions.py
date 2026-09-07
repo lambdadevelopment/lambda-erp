@@ -6,6 +6,7 @@ traffic and LLM calls are mocked; no external system is contacted.
 """
 
 import asyncio
+import copy
 import io
 import json
 import os
@@ -326,11 +327,18 @@ def check_security_regressions():
         # The specialist uses the existing OpenAI credential and Terra model;
         # no Anthropic SDK/key is needed. Provider traffic stays mocked here.
         specialist_call = {}
+        specialist_report = copy.deepcopy(multi_series_report)
+        # Terra may add reasonable rendering hints which are not part of the
+        # bounded runtime language. They are stripped at the provider boundary,
+        # followed by another strict validation of the canonical object.
+        specialist_report["report"]["charts"][0]["stacked"] = False
+        specialist_report["report"]["charts"][0]["series"][0]["color"] = "#2563eb"
 
         def create_specialist_response(**kwargs):
             specialist_call.update(kwargs)
             return NS(
-                output_text=json.dumps(multi_series_report),
+                id="resp-normalized",
+                output_text=json.dumps(specialist_report),
                 output=[],
                 usage=NS(input_tokens=100, output_tokens=50, input_tokens_details=None),
             )
@@ -341,7 +349,44 @@ def check_security_regressions():
                 "Monthly income and expenses for 2025", user_role="admin",
             )
         assert generated["report"]["charts"][0]["series"][1]["key"] == "expenses"
+        assert "stacked" not in generated["report"]["charts"][0]
+        assert "color" not in generated["report"]["charts"][0]["series"][0]
+        assert generated["data_requests"][0]["filters"]["posting_date"]["from"] == "2025-01-01"
         assert specialist_call["model"] == "gpt-5.6-terra"
+
+        # Substantive reference mistakes get one specialist-only retry with a
+        # precise field-path summary instead of re-running the full orchestrator.
+        invalid_report = copy.deepcopy(multi_series_report)
+        invalid_report["report"]["charts"][0]["series"][1]["key"] = "invented_amount"
+        retry_calls = []
+        retry_responses = iter((
+            NS(
+                id="resp-invalid",
+                output_text=json.dumps(invalid_report),
+                output=[],
+                usage=NS(input_tokens=100, output_tokens=50, input_tokens_details=None),
+            ),
+            NS(
+                id="resp-corrected",
+                output_text=json.dumps(multi_series_report),
+                output=[],
+                usage=NS(input_tokens=110, output_tokens=50, input_tokens_details=None),
+            ),
+        ))
+
+        def create_retry_response(**kwargs):
+            retry_calls.append(kwargs)
+            return next(retry_responses)
+
+        retry_client = NS(responses=NS(create=create_retry_response))
+        with patch.object(chat, "OpenAI", return_value=retry_client):
+            retried = chat._generate_report_spec_via_openai(
+                "Monthly income and expenses for 2025", user_role="admin",
+            )
+        assert retried["report"]["charts"][0]["series"][1]["key"] == "expenses"
+        assert len(retry_calls) == 2
+        assert "## Validation errors from the previous attempt" in retry_calls[1]["input"]
+        assert "report [value_error]" in retry_calls[1]["input"]
         try:
             analytics.ReportDraftPayload.model_validate({
                 **valid_report,
