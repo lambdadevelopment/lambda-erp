@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [0.8.34] - 2026-09-11
+
 ### Workflow validation follow-up
 - Reject ineffective/incomplete stock entries and inconsistent order/line
   references. Validate subscription plans/intervals and proposal recipients
@@ -38,6 +40,29 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 - Shared required-field metadata for REST, MCP and generated chat prompts;
   structured chat tool errors/warnings and persisted tool-call audit records.
   See [compatibility and deployment notes](docs/document-validation.md).
+
+### Further integrity fixes
+- Protect voucher identity and reject stale or repeated lifecycle operations.
+  Enforce cumulative return, fulfillment and billing quantities, preserve explicit
+  zero prices, and post/reverse stock movements at their actual ledger value.
+- Validate invoice settlements and company/party/account relationships across
+  payments, journals, documents and active reservations.
+- Serialize rental availability changes and protect booked assets and vouchers.
+  Make subscription billing atomic, prevent client edits to billing progress,
+  and complete final/overdue periods without duplicate billing.
+- Prevent structural edits that reinterpret referenced masters. Protect bank
+  reconciliation fields, scope pricing rules by company and transaction side,
+  validate budget actions, and reject new business for disabled customers.
+
+### Compatibility
+- Migrations 27–29 add explicit reservation allocation, rebuild derived stock
+  planning/order counters, and persist subscription discard/invoice links.
+  Existing financial and stock ledger entries are not rewritten; missing
+  historical relationships are not guessed.
+- Invalid legacy drafts must be completed before subsequent writes or posting.
+  Custom document types must explicitly declare submit/cancel support and any
+  supported transient inputs. Deploy the companion internal plugin fixes with
+  this version. See [validation and migration notes](docs/document-validation.md).
 
 ## [0.8.33] - 2026-09-07
 
@@ -1715,7 +1740,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.28...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.34...HEAD
+[0.8.34]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.33...v0.8.34
 [0.8.28]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.27...v0.8.28
 [0.8.27]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.26...v0.8.27
 [0.8.21]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.20...v0.8.21
