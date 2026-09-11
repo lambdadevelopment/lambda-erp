@@ -25,6 +25,11 @@ class JournalEntry(Document):
         "accounts": ("Journal Entry Account", None),
     }
     PREFIX = "JV"
+    REQUIRED_FIELDS = ('accounts',)
+    CONDITIONAL_REQUIREMENTS = (
+        'Account rows must balance debit and credit. Submission requires at least one nonzero line.',
+        'Invoice reference type and name must be provided together and match the row party and receivable/payable account.',
+    )
 
     LINK_FIELDS = {
         "company": "Company",

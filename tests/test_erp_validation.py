@@ -2974,6 +2974,25 @@ def main():
     except ValidationError as err:
         assert "Reference Name" in str(err), str(err)
 
+    print_header("REGRESSION — warehouse movements and order links require complete inputs")
+    from lambda_erp.stock.stock_entry import StockEntry as CheckedStockEntry
+    for broken in (
+        CheckedStockEntry(company='Lambda Corp', stock_entry_type='Material Receipt',
+                          items=[_dict(item_code='ITEM-001', t_warehouse='Stores - LAMB')]),
+        SalesInvoice(customer='CUST-001', company='Lambda Corp',
+                     items=[_dict(item_code='ITEM-001', qty=1, rate=100, sales_order='SO-INCOMPLETE')]),
+    ):
+        before_gl = len(db.get_all('GL Entry'))
+        before_sle = len(db.get_all('Stock Ledger Entry'))
+        try:
+            broken.save()
+            raise AssertionError('incomplete workflow must be refused before persistence')
+        except ValidationError:
+            pass
+        assert not db.exists(broken.DOCTYPE, broken.name)
+        assert len(db.get_all('GL Entry')) == before_gl
+        assert len(db.get_all('Stock Ledger Entry')) == before_sle
+
     print_header("TRIAL BALANCE")
 
     all_accounts = db.get_all(

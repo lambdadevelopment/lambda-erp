@@ -266,6 +266,8 @@ def generate_proposal_pdf(name: str) -> bytes:
     """Render a Proposal (Sammelofferte): a cover letter plus each referenced
     Quotation as a lettered position (A, B, C…), then append the uploaded
     appendix PDF if there is one. Never mutates the quotations."""
+    from lambda_erp.selling.proposal import Proposal
+    Proposal.load(name).validate_for_output()
     proposal = load_document("proposal", name)
     db = get_db()
 
@@ -301,12 +303,7 @@ def generate_proposal_pdf(name: str) -> bytes:
     rows = sorted(proposal.get("quotations", []) or [], key=lambda r: r.get("idx") or 0)
     for i, row in enumerate(rows):
         qname = row.get("quotation")
-        if not qname:
-            continue
-        try:
-            quote = load_document("quotation", qname)
-        except Exception:
-            continue
+        quote = load_document("quotation", qname)
         items = quote.get("items", []) or []
         # Refresh each line's item_name from the master, consistent with the
         # single-document path.

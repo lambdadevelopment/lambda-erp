@@ -18,12 +18,39 @@ cover letter and per-position copy aren't retyped), not to link the offers.
 
 from lambda_erp.model import Document
 from lambda_erp.database import get_db
-from lambda_erp.exceptions import DocumentStatusError
+from lambda_erp.exceptions import DocumentStatusError, ValidationError
 
 
 class Proposal(Document):
     DOCTYPE = "Proposal"
     PREFIX = "PROP"
+    CHILD_REQUIREMENTS = {'quotations': {'required': ['quotation']}}
+    CONDITIONAL_REQUIREMENTS = (
+        'A draft may be incomplete, but PDF output requires customer, company and at least one quotation.',
+        'Every supplied quotation must exist, be active, and match the proposal customer and company. Never combine another customer’s offers.',
+    )
+
+    def validate(self):
+        db = get_db()
+        for idx, row in enumerate(self.get('quotations') or [], 1):
+            quote = row.get('quotation')
+            if not quote:
+                raise ValidationError(f'Proposal row {idx}: Quotation is required')
+            target = db.get_value('Quotation', quote, ['customer', 'company', 'discarded', 'docstatus'])
+            if not target or target.get('discarded') or target.get('docstatus') == 2:
+                raise ValidationError(f'Proposal row {idx}: Quotation must exist and be active')
+            if not self.customer or not self.company:
+                raise ValidationError('Proposal Customer and Company are required before adding quotations')
+            if target.get('customer') != self.customer or target.get('company') != self.company:
+                raise ValidationError(f'Proposal row {idx}: Quotation Customer and Company must match the proposal')
+
+    def validate_for_output(self):
+        if not self.customer or not self.company or not self.get('quotations'):
+            raise ValidationError('Proposal PDF requires Customer, Company and at least one Quotation')
+        if self.get('discarded'):
+            raise ValidationError('Cannot generate a PDF for a discarded Proposal')
+        self.validate()
+        self._validate_links()
 
     # Each child row references one independent Quotation; the appendix PDF is
     # stored out-of-band (Proposal Appendix table) so this CRUD never serialises

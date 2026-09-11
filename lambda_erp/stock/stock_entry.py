@@ -16,6 +16,7 @@ from lambda_erp.database import get_db
 from lambda_erp.stock.stock_ledger import make_sl_entries
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
 from lambda_erp.exceptions import ValidationError
+import math
 
 class StockEntry(Document):
     DOCTYPE = "Stock Entry"
@@ -23,6 +24,12 @@ class StockEntry(Document):
         "items": ("Stock Entry Detail", None),
     }
     PREFIX = "STE"
+    REQUIRED_FIELDS = ("company", "items", "stock_entry_type")
+    CHILD_REQUIREMENTS = {'items': {'required': ['item_code', 'qty']}}
+    CONDITIONAL_REQUIREMENTS = (
+        "stock_entry_type must be Opening Stock, Material Receipt, Material Issue or Material Transfer.",
+        "Every items row requires an existing item_code and a positive finite qty. Receipt/opening need t_warehouse; issue needs s_warehouse; transfer needs two distinct warehouses. Warehouses must belong to company.",
+    )
 
     LINK_FIELDS = {
         "company": "Company",
@@ -38,16 +45,42 @@ class StockEntry(Document):
     }
 
     def validate(self):
-        if not self.stock_entry_type:
+        if self.stock_entry_type not in {"Opening Stock", "Material Receipt", "Material Issue", "Material Transfer"}:
             raise ValidationError(
-                "Stock Entry Type is required (Material Receipt, Material Issue, Material Transfer)"
+                "Stock Entry Type must be Opening Stock, Material Receipt, Material Issue or Material Transfer"
             )
         if not self.get("items"):
             raise ValidationError("At least one item is required")
         if not self.posting_date:
             self.posting_date = nowdate()
 
+        if not self.company:
+            raise ValidationError("Stock Entry: Company is required")
+        for idx, item in enumerate(self.get("items"), 1):
+            if not item.get('item_code'):
+                raise ValidationError(f"Stock Entry row {idx}: Item Code is required")
+            try:
+                qty = float(item.get('qty'))
+            except (ValueError, TypeError):
+                raise ValidationError(f"Stock Entry row {idx}: Qty is required and must be positive")
+            if not math.isfinite(qty) or qty <= 0:
+                raise ValidationError(f"Stock Entry row {idx}: Qty must be positive and finite")
+            item['qty'] = qty
+
         self._validate_warehouses()
+        db = get_db()
+        for item in self.get('items'):
+            if self.stock_entry_type == 'Material Transfer' and item.get('s_warehouse') == item.get('t_warehouse'):
+                raise ValidationError('Source and Target Warehouse must be different')
+            if self.stock_entry_type in ('Opening Stock', 'Material Receipt') and item.get('s_warehouse'):
+                raise ValidationError('A receipt cannot have a Source Warehouse; use Material Transfer')
+            if self.stock_entry_type == 'Material Issue' and item.get('t_warehouse'):
+                raise ValidationError('An issue cannot have a Target Warehouse; use Material Transfer')
+            for field in ('s_warehouse', 't_warehouse'):
+                warehouse = item.get(field)
+                if warehouse and db.exists('Warehouse', warehouse):
+                    if db.get_value('Warehouse', warehouse, 'company') != self.company:
+                        raise ValidationError('Stock Entry Warehouse must belong to Company')
         self._set_item_defaults()
         self._calculate_totals()
 

@@ -63,6 +63,15 @@ def _friendly_integrity(msg: str) -> str:
 
 
 async def _integrity_handler(request: Request, exc: Exception):
+    msg = str(exc)
+    code = getattr(exc, 'sqlstate', None)
+    if code == '23502' or 'NOT NULL constraint failed:' in msg:
+        column = getattr(getattr(exc, 'diag', None), 'column_name', None)
+        if not column and 'NOT NULL constraint failed:' in msg:
+            column = msg.split('NOT NULL constraint failed:', 1)[1].strip()
+        return JSONResponse(status_code=422, content={'detail': f'{column or "A required field"} is required'})
+    if code == '23503' or 'foreign key constraint failed' in msg.lower():
+        return JSONResponse(status_code=422, content={'detail': "This links to a record that does not exist or is still referenced."})
     return JSONResponse(status_code=409, content={"detail": _friendly_integrity(str(exc))})
 
 

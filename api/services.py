@@ -507,6 +507,8 @@ def _validate_document_input(doctype, cls, data):
 
 def _document_validation(doc):
     warnings = []
+    if doc.DOCTYPE == 'Proposal' and (not doc.get('customer') or not doc.get('company') or not doc.get('quotations')):
+        warnings.append({'code': 'proposal_incomplete', 'message': 'Draft saved; PDF output requires Customer, Company and at least one Quotation.'})
     if doc.DOCTYPE == "Reservation" and not doc.get("asset") and doc.get("status") in {"Reserved", "Out"}:
         warnings.append({
             "code": "asset_unassigned", "field": "asset",
@@ -589,12 +591,13 @@ def batch_update_documents(doctype_slug: str, updates: list) -> dict:
             results.append({"name": name, "ok": False, "error": "missing 'data' object"})
             continue
         try:
-            update_document(doctype_slug, name, data)
-            results.append({"name": name, "ok": True})
+            saved = update_document(doctype_slug, name, data)
+            results.append({"name": name, "ok": True, "warnings": saved.get('_validation', {}).get('warnings', [])})
             updated += 1
         except Exception as e:  # noqa: BLE001 — per-item best effort; report, don't abort
             results.append({"name": name, "ok": False, "error": str(e)})
-    return {"updated": updated, "failed": len(results) - updated, "results": results}
+    warnings = [{**warning, 'name': row['name']} for row in results for warning in row.get('warnings', [])]
+    return {"updated": updated, "failed": len(results) - updated, "results": results, '_validation': {'warnings': warnings}}
 
 
 def submit_document(doctype_slug: str, name: str) -> dict:

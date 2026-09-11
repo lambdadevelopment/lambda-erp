@@ -1,4 +1,7 @@
 {
+  "proposal": {
+    "incomplete": "Draft saved; PDF output requires Customer, Company and at least one Quotation."
+  },
   "common": {
     "save": "Save",
     "saving": "Saving...",

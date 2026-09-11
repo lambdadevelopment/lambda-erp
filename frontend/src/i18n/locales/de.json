@@ -1,4 +1,7 @@
 {
+  "proposal": {
+    "incomplete": "Entwurf gespeichert. Für das PDF werden Kunde, Unternehmen und mindestens ein Angebot benötigt."
+  },
   "common": {
     "save": "Speichern",
     "saving": "Speichern...",

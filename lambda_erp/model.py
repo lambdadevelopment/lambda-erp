@@ -35,6 +35,7 @@ class Document:
     CHILD_INPUT_FIELDS = {}
     REQUIRED_FIELDS = ()
     CONDITIONAL_REQUIREMENTS = ()
+    CHILD_REQUIREMENTS = {}
 
     CHILD_TABLES = {}  # {"items": ("Sales Invoice Item", SalesInvoiceItem), ...}
     PREFIX = "DOC"  # For auto-naming
@@ -438,7 +439,7 @@ class Document:
                 child_data = dict(child) if isinstance(child, dict) else child
                 db.insert(child_doctype, child_data)
 
-        if commit:
+        if commit and not db._in_transaction:
             db.commit()
 
     def reload(self):

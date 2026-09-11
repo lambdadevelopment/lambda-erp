@@ -18,6 +18,8 @@ from api.services import (
 )
 from api.auth import require_role, require_non_public_manager
 from api.list_values import distinct_list_values
+from lambda_erp.exceptions import ValidationError
+from lambda_erp.validation import missing
 
 router = APIRouter(prefix="/masters", tags=["masters"])
 
@@ -210,6 +212,41 @@ def _normalize_master_data(data: dict) -> dict:
     return normalized
 
 
+MASTER_LINK_FIELDS = {
+    'item': {'default_warehouse': 'Warehouse'},
+    'warehouse': {'company': 'Company', 'account': 'Account', 'parent_warehouse': 'Warehouse'},
+    'account': {'company': 'Company', 'parent_account': 'Account'},
+    'cost-center': {'company': 'Company', 'parent_cost_center': 'Cost Center'},
+}
+
+
+def master_requirements(master_type):
+    from api import services
+    doctype, display = _get_table(master_type)
+    if doctype in services.DOCUMENT_CLASSES:
+        from lambda_erp.validation import document_requirements
+        return document_requirements(services.DOCUMENT_CLASSES[doctype])
+    return {'required': [display], 'conditional': ['Unknown input fields are rejected; supplied links must exist.'], 'children': {}}
+
+
+def _validate_master_input(master_type, doctype, data, name=None):
+    db = get_db()
+    allowed = db._get_table_columns(doctype)
+    unknown = set(data) - allowed
+    if unknown:
+        raise ValidationError(f'{doctype}: Unknown field(s): {", ".join(sorted(unknown))}. Use get_master_fields.')
+    if name and data.get('name') not in (None, name):
+        raise ValidationError('Cannot change master identity; create a new record instead')
+    merged = dict(db.get_value(doctype, name, list(allowed)) or {}) if name else {}
+    merged.update(data)
+    for field in master_requirements(master_type)['required']:
+        if missing(merged.get(field)):
+            raise ValidationError(f'{doctype}: {field} is required')
+    for field, table in MASTER_LINK_FIELDS.get(master_type, {}).items():
+        if merged.get(field) and not db.exists(table, merged[field]):
+            raise ValidationError(f'{doctype}: {field} must reference an existing {table}')
+
+
 def create_master_record(master_type: str, data: dict) -> dict:
     doctype, _ = _get_table(master_type)
     if not doctype:
@@ -244,6 +281,12 @@ def create_master_record(master_type: str, data: dict) -> dict:
 
     if db.exists(doctype, doc["name"]):
         raise HTTPException(status_code=409, detail=f"{doctype} {doc['name']} already exists")
+
+    from api import services
+    if doctype in services.DOCUMENT_CLASSES:
+        return _echo_identity_alias(master_type, services.create_document(services.DOCTYPE_TO_SLUG[doctype], doc))
+
+    _validate_master_input(master_type, doctype, doc)
 
     columns = db._get_table_columns(doctype)
     stamp = now()
@@ -289,7 +332,16 @@ def update_master_record(master_type: str, name: str, data: dict) -> dict:
                 ),
             )
 
+    if normalized.get('name') not in (None, name):
+        raise ValidationError('Cannot change master identity; create a new record instead')
+    from api import services
+    if doctype in services.DOCUMENT_CLASSES:
+        return _echo_identity_alias(master_type, services.update_document(services.DOCTYPE_TO_SLUG[doctype], name, normalized))
+
     update_fields = {k: v for k, v in normalized.items() if k != "name"}
+    if not db.exists(doctype, name):
+        raise HTTPException(status_code=404, detail=f"{doctype} {name} not found")
+    _validate_master_input(master_type, doctype, normalized, name)
     if "modified" in db._get_table_columns(doctype) and "modified" not in update_fields:
         update_fields["modified"] = now()
     if update_fields:
@@ -559,6 +611,14 @@ def adjacent_master(
     return {"prev": neighbor("prev"), "next": neighbor("next")}
 
 
+@router.get("/{master_type}/fields")
+def master_fields(master_type: str, _user: dict = _viewer):
+    if not _get_table(master_type)[0]:
+        raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
+    from api.chat import _handle_get_master_fields
+    return _handle_get_master_fields({'master_type': master_type})
+
+
 @router.get("/{master_type}/{name}")
 def get_master(master_type: str, name: str, _user: dict = _viewer):
     doctype, _ = _get_table(master_type)
@@ -597,6 +657,11 @@ def delete_master_record(master_type: str, name: str) -> dict:
     db = get_db()
     if not db.exists(doctype, name):
         raise HTTPException(status_code=404, detail=f"{doctype} {name} not found")
+
+    from api import services
+    if doctype in services.DOCUMENT_CLASSES and 'discarded' in db._get_table_columns(doctype):
+        services.discard_document(services.DOCTYPE_TO_SLUG[doctype], name)
+        return {'ok': True, 'status': 'discarded'}
 
     reference = _find_reference(master_type, name)
     if reference:

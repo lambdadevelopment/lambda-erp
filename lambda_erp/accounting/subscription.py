@@ -12,6 +12,7 @@ from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
+import math
 
 class Subscription(Document):
     DOCTYPE = "Subscription"
@@ -19,6 +20,16 @@ class Subscription(Document):
         "plans": ("Subscription Plan", None),
     }
     PREFIX = "SUB"
+    REQUIRED_FIELDS = ('party_type', 'party', 'company', 'start_date', 'plans')
+    CHILD_REQUIREMENTS = {'plans': {'required': ['item_code', 'qty', 'rate']}}
+    LINK_FIELDS = {'company': 'Company'}
+    DYNAMIC_LINK_FIELDS = {'party': ('party_type', {'Customer': 'Customer', 'Supplier': 'Supplier'})}
+    CHILD_LINK_FIELDS = {'plans': {'item_code': 'Item'}}
+    CONDITIONAL_REQUIREMENTS = (
+        'Choose company explicitly when more than one exists. party_type must be Customer or Supplier and party must exist.',
+        'billing_interval is Monthly (default), Quarterly, Half-Yearly or Yearly; unsupported intervals are rejected. End Date cannot precede Start Date.',
+        'Each plan requires an existing item_code, positive finite qty and explicit nonnegative finite rate (zero is allowed deliberately).',
+    )
 
     def validate(self):
         if not self.party_type:
@@ -33,9 +44,26 @@ class Subscription(Document):
             self._data["billing_interval"] = "Monthly"
         if not self.company:
             db = get_db()
-            companies = db.get_all("Company", fields=["name"], limit=1)
-            if companies:
+            companies = db.get_all("Company", fields=["name"], limit=2)
+            if len(companies) == 1:
                 self._data["company"] = companies[0]["name"]
+            else:
+                raise ValidationError('Company is required; choose the intended company explicitly')
+        if self.billing_interval not in ('Monthly', 'Quarterly', 'Half-Yearly', 'Yearly'):
+            raise ValidationError('Billing Interval must be Monthly, Quarterly, Half-Yearly or Yearly')
+        if self.end_date and getdate(self.end_date) < getdate(self.start_date):
+            raise ValidationError('End Date cannot precede Start Date')
+        for idx, plan in enumerate(self.get('plans'), 1):
+            if not plan.get('item_code'):
+                raise ValidationError(f'Subscription plan {idx}: Item Code is required')
+            for field in ('qty', 'rate'):
+                try:
+                    value = float(plan.get(field))
+                except (TypeError, ValueError):
+                    raise ValidationError(f'Subscription plan {idx}: {field} is required')
+                if not math.isfinite(value) or value < 0 or (field == 'qty' and value == 0):
+                    raise ValidationError(f'Subscription plan {idx}: invalid {field}')
+        self._validate_links()
 
         # Initialize billing period
         if not self.current_invoice_start:
@@ -68,16 +96,26 @@ class Subscription(Document):
         elif interval == "Yearly":
             d = d + relativedelta(years=1)
         else:
-            d = d + relativedelta(months=1)
+            raise ValidationError('Unsupported Billing Interval')
         return str(d)
 
     def process(self):
+        db = get_db()
+        with db.atomic():
+            lock = ' FOR UPDATE' if db.dialect == 'postgres' else ''
+            db.sql('SELECT name FROM "Subscription" WHERE name = ?' + lock, [self.name])
+            self.reload()
+            return self._process()
+
+    def _process(self):
         """Check if a new invoice should be generated and create it.
 
         Returns the created invoice dict, or None if no invoice was due.
         """
         if self._data.get("status") in ("Cancelled", "Completed"):
             return None
+
+        self.validate()
 
         today = getdate(nowdate())
         invoice_end = getdate(self.current_invoice_end) if self.current_invoice_end else today
@@ -121,9 +159,14 @@ class Subscription(Document):
             )
 
         for plan in self.get("plans"):
+            item = get_db().get_value('Item', plan['item_code'], ['item_name', 'stock_uom', 'description'])
             invoice.append("items", _dict(
                 item_code=plan.get("item_code"),
-                item_name=plan.get("item_name"),
+                # Resolve defaults here so the invoice does not replace an
+                # explicitly free plan (rate=0) with the item's standard rate.
+                item_name=plan.get("item_name") or item['item_name'],
+                uom=item.get('stock_uom'),
+                description=item.get('description'),
                 qty=flt(plan.get("qty", 1)),
                 rate=flt(plan.get("rate", 0)),
             ))

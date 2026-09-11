@@ -73,6 +73,14 @@ jobs:
       - name: Document requirements — SQLite (synthetic records)
         run: python -m tests.test_document_requirements
 
+      - name: Workflow guards — SQLite
+        run: python -m tests.test_workflow_guards
+
+      - name: Workflow guards — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_workflow_guards
+
       - name: Document requirements — PostgreSQL
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test

@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Workflow validation follow-up
+- Reject ineffective/incomplete stock entries and inconsistent order/line
+  references. Validate subscription plans/intervals and proposal recipients
+  before downstream work; subscription billing uses an atomic period advance.
+- Route document-backed master writes through document validation/hooks, reject
+  unknown master fields and invalid declared links, and classify missing fields
+  separately from duplicate records. Preserve warnings in batch results.
+- Add composable database transactions for plugin workflows, expanded prompt
+  metadata and REST master-field discovery. The internal companion change
+  validates/atomically merges Leads and validates new call/email activities.
+
 ### Fixed
 - Require a machine or explicit pool allocation for active reservations, a
   customer or internal purpose, and a usable asset in the correct yard before

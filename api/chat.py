@@ -1567,6 +1567,7 @@ def _fuzzy_master_search(db, doctype, search_cols, query, has_disabled, limit):
 
 
 def _handle_get_master_fields(args):
+    from api.routers.masters import master_requirements, MASTER_LINK_FIELDS
     db = get_db()
     master_type = args["master_type"]
     entry = services.MASTER_TABLES.get(master_type)
@@ -1575,6 +1576,7 @@ def _handle_get_master_fields(args):
     doctype, _ = entry
     default_search = _master_search_columns(db, doctype)
     bulk = services.master_bulk_text_columns(db, doctype)
+    cls = services.DOCUMENT_CLASSES.get(doctype)
     return {
         "master_type": master_type,
         "fields": sorted(db._get_table_columns(doctype)),
@@ -1583,6 +1585,10 @@ def _handle_get_master_fields(args):
         "default_search_fields": default_search,
         # Large text fields searched ONLY when named in search_masters `fields`.
         "bulk_text_fields": bulk,
+        "requirements": master_requirements(master_type),
+        "link_fields": dict(cls.LINK_FIELDS) if cls else MASTER_LINK_FIELDS.get(master_type, {}),
+        "dynamic_link_fields": dict(cls.DYNAMIC_LINK_FIELDS) if cls else {},
+        "input_fields": sorted(set(cls.INPUT_FIELDS if cls else ()) | ({services.MASTER_IDENTITY_ALIAS[master_type]} if master_type in services.MASTER_IDENTITY_ALIAS else set())),
     }
 
 
@@ -2356,6 +2362,7 @@ def _prompt_uom_context() -> str:
 
 def _prompt_validation_context():
     from lambda_erp.validation import document_requirements
+    from api.routers.masters import master_requirements
     groups = {}
     for doctype, cls in services.DOCUMENT_CLASSES.items():
         rules = document_requirements(cls)
@@ -2363,6 +2370,10 @@ def _prompt_validation_context():
             continue
         key = json.dumps(rules, sort_keys=True)
         groups.setdefault(key, []).append(doctype)
+    for slug, (doctype, _) in services.MASTER_TABLES.items():
+        if doctype not in services.DOCUMENT_CLASSES:
+            key = json.dumps(master_requirements(slug), sort_keys=True)
+            groups.setdefault(key, []).append(doctype + ' (master)')
     return "\n".join(f"- {', '.join(names)}: {rules}" for rules, names in groups.items())
 
 

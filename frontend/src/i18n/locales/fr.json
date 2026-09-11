@@ -1,4 +1,7 @@
 {
+  "proposal": {
+    "incomplete": "Brouillon enregistré. Le PDF nécessite un client, une entreprise et au moins une offre."
+  },
   "common": {
     "save": "Enregistrer",
     "saving": "Enregistrement...",

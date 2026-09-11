@@ -168,8 +168,10 @@ class _PgConn:
             # A failed statement leaves the connection in an aborted transaction
             # (autocommit=False); every later query on this pooled/thread-local
             # connection would then fail with InFailedSqlTransaction. Roll back
-            # so the connection stays usable, then re-raise the real error.
-            self._safe_rollback()
+            # so the connection stays usable, unless an explicit transaction
+            # owner must roll back to its savepoint (or roll back the whole unit).
+            if not self._in_explicit_txn():
+                self._safe_rollback()
             raise
         self._maybe_release(sql)
         _note_write(sql)
@@ -181,7 +183,8 @@ class _PgConn:
             cur.executemany(sql.replace("%", "%%").replace("?", "%s"),
                             [list(p) for p in seq_params])
         except Exception:
-            self._safe_rollback()
+            if not self._in_explicit_txn():
+                self._safe_rollback()
             raise
         self._dirty = True
         _note_write(sql)
@@ -2077,6 +2080,34 @@ class Database:
                 self.conn.execute(f'DELETE FROM "{doctype}" WHERE {where}', params)
             if not self._in_transaction:
                 self.conn.commit()
+
+    @contextmanager
+    def atomic(self):
+        """Compose document/plugin writes, including nested operations."""
+        import uuid
+        with self._lock:
+            outer = self._in_transaction
+            point = 'atomic_' + uuid.uuid4().hex
+            self._in_transaction = True
+            try:
+                self.sql(f'SAVEPOINT {point}')
+                try:
+                    yield
+                except BaseException:
+                    self.sql(f'ROLLBACK TO SAVEPOINT {point}')
+                    self.sql(f'RELEASE SAVEPOINT {point}')
+                    if not outer:
+                        self.conn.rollback()
+                    raise
+                self.sql(f'RELEASE SAVEPOINT {point}')
+                if not outer:
+                    self.conn.commit()
+            except BaseException:
+                if not outer:
+                    self.conn.rollback()
+                raise
+            finally:
+                self._in_transaction = outer
 
     def commit(self):
         with self._lock:

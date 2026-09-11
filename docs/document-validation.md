@@ -71,8 +71,12 @@ consume transient fields must declare `INPUT_FIELDS` or `CHILD_INPUT_FIELDS`;
 misspellings remain errors. Static frontend field configuration does not
 automatically gain new UI controls from backend metadata.
 
-Direct SQL, `db.insert` / `set_value`, master CRUD, and custom plugin endpoints
-that bypass the document lifecycle do **not** inherit these checks. A new
+Direct SQL, `db.insert` / `set_value`, and custom plugin endpoints
+that bypass the document lifecycle do **not** inherit these checks. Master
+create/update now delegates to the document lifecycle when the same table is
+registered as a document; deletion uses discard when that table supports it.
+Other masters reject unknown fields, require their display field and check
+declared links. A new
 document type can declare `REQUIRED_FIELDS`, implement conditional checks in
 `validate()`, and expose them in `CONDITIONAL_REQUIREMENTS`. This change is not
 a completeness audit of all application workflows.
@@ -88,3 +92,48 @@ idempotence on SQLite and PostgreSQL. `tests.test_availability_api` exercises
 the authenticated REST path and pool-to-unit assignment;
 `tests.test_chat_api` checks structured tool feedback. The main ledger suite
 also asserts missing warehouses and incomplete payment references cannot post.
+
+## Follow-up workflow guards
+
+The follow-up audit cases are covered by `tests.test_workflow_guards` and the
+internal repository's test module of the same name:
+
+- Stock Entries require company, supported movement type, item codes and
+  positive finite quantities. Source/target warehouses must match the movement
+  and belong to the company; a transfer needs two different warehouses.
+- Delivery Notes, Sales Invoices, Purchase Receipts and Purchase Invoices
+  require both order and order-line reference when either is given. References
+  must identify a submitted order and its line, with matching company, party
+  and item. Standalone documents remain supported; converters fill the pair.
+- Subscriptions reject unsupported intervals, invalid party/item links, missing
+  or invalid plan quantities/rates, and ambiguous company defaults. A zero rate
+  is supported explicitly. Processing revalidates and creates the invoice and
+  advances the period atomically, with a row lock on PostgreSQL.
+- Proposal drafts may be incomplete and return `proposal_incomplete`. Supplied
+  quotations must match customer/company and be active. PDF output rechecks
+  these relationships and requires customer, company and at least one quote;
+  unreadable references are no longer silently omitted. The form shows warnings.
+- Master field discovery is also available at `GET /api/masters/{type}/fields`.
+  Requirements feed the generated prompt; document-backed masters expose
+  transient inputs. NOT NULL and FK violations return 422; duplicates remain
+  409. Unknown fields are rejected before SQL on create and update.
+- Batch writes retain warnings per item and aggregate them under `_validation`,
+  including successful items in a partially failed batch.
+- Internal Lead merges validate source/target before moving dependents, reject
+  inactive/missing identities or loss of a customer link, and roll back on
+  failure. The complete Lead save (including CRM hooks) is atomic. Master writes
+  therefore also create customers and timeline entries on conversion.
+- New internal call/email activities require explicit direction and a subject
+  or body. Supplied contacts must belong to the activity's Lead. Existing
+  direction-less records retain legacy behavior on edits. Call/email notes
+  attached to Lead writes use `_note_direction` together with `_note_type`.
+
+`Database.atomic()` composes these workflow writes with savepoints. Document
+persistence respects its transaction boundary, and PostgreSQL errors inside an
+explicit transaction are left to the owner to roll back. Plugins must not call
+unconditional commits inside an atomic workflow. This does not make arbitrary
+plugin code or all document hooks transactional automatically.
+
+Existing posted records are not rewritten. Invalid legacy drafts must be
+completed before their next save/submit/process/export. Roll out the backend
+and internal plugin together; the plugin now needs the core `atomic()` method.
