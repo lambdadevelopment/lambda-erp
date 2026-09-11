@@ -2754,6 +2754,7 @@ def main():
 
     # Pooled booking draws on the same capacity as the pinned one.
     _r3 = Reservation(purpose="Test internal block", allocation_mode="Pool", item_code="EXC-17", warehouse="Yard SG - LAMB", qty=1,
+                      party_type="Customer", party="CUST-001",
                       from_datetime="2026-08-14", to_datetime="2026-08-16",
                       voucher_type="Sales Order", voucher_no="SO-RENTAL-1").save()
     assert committed_qty(db, "EXC-17", "Yard SG - LAMB", "2026-08-14", "2026-08-16") == 2

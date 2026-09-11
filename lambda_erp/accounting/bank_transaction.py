@@ -10,6 +10,7 @@ from lambda_erp.model import Document
 from lambda_erp.utils import flt, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError
+import math
 
 class BankTransaction(Document):
     DOCTYPE = "Bank Transaction"
@@ -17,6 +18,14 @@ class BankTransaction(Document):
         "details": ("Bank Transaction Detail", None),
     }
     PREFIX = "BT"
+    SERVER_MANAGED_FIELDS = ('allocated_amount', 'unallocated_amount', 'status',
+                             'reference_doctype', 'reference_name', 'reconciled_by',
+                             'reconciled_at', 'bank_statement_import')
+    SERVER_MANAGED_DEFAULTS = {'allocated_amount': 0, 'unallocated_amount': 0, 'status': 'Unreconciled'}
+    CONDITIONAL_REQUIREMENTS = (
+        'Manual bank transactions require one positive finite deposit or withdrawal and stay Unreconciled. Allocation, matching references and reconciliation status are server-managed; use CAMT import and Bank Reconciliation for audited matching.',
+        'Imported bank evidence is read-only. Generic create cannot attach a statement import or fabricate reconciliation metadata.',
+    )
 
     LINK_FIELDS = {
         # bank_account is the historical GL Account field. bank_account_id is
@@ -42,6 +51,11 @@ class BankTransaction(Document):
             )
         deposit = flt(self.deposit)
         withdrawal = flt(self.withdrawal)
+        if not all(math.isfinite(value) and value >= 0 for value in (deposit, withdrawal)):
+            raise ValidationError('Deposit and Withdrawal must be finite and non-negative')
+        if flt(self.allocated_amount) != 0 or self.status not in (None, '', 'Unreconciled'):
+            raise ValidationError('Manual bank transactions cannot be marked reconciled; use Bank Reconciliation for imported evidence')
+        self._data['allocated_amount'] = 0
         # CAMT statements can contain booked zero-amount informational rows
         # (for example a quarterly interest close with no interest due). Keep
         # those for a complete audit trail, while manual transactions still

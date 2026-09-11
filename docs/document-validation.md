@@ -280,3 +280,38 @@ REST, chat, MCP and direct model writes receive the same validation errors.
   periods or ledger records are automatically rewritten.
 
 Covered by `tests.test_master_structure_guards` on both database backends.
+
+## Bank matching, scoped rules and customer eligibility
+
+`tests.test_business_rule_guards` covers the final five audited gaps:
+
+- Manual Bank Transactions cannot supply/change allocation, reconciliation
+  status, matching references, reconciliation audit fields or a statement-import
+  reference. Zero allocation and Unreconciled are allowed initial defaults;
+  unchanged form values may be echoed. Positive finite manual movements stay
+  Unreconciled. Imported evidence remains immutable and can only be matched by
+  the existing audited Bank Reconciliation service. Old fabricated manual
+  reconciliations are rejected on edit, not silently legitimized or repaired.
+- Pricing rules filter company and selling/buying direction before priority
+  selection. A missing/blank company denotes a global rule; a supplied company
+  restricts it to that company. Higher-priority foreign-company or wrong-side
+  rules cannot apply or mask a valid lower-priority rule.
+- Budget actions accept only Stop/Warn (Warn is the creation default). A
+  matching legacy budget with an unsupported action or invalid amount blocks
+  posting with an actionable error. Valid Stop still blocks overspending;
+  valid Warn still warns and permits posting. Cancellations remain possible.
+- An active reservation must match its voucher's Customer (sales) or Supplier
+  (purchase) and Company. Missing reservation Company is inherited from the
+  voucher and checked against the warehouse. Draft voucher save/submit checks
+  active reservations too, so later party/company edits cannot break the link.
+  Non-blocking transitions can release old inconsistent bookings.
+- Disabled customers cannot be used for new sales documents, active bookings
+  or recurring invoices, including submission of previously created drafts.
+  Eligibility is rechecked in the shared model; PostgreSQL holds a shared
+  customer-row lock through the transaction. Reactivation allows new business
+  again. Valid returns, cancellation, releasing bookings and stopping a
+  subscription remain possible. Accounting settlements against existing debts
+  are supported; this rule does not disable historical accounting operations.
+
+The restrictions are exposed in field metadata and the generated prompt.
+Historical records and financial entries are not automatically rewritten.

@@ -15,6 +15,10 @@ class PricingRule(Document):
     DOCTYPE = "Pricing Rule"
     CHILD_TABLES = {}
     PREFIX = "PRULE"
+    LINK_FIELDS = {'item_code': 'Item', 'company': 'Company'}
+    CONDITIONAL_REQUIREMENTS = (
+        'A supplied company limits the rule to that company; omitted/blank company makes it global. Selling/buying, dates and quantity are filtered before selecting the highest-priority applicable rule.',
+    )
 
     def validate(self):
         if not self.title:
@@ -65,13 +69,15 @@ def apply_pricing_rules(doc):
             SELECT * FROM "Pricing Rule"
             WHERE item_code = ?
               AND enabled = 1
+              AND (company IS NULL OR company = '' OR company = ?)
+              AND ((? = 1 AND selling = 1) OR (? = 1 AND buying = 1))
               AND (valid_from IS NULL OR valid_from = '' OR valid_from <= ?)
               AND (valid_upto IS NULL OR valid_upto = '' OR valid_upto >= ?)
               AND (min_qty = 0 OR min_qty <= ?)
-            ORDER BY priority DESC, min_qty DESC
+            ORDER BY priority DESC, min_qty DESC, name
             LIMIT 1
             """,
-            [item_code, today, today, qty],
+            [item_code, doc.get('company'), int(bool(is_selling)), int(bool(is_buying)), today, today, qty],
         )
 
         if not rules:

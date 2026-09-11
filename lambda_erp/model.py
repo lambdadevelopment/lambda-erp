@@ -37,6 +37,7 @@ class Document:
     CONDITIONAL_REQUIREMENTS = ()
     CHILD_REQUIREMENTS = {}
     SERVER_MANAGED_FIELDS = ()
+    SERVER_MANAGED_DEFAULTS = {}
 
     CHILD_TABLES = {}  # {"items": ("Sales Invoice Item", SalesInvoiceItem), ...}
     PREFIX = "DOC"  # For auto-naming
@@ -203,6 +204,9 @@ class Document:
                     f"{self.DOCTYPE}: {where}{_label(field)} '{value}' does not "
                     f"exist in {master}"
                 )
+            if master == 'Customer':
+                from lambda_erp.validation import validate_customer_eligibility
+                validate_customer_eligibility(self, value)
             if self.get('company') and master in {'Warehouse', 'Account', 'Cost Center'}:
                 if db.get_value(master, value, 'company') != self.company:
                     raise ValidationError(f'{self.DOCTYPE}: {where}{_label(field)} must belong to Company {self.company}')
@@ -334,7 +338,10 @@ class Document:
             return
         stored = get_db().get_value(self.DOCTYPE, self.name, list(self.SERVER_MANAGED_FIELDS)) if self._persisted else {}
         for field in self.SERVER_MANAGED_FIELDS:
-            current, previous = self.get(field), (stored or {}).get(field)
+            current = self.get(field)
+            if not self._persisted and current in (None, ''):
+                continue
+            previous = (stored or {}).get(field) if self._persisted else self.SERVER_MANAGED_DEFAULTS.get(field)
             if current != previous and not (current in (None, '') and previous in (None, '')):
                 raise ValidationError(f'{self.DOCTYPE}: {field} is server-managed and cannot be supplied or changed; use the document workflow')
 

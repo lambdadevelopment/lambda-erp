@@ -46,9 +46,32 @@ def validate_reservation_voucher(doc):
     kind = doc.get('voucher_type')
     if kind not in VOUCHER_TYPES:
         raise ValidationError('Unsupported reservation Voucher Type')
-    row = get_db().get_value(kind, doc.voucher_no, ['docstatus', 'discarded'])
+    party_type, party_field = ('Supplier', 'supplier') if kind == 'Purchase Order' else ('Customer', 'customer')
+    row = get_db().get_value(kind, doc.voucher_no, ['docstatus', 'discarded', 'company', party_field])
     if not row or row.get('docstatus') == 2 or row.get('discarded'):
         raise ValidationError('An active reservation requires an existing, non-cancelled, non-discarded voucher')
+    if doc.get('party_type') != party_type or doc.get('party') != row.get(party_field):
+        raise ValidationError(f'Reservation party must match the {party_type} on {kind} {doc.voucher_no}')
+    if doc.get('company') and doc.company != row.get('company'):
+        raise ValidationError('Reservation Company must match the linked voucher Company')
+    if not doc.get('company'):
+        doc.company = row.get('company')
+
+
+def validate_voucher_reservations(doc):
+    """Changing the draft voucher must preserve the same relation as booking."""
+    if doc.DOCTYPE not in VOUCHER_TYPES:
+        return
+    db = get_db()
+    party_type, party_field = ('Supplier', 'supplier') if doc.DOCTYPE == 'Purchase Order' else ('Customer', 'customer')
+    rows = db.sql('SELECT r.name, r.party_type, r.party, r.company, w.company AS warehouse_company '
+                  'FROM "Reservation" r LEFT JOIN "Warehouse" w ON w.name = r.warehouse '
+                  "WHERE r.voucher_type = ? AND r.voucher_no = ? AND r.status IN ('Reserved', 'Out') "
+                  'AND COALESCE(r.discarded, 0) = 0', [doc.DOCTYPE, doc.name])
+    for row in rows:
+        if (row['party_type'] != party_type or row['party'] != doc.get(party_field)
+                or (row['company'] or row['warehouse_company']) != doc.company):
+            raise ValidationError(f'Resolve active reservation {row["name"]} before changing voucher party or Company')
 
 
 def validate_voucher_release(doc):

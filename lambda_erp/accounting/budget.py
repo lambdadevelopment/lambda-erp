@@ -13,6 +13,12 @@ from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError
 
 import warnings
+import math
+
+
+def validate_budget_action(action):
+    if action not in ('Stop', 'Warn'):
+        raise ValidationError('Budget action_if_exceeded must be Stop or Warn; correct the budget before posting')
 
 class Budget(Document):
     DOCTYPE = "Budget"
@@ -20,6 +26,11 @@ class Budget(Document):
         "monthly_distribution": ("Monthly Distribution", None),
     }
     PREFIX = "BDG"
+    LINK_FIELDS = {'company': 'Company', 'account': 'Account', 'cost_center': 'Cost Center'}
+    CONDITIONAL_REQUIREMENTS = (
+        'action_if_exceeded must be Stop or Warn (default). Unsupported values are rejected on save and when an existing budget is used during posting.',
+        'Budget Amount must be positive and finite; linked account and cost center must belong to Company.',
+    )
 
     def validate(self):
         if not self.account:
@@ -28,7 +39,7 @@ class Budget(Document):
             raise ValidationError("Fiscal Year is required")
         if not self.company:
             raise ValidationError("Company is required")
-        if flt(self.budget_amount) <= 0:
+        if not math.isfinite(flt(self.budget_amount)) or flt(self.budget_amount) <= 0:
             raise ValidationError("Budget Amount must be greater than 0")
 
         if not self.cost_center:
@@ -37,8 +48,9 @@ class Budget(Document):
                 "Company", self.company, "default_cost_center"
             )
 
-        if not self._data.get("action_if_exceeded"):
+        if self._data.get("action_if_exceeded") in (None, ''):
             self._data["action_if_exceeded"] = "Warn"
+        validate_budget_action(self.action_if_exceeded)
 
 def validate_expense_against_budget(gl_entry):
     """Check if a GL entry would exceed any active budget.
@@ -76,13 +88,14 @@ def validate_expense_against_budget(gl_entry):
     budgets = db.get_all("Budget", filters=filters, fields=["*"])
 
     for budget in budgets:
-        budget_amount = flt(budget.get("budget_amount", 0))
-        if budget_amount <= 0:
-            continue
-
         fiscal_year = budget.get("fiscal_year", "")
         if fiscal_year and str(year) not in fiscal_year:
             continue
+        action = budget.get('action_if_exceeded')
+        validate_budget_action(action)
+        budget_amount = flt(budget.get('budget_amount'))
+        if not math.isfinite(budget_amount) or budget_amount <= 0:
+            raise ValidationError(f'Budget {budget["name"]}: Budget Amount must be positive and finite; correct it before posting')
 
         # Sum existing expenses for this account + cost_center in this year
         start_date = f"{year}-01-01"
@@ -102,8 +115,6 @@ def validate_expense_against_budget(gl_entry):
 
         actual_expense = flt(result[0].get("total", 0)) if result else 0
         total_with_new = actual_expense + debit
-
-        action = budget.get("action_if_exceeded", "Warn")
 
         if total_with_new > budget_amount:
             msg = (

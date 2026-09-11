@@ -88,6 +88,14 @@ jobs:
       - name: Server-owned fields and master structure — SQLite
         run: python -m tests.test_master_structure_guards
 
+      - name: Business rule guards — SQLite
+        run: python -m tests.test_business_rule_guards
+
+      - name: Business rule guards — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_business_rule_guards
+
       - name: Server-owned fields and master structure — PostgreSQL
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test

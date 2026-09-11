@@ -102,6 +102,7 @@ class Reservation(Document):
         "For customer hire, party_type=Customer and party are required; an internal block without party requires purpose.",
         "Status Out requires a concrete asset. An active reservation must use its asset's warehouse.",
         "voucher_type and voucher_no must be supplied together and reference an existing supported document.",
+        "An active reservation must match its voucher's customer/supplier and Company. An omitted Company is inherited from the voucher. Resolve active bookings before changing the voucher's party or Company.",
         "Submit/cancel are unsupported. Change status through update; active bookings require a non-cancelled/non-discarded voucher. Availability is rechecked under a shared pool lock; resolve conflicts rather than omitting the asset.",
     )
     LINK_FIELDS = {

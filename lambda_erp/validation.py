@@ -16,6 +16,31 @@ ORDER_REFERENCES = {
     'Purchase Invoice': ('Purchase Order', 'purchase_order', 'purchase_order_item', 'supplier'),
 }
 
+CUSTOMER_BUSINESS_TYPES = {'Quotation', 'Proposal', 'Sales Order', 'Sales Invoice',
+                           'Delivery Note', 'POS Invoice', 'Reservation', 'Subscription'}
+
+
+def validate_customer_eligibility(doc, customer):
+    if doc.DOCTYPE not in CUSTOMER_BUSINESS_TYPES:
+        return
+    from lambda_erp.workflow import RETURN_TYPES
+    from lambda_erp.assets.reservation import BLOCKING_STATUSES
+    # Reversals validate their original voucher separately. Releasing an old
+    # booking or stopping billing must remain possible after deactivation.
+    if doc.DOCTYPE in RETURN_TYPES and doc.get('is_return') and doc.get('return_against'):
+        return
+    if doc.DOCTYPE == 'Reservation' and doc.status not in BLOCKING_STATUSES:
+        return
+    if doc.DOCTYPE == 'Subscription' and (doc.status in ('Cancelled', 'Discarded') or doc.get('discarded')):
+        return
+    db = get_db()
+    suffix = ' FOR SHARE' if db.dialect == 'postgres' else ''
+    rows = db.sql('SELECT disabled FROM "Customer" WHERE name = ?' + suffix, [customer])
+    if not rows:
+        raise ValidationError(f'Customer {customer} no longer exists')
+    if rows and rows[0]['disabled']:
+        raise ValidationError(f'Customer {customer} is disabled; reactivate it before creating or submitting new business')
+
 
 def validate_order_references(doc):
     rule = ORDER_REFERENCES.get(doc.DOCTYPE)
@@ -47,6 +72,8 @@ def missing(value):
 
 def validate_document_requirements(doc):
     """No writes: reject incomplete business data before persistence or posting."""
+    from lambda_erp.assets.lifecycle import validate_voucher_reservations
+    validate_voucher_reservations(doc)
     if doc.DOCTYPE in {'Sales Invoice', 'Purchase Invoice'} and doc.get('subscription'):
         sub = get_db().get_value('Subscription', doc.subscription, ['company', 'party_type', 'party'])
         party_type, party_field = ('Customer', 'customer') if doc.DOCTYPE == 'Sales Invoice' else ('Supplier', 'supplier')
@@ -84,9 +111,11 @@ def document_requirements(cls):
     """Machine-readable minimums plus conditional rules owned by the class."""
     required = list(getattr(cls, 'REQUIRED_FIELDS', ()))
     rules = list(getattr(cls, 'CONDITIONAL_REQUIREMENTS', ()))
+    if cls.DOCTYPE in CUSTOMER_BUSINESS_TYPES:
+        rules.append('Disabled customers cannot be used for new business or submitting existing sales drafts. Reactivate the customer first. Valid returns, cancellations, releasing reservations and stopping subscriptions remain possible; accounting settlements remain supported.')
     managed = list(cls.SERVER_MANAGED_FIELDS)
     if managed:
-        rules.append(f'Server-managed fields ({", ".join(managed)}) cannot be supplied on create or changed on update; unchanged values may be echoed. Use the owning workflow to advance them.')
+        rules.append(f'Server-managed fields ({", ".join(managed)}) must be omitted on create except declared server_managed_defaults and cannot be changed on update; unchanged values may be echoed. Use the owning workflow to advance them.')
     if cls.SUBMITTABLE:
         rules.append('Supports submit/cancel. Resolve active linked reservations before cancelling or discarding their voucher.')
     else:
@@ -120,4 +149,5 @@ def document_requirements(cls):
         }
     return {'required': sorted(set(required)), 'conditional': rules, 'children': children,
             'server_managed_fields': managed,
+            'server_managed_defaults': dict(cls.SERVER_MANAGED_DEFAULTS),
             'lifecycle': {'submit': cls.SUBMITTABLE, 'cancel': cls.SUBMITTABLE, 'discard': supports_discard}}
