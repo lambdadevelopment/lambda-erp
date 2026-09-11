@@ -30,6 +30,7 @@ class Document:
     """
 
     DOCTYPE = None  # Override in subclasses, e.g. "Sales Invoice"
+    SUBMITTABLE = False  # Explicit opt-in to Draft/Submitted/Cancelled.
     INPUT_FIELDS = set()  # Explicit transient input fields consumed by plugins.
     CHILD_INPUT_FIELDS = {}
     REQUIRED_FIELDS = ()
@@ -297,6 +298,8 @@ class Document:
 
     def save(self):
         """Create a new draft or update a loaded draft, atomically with hooks."""
+        if self._data.get('discarded'):
+            raise DocumentStatusError('Use discard() to discard a document; saving cannot bypass its dependency checks')
         if self.docstatus != DRAFT:
             raise DocumentStatusError(f"Cannot save {self.DOCTYPE} {self.name}: submitted docs are immutable; cancel and create a new one to amend")
         db = get_db()
@@ -304,6 +307,8 @@ class Document:
         try:
             with db.atomic():
                 self._check_write_state(DRAFT)
+                from lambda_erp.assets.lifecycle import lock_rental_references
+                lock_rental_references(self)
                 self._data["modified"] = now()
                 from lambda_erp.controllers.item_prices import normalize_item_prices
                 normalize_item_prices(self)
@@ -323,6 +328,7 @@ class Document:
 
     def submit(self):
         """Validate and post once; quantities and ledgers share one transaction."""
+        self._require_submittable()
         if self.docstatus != DRAFT:
             raise DocumentStatusError(f"Cannot submit {self.DOCTYPE} {self.name}: docstatus is {self.docstatus}")
         if self._data.get("discarded"):
@@ -358,6 +364,7 @@ class Document:
 
     def cancel(self):
         """Reverse a submitted document once, including its planning effects."""
+        self._require_submittable()
         if self.docstatus != SUBMITTED:
             raise DocumentStatusError(f"Cannot cancel {self.DOCTYPE} {self.name}: docstatus is {self.docstatus}")
         db = get_db()
@@ -367,6 +374,8 @@ class Document:
                 self._check_write_state(SUBMITTED)
                 from lambda_erp.workflow import lock_workflow_references, validate_cancellation, refresh_order_progress
                 lock_workflow_references(self)
+                from lambda_erp.assets.lifecycle import validate_voucher_release
+                validate_voucher_release(self)
                 validate_cancellation(self)
                 self._data["docstatus"] = CANCELLED
                 self._data["status"] = "Cancelled"
@@ -383,15 +392,26 @@ class Document:
 
     def discard(self):
         """Void a draft without deleting its audit trail."""
+        if 'discarded' not in get_db()._get_table_columns(self.DOCTYPE):
+            raise DocumentStatusError(f'{self.DOCTYPE} does not support discard; use its documented status workflow')
         if self.docstatus != DRAFT:
             raise DocumentStatusError(f"Cannot discard {self.DOCTYPE} {self.name}: only drafts can be discarded; a submitted document must be cancelled")
         with get_db().atomic():
             self._check_write_state(DRAFT)
+            from lambda_erp.assets.lifecycle import lock_rental_references, validate_voucher_release, validate_asset_change
+            lock_rental_references(self)
+            validate_voucher_release(self)
+            if self.DOCTYPE == 'Asset':
+                validate_asset_change(self, discarding=True)
             self._data["discarded"] = 1
             self._data["status"] = "Discarded"
             self._data["modified"] = now()
             self._persist()
         return self
+
+    def _require_submittable(self):
+        if not self.SUBMITTABLE:
+            raise DocumentStatusError(f'{self.DOCTYPE} does not support submit/cancel; use its documented status workflow')
 
     def _persist(self, commit=True):
         """Save document and child tables to database."""

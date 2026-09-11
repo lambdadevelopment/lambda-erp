@@ -20,6 +20,7 @@ import math
 
 class StockEntry(Document):
     DOCTYPE = "Stock Entry"
+    SUBMITTABLE = True
     CHILD_TABLES = {
         "items": ("Stock Entry Detail", None),
     }

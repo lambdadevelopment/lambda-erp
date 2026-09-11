@@ -214,3 +214,38 @@ and PostgreSQL, including simultaneous payment/journal submissions:
 These rules are advertised in field metadata and the generated prompt and
 enforced on both save and submit. No historical settlement or financial ledger
 is automatically rewritten by these changes.
+
+## Lifecycle, reservations and recurring billing
+
+`tests.test_lifecycle_guards` covers these rules on SQLite and PostgreSQL:
+
+- A fresh worker initializes its database connection before entering atomic
+  mode. Nested writes roll back on failure and preserve the original error.
+- Only document classes declaring `SUBMITTABLE = True` support the generic
+  submit/cancel lifecycle. Non-posting records use their own status workflow.
+  Generic discard requires a persisted `discarded` field. Setting that field
+  through save/update is rejected so dependency checks cannot be bypassed.
+- Unit and pool reservations serialize availability checks and writes against
+  the same item pool. Referenced vouchers and assets are locked first so a
+  concurrent cancellation, transfer or retirement cannot invalidate a booking.
+- Cancel/discard of a voucher is blocked while Reserved/Out reservations link
+  to it. Release or return those bookings explicitly first. A new active
+  booking cannot reference a cancelled/discarded voucher.
+- Item, warehouse or company changes, retirement, disabling and discard of a
+  booked asset are blocked. For unassigned pool bookings, assign or release
+  them first; capacity removal is conservatively blocked while they exist.
+- Subscription processing creates one due invoice per call and completes only
+  when its billed-through date reaches `end_date`. Repeated calls catch up all
+  overdue periods, including records prematurely marked Completed by older
+  code. The final period ends at `end_date` and uses the full plan price; there
+  is no automatic proration. Cancelled/discarded subscriptions never bill.
+  Processing updates the modification timestamp so a stale editor cannot
+  rewind the period and bill it again.
+- Migration 29 persists subscription discard flags (including existing
+  Discarded markers) and the subscription reference on new sales/purchase
+  invoices. The reference must match invoice company and party. Historical
+  missing invoice references are not guessed or backfilled.
+
+Lifecycle support and conditional rules appear in document field discovery
+and the generated chat prompt. Enforcement remains in the shared model, so
+REST, chat, MCP and direct model writes receive the same validation errors.

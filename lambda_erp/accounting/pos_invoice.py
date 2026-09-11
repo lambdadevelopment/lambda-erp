@@ -25,6 +25,7 @@ from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_g
 
 class POSInvoice(Document):
     DOCTYPE = "POS Invoice"
+    SUBMITTABLE = True
     CHILD_TABLES = {
         "items": ("POS Invoice Item", None),
         "taxes": ("Sales Taxes and Charges", None),

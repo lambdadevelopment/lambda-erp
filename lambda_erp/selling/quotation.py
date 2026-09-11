@@ -20,6 +20,7 @@ from lambda_erp.exceptions import ValidationError
 
 class Quotation(Document):
     DOCTYPE = "Quotation"
+    SUBMITTABLE = True
     CHILD_TABLES = {
         "items": ("Quotation Item", None),
         "taxes": ("Sales Taxes and Charges", None),

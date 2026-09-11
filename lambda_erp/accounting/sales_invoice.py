@@ -30,6 +30,7 @@ from lambda_erp.exceptions import ValidationError
 
 class SalesInvoice(Document):
     DOCTYPE = "Sales Invoice"
+    SUBMITTABLE = True
     CHILD_TABLES = {
         "items": ("Sales Invoice Item", None),
         "taxes": ("Sales Taxes and Charges", None),
@@ -37,6 +38,7 @@ class SalesInvoice(Document):
     PREFIX = "SINV"
 
     LINK_FIELDS = {
+        "subscription": "Subscription",
         "customer": "Customer",
         "company": "Company",
         "debit_to": "Account",

@@ -47,6 +47,11 @@ def missing(value):
 
 def validate_document_requirements(doc):
     """No writes: reject incomplete business data before persistence or posting."""
+    if doc.DOCTYPE in {'Sales Invoice', 'Purchase Invoice'} and doc.get('subscription'):
+        sub = get_db().get_value('Subscription', doc.subscription, ['company', 'party_type', 'party'])
+        party_type, party_field = ('Customer', 'customer') if doc.DOCTYPE == 'Sales Invoice' else ('Supplier', 'supplier')
+        if not sub or sub.get('company') != doc.company or sub.get('party_type') != party_type or sub.get('party') != doc.get(party_field):
+            raise ValidationError('Subscription must exist and match invoice company and party')
     for field in doc.REQUIRED_FIELDS:
         if missing(doc.get(field)):
             raise ValidationError(f"{doc.DOCTYPE}: {field.replace('_', ' ').title()} is required")
@@ -79,6 +84,15 @@ def document_requirements(cls):
     """Machine-readable minimums plus conditional rules owned by the class."""
     required = list(getattr(cls, 'REQUIRED_FIELDS', ()))
     rules = list(getattr(cls, 'CONDITIONAL_REQUIREMENTS', ()))
+    if cls.SUBMITTABLE:
+        rules.append('Supports submit/cancel. Resolve active linked reservations before cancelling or discarding their voucher.')
+    else:
+        rules.append('Does not support generic submit/cancel. Use the document-specific status workflow.')
+    supports_discard = 'discarded' in get_db()._get_table_columns(cls.DOCTYPE)
+    if not supports_discard:
+        rules.append('Generic discard is unsupported for this document type.')
+    if cls.DOCTYPE in {'Sales Invoice', 'Purchase Invoice'}:
+        rules.append('An optional subscription reference must exist and match invoice company and customer/supplier.')
     rules.append('Create requires a new document name (omit name for automatic naming). Existing documents must be loaded and updated as drafts; submitted/cancelled/discarded or stale records cannot be overwritten. Reload after a conflict.')
     children = dict(getattr(cls, 'CHILD_REQUIREMENTS', {}))
     if cls.DOCTYPE in ORDER_REFERENCES:
@@ -101,4 +115,5 @@ def document_requirements(cls):
                 'Warehouse is required on stock items for Delivery Note, Purchase Receipt, or update_stock=1.',
             ],
         }
-    return {'required': sorted(set(required)), 'conditional': rules, 'children': children}
+    return {'required': sorted(set(required)), 'conditional': rules, 'children': children,
+            'lifecycle': {'submit': cls.SUBMITTABLE, 'cancel': cls.SUBMITTABLE, 'discard': supports_discard}}

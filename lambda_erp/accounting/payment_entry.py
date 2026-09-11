@@ -32,6 +32,7 @@ from lambda_erp.exceptions import ValidationError
 
 class PaymentEntry(Document):
     DOCTYPE = "Payment Entry"
+    SUBMITTABLE = True
     CHILD_TABLES = {
         "references": ("Payment Entry Reference", None),
     }

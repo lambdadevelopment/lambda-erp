@@ -770,6 +770,7 @@ class Database:
             # --- Sales Invoice ---
             """CREATE TABLE IF NOT EXISTS "Sales Invoice" (
                 name TEXT PRIMARY KEY,
+                subscription TEXT,
                 customer TEXT,
                 customer_name TEXT,
                 posting_date TEXT,
@@ -837,6 +838,7 @@ class Database:
             # --- Purchase Invoice ---
             """CREATE TABLE IF NOT EXISTS "Purchase Invoice" (
                 name TEXT PRIMARY KEY,
+                subscription TEXT,
                 supplier TEXT,
                 supplier_name TEXT,
                 posting_date TEXT,
@@ -1264,6 +1266,7 @@ class Database:
                 current_invoice_end TEXT,
                 status TEXT DEFAULT 'Active',
                 docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 creation TEXT,
                 modified TEXT
             )""",
@@ -2086,6 +2089,9 @@ class Database:
         """Compose document/plugin writes, including nested operations."""
         import uuid
         with self._lock:
+            # Opening a thread's first connection initializes transaction state.
+            # Do this before marking the block active, or inserts may auto-commit.
+            self.conn
             outer = self._in_transaction
             point = 'atomic_' + uuid.uuid4().hex
             self._in_transaction = True
@@ -2563,6 +2569,13 @@ def _m028_order_planning(db: "Database") -> None:
                'WHEN per_billed > 0 AND per_billed < 100 THEN \'To Bill\' ELSE \'To Deliver and Bill\' END WHERE docstatus = 1')
 
 
+def _m029_subscription_discarded(db: "Database") -> None:
+    db._add_column_if_missing('Subscription', 'discarded', 'INTEGER DEFAULT 0')
+    db.sql("UPDATE \"Subscription\" SET discarded = 1 WHERE status = 'Discarded'")
+    for table in ('Sales Invoice', 'Purchase Invoice'):
+        db._add_column_if_missing(table, 'subscription', 'TEXT')
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2592,6 +2605,7 @@ Database.MIGRATIONS = [
     (26, "bank_reconciliation_groups", _m026_bank_reconciliation_groups),
     (27, "reservation_allocation_mode", _m027_reservation_allocation_mode),
     (28, "order_planning_from_posted_documents", _m028_order_planning),
+    (29, "subscription_discarded", _m029_subscription_discarded),
 ]
 
 

@@ -26,6 +26,7 @@ from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_g
 
 class DeliveryNote(Document):
     DOCTYPE = "Delivery Note"
+    SUBMITTABLE = True
     CHILD_TABLES = {
         "items": ("Delivery Note Item", None),
         "taxes": ("Sales Taxes and Charges", None),

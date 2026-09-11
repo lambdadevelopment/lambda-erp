@@ -22,6 +22,10 @@ these, stop and read the note.
   post-submit updates that legitimately need to mutate submitted rows
   (`outstanding_amount`, `billed_qty`, `modified`). For anything else,
   the caller should be a DRAFT document going through `save()`.
+- **Initialize a worker connection before setting transaction state.** The
+  connection opener resets thread-local state. `Database.atomic()` initializes
+  first; reversing that order makes fresh-thread inserts commit inside an
+  allegedly atomic block and masks failures with missing-savepoint errors.
 - **Dual backend (SQLite *and* Postgres) since 0.1.5.** The data layer also
   speaks Postgres when `LAMBDA_ERP_DB` is a `postgresql://…` URL; `db.dialect`
   says which. Write portable SQL: `COALESCE` not `IFNULL`, `substr` not

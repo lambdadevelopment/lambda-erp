@@ -24,6 +24,7 @@ from lambda_erp.exceptions import ValidationError, DebitCreditNotEqual
 
 class JournalEntry(Document):
     DOCTYPE = "Journal Entry"
+    SUBMITTABLE = True
     CHILD_TABLES = {
         "accounts": ("Journal Entry Account", None),
     }

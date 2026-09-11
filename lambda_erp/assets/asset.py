@@ -52,6 +52,9 @@ class Asset(Document):
     CHILD_TABLES = {}
     PREFIX = "ASSET"
     REQUIRED_FIELDS = ("item_code", "warehouse")
+    CONDITIONAL_REQUIREMENTS = (
+        'Submit/cancel are unsupported. Resolve active unit or pool reservations before changing item, warehouse or company, disabling, retiring or discarding an asset.',
+    )
     LINK_FIELDS = {
         "item_code": "Item",
         "warehouse": "Warehouse",
@@ -113,6 +116,8 @@ class Asset(Document):
 
         if not self._data.get("warehouse"):
             raise ValidationError("Warehouse is required on an Asset (or set the Item default warehouse)")
+        from lambda_erp.assets.lifecycle import validate_asset_change
+        validate_asset_change(self)
 
 
 def usable_assets(db, item_code: str, warehouse: str | None = None) -> list:

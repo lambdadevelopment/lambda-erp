@@ -19,6 +19,7 @@ from lambda_erp.exceptions import ValidationError
 
 class PurchaseOrder(Document):
     DOCTYPE = "Purchase Order"
+    SUBMITTABLE = True
     CHILD_TABLES = {
         "items": ("Purchase Order Item", None),
         "taxes": ("Sales Taxes and Charges", None),

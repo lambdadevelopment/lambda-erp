@@ -10,6 +10,12 @@ before touching any accounting, stock, or lifecycle path.
   `docstatus != DRAFT`. Post-submit field updates (`outstanding_amount`,
   `billed_qty`, `modified`) go through `db.set_value` directly, never
   round-trip via `.save()`. (`lambda_erp/model.py`)
+- **Generic submission is opt-in.** A new document class must declare
+  `SUBMITTABLE = True` only if Draft/Submitted/Cancelled is its actual workflow.
+  Discard requires a persisted flag; save/update cannot set it directly.
+- **Rental capacity changes share locks.** Asset and Reservation saves use
+  `assets.lifecycle` locks (voucher, asset, then item pool) before validation.
+  Do not bypass them with direct updates to active bookings or asset capacity.
 - **Discard is a draft-only soft delete, never a hard delete.** There is no
   row deletion anywhere — `Document.discard()` voids an unwanted **draft**
   (docstatus 0) by setting `discarded = 1` / status `'Discarded'`; the row is

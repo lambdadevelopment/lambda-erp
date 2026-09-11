@@ -25,6 +25,7 @@ from lambda_erp.exceptions import ValidationError
 
 class PurchaseInvoice(Document):
     DOCTYPE = "Purchase Invoice"
+    SUBMITTABLE = True
     CHILD_TABLES = {
         "items": ("Purchase Invoice Item", None),
         "taxes": ("Sales Taxes and Charges", None),
@@ -32,6 +33,7 @@ class PurchaseInvoice(Document):
     PREFIX = "PINV"
 
     LINK_FIELDS = {
+        "subscription": "Subscription",
         "supplier": "Supplier",
         "company": "Company",
         "credit_to": "Account",

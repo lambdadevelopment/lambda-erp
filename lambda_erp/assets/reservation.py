@@ -102,6 +102,7 @@ class Reservation(Document):
         "For customer hire, party_type=Customer and party are required; an internal block without party requires purpose.",
         "Status Out requires a concrete asset. An active reservation must use its asset's warehouse.",
         "voucher_type and voucher_no must be supplied together and reference an existing supported document.",
+        "Submit/cancel are unsupported. Change status through update; active bookings require a non-cancelled/non-discarded voucher. Availability is rechecked under a shared pool lock; resolve conflicts rather than omitting the asset.",
     )
     LINK_FIELDS = {
         "item_code": "Item",
@@ -194,6 +195,8 @@ class Reservation(Document):
         self._data["qty"] = qty
 
         if status in BLOCKING_STATUSES:
+            from lambda_erp.assets.lifecycle import validate_reservation_voucher
+            validate_reservation_voucher(self)
             self._check_availability(db, from_dt, to_dt)
 
     def _resolve_from_asset(self, db, asset: str) -> None:

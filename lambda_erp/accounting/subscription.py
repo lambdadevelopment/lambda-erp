@@ -7,7 +7,7 @@ create it automatically.
 """
 
 from lambda_erp.model import Document
-from lambda_erp.utils import _dict, flt, getdate, nowdate, add_days
+from lambda_erp.utils import _dict, flt, getdate, nowdate, now, add_days
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError
 from datetime import timedelta
@@ -29,9 +29,14 @@ class Subscription(Document):
         'Choose company explicitly when more than one exists. party_type must be Customer or Supplier and party must exist.',
         'billing_interval is Monthly (default), Quarterly, Half-Yearly or Yearly; unsupported intervals are rejected. End Date cannot precede Start Date.',
         'Each plan requires an existing item_code, positive finite qty and explicit nonnegative finite rate (zero is allowed deliberately).',
+        'No generic submit/cancel. Use status=Cancelled to stop billing, or discard. Processing creates at most one due period per call; repeat until caught up. Completed means billed through end_date. A final shortened period uses the full plan price (no automatic proration).',
     )
 
     def validate(self):
+        if self.status == 'Discarded' and not self.get('discarded'):
+            raise ValidationError('Use discard to stop and discard a Subscription; do not set status=Discarded directly')
+        if self.status not in (None, '', 'Active', 'Past Due Date', 'Completed', 'Cancelled', 'Discarded'):
+            raise ValidationError('Invalid Subscription status; use Cancelled to stop billing, other billing states are derived')
         if not self.party_type:
             raise ValidationError("Party Type is required")
         if not self.party:
@@ -68,16 +73,21 @@ class Subscription(Document):
         # Initialize billing period
         if not self.current_invoice_start:
             self._data["current_invoice_start"] = self.start_date
-        if not self.current_invoice_end:
-            self._data["current_invoice_end"] = self._get_next_date(self.start_date)
+        if not self.current_invoice_end or getdate(self.current_invoice_end) <= getdate(self.current_invoice_start):
+            self._data["current_invoice_end"] = self._get_next_date(self.current_invoice_start)
+        if self.end_date and getdate(self.current_invoice_end) > getdate(self.end_date):
+            self._data['current_invoice_end'] = self.end_date
 
         self._set_status()
 
     def _set_status(self):
+        if self._data.get('discarded'):
+            self._data['status'] = 'Discarded'
+            return
         if self._data.get("status") == "Cancelled":
             return
         today = getdate(nowdate())
-        if self.end_date and getdate(self.end_date) < today:
+        if self.end_date and self.current_invoice_start and getdate(self.current_invoice_start) >= getdate(self.end_date):
             self._data["status"] = "Completed"
         elif self.current_invoice_end and getdate(self.current_invoice_end) < today:
             self._data["status"] = "Past Due Date"
@@ -112,10 +122,13 @@ class Subscription(Document):
 
         Returns the created invoice dict, or None if no invoice was due.
         """
-        if self._data.get("status") in ("Cancelled", "Completed"):
+        if self._data.get('discarded') or self._data.get("status") in ("Cancelled", "Discarded"):
             return None
 
         self.validate()
+        if self.status == 'Completed':
+            self._persist()
+            return None
 
         today = getdate(nowdate())
         invoice_end = getdate(self.current_invoice_end) if self.current_invoice_end else today
@@ -129,13 +142,11 @@ class Subscription(Document):
         # Advance to next period
         self._data["current_invoice_start"] = self.current_invoice_end
         self._data["current_invoice_end"] = self._get_next_date(self.current_invoice_end)
+        if self.end_date and getdate(self.current_invoice_end) > getdate(self.end_date):
+            self._data['current_invoice_end'] = self.end_date
+        self._set_status()
 
-        # Check if subscription has ended
-        if self.end_date and getdate(self.end_date) <= today:
-            self._data["status"] = "Completed"
-        else:
-            self._data["status"] = "Active"
-
+        self._data['modified'] = now()
         self._persist()
 
         return invoice.as_dict()
