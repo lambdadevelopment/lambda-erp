@@ -54,6 +54,12 @@ def _install_llm_stubs():
             reply = "Here is the latest quotation: /api/documents/quotation/QTN-2298/pdf — I've attached it."
         else:
             reply = "stub-reply"
+        if "tool-warning" in last_user:
+            await on_event({"type":"tool_result", "tool":"create_document", "success":True,
+                            "warnings":[{"code":"asset_unassigned", "message":"Assign a machine"}]})
+        if "tool-error" in last_user:
+            await on_event({"type":"tool_result", "tool":"create_document", "success":False,
+                            "error":"Warehouse is required", "warnings":[]})
         messages.append({"role": "assistant", "content": reply})
 
     async def fake_title(*args, **kwargs):
@@ -190,6 +196,15 @@ def check_chat_api():
         # Valid key + known doctype but missing document -> 404 (ValidationError).
         assert client.get("/api/v1/documents/sales-invoice/NOPE-9999/pdf", headers=auth_h).status_code == 404
         assert client.get("/api/v1/documents/sales-invoice/NOPE-9999", headers=auth_h).status_code == 404
+
+        # Machine-readable business outcomes reach the external orchestrator.
+        response = client.post("/api/v1/chat", json={"message":"tool-warning"}, headers=auth_h)
+        assert response.status_code == 200
+        assert response.json()["tool_results"][0]["warnings"][0]["code"] == "asset_unassigned"
+        response = client.post("/api/v1/chat", json={"message":"tool-error"}, headers=auth_h)
+        assert response.status_code == 200
+        assert response.json()["tool_results"][0]["success"] is False
+        assert response.json()["tool_results"][0]["error"] == "Warehouse is required"
 
         # --- Revoke -> the key stops working. -------------------------------
         assert client.post(f"/api/auth/api-keys/{key_id}/revoke").status_code == 200

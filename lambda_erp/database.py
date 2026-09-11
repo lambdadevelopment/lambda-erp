@@ -1645,6 +1645,7 @@ class Database:
                 item_code TEXT,
                 warehouse TEXT,
                 asset TEXT,
+                allocation_mode TEXT,
                 qty REAL DEFAULT 1,
                 from_datetime TEXT,
                 to_datetime TEXT,
@@ -2485,6 +2486,15 @@ def _m026_bank_reconciliation_groups(db: "Database") -> None:
     ], ["Bank Reconciliation"])
 
 
+def _m027_reservation_allocation_mode(db: "Database") -> None:
+    db.ensure_column("Reservation", "allocation_mode", "TEXT")
+    db._alter_table_lock_safe([
+        'UPDATE "Reservation" SET allocation_mode = '
+        "CASE WHEN COALESCE(asset, '') = '' THEN 'Pool' ELSE 'Unit' END "
+        "WHERE allocation_mode IS NULL",
+    ], ["Reservation"])
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2512,6 +2522,7 @@ Database.MIGRATIONS = [
     (24, "bank_reconciliation", _m024_bank_reconciliation),
     (25, "bank_reconciliation_multi_account_voucher", _m025_bank_reconciliation_multi_account_voucher),
     (26, "bank_reconciliation_groups", _m026_bank_reconciliation_groups),
+    (27, "reservation_allocation_mode", _m027_reservation_allocation_mode),
 ]
 
 

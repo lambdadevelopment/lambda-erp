@@ -51,6 +51,7 @@ class Asset(Document):
     DOCTYPE = "Asset"
     CHILD_TABLES = {}
     PREFIX = "ASSET"
+    REQUIRED_FIELDS = ("item_code", "warehouse")
     LINK_FIELDS = {
         "item_code": "Item",
         "warehouse": "Warehouse",
@@ -109,6 +110,9 @@ class Asset(Document):
             item = db.get_value("Item", self.item_code, ["default_warehouse"])
             if item and item.get("default_warehouse"):
                 self._data["warehouse"] = item["default_warehouse"]
+
+        if not self._data.get("warehouse"):
+            raise ValidationError("Warehouse is required on an Asset (or set the Item default warehouse)")
 
 
 def usable_assets(db, item_code: str, warehouse: str | None = None) -> list:

@@ -31,6 +31,11 @@ class Document:
     """
 
     DOCTYPE = None  # Override in subclasses, e.g. "Sales Invoice"
+    INPUT_FIELDS = set()  # Explicit transient input fields consumed by plugins.
+    CHILD_INPUT_FIELDS = {}
+    REQUIRED_FIELDS = ()
+    CONDITIONAL_REQUIREMENTS = ()
+
     CHILD_TABLES = {}  # {"items": ("Sales Invoice Item", SalesInvoiceItem), ...}
     PREFIX = "DOC"  # For auto-naming
 
@@ -287,6 +292,8 @@ class Document:
             )
         self._data["modified"] = now()
         self.validate()
+        from lambda_erp.validation import validate_document_requirements
+        validate_document_requirements(self)
         self._validate_links()
         self.before_save()
         run_hooks(f"{self.DOCTYPE}:before_save", self)
@@ -319,12 +326,15 @@ class Document:
 
         db = get_db()
         db._in_transaction = True
-        self._data["modified"] = now()
-        self.validate()
-        self.before_submit()
-        self._data["docstatus"] = SUBMITTED
-        self._data["status"] = "Submitted"
         try:
+            self._data["modified"] = now()
+            self.validate()
+            from lambda_erp.validation import validate_document_requirements
+            validate_document_requirements(self)
+            self._validate_links()
+            self.before_submit()
+            self._data["docstatus"] = SUBMITTED
+            self._data["status"] = "Submitted"
             # Inside the transaction: a raising before_submit hook aborts and
             # rolls back the whole submit (use for guards / extra validation).
             run_hooks(f"{self.DOCTYPE}:before_submit", self)

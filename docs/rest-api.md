@@ -1,5 +1,9 @@
 # REST API
 
+Document write requirements, field discovery and structured warnings are
+documented in [Document validation](document-validation.md). In particular,
+unknown fields and incomplete required data return HTTP 422.
+
 Drive the ERP over its REST API — the same endpoints the web app uses
 (`/api/documents`, `/api/masters`, `/api/reports`, …) — from a connector or
 script, authenticated by Bearer API keys. **Off by default**: an admin turns it

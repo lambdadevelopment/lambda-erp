@@ -72,9 +72,10 @@ def check_tool_permissions():
     from api.tool_permissions import TOOL_ROLES, tool_allowed
 
     db = setup(_database_path())
+    db.insert("Chat Session", {"id": "permission-test-session", "title": "Permission test"})
     _seed(db)
     journal_data = {
-        "company": "Synthetic Co", "posting_date": "2025-02-01", "currency": "CHF",
+        "company": "Synthetic Co", "posting_date": "2025-02-01",
         "accounts": [
             {"account": "Expense - SYNT", "debit": 10, "credit": 0},
             {"account": "Bank - SYNT", "debit": 0, "credit": 10},
@@ -174,6 +175,7 @@ def check_tool_permissions():
     # Real writes still work, including actual balanced GL postings and reversal.
     for role in ("manager", "admin"):
         results, _ = _run([("create_document", {"doctype": "journal-entry", "data": journal_data})], role)
+        assert "name" in results[0], results
         name = results[0]["name"]
         results, _ = _run([("submit_document", {"doctype": "journal-entry", "name": name})], role)
         assert results[0]["docstatus"] == 1, results

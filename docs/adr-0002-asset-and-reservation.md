@@ -1,5 +1,12 @@
 # ADR-0002 — Unit-level asset identity and a date-ranged reservation primitive
 
+**2026-09-11 follow-up:** Pool reservations now require explicit
+`allocation_mode=Pool`, and are shown on unassigned rows in the fleet calendar.
+Customer/internal-purpose and dispatch assignment rules are enforced across
+document channels. See [Document validation](document-validation.md) for the
+current contract, migration and compatibility details; the original scope
+below describes the first implementation.
+
 - **Status:** Accepted — implemented (Tier A)
 - **Date:** 2026-08-12
 - **Owner:** Jonathan

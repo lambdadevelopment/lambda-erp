@@ -1,5 +1,10 @@
 # Chat API
 
+Responses also include `tool_results` with success/error/warning information
+for each attempted tool operation. A completed chat turn is not itself proof
+that a business operation succeeded. See [Document validation](document-validation.md)
+for the shared rules and persisted tool audit records.
+
 Talk to the ERP's chat agent over a small HTTP API, authenticated by Bearer API
 keys. **Off by default** — an admin enables it and issues keys. This is how an
 external orchestrator (e.g. Lambda's own infra, then a mobile app) drives an ERP

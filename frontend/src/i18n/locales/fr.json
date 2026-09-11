@@ -639,6 +639,7 @@
     "Meter Unit": "Unité compteur",
     "Yard": "Dépôt",
     "Asset (specific unit)": "Équipement (unité spécifique)",
+    "Allocation": "Affectation",
     "From": "Du",
     "To": "Au",
     "Purpose": "Objet",
@@ -893,9 +894,13 @@
     "machine": "Machine",
     "loadError": "Impossible de charger le calendrier de flotte.",
     "noAssets": "Aucun équipement à afficher. Ajoutez des machines sous Locations → Flotte.",
-    "pooledNote": "{{count}} réservation(s) de pool non affichée(s) sur une ligne d'unité"
+    "pooledNote": "{{count}} réservation(s) en attente d’attribution",
+    "unassigned": "Pool — non attribué",
+    "poolWarning": "La capacité est réservée. Aucune machine précise n’est encore attribuée ; attribuez une machine avant la sortie."
   },
   "fieldOptions": {
+    "Unit": "Machine spécifique",
+    "Pool": "Pool – machine à affecter",
     "Available": "Disponible",
     "On Hire": "En location",
     "Out": "Sorti",

@@ -13,6 +13,21 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### Fixed
+- Require a machine or explicit pool allocation for active reservations, a
+  customer or internal purpose, and a usable asset in the correct yard before
+  dispatch. Display pool bookings in the fleet calendar with an assignment
+  warning instead of hiding them.
+- Reject missing document companies, invalid item quantities, missing stock
+  warehouses and incomplete payment references on save and submit. Reject
+  unknown document input fields instead of silently discarding them; plugins
+  can declare supported transient fields.
+
+### Added
+- Shared required-field metadata for REST, MCP and generated chat prompts;
+  structured chat tool errors/warnings and persisted tool-call audit records.
+  See [compatibility and deployment notes](docs/document-validation.md).
+
 ## [0.8.33] - 2026-09-07
 
 ### Fixed

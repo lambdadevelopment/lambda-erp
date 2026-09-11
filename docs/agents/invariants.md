@@ -64,6 +64,12 @@ before touching any accounting, stock, or lifecycle path.
 
 ## Declarative validations — declare them on every new document
 
+`REQUIRED_FIELDS` are checked on save and submit. Implement conditional checks
+in `validate()` and describe them in `CONDITIONAL_REQUIREMENTS`, which feeds
+field metadata and the chat prompt. Document service inputs reject unknown
+fields; declare intentional transient plugin inputs in `INPUT_FIELDS` /
+`CHILD_INPUT_FIELDS`. See [document validation](../document-validation.md).
+
 The `Document` base class auto-validates four things from class attributes.
 When you add a new `Document` subclass, declare whatever applies:
 

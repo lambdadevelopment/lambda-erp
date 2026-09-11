@@ -402,21 +402,23 @@ def main():
     # =====================================================================
     print_header("10. REGRESSION - Failed submit rolls back docstatus")
 
-    # Create an invoice with no company — on_submit will fail when
-    # trying to create GL entries because accounts can't be resolved
+    # Missing company is now rejected on save. Inject a posting failure instead
+    # to exercise rollback AFTER submit has persisted docstatus=1.
     bad_invoice = SalesInvoice(
         customer="CUST-001",
         posting_date=nowdate(),
-        # Deliberately omit company — GL posting will fail
+        company="Lambda Corp",
         items=[
             _dict(item_code="ITEM-001", qty=1, rate=100),
         ],
     )
     bad_invoice.save()
-    print(f"  Created {bad_invoice.name} with no company (will fail on submit)")
+    print(f"  Created {bad_invoice.name}; simulate a GL posting failure")
 
     try:
-        bad_invoice.submit()
+        from unittest.mock import patch
+        with patch.object(SalesInvoice, "_get_gl_entries", side_effect=RuntimeError("posting failure")):
+            bad_invoice.submit()
         print(f"  ERROR: submit should have failed!")
         assert False, "Submit should have raised an exception"
     except Exception as e:
@@ -2730,13 +2732,13 @@ def main():
         assert "already used by" in str(err), f"unexpected message: {err}"
 
     # Unit-level booking, then the same unit double-booked.
-    _r1 = Reservation(asset=_u1.name, from_datetime="2026-08-14",
+    _r1 = Reservation(purpose="Test internal block", asset=_u1.name, from_datetime="2026-08-14",
                       to_datetime="2026-08-19", party_type="Customer",
                       party="CUST-001").save()
     assert _r1.item_code == "EXC-17" and _r1.warehouse == "Yard SG - LAMB", \
         "a unit reservation must inherit its asset's item and yard"
     try:
-        Reservation(asset=_u1.name, from_datetime="2026-08-18",
+        Reservation(purpose="Test internal block", asset=_u1.name, from_datetime="2026-08-18",
                     to_datetime="2026-08-20").save()
         raise AssertionError("an overlapping unit reservation must be refused")
     except ValidationError as err:
@@ -2744,18 +2746,20 @@ def main():
     print(f"  {_r1.name} holds {_u1.name} 14.-19.; the overlapping booking was refused")
 
     # Half-open windows: a hire ending when the next starts is NOT a clash.
-    _r2 = Reservation(asset=_u1.name, from_datetime="2026-08-19",
+    _r2 = Reservation(purpose="Test internal block", asset=_u1.name, from_datetime="2026-08-19",
                       to_datetime="2026-08-21").save()
     print(f"  {_r2.name} starts exactly when {_r1.name} ends — allowed (half-open)")
 
+    db.insert("Sales Order", {"name": "SO-RENTAL-1", "customer": "CUST-001", "company": "Lambda Corp"})
+
     # Pooled booking draws on the same capacity as the pinned one.
-    _r3 = Reservation(item_code="EXC-17", warehouse="Yard SG - LAMB", qty=1,
+    _r3 = Reservation(purpose="Test internal block", allocation_mode="Pool", item_code="EXC-17", warehouse="Yard SG - LAMB", qty=1,
                       from_datetime="2026-08-14", to_datetime="2026-08-16",
                       voucher_type="Sales Order", voucher_no="SO-RENTAL-1").save()
     assert committed_qty(db, "EXC-17", "Yard SG - LAMB", "2026-08-14", "2026-08-16") == 2
     assert available_qty(db, "EXC-17", "Yard SG - LAMB", "2026-08-14", "2026-08-16") == 0
     try:
-        Reservation(item_code="EXC-17", warehouse="Yard SG - LAMB", qty=1,
+        Reservation(purpose="Test internal block", allocation_mode="Pool", item_code="EXC-17", warehouse="Yard SG - LAMB", qty=1,
                     from_datetime="2026-08-14", to_datetime="2026-08-16").save()
         raise AssertionError("a booking beyond pool capacity must be refused")
     except ValidationError as err:
@@ -2763,7 +2767,7 @@ def main():
     print("  Pool exhausted 14.-16. (1 pinned + 1 pooled of 2) — third booking refused")
 
     # A different yard has its own pool and is unaffected.
-    Reservation(asset=_u3.name, from_datetime="2026-08-14", to_datetime="2026-08-16").save()
+    Reservation(purpose="Test internal block", asset=_u3.name, from_datetime="2026-08-14", to_datetime="2026-08-16").save()
     assert available_qty(db, "EXC-17", "Yard ZH - LAMB", "2026-08-17", "2026-08-18") == 1
     _free = [a["name"] for a in
              available_assets(db, "EXC-17", "Yard SG - LAMB", "2026-08-20", "2026-08-21")]
@@ -2947,6 +2951,29 @@ def main():
     # =====================================================================
     # FINAL SUMMARY
     # =====================================================================
+    print_header("REGRESSION — incomplete documents cannot silently skip stock/allocations")
+    for broken in (
+        SalesInvoice(customer="CUST-001", company="Lambda Corp", update_stock=1,
+                     items=[_dict(item_code="ITEM-001", qty=1, rate=100)]),
+        DeliveryNote(customer="CUST-001", company="Lambda Corp",
+                     items=[_dict(item_code="ITEM-001", qty=1, rate=100)]),
+    ):
+        try:
+            broken.save()
+            raise AssertionError("missing warehouse must be refused")
+        except ValidationError as err:
+            assert "Warehouse is required" in str(err), str(err)
+        assert not db.exists(broken.DOCTYPE, broken.name)
+        assert not db.sql('SELECT name FROM "Stock Ledger Entry" WHERE voucher_no=?', [broken.name])
+    from lambda_erp.accounting.payment_entry import PaymentEntry as CheckedPayment
+    try:
+        CheckedPayment(payment_type="Receive", party_type="Customer", party="CUST-001",
+                       company="Lambda Corp", paid_amount=10,
+                       references=[_dict(reference_doctype="Sales Invoice", allocated_amount=10)]).save()
+        raise AssertionError("incomplete allocation must be refused")
+    except ValidationError as err:
+        assert "Reference Name" in str(err), str(err)
+
     print_header("TRIAL BALANCE")
 
     all_accounts = db.get_all(

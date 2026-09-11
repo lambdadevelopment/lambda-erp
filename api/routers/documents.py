@@ -37,6 +37,12 @@ _LIST_RESERVED = {
 }
 
 
+@router.get("/{doctype_slug}/fields")
+def document_fields(doctype_slug: str, _user: dict = _viewer):
+    from api.services import document_field_metadata
+    return document_field_metadata(doctype_slug)
+
+
 @router.get("/{doctype_slug}")
 def list_docs(
     doctype_slug: str,

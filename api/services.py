@@ -458,16 +458,74 @@ def _default_tax_rows(cls, data: dict) -> list | None:
     ]
 
 
+def document_field_metadata(doctype_slug: str) -> dict:
+    from lambda_erp.validation import document_requirements
+    doctype, cls = get_document_class(doctype_slug)
+    if not cls:
+        raise ValueError(f"Unknown document type: {doctype_slug}")
+    db = get_db()
+    return {
+        "doctype": doctype_slug,
+        "fields": sorted(db._get_table_columns(doctype)),
+        "text_fields": sorted(db._get_text_columns(doctype)),
+        "default_search_fields": document_search_columns(db, doctype_slug),
+        "child_tables": sorted(cls.CHILD_TABLES),
+        "link_fields": dict(cls.LINK_FIELDS),
+        "dynamic_link_fields": dict(cls.DYNAMIC_LINK_FIELDS),
+        "input_fields": sorted(cls.INPUT_FIELDS),
+        "child_input_fields": {key: sorted(value) for key, value in cls.CHILD_INPUT_FIELDS.items()},
+        "requirements": document_requirements(cls),
+    }
+
+
+def _validate_document_input(doctype, cls, data):
+    from lambda_erp.exceptions import ValidationError
+    if not isinstance(data, dict):
+        raise ValidationError("Document data must be an object")
+    # Response-only annotations can accompany a round trip through the form.
+    data = {key: value for key, value in data.items() if key != "_validation"}
+    db = get_db()
+    allowed = db._get_table_columns(doctype) | set(cls.CHILD_TABLES) | set(cls.INPUT_FIELDS)
+    unknown = set(data) - allowed
+    if unknown:
+        raise ValidationError(f"{doctype}: Unknown field(s): {', '.join(sorted(unknown))}. Use get_document_fields to inspect supported fields.")
+    for key, (table, _) in cls.CHILD_TABLES.items():
+        if key not in data:
+            continue
+        rows = data[key]
+        if not isinstance(rows, list):
+            raise ValidationError(f"{doctype}: {key} must be an array")
+        allowed_child = db._get_table_columns(table) | set(cls.CHILD_INPUT_FIELDS.get(key, ()))
+        for idx, row in enumerate(rows, 1):
+            if not isinstance(row, dict):
+                raise ValidationError(f"{doctype}: {key} row {idx} must be an object")
+            unknown = set(row) - allowed_child
+            if unknown:
+                raise ValidationError(f"{doctype}: {key} row {idx}: Unknown field(s): {', '.join(sorted(unknown))}")
+    return data
+
+
+def _document_validation(doc):
+    warnings = []
+    if doc.DOCTYPE == "Reservation" and not doc.get("asset") and doc.get("status") in {"Reserved", "Out"}:
+        warnings.append({
+            "code": "asset_unassigned", "field": "asset",
+            "message": "Pool capacity is reserved; no specific machine is assigned. This booking appears on a pool row in the fleet calendar. Assign an asset before dispatch.",
+        })
+    return {"warnings": warnings}
+
+
 def create_document(doctype_slug: str, data: dict) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
+    data = _validate_document_input(doctype, cls, data)
     default_taxes = _default_tax_rows(cls, data)
     if default_taxes is not None:
         data = {**data, "taxes": default_taxes}
     doc = cls(data)
     doc.save()
-    return doc.as_dict()
+    return load_document(doctype_slug, doc.name)
 
 
 def load_document(doctype_slug: str, name: str) -> dict:
@@ -475,13 +533,16 @@ def load_document(doctype_slug: str, name: str) -> dict:
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
     doc = cls.load(name)
-    return doc.as_dict()
+    result = doc.as_dict()
+    result["_validation"] = _document_validation(doc)
+    return result
 
 
 def update_document(doctype_slug: str, name: str, data: dict) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
+    data = _validate_document_input(doctype, cls, data)
     doc = cls.load(name)
     # Update parent fields
     for key, value in data.items():
@@ -494,7 +555,7 @@ def update_document(doctype_slug: str, name: str, data: dict) -> dict:
             for row in data[table_name]:
                 doc.append(table_name, _dict(row))
     doc.save()
-    return doc.as_dict()
+    return load_document(doctype_slug, doc.name)
 
 
 def batch_update_documents(doctype_slug: str, updates: list) -> dict:

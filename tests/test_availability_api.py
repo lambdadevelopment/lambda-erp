@@ -92,7 +92,7 @@ def check_availability_api():
         # book U-01 for 14.-16. (half-open)
         r = client.post("/api/documents/reservation", headers=h, json={
             "asset": u01, "from_datetime": "2026-08-14", "to_datetime": "2026-08-16",
-            "status": "Reserved"})
+            "status": "Reserved", "purpose": "Maintenance"})
         assert r.status_code == 200, r.text[:300]
 
         # --- overlapping window: one unit committed, one free ------------------
@@ -130,6 +130,36 @@ def check_availability_api():
                            params={"from": "2026-08-20", "to": "2026-08-22"}).json()
         assert len(empty["assets"]) == 2 and empty["reservations"] == [], empty
         print("  calendar feed: 2 lanes + 1 overlapping bar OK")
+
+        # Every write surface shares the same explicit allocation contract.
+        fields = client.get("/api/documents/reservation/fields", headers=h)
+        assert fields.status_code == 200, fields.text
+        assert "from_datetime" in fields.json()["requirements"]["required"]
+        pool = {"item_code": "EXC-17", "warehouse": "YARD-SG", "qty": 1,
+                "from_datetime": "2026-10-01", "to_datetime": "2026-10-03",
+                "purpose": "Maintenance capacity"}
+        missing = client.post("/api/documents/reservation", headers=h, json=pool)
+        assert missing.status_code == 422 and "allocation_mode" in missing.text, missing.text
+        pool["allocation_mode"] = "Pool"
+        r = client.post("/api/documents/reservation", headers=h, json=pool)
+        assert r.status_code == 200 and r.json()["asset"] is None, r.text
+        assert r.json()["_validation"]["warnings"][0]["code"] == "asset_unassigned"
+        pool_id = r.json()["name"]
+        r = client.put(f"/api/documents/reservation/{pool_id}", headers=h, json={"asset_id": u01})
+        assert r.status_code == 422 and "asset_id" in r.text, r.text
+        r = client.put(f"/api/documents/reservation/{pool_id}", headers=h, json={"status": "Out"})
+        assert r.status_code == 422 and "Asset is required" in r.text, r.text
+        cal = client.get("/api/availability/calendar", headers=h,
+                         params={"from":"2026-10-01", "to":"2026-10-03"}).json()
+        assert any(row["name"] == pool_id and row["asset"] is None for row in cal["reservations"])
+        r = client.post("/api/mcp", headers=h, json={"jsonrpc":"2.0", "id":1, "method":"tools/call",
+            "params":{"name":"update_document", "arguments":{"doctype":"reservation", "name":pool_id,
+                      "data":{"asset_id":u01}}}})
+        assert r.status_code == 200 and r.json()["result"]["isError"], r.text
+        r = client.put(f"/api/documents/reservation/{pool_id}", headers=h, json={"asset": u01, "status":"Out"})
+        assert r.status_code == 200 and r.json()["allocation_mode"] == "Unit", r.text
+        assert not r.json()["_validation"]["warnings"]
+        print("  REST/MCP: required allocation, warnings, unknown fields, dispatch and assignment OK")
 
         # --- bad datetime -> 422, not 500 -------------------------------------
         r = client.get("/api/availability", headers=h,

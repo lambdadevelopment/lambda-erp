@@ -27,6 +27,7 @@ through the ordinary selling cycle untouched.
 """
 
 import datetime
+import math
 
 from lambda_erp.assets.asset import ASSET_RETIRED, is_asset_tracked, usable_assets
 from lambda_erp.database import get_db
@@ -95,6 +96,13 @@ class Reservation(Document):
     DOCTYPE = "Reservation"
     CHILD_TABLES = {}
     PREFIX = "RES"
+    REQUIRED_FIELDS = ("from_datetime", "to_datetime")
+    CONDITIONAL_REQUIREMENTS = (
+        "Set asset for a specific unit; otherwise explicitly set allocation_mode=Pool with item_code, warehouse and positive whole qty.",
+        "For customer hire, party_type=Customer and party are required; an internal block without party requires purpose.",
+        "Status Out requires a concrete asset. An active reservation must use its asset's warehouse.",
+        "voucher_type and voucher_no must be supplied together and reference an existing supported document.",
+    )
     LINK_FIELDS = {
         "item_code": "Item",
         "warehouse": "Warehouse",
@@ -103,6 +111,10 @@ class Reservation(Document):
     }
     DYNAMIC_LINK_FIELDS = {
         "party": ("party_type", {"Customer": "Customer", "Supplier": "Supplier"}),
+        "voucher_no": ("voucher_type", {
+            "Quotation": "Quotation", "Sales Order": "Sales Order",
+            "Sales Invoice": "Sales Invoice", "Purchase Order": "Purchase Order",
+        }),
     }
 
     def validate(self):
@@ -126,6 +138,20 @@ class Reservation(Document):
         self._data["to_datetime"] = to_dt
 
         asset = self._data.get("asset")
+        mode = self._data.get("allocation_mode")
+        if mode not in (None, "", "Pool", "Unit"):
+            raise ValidationError("Allocation Mode must be Unit or Pool")
+        if asset:
+            self._data["allocation_mode"] = "Unit"
+        elif status in BLOCKING_STATUSES:
+            if mode != "Pool":
+                raise ValidationError("Set an Asset for a specific machine, or explicitly choose allocation_mode=Pool. If several machines match, ask which one or whether a pool booking is intended.")
+            if status == OUT:
+                raise ValidationError("Asset is required before marking a reservation Out")
+        if status in BLOCKING_STATUSES and not self._data.get("party") and not str(self._data.get("purpose") or "").strip():
+            raise ValidationError("Party is required for customer hire; an internal block without a customer requires Purpose")
+        if bool(self._data.get("voucher_type")) != bool(self._data.get("voucher_no")):
+            raise ValidationError("Voucher Type and Voucher No must be supplied together")
         if asset:
             self._resolve_from_asset(db, asset)
         elif not self._data.get("item_code"):
@@ -157,11 +183,14 @@ class Reservation(Document):
 
         qty = flt(self._data.get("qty") or (1 if asset else 0))
         if asset:
+            declared_qty = self._data.get("qty")
+            if declared_qty not in (None, "") and flt(declared_qty) != 1:
+                raise ValidationError("Qty must be exactly one for a specific Asset")
             # A pinned unit is exactly one machine; anything else would
             # double-count it against the pool.
             qty = 1
-        elif qty <= 0:
-            raise ValidationError("Qty must be greater than zero")
+        elif qty <= 0 or not math.isfinite(qty) or not qty.is_integer():
+            raise ValidationError("Qty must be a positive whole number")
         self._data["qty"] = qty
 
         if status in BLOCKING_STATUSES:
@@ -170,21 +199,24 @@ class Reservation(Document):
     def _resolve_from_asset(self, db, asset: str) -> None:
         """Pin the reservation to one unit, inheriting its item and location."""
         row = db.get_value(
-            "Asset", asset, ["item_code", "warehouse", "status", "disabled"]
+            "Asset", asset, ["item_code", "warehouse", "status", "disabled", "discarded"]
         )
         if not row:
             raise ValidationError(
                 f"Reservation: Asset '{asset}' does not exist in Asset"
             )
-        if row.get("status") == ASSET_RETIRED or row.get("disabled"):
+        if self._data.get("status") in BLOCKING_STATUSES and (row.get("status") == ASSET_RETIRED or row.get("disabled") or row.get("discarded")):
             raise ValidationError(
-                f"Asset {asset} is retired or disabled and cannot be reserved"
+                f"Asset {asset} is retired, disabled or discarded and cannot be reserved"
             )
         declared = self._data.get("item_code")
         if declared and declared != row.get("item_code"):
             raise ValidationError(
                 f"Asset {asset} is a '{row.get('item_code')}', not a '{declared}'"
             )
+        if (self._data.get("status") in BLOCKING_STATUSES and self._data.get("warehouse")
+                and self._data["warehouse"] != row.get("warehouse")):
+            raise ValidationError(f"Reservation Warehouse must match Asset {asset}'s warehouse ({row.get('warehouse')}). Record any transfer before booking.")
         self._data["item_code"] = row.get("item_code")
         if not self._data.get("warehouse") and row.get("warehouse"):
             self._data["warehouse"] = row["warehouse"]

@@ -681,6 +681,7 @@
     "Meter Unit": "Meter Unit",
     "Yard": "Yard",
     "Asset (specific unit)": "Asset (specific unit)",
+    "Allocation": "Allocation",
     "From": "From",
     "To": "To",
     "Purpose": "Purpose",
@@ -893,9 +894,13 @@
     "machine": "Machine",
     "loadError": "Could not load the fleet calendar.",
     "noAssets": "No assets to show. Add machines under Rentals → Fleet.",
-    "pooledNote": "{{count}} pooled booking(s) not shown on a unit lane"
+    "pooledNote": "{{count}} pool booking(s) awaiting assignment",
+    "unassigned": "Pool — unassigned",
+    "poolWarning": "Pool capacity is reserved. No specific machine has been assigned yet; assign a machine before dispatch."
   },
   "fieldOptions": {
+    "Unit": "Specific machine",
+    "Pool": "Pool – assign machine later",
     "Available": "Available",
     "On Hire": "On Hire",
     "Out": "Out",

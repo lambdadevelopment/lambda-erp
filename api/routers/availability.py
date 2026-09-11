@@ -117,7 +117,7 @@ def calendar_feed(
             "meter_reading": a.get("meter_reading"),
         }
         for a in db.get_all("Asset", filters=asset_filters, fields=["*"], order_by="item_code, asset_tag")
-        if a.get("status") != "Retired"
+        if a.get("status") != "Retired" and not a.get("discarded")
     ]
 
     try:

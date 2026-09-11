@@ -78,15 +78,21 @@ export default function FleetCalendarPage() {
   const byAsset = useMemo(() => {
     const map = new Map<string, CalendarReservation[]>();
     for (const r of data?.reservations ?? []) {
-      if (!r.asset) continue; // pooled bookings have no unit lane (see note below)
-      const list = map.get(r.asset) ?? [];
+      const key = r.asset || `pool:${r.name}`;
+      const list = map.get(key) ?? [];
       list.push(r);
-      map.set(r.asset, list);
+      map.set(key, list);
     }
     return map;
   }, [data]);
 
-  const pooledCount = (data?.reservations ?? []).filter((r) => !r.asset).length;
+  const pooled = (data?.reservations ?? []).filter((r) => !r.asset);
+  const pooledCount = pooled.length;
+  // Each unassigned booking gets a row so overlapping pool bookings stay visible.
+  const lanes: CalendarAsset[] = [...assets, ...pooled.map((r) => ({
+    name: `pool:${r.name}`, asset_tag: t("rentals.unassigned"),
+    item_code: r.item_code, warehouse: r.warehouse, status: "Pool", meter_reading: null,
+  }))];
 
   function barGeometry(r: CalendarReservation) {
     const from = parseDT(r.from_datetime);
@@ -135,14 +141,14 @@ export default function FleetCalendarPage() {
         <span><span className="mr-1 inline-block h-3 w-3 rounded bg-amber-400 align-middle" />{t("rentals.reserved", { defaultValue: "Reserved" })}</span>
         <span><span className="mr-1 inline-block h-3 w-3 rounded bg-blue-500 align-middle" />{t("rentals.onHire", { defaultValue: "On Hire" })}</span>
         <span>{ymd(winStart)} → {ymd(winEnd)}</span>
-        {pooledCount > 0 && <span>· {t("rentals.pooledNote", { count: pooledCount, defaultValue: "{{count}} pooled booking(s) not shown on a unit lane" })}</span>}
+        {pooledCount > 0 && <span>· {t("rentals.pooledNote", { count: pooledCount, defaultValue: "{{count}} pool booking(s) awaiting assignment" })}</span>}
       </div>
 
       {error ? (
         <p className="py-8 text-center text-red-500">{t("rentals.loadError", { defaultValue: "Could not load the fleet calendar." })}</p>
       ) : isLoading ? (
         <p className="py-8 text-center text-gray-400">{t("common.loading", { defaultValue: "Loading…" })}</p>
-      ) : assets.length === 0 ? (
+      ) : lanes.length === 0 ? (
         <p className="py-8 text-center text-gray-400">{t("rentals.noAssets", { defaultValue: "No assets to show. Add machines under Rentals → Fleet." })}</p>
       ) : (
         <Card>
@@ -164,7 +170,7 @@ export default function FleetCalendarPage() {
               </div>
 
               {/* one lane per asset */}
-              {assets.map((a) => {
+              {lanes.map((a) => {
                 const bars = byAsset.get(a.name) ?? [];
                 return (
                   <div key={a.name} className="flex border-b hover:bg-gray-50">
@@ -194,7 +200,7 @@ export default function FleetCalendarPage() {
                             className={`absolute top-1.5 h-8 overflow-hidden truncate rounded px-2 text-left text-xs ${cls}`}
                             style={{ left: `${left}%`, width: `${width}%` }}
                           >
-                            {r.party ?? r.status}
+                            {r.asset ? (r.party ?? r.status) : `${r.name} · ${r.party || r.purpose || "—"} · ${r.qty}×`}
                           </button>
                         );
                       })}

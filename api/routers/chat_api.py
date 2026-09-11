@@ -78,11 +78,6 @@ def _extract_documents(reply: str, request: Request) -> list[dict]:
     return documents
 
 
-async def _noop_event(event: dict) -> None:
-    """Discard streamed loop events — the REST response is the final reply only."""
-    return None
-
-
 def _client_ip(request: Request) -> str | None:
     xff = request.headers.get("x-forwarded-for", "")
     if xff:
@@ -117,11 +112,17 @@ async def chat(payload: ChatApiRequest, request: Request, caller: dict = Depends
 
     save_chat_message(target_session_id, "user", message)
 
+    tool_results = []
+
+    async def collect_event(event):
+        if event.get("type") == "tool_result":
+            tool_results.append({key: event[key] for key in ("tool", "success", "error", "warnings") if key in event})
+
     reply = await run_session_turn(
         target_session_id,
         message,
         caller,
-        _noop_event,
+        collect_event,
         client_ip=_client_ip(request),
         replay_history=replay_history,
         channel="api",
@@ -133,6 +134,7 @@ async def chat(payload: ChatApiRequest, request: Request, caller: dict = Depends
         "session_id": target_session_id,
         "title": session["title"] if session else None,
         "documents": _extract_documents(reply or "", request),
+        "tool_results": tool_results,
     }
 
 

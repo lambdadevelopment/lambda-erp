@@ -639,6 +639,7 @@
     "Meter Unit": "Zählereinheit",
     "Yard": "Depot",
     "Asset (specific unit)": "Gerät (bestimmte Einheit)",
+    "Allocation": "Zuweisung",
     "From": "Von",
     "To": "Bis",
     "Purpose": "Zweck",
@@ -893,9 +894,13 @@
     "machine": "Maschine",
     "loadError": "Flottenkalender konnte nicht geladen werden.",
     "noAssets": "Keine Geräte vorhanden. Maschinen unter Vermietung → Flotte hinzufügen.",
-    "pooledNote": "{{count}} Pool-Reservation(en) ohne Einheiten-Zeile"
+    "pooledNote": "{{count}} Pool-Reservation(en) noch ohne Maschinenzuordnung",
+    "unassigned": "Pool — noch nicht zugeordnet",
+    "poolWarning": "Die Pool-Kapazität ist reserviert. Eine konkrete Maschine ist noch nicht zugeordnet; vor der Ausgabe eine Maschine auswählen."
   },
   "fieldOptions": {
+    "Unit": "Bestimmte Maschine",
+    "Pool": "Pool – Maschine später zuweisen",
     "Available": "Verfügbar",
     "On Hire": "Vermietet",
     "Out": "Ausgeliefert",

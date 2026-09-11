@@ -638,16 +638,17 @@ function recalculate(formData: any, config: ReturnType<typeof getDoctypeConfig>)
 
   // Recalculate item amounts
   const hasItems = config.childTables.some((ct) => ct.key === "items");
-  if (hasItems && Array.isArray(updated.items)) {
+  if (hasItems && config.childTables.find((ct) => ct.key === "items")?.fields.some((f) => f.name === "rate") && Array.isArray(updated.items)) {
     updated.items = updated.items.map((item: any) => ({
       ...item,
       amount: flt(item.qty, 2) * flt(item.rate, 2),
     }));
 
-    updated.net_total = updated.items.reduce(
-      (sum: number, item: any) => sum + flt(item.amount, 2),
-      0,
-    );
+    if (config.fields.some((f) => f.name === "net_total")) {
+      updated.net_total = updated.items.reduce(
+        (sum: number, item: any) => sum + flt(item.amount, 2), 0,
+      );
+    }
   }
 
   // Recalculate taxes
@@ -760,6 +761,10 @@ export default function DocumentFormPage() {
     mutationFn: (data: any) => api.createDocument(doctype!, data),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
+      if (doctype === "reservation" || doctype === "asset") {
+        queryClient.invalidateQueries({ queryKey: ["fleet-calendar"] });
+        queryClient.invalidateQueries({ queryKey: ["availability"] });
+      }
       navigate(`/app/${doctype}/${result.name}`, { replace: true });
     },
   });
@@ -769,6 +774,10 @@ export default function DocumentFormPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["document", doctype, name] });
       queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
+      if (doctype === "reservation" || doctype === "asset") {
+        queryClient.invalidateQueries({ queryKey: ["fleet-calendar"] });
+        queryClient.invalidateQueries({ queryKey: ["availability"] });
+      }
       setFormData(result);
     },
   });
@@ -779,6 +788,10 @@ export default function DocumentFormPage() {
       setFormData(result);
       queryClient.invalidateQueries({ queryKey: ["document", doctype, name] });
       queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
+      if (doctype === "reservation" || doctype === "asset") {
+        queryClient.invalidateQueries({ queryKey: ["fleet-calendar"] });
+        queryClient.invalidateQueries({ queryKey: ["availability"] });
+      }
     },
   });
 
@@ -788,6 +801,10 @@ export default function DocumentFormPage() {
       setFormData(result);
       queryClient.invalidateQueries({ queryKey: ["document", doctype, name] });
       queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
+      if (doctype === "reservation" || doctype === "asset") {
+        queryClient.invalidateQueries({ queryKey: ["fleet-calendar"] });
+        queryClient.invalidateQueries({ queryKey: ["availability"] });
+      }
     },
   });
 
@@ -796,6 +813,10 @@ export default function DocumentFormPage() {
     onSuccess: () => {
       // The draft is now hidden from the default list; leave the editor.
       queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
+      if (doctype === "reservation" || doctype === "asset") {
+        queryClient.invalidateQueries({ queryKey: ["fleet-calendar"] });
+        queryClient.invalidateQueries({ queryKey: ["availability"] });
+      }
       navigate(`/app/${doctype}`, { replace: true });
     },
   });
@@ -818,10 +839,11 @@ export default function DocumentFormPage() {
         // A new currency invalidates any prior rate; clear it so the backend
         // re-resolves the exchange rate for the chosen currency.
         if (fieldName === "currency") next.conversion_rate = 0;
+        if (doctype === "reservation" && fieldName === "asset" && value) next.allocation_mode = "Unit";
         return recalculate(next, config);
       });
     },
-    [config],
+    [config, doctype],
   );
 
   const setChildTable = useCallback(
@@ -956,6 +978,12 @@ export default function DocumentFormPage() {
             ?.message ?? t("common.errorOccurred")}
         </div>
       )}
+
+      {(formData._validation?.warnings ?? []).map((warning: any) => (
+        <div key={warning.code} className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900" role="status">
+          {warning.code === "asset_unassigned" ? t("rentals.poolWarning") : warning.message}
+        </div>
+      ))}
 
       {/* Parent fields */}
       <Card>

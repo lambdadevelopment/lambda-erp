@@ -179,6 +179,17 @@ def save_chat_message(session_id: str, role: str, content: str, message_type: st
     touch_session(session_id)
 
 
+def _save_tool_trace(session_id: str, message_type: str, payload: dict):
+    """Audit visible tool activity without masking a completed business write."""
+    try:
+        save_chat_message(session_id, "tool", json.dumps(payload, default=str), message_type=message_type)
+    except Exception:
+        # A session can be deleted while a tool is running. In particular, a
+        # failed result audit must not turn a successful write into a retry.
+        get_db().conn.rollback()
+        logger.warning("Could not persist %s trace for session %s", message_type, session_id)
+
+
 def load_chat_history(session_id: str, limit: int = 50, before_id: int | None = None) -> list[dict]:
     """Load recent chat messages for a session.
 
@@ -189,13 +200,13 @@ def load_chat_history(session_id: str, limit: int = 50, before_id: int | None = 
     if before_id:
         rows = db.sql(
             'SELECT id, role, message_type, content, metadata_json, created_at '
-            'FROM "Chat Message" WHERE session_id = ? AND id < ? ORDER BY id DESC LIMIT ?',
+            'FROM "Chat Message" WHERE session_id = ? AND role IN (\'user\', \'assistant\') AND id < ? ORDER BY id DESC LIMIT ?',
             [session_id, int(before_id), limit],
         )
     else:
         rows = db.sql(
             'SELECT id, role, message_type, content, metadata_json, created_at '
-            'FROM "Chat Message" WHERE session_id = ? ORDER BY id DESC LIMIT ?',
+            'FROM "Chat Message" WHERE session_id = ? AND role IN (\'user\', \'assistant\') ORDER BY id DESC LIMIT ?',
             [session_id, limit],
         )
     rows.reverse()
@@ -275,7 +286,7 @@ def load_serialized_chat_history(
     if oldest_id is not None:
         db = get_db()
         older = db.sql(
-            'SELECT 1 FROM "Chat Message" WHERE session_id = ? AND id < ? LIMIT 1',
+            'SELECT 1 FROM "Chat Message" WHERE session_id = ? AND role IN (\'user\', \'assistant\') AND id < ? LIMIT 1',
             [session_id, int(oldest_id)],
         )
         has_more = bool(older)
@@ -483,7 +494,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_document_fields",
-            "description": "List the available columns of a document type and identify which are text fields. Call this before building list_documents filters when you are unsure of a field name or whether it supports the case-insensitive contains operator. Also returns the default fields used by free-text search.",
+            "description": "List the available columns of a document type and identify which are text fields. Call this before building list_documents filters when you are unsure of a field name or whether it supports the case-insensitive contains operator. Also returns required fields, conditional business rules, child requirements, dynamic links and supported transient inputs. Check these before creating or updating a document; unknown fields are rejected.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -513,7 +524,7 @@ TOOLS = [
         "function": {
             "name": "create_document",
             "description": (
-                "Create a new draft document (docstatus=0). The document is saved but NOT submitted. IMPORTANT: you MUST pass the 'data' object with ALL document fields — doctype alone is not enough. Example: {\"doctype\": \"purchase-order\", \"data\": {\"supplier\": \"SUPP-001\", \"company\": \"My Co\", \"transaction_date\": \"2026-04-14\", \"items\": [{\"item_code\": \"ITEM-001\", \"qty\": 10, \"rate\": 100}]}}\n"
+                "Create a new draft document (docstatus=0). The document is saved but NOT submitted. Use get_document_fields for required/conditional fields. Never omit an ambiguous business reference to make a call succeed: ask a targeted question. Relay _validation.warnings from saved documents. IMPORTANT: you MUST pass the 'data' object with ALL document fields — doctype alone is not enough. Example: {\"doctype\": \"purchase-order\", \"data\": {\"supplier\": \"SUPP-001\", \"company\": \"My Co\", \"transaction_date\": \"2026-04-14\", \"items\": [{\"item_code\": \"ITEM-001\", \"qty\": 10, \"rate\": 100}]}}\n"
                 "Currency: `currency` is optional — it defaults to the customer/supplier's currency, else the company's base currency. To bill in a foreign currency, also pass `conversion_rate` = how many units of the company's base currency equal 1 unit of the document currency (no automatic FX lookup yet, so you MUST supply it for a foreign currency). Item rates stay in the document currency. Example (base USD, invoicing in EUR at 1 EUR = 1.10 USD): {\"doctype\": \"sales-invoice\", \"data\": {\"customer\": \"CUST-001\", \"company\": \"My Co\", \"posting_date\": \"2026-05-22\", \"currency\": \"EUR\", \"conversion_rate\": 1.10, \"items\": [{\"item_code\": \"ITEM-001\", \"qty\": 1, \"rate\": 100}]}}"
             ),
             "parameters": {
@@ -1469,20 +1480,7 @@ def _handle_list_documents(args):
 
 
 def _handle_get_document_fields(args):
-    doctype = args["doctype"]
-    table = services.SLUG_TO_DOCTYPE.get(doctype)
-    if not table:
-        return {"error": f"Unknown document type: {doctype}"}
-    db = get_db()
-    cls = services.DOCUMENT_CLASSES.get(table)
-    return {
-        "doctype": doctype,
-        "fields": sorted(db._get_table_columns(table)),
-        "text_fields": sorted(db._get_text_columns(table)),
-        "default_search_fields": services.document_search_columns(db, doctype),
-        "child_tables": sorted((cls.CHILD_TABLES or {}).keys()) if cls else [],
-        "link_fields": dict(getattr(cls, "LINK_FIELDS", None) or {}) if cls else {},
-    }
+    return services.document_field_metadata(args["doctype"])
 
 
 def _handle_get_document(args):
@@ -2356,12 +2354,25 @@ def _prompt_uom_context() -> str:
     )
 
 
+def _prompt_validation_context():
+    from lambda_erp.validation import document_requirements
+    groups = {}
+    for doctype, cls in services.DOCUMENT_CLASSES.items():
+        rules = document_requirements(cls)
+        if not any(rules.values()):
+            continue
+        key = json.dumps(rules, sort_keys=True)
+        groups.setdefault(key, []).append(doctype)
+    return "\n".join(f"- {', '.join(names)}: {rules}" for rules, names in groups.items())
+
+
 def build_system_prompt(user_info: dict | None = None, channel: str = "web"):
     user_name = user_info.get("full_name", "User") if user_info else "User"
     user_role = user_info.get("role", "viewer") if user_info else "viewer"
     company_context = _prompt_company_context()
     analytics_context = _prompt_analytics_context()
     uom_context = _prompt_uom_context()
+    validation_context = _prompt_validation_context()
 
     # Deployment-registered types (register_doctype / register_master). Folded
     # into the type lists below so the assistant knows they exist and can act
@@ -2453,11 +2464,16 @@ If `jurisdiction.is_fallback` is true, tell the user their country isn't localiz
 
 You help users manage their business by creating documents, looking up data, and running reports — all through natural conversation.
 
+## Enforced document requirements (generated from backend rule metadata)
+{validation_context}
+Use get_document_fields for full field and relationship metadata. On updates these rules apply to the merged document, so already stored values need not be resubmitted. Never remove an ambiguous link to bypass a validation error.
+
 ## Never fabricate actions or results
-Only state that something was done — created, changed, enabled/disabled, booked, repointed — **after a tool call returns a success result that confirms it**, and check the returned record actually reflects the change (after `update_master` with {{"disabled": 0}}, confirm the returned row shows `disabled = 0`; after submitting a journal entry, confirm it posted non-zero GL). If a tool returns an error, a warning, or a record that doesn't reflect your intent, tell the user it did **not** work and why — never smooth it over as success.
+Only state that something was done — created, changed, enabled/disabled, booked, repointed — **after a tool call returns a success result that confirms it**, and check the returned record actually reflects the change (after `update_master` with {{"disabled": 0}}, confirm the returned row shows `disabled = 0`; after submitting a journal entry, confirm it posted non-zero GL). An error means the action failed. For a successful result with warnings, explain both what was saved and what remains incomplete (for example, pool capacity reserved but no machine assigned). If the record doesn't reflect your intent, explain the mismatch — never smooth it over as success.
 - If a capability doesn't exist, say so plainly. There is **no rename** for accounts or other masters — a master's identifying `name`/number is immutable; you can only edit display fields or create a new record and migrate. Never claim you "renamed" an account.
 - Never assert a field or capability is missing without checking (e.g. an item's income account) — verify with `get_master_fields` / `search_masters` first.
 - A master you can't find via `search_masters` may just be **disabled** (search hides disabled by default). Retry with `include_disabled: true` before concluding it doesn't exist — you need this to re-enable a disabled account.
+- Respect document requirements from get_document_fields. Missing required data or ambiguous matches require a targeted question, not guessed IDs, omitted links, or zero quantities. A tool error means the action failed; _validation.warnings must be explained.
 - If you can't confirm an action took effect, re-fetch and look, or tell the user you couldn't confirm it — never guess.
 
 ## Answering data questions — three paths
@@ -2643,9 +2659,11 @@ Use these only for items flagged `is_asset_tracked` on the Item master. Neither 
 - **Item vs Asset:** the Item is the *type* ("17t Excavator") and carries the rate and pricing rules. An **Asset** (slug `asset`) is ONE physical unit of it. Three identical machines = one Item + three Assets. Create with `item_code` (required) plus `asset_tag` (plate / serial — optional but must be unique), `warehouse` (its home yard), and optionally `purchase_date`, `purchase_value`, `meter_reading`. `status` is Available / On Hire / Maintenance / Retired — the unit's state *today*, not a date range. Retired units leave the pool.
 - **Opting in:** creating an Asset for an Item that isn't asset-tracked is refused. Fix it by setting `is_asset_tracked` = 1 on the Item via update_master, then retry. Never suggest the user edit the database.
 - **Reservation** (slug `reservation`) books a time window. Required: `from_datetime` and `to_datetime` (`YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS`; a bare date means midnight). Windows are **half-open** — a hire ending on the 19th and the next starting on the 19th do NOT clash. Two ways to book:
-  - **pooled** — set `item_code`, `warehouse` and `qty`: "*a* machine of this type from that yard". Use this at quotation/order time when the specific unit doesn't matter yet.
+  - **pooled** — explicitly set `allocation_mode="Pool"`; set `item_code`, `warehouse` and `qty`: "*a* machine of this type from that yard". Use this at quotation/order time when the specific unit doesn't matter yet.
   - **unit** — set `asset`: "*that* machine". `item_code`, `warehouse` and `qty` are filled in from the Asset automatically.
-- **Who it's for (do NOT skip this):** set `party` to the hiring customer's id (e.g. `CUST-005`) with `party_type = "Customer"`. The customer is almost always given by NAME — "reserve the 17t for Hans Meisterhans" — so FIRST resolve the name to a record with `search_masters` (master_type "customer") and set `party` to the matched id; never put the raw name in `party`. No match → create the customer (or ask which existing one is meant), then book. A reservation with no `party` is only for an internal block (maintenance, transport, transfer) — if the user named a customer, a booking without `party` set is a bug, not an option.
+- **Choosing a machine:** resolve the Item, then list active, non-discarded Assets and the relevant reservations. If multiple usable units match and the customer has not specified a yard/unit, ask which yard/plate is meant; do not guess and do not silently omit asset. Only create a Pool booking when the user intentionally wants unassigned capacity. A uniquely identified available unit can be booked by asset ID. Asset and reservation warehouse must match; record a transfer first if needed.
+- **Calendar:** Pool bookings appear on separate unassigned rows, not on a specific machine. Always tell the user when no machine is assigned. On a report of a missing booking, get_document and inspect asset, status, discarded and warehouse; do not claim a unit is booked merely because a Reservation exists. Out requires an asset.
+- **Who it's for (do NOT skip this):** set `party` to the hiring customer's id (e.g. `CUST-005`) with `party_type = "Customer"`. The customer is almost always given by NAME — "reserve the 17t for Hans Meisterhans" — so FIRST resolve the name to a record with `search_masters` (master_type "customer") and set `party` to the matched id; never put the raw name in `party`. No match → create the customer (or ask which existing one is meant), then book. A reservation with no `party` is only for an internal block (maintenance, transport, transfer) — if the user named a customer, a booking without `party` set is a bug, not an option. Internal blocks without party require an explicit purpose.
 - `status` is Reserved / Out / Returned / Cancelled. **Reserved and Out block the calendar; Returned and Cancelled do not** — so a hire that comes back early frees its slot the moment you set it to Returned. Link a booking to the order that caused it with `voucher_type` + `voucher_no`.
 - **Double-booking is refused at save time.** If you get "already committed" (that unit is taken) or "free at" (the yard's pool is exhausted for that window), do NOT retry blindly — report the conflict, then offer the alternatives: different dates, a different yard, or a different model.
 - To answer "what's free between X and Y", list reservations for the item over the window and compare against the Assets that exist; a unit with no overlapping Reserved/Out row is available.
@@ -3621,6 +3639,8 @@ async def run_thinking_loop(
             tool_call_id = tc.id
 
             await on_event({"type": "tool_call", "tool": fn_name, "args": fn_args})
+            if session_id:
+                _save_tool_trace(session_id, "tool_call", {"tool": fn_name, "args": fn_args})
 
             # LLM turns can run for many seconds. Re-resolve the principal at
             # the actual execution boundary so a demotion, disable, or key
@@ -3656,7 +3676,7 @@ async def run_thinking_loop(
             else:
                 try:
                     result = await asyncio.to_thread(handler, fn_args)
-                    success = True
+                    success = not (isinstance(result, dict) and ("error" in result or result.get("ok") is False or result.get("failed", 0)))
                 except Exception as e:
                     result = {"error": str(e)}
                     success = False
@@ -3677,6 +3697,10 @@ async def run_thinking_loop(
                 "success": success,
                 "summary": summary,
             }
+            if isinstance(result, dict):
+                event_payload["warnings"] = (result.get("_validation") or {}).get("warnings", [])
+                if not success:
+                    event_payload["error"] = result.get("error") or "One or more operations failed; inspect the tool result."
             # Surface the report id so the sidebar can flash the specific draft.
             if (
                 success
@@ -3685,6 +3709,8 @@ async def run_thinking_loop(
                 and result.get("id")
             ):
                 event_payload["report_id"] = result["id"]
+            if session_id:
+                _save_tool_trace(session_id, "tool_result", {**event_payload, "result": result})
             await on_event(event_payload)
 
             messages.append({

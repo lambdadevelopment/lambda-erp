@@ -33,6 +33,9 @@ class PaymentEntry(Document):
         "references": ("Payment Entry Reference", None),
     }
     PREFIX = "PE"
+    CONDITIONAL_REQUIREMENTS = (
+        "Each supplied references row requires reference_doctype, reference_name and a positive allocated_amount. Omit references entirely only for an intentional on-account payment.",
+    )
 
     LINK_FIELDS = {
         "company": "Company",
@@ -171,7 +174,7 @@ class PaymentEntry(Document):
             docname = ref.get("reference_name")
             allocated = flt(ref.get("allocated_amount"))
             if not doctype or not docname:
-                continue
+                raise ValidationError("Every payment reference requires Reference Doctype and Reference Name; omit references only for an intentional on-account payment")
             if allocated <= 0:
                 raise ValidationError(
                     f"Allocated amount on {doctype} {docname} must be positive"
