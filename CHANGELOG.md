@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+### PDF output contracts
+- Give every document type an explicit PDF profile. Reservations, logistics,
+  payments, journal entries and record overviews no longer fall back to empty
+  commercial documents or invented USD/zero totals. Unsupported profiles hide
+  the PDF action and return an actionable error.
+- Validate print data and extracted content of the generated PDF through one
+  renderer shared by the UI, REST, MCP and chat. Print document state; keep
+  historical records printable without re-running posting or availability rules.
+- Generate owner-scoped immutable PDF files with hashes, seven-day download
+  expiry and structured errors. Chat attachments require successful generation;
+  links invented in prose no longer count as generated files.
+- Include quantities, rates, tax totals and recurring totals in proposals;
+  support long record notes and reject broken templates/providers/appendices.
+- **Plugin compatibility:** registering a new doctype requires `pdf_profile=`
+  (`PDFProfile` or `DisabledPDF`). Existing core overrides inherit their profile.
+  PDF context provider failures now fail the export. See `docs/pdf-output.md`.
+
 ## [0.8.34] - 2026-09-11
 
 ### Workflow validation follow-up

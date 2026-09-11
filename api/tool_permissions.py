@@ -15,7 +15,7 @@ _ADMINS = frozenset({"admin"})
 
 TOOL_ROLES = {
     **dict.fromkeys((
-        "list_documents", "get_document_fields", "get_document",
+        "list_documents", "get_document_fields", "get_document", "generate_document_pdf",
         "get_master_fields", "search_masters", "get_report", "get_current_time",
         "retrieve_chat_history", "list_chat_attachments", "retrieve_chat_attachment",
         "preview_bank_statement_attachments", "query_dataset",

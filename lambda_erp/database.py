@@ -1561,6 +1561,13 @@ class Database:
                 creation TEXT DEFAULT CURRENT_TIMESTAMP
             )""",
 
+            """CREATE TABLE IF NOT EXISTS "Generated PDF" (
+                id TEXT PRIMARY KEY, user_id TEXT NOT NULL, doctype TEXT NOT NULL,
+                document_name TEXT NOT NULL, modified TEXT, filename TEXT NOT NULL,
+                sha256 TEXT NOT NULL, data BLOB NOT NULL, created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )""",
+
             """CREATE TABLE IF NOT EXISTS "Settings" (
                 key TEXT PRIMARY KEY,
                 value TEXT
@@ -2584,6 +2591,11 @@ def _m029_subscription_discarded(db: "Database") -> None:
         db._add_column_if_missing(table, 'subscription', 'TEXT')
 
 
+def _m030_generated_pdfs(db: "Database") -> None:
+    # The shared startup DDL creates the table (BLOB -> BYTEA on Postgres).
+    db.sql('CREATE INDEX IF NOT EXISTS idx_generated_pdf_expiry ON "Generated PDF" (expires_at)')
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2614,6 +2626,7 @@ Database.MIGRATIONS = [
     (27, "reservation_allocation_mode", _m027_reservation_allocation_mode),
     (28, "order_planning_from_posted_documents", _m028_order_planning),
     (29, "subscription_discarded", _m029_subscription_discarded),
+    (30, "generated_pdfs", _m030_generated_pdfs),
 ]
 
 

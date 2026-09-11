@@ -2,10 +2,12 @@
 
 import io
 import os
+from dataclasses import dataclass
 from jinja2 import Environment, FileSystemLoader, ChoiceLoader
 from weasyprint import HTML
 from lambda_erp.database import get_db
-from api.services import load_document
+from api.services import load_document, get_document_class
+from api.pdf_contract import prepare, validate_rendered_pdf, PDFError
 from api.remarks_md import render_remarks
 from lambda_erp.controllers.taxes_and_totals import split_by_frequency
 
@@ -51,8 +53,8 @@ def register_pdf_context(fn) -> None:
     assembled context (doc, company_info, party_info, currency, items, …) and
     may return a dict of EXTRA keys to merge in — e.g. a computed Swiss QR-bill
     image for invoices. Lets a deployment add per-document content the template
-    can't compute itself. Exceptions are swallowed so a buggy provider can't
-    break PDF generation.
+    can't compute itself. Return None when inapplicable. Exceptions fail the
+    export so required content cannot silently disappear.
     """
     _pdf_context_providers.append(fn)
 
@@ -60,6 +62,7 @@ def register_pdf_context(fn) -> None:
 DOC_CONFIG = {
     "Quotation":        ("Quotation",        "customer", "customer_name", "Customer", "Customer"),
     "Sales Order":      ("Sales Order",      "customer", "customer_name", "Customer", "Customer"),
+    "POS Invoice":      ("POS Invoice",      "customer", "customer_name", "Customer", "Customer"),
     "Sales Invoice":    ("Sales Invoice",    "customer", "customer_name", "Customer", "Customer"),
     "Purchase Order":   ("Purchase Order",   "supplier", "supplier_name", "Supplier", "Supplier"),
     "Purchase Invoice": ("Purchase Invoice", "supplier", "supplier_name", "Supplier", "Supplier"),
@@ -79,17 +82,43 @@ def _get_dict(row):
     return dict(row) if row else {}
 
 
+@dataclass(frozen=True)
+class RenderedPDF:
+    data: bytes
+    modified: str | None
+    status: str
+    warnings: list
+
+
 def generate_pdf(doctype_slug: str, name: str) -> bytes:
-    """Generate a PDF for a document and return raw bytes."""
-    # The Proposal (Sammelofferte) has a wholly different shape — several
-    # quotations rendered as lettered positions + an appended appendix — so it
-    # gets its own render path rather than the single-document template below.
-    if doctype_slug == "proposal":
-        return generate_proposal_pdf(name)
+    return render_document_pdf(doctype_slug, name).data
 
+
+def render_document_pdf(doctype_slug: str, name: str) -> RenderedPDF:
+    """Single validated renderer used by UI, REST, MCP and generated files."""
+    doctype, cls = get_document_class(doctype_slug)
+    if not cls:
+        raise PDFError(f'Unknown PDF document type: {doctype_slug}', code='pdf_unsupported')
     doc = load_document(doctype_slug, name)
-    db = get_db()
+    contract = prepare(doctype, doc)
+    kind = contract['profile'].kind
+    try:
+        if kind == 'proposal':
+            result = _render_proposal_pdf(name, doc, contract)
+        elif kind == 'commercial':
+            result = _render_commercial_pdf(doctype_slug, name, doc, contract)
+        else:
+            result = _render_record_pdf(doctype, name, doc, contract)
+    except PDFError:
+        raise
+    except Exception as exc:
+        raise PDFError(f'PDF rendering failed for {doctype} {name}: {exc}', code='pdf_render_failed') from exc
+    validate_rendered_pdf(result, contract['tokens'])
+    return RenderedPDF(result, doc.get('modified'), contract['status'], contract['warnings'])
 
+
+def _render_commercial_pdf(doctype_slug, name, doc, contract):
+    db = get_db()
     # Resolve doctype display name
     doctype = doctype_slug.replace("-", " ").title()
     # Fix multi-word: "Sales Invoice" not "Sales-Invoice"
@@ -100,14 +129,13 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
 
     config = DOC_CONFIG.get(doctype)
     if not config:
-        # Fallback for unknown types
-        config = (doctype, None, None, None, "Party")
+        raise PDFError(f'No commercial PDF mapping for {doctype}', code='pdf_unsupported')
 
     title, party_field, party_name_field, party_doctype, party_label = config
 
     # Credit note / debit note titles
     if doc.get("is_return"):
-        if doctype == "Sales Invoice":
+        if doctype in {"Sales Invoice", "POS Invoice"}:
             title = "Credit Note"
         elif doctype == "Purchase Invoice":
             title = "Debit Note"
@@ -146,7 +174,7 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
             company_name = company_info.get("company_name") or company_id
 
     # Currency
-    currency = doc.get("currency", "USD") or "USD"
+    currency = doc["currency"]
 
     # Meta fields (varies by doc type)
     meta_fields = []
@@ -200,6 +228,8 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     base_url = template.filename or os.path.join(TEMPLATE_DIR, "document.html")
     context = dict(
         doc=doc,
+        pdf_status=contract["status"],
+        pdf_warnings=contract["warnings"],
         title=title,
         company_name=company_name,
         company_info=company_info,
@@ -227,14 +257,14 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
     )
 
     # Let deployment plugins augment the context (e.g. a Swiss QR-bill image for
-    # invoices). A provider that raises must not break PDF generation.
+    # invoices). Provider errors must fail the export.
     for provider in _pdf_context_providers:
         try:
             extra = provider(doctype, name, context)
             if extra:
                 context.update(extra)
-        except Exception:
-            pass
+        except Exception as exc:
+            raise PDFError('PDF context provider failed', code='pdf_context_failed') from exc
 
     html_str = template.render(**context)
 
@@ -242,35 +272,30 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
 
 
 def _append_pdf(base_pdf: bytes, extra_pdf: bytes) -> bytes:
-    """Concatenate `extra_pdf` after `base_pdf`. Used to staple the uploaded
-    appendix onto the rendered offers. A corrupt/unreadable appendix must not
-    sink the whole proposal, so on any failure we return the base unchanged."""
-    try:
-        from pypdf import PdfReader, PdfWriter
-    except Exception:
-        return base_pdf
+    """A supplied appendix is required output; corruption must be reported."""
+    from pypdf import PdfReader, PdfWriter
     try:
         writer = PdfWriter()
         for src in (base_pdf, extra_pdf):
             reader = PdfReader(io.BytesIO(src))
+            if not reader.pages:
+                raise ValueError('Empty appendix')
             for page in reader.pages:
                 writer.add_page(page)
         out = io.BytesIO()
         writer.write(out)
         return out.getvalue()
-    except Exception:
-        return base_pdf
+    except Exception as exc:
+        raise PDFError('Proposal appendix is not a readable PDF', code='pdf_invalid_appendix') from exc
 
 
 def generate_proposal_pdf(name: str) -> bytes:
-    """Render a Proposal (Sammelofferte): a cover letter plus each referenced
-    Quotation as a lettered position (A, B, C…), then append the uploaded
-    appendix PDF if there is one. Never mutates the quotations."""
-    from lambda_erp.selling.proposal import Proposal
-    Proposal.load(name).validate_for_output()
-    proposal = load_document("proposal", name)
-    db = get_db()
+    # Keep the public extension import; all paths use the shared contract.
+    return generate_pdf('proposal', name)
 
+
+def _render_proposal_pdf(name, proposal, contract):
+    db = get_db()
     # Customer (party) — looked up live so a corrected name/address shows.
     party_name = proposal.get("customer_name") or proposal.get("customer") or ""
     party_info = {}
@@ -303,7 +328,16 @@ def generate_proposal_pdf(name: str) -> bytes:
     rows = sorted(proposal.get("quotations", []) or [], key=lambda r: r.get("idx") or 0)
     for i, row in enumerate(rows):
         qname = row.get("quotation")
+        if not qname:
+            raise PDFError('Proposal PDF requires a Quotation in every row')
         quote = load_document("quotation", qname)
+        if quote.get('company') != proposal.get('company') or quote.get('customer') != proposal.get('customer'):
+            raise PDFError('Proposal PDF: quotation company and customer must match')
+        quote_contract = prepare('Quotation', quote)
+        # Each included offer must be rendered completely. Its state is printed
+        # alongside its number, including historical cancelled/voided offers.
+        contract['tokens'].extend(quote_contract['tokens'])
+        contract['warnings'].extend(quote_contract['warnings'])
         items = quote.get("items", []) or []
         # Refresh each line's item_name from the master, consistent with the
         # single-document path.
@@ -317,11 +351,16 @@ def generate_proposal_pdf(name: str) -> bytes:
         positions.append({
             "letter": chr(ord("A") + i),
             "quotation": qname,
+            "pdf_status": quote_contract["status"],
             "title": row.get("position_title") or default_title or qname,
             "blurb": row.get("position_blurb") or quote.get("remarks") or "",
             "is_recommended": bool(row.get("is_recommended")),
-            "currency": quote.get("currency", "USD") or "USD",
-            "grand_total": quote.get("grand_total") or 0,
+            "currency": quote["currency"],
+            "net_total": quote["net_total"],
+            "grand_total": quote["grand_total"],
+            "total_taxes_and_charges": quote["total_taxes_and_charges"],
+            "taxes": quote.get("taxes") or [],
+            "recurring_summary": split_by_frequency(quote)[1],
             "items": items,
         })
 
@@ -333,6 +372,8 @@ def generate_proposal_pdf(name: str) -> bytes:
     base_url = template.filename or os.path.join(TEMPLATE_DIR, "proposal.html")
     context = dict(
         proposal=proposal,
+        pdf_status=contract["status"],
+        pdf_warnings=contract["warnings"],
         title=proposal.get("title") or "Offerte",
         company_name=company_name,
         company_info=company_info,
@@ -348,8 +389,8 @@ def generate_proposal_pdf(name: str) -> bytes:
             extra = provider("Proposal", name, context)
             if extra:
                 context.update(extra)
-        except Exception:
-            pass
+        except Exception as exc:
+            raise PDFError('PDF context provider failed', code='pdf_context_failed') from exc
 
     html_str = template.render(**context)
     pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
@@ -364,3 +405,31 @@ def generate_proposal_pdf(name: str) -> bytes:
             pdf_bytes = _append_pdf(pdf_bytes, bytes(data))
 
     return pdf_bytes
+
+
+# Shared record layouts use strict contexts; a misspelled field must fail rather
+# than quietly disappear. Deployment overrides can extend these same blocks.
+def _render_record_pdf(doctype, name, doc, contract):
+    from jinja2 import StrictUndefined
+    template = _jinja_env.overlay(undefined=StrictUndefined).get_template('record.html')
+    company = contract['company']
+    page_size_row = get_db().sql('SELECT value FROM "Settings" WHERE key = ?', ['pdf_page_size'])
+    context = dict(
+        title=contract['profile'].title, name=name, pdf_status=contract['status'],
+        pdf_warnings=contract['warnings'], print_fields=contract['fields'],
+        print_tables=contract['tables'], print_labels={}, print_title=contract['profile'].title,
+        company_info=company, company_name=company.get('company_name') or doc.get('company') or '',
+        company_currency=contract['company_currency'] if doctype in {'Journal Entry', 'Budget', 'Subscription', 'Pricing Rule'} else '',
+        party_name=contract['party_name'],
+        page_size=page_size_row[0]['value'] if page_size_row else 'A4',
+    )
+    for provider in _pdf_context_providers:
+        # A registered provider may be optional, but required providers must
+        # propagate failures (for example a mandatory payment part).
+        try:
+            extra = provider(doctype, name, context)
+            if extra:
+                context.update(extra)
+        except Exception as exc:
+            raise PDFError('PDF context provider failed', code='pdf_context_failed') from exc
+    return HTML(string=template.render(**context), base_url=template.filename).write_pdf()

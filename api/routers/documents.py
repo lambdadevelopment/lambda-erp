@@ -18,6 +18,7 @@ from api.services import (
     SLUG_TO_DOCTYPE,
 )
 from api.pdf import generate_pdf
+from api.pdf_exports import create_pdf_export, get_pdf_export, pdf_content_disposition
 from api.auth import require_role
 from api.list_values import distinct_list_values
 from lambda_erp.database import get_db
@@ -236,13 +237,18 @@ def document_filter_values(
     return {"values": values}
 
 
+@router.post("/{doctype_slug}/{name}/pdf")
+def export_pdf(doctype_slug: str, name: str, _user: dict = _viewer):
+    return create_pdf_export(doctype_slug, name, _user)
+
+
 @router.get("/{doctype_slug}/{name}/pdf")
-def get_pdf(doctype_slug: str, name: str, _user: dict = _viewer):
-    pdf_bytes = generate_pdf(doctype_slug, name)
+def get_pdf(doctype_slug: str, name: str, artifact_id: str | None = None, _user: dict = _viewer):
+    pdf_bytes = get_pdf_export(artifact_id, doctype_slug, name, _user) if artifact_id else generate_pdf(doctype_slug, name)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{name}.pdf"'},
+        headers={"Content-Disposition": pdf_content_disposition(name)},
     )
 
 

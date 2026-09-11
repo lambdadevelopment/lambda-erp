@@ -130,7 +130,7 @@ for dt in DOCUMENT_CLASSES:
     DOCTYPE_TO_SLUG[dt] = slug
 
 
-def register_doctype(doctype: str, cls, slug: str | None = None) -> None:
+def register_doctype(doctype: str, cls, slug: str | None = None, *, pdf_profile=None) -> None:
     """Register (or override) the class used for a doctype.
 
     Extension point for customer deployments (see
@@ -140,6 +140,13 @@ def register_doctype(doctype: str, cls, slug: str | None = None) -> None:
     `get_document_class` reads `DOCUMENT_CLASSES` live, so no other change is
     needed.
     """
+    from api.pdf_profiles import PROFILES, PDFProfile, DisabledPDF
+    if pdf_profile is not None:
+        if not isinstance(pdf_profile, (PDFProfile, DisabledPDF)):
+            raise ValueError('pdf_profile must be a PDFProfile or DisabledPDF(reason)')
+        PROFILES[doctype] = pdf_profile
+    elif doctype not in PROFILES:
+        raise ValueError(f'{doctype}: explicitly register a PDFProfile or DisabledPDF(reason)')
     DOCUMENT_CLASSES[doctype] = cls
     slug = slug or doctype.lower().replace(" ", "-")
     SLUG_TO_DOCTYPE[slug] = doctype
@@ -460,6 +467,7 @@ def _default_tax_rows(cls, data: dict) -> list | None:
 
 def document_field_metadata(doctype_slug: str) -> dict:
     from lambda_erp.validation import document_requirements
+    from api.pdf_profiles import pdf_metadata
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
@@ -476,6 +484,7 @@ def document_field_metadata(doctype_slug: str) -> dict:
         "read_only_fields": sorted(cls.SERVER_MANAGED_FIELDS),
         "child_input_fields": {key: sorted(value) for key, value in cls.CHILD_INPUT_FIELDS.items()},
         "requirements": document_requirements(cls),
+        "pdf": pdf_metadata(doctype),
     }
 
 

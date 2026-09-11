@@ -80,6 +80,13 @@ def _call(name: str, args: dict, user: dict):
     if not _allowed(name, role):
         return {"error": f"'{name}' is not available to a {role or 'viewer'} key."}
     handlers = dict(TOOL_HANDLERS)
+    def generate_pdf(args):
+        result = chat_mod._handle_generate_document_pdf(args, user)
+        if result.get('download_url'):
+            # MCP shares the REST switch; the separate chat API may be off.
+            result['pdf_url'] = result['download_url']
+        return result
+    handlers["generate_document_pdf"] = generate_pdf
     # delete_master needs the caller's role (admin-only); handled by the chat's
     # role-aware variant.
     handlers["delete_master"] = lambda a: chat_mod._handle_delete_master(a, user)

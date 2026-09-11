@@ -8,6 +8,7 @@ came from. Uses a fictional Widget doctype (register_table + register_doctype).
 Run:  python -m tests.test_adjacent
       LAMBDA_ERP_TEST_DB=postgresql://... python -m tests.test_adjacent   # CI runs both
 """
+from api.pdf_profiles import DisabledPDF
 import os
 import sys
 
@@ -27,7 +28,7 @@ def _register():
         def validate(self):
             pass
 
-    register_doctype("Widget", Widget)
+    register_doctype("Widget", Widget, pdf_profile=DisabledPDF("Synthetic non-printable test fixture"))
     register_table(WIDGET_TABLE)
 
 

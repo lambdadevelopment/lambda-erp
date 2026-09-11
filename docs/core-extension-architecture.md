@@ -233,3 +233,10 @@ the repository README and the working `lambda-erp-example` deployment.
 - `frontend/src/index.ts` — public frontend extension surface.
 - `tests/test_erp_validation.py` and the focused plugin tests — regression
   coverage for registries, hooks, startup loading and plugin schema.
+
+## PDF profiles
+
+Every new document registration must declare `pdf_profile=PDFProfile(...)` or
+`pdf_profile=DisabledPDF(reason)`. Core doctype overrides inherit their profile.
+See [PDF output contracts](pdf-output.md) for field allowlists, templates, errors
+and the shared REST/chat/MCP generation contract.

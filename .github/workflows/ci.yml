@@ -70,6 +70,22 @@ jobs:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_erp_validation
 
+      - name: PDF content contracts — SQLite
+        run: python -m tests.test_pdf_contract
+
+      - name: PDF content contracts — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_pdf_contract
+
+      - name: PDF chat, REST and MCP transport — SQLite
+        run: python -m tests.test_pdf_channels
+
+      - name: PDF chat, REST and MCP transport — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_pdf_channels
+
       - name: Document requirements — SQLite (synthetic records)
         run: python -m tests.test_document_requirements
 

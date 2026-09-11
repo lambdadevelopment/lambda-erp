@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { getDoctypeConfig, type FieldDef, type ChildTableDef } from "@/lib/doctypes";
 import { usePageTitle } from "@/lib/use-page-title";
+import { PdfButton } from "@/components/document/pdf-button";
 import { StatusBadge } from "@/components/document/status-badge";
 import { DocPager } from "@/components/document/doc-pager";
 import { Button } from "@/components/ui/button";
@@ -512,19 +513,11 @@ function DocumentActions({
   const [confirmingSoftCancel, setConfirmingSoftCancel] = useState(false);
   if (!config) return null;
 
-  const pdfUrl = !isNew && doctype && name
-    ? `/api/documents/${doctype}/${encodeURIComponent(name)}/pdf`
-    : null;
-
   const showCancel = !isNew && config.canCancel && docstatus === 1;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {pdfUrl && (
-        <Button variant="secondary" onClick={() => window.open(pdfUrl, "_blank")}>
-          {t("common.pdf")}
-        </Button>
-      )}
+      {!isNew && doctype && name && <PdfButton doctype={doctype} name={name} />}
       {docstatus < 1 && !discarded && !draftReadOnly && (
         <Button onClick={onSave} disabled={saving}>
           {saving ? t("common.saving") : t("common.save")}

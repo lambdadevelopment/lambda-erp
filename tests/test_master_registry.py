@@ -20,6 +20,7 @@ registering a fictional "Gadget" master + doctype and verifies:
 Run:  python -m tests.test_master_registry
       LAMBDA_ERP_TEST_DB=postgresql://... python -m tests.test_master_registry
 """
+from api.pdf_profiles import DisabledPDF
 import os
 import re
 import sys
@@ -90,7 +91,7 @@ def check_master_registry():
                 identity_alias="gadget_code", description="A test inventory gadget.",
                 fields=["gadget_name", "town"],
             )
-            services.register_doctype("Gadget", Gadget)
+            services.register_doctype("Gadget", Gadget, pdf_profile=DisabledPDF("Synthetic non-printable test fixture"))
             services.register_master(
                 "random-gadget", "Gadget", "gadget_name", name_prefix="RGAD",
                 random_name=True,

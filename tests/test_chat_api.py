@@ -143,14 +143,13 @@ def check_chat_api():
         # No document referenced -> empty structured list.
         assert body.get("documents") == [], body
 
-        # --- Structured documents: a PDF reference becomes a fetchable ref. --
+        # A model-invented PDF link is NOT an attachment. Real generated-file
+        # success, byte identity and failure propagation live in test_pdf_channels.
         r = client.post("/api/v1/chat", json={"message": "give me the pdf of the latest offer"}, headers=auth_h)
         assert r.status_code == 200, r.text[:300]
-        docs = r.json().get("documents")
-        assert docs and len(docs) == 1, docs
-        assert docs[0]["doctype"] == "quotation" and docs[0]["name"] == "QTN-2298", docs
-        assert docs[0]["pdf_url"].endswith("/api/v1/documents/quotation/QTN-2298/pdf"), docs
-        assert docs[0]["pdf_url"].startswith("http"), docs  # absolute, caller-fetchable
+        assert r.json()["documents"] == [], r.json()
+        assert r.json()["document_errors"], r.json()
+        assert "/api/documents/quotation/QTN-2298/pdf" not in r.json()["reply"]
 
         # --- Rolling audit session: a second stateless call reuses it. ------
         r = client.post("/api/v1/chat", json={"message": "again"}, headers=auth_h)

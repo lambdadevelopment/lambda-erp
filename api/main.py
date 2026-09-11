@@ -61,6 +61,9 @@ async def lifespan(app: FastAPI):
     from api.services import apply_plugin_schema
     apply_plugin_schema()
 
+    from api.pdf_profiles import validate_pdf_registry
+    validate_pdf_registry()
+
     # Ensure the demo spend log table exists before any LLM call happens.
     from api.demo_limits import init_schema as init_demo_spend_schema
     init_demo_spend_schema()

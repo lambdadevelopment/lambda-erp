@@ -19,6 +19,7 @@ as an admin (cookie auth).
 Run:  python -m tests.test_plugin_schema
       LAMBDA_ERP_TEST_DB=postgresql://... python -m tests.test_plugin_schema   # CI runs both
 """
+from api.pdf_profiles import DisabledPDF
 import os
 import sys
 
@@ -70,7 +71,7 @@ def _register_gadget_plugin():
         def validate(self):
             pass
 
-    register_doctype("Gadget", Gadget)
+    register_doctype("Gadget", Gadget, pdf_profile=DisabledPDF("Synthetic non-printable test fixture"))
     register_table(GADGET_TABLE)
     register_migration("test:0001_gadget_color", _gadget_add_color)
 

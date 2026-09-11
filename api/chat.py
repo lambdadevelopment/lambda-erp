@@ -507,6 +507,16 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "generate_document_pdf",
+            "description": "Generate and validate the actual PDF before offering or sending it. Returns a downloadable file snapshot only after successful rendering and content checks. Read get_document_fields.pdf for support and output requirements. Relay errors; never invent a PDF URL or claim a file is attached without this tool succeeding.",
+            "parameters": {"type": "object", "properties": {
+                "doctype": {"type": "string", "enum": DOCUMENT_SLUGS},
+                "name": {"type": "string"}}, "required": ["doctype", "name"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_document",
             "description": "Load a specific document by its name/ID. Returns the full document with all fields and child tables.",
             "parameters": {
@@ -1479,6 +1489,15 @@ def _handle_list_documents(args):
     return rows
 
 
+def _handle_generate_document_pdf(args, user=None):
+    from api.pdf_exports import create_pdf_export
+    from api.pdf_contract import PDFError
+    try:
+        return create_pdf_export(args.get('doctype'), args.get('name'), user)
+    except PDFError as exc:
+        return {'error': str(exc), 'code': exc.code, 'fields': exc.fields}
+
+
 def _handle_get_document_fields(args):
     return services.document_field_metadata(args["doctype"])
 
@@ -2240,6 +2259,7 @@ def _handle_apply_company_setup(args):
 TOOL_HANDLERS = {
     "list_documents": _handle_list_documents,
     "get_document_fields": _handle_get_document_fields,
+    "generate_document_pdf": _handle_generate_document_pdf,
     "get_document": _handle_get_document,
     "create_document": _handle_create_document,
     "update_document": _handle_update_document,
@@ -2409,6 +2429,11 @@ def build_system_prompt(user_info: dict | None = None, channel: str = "web"):
                 + ", ".join(f"`{field}`" for field in meta["fields"])
             )
     chat_doctype_section = _chat_doctype_section()
+    from api.pdf_profiles import pdf_metadata
+    chat_doctype_section += "\n## PDF output contracts\n" + "\n".join(
+        f"- {services.DOCTYPE_TO_SLUG[dt]}: {json.dumps(pdf_metadata(dt), ensure_ascii=False)}"
+        for dt in services.DOCUMENT_CLASSES
+    )
 
     # Channel-aware link guidance. On the "web" channel the reader is a browser
     # inside the ERP, so web-relative links are clickable. On the "api" channel the
@@ -2422,7 +2447,7 @@ def build_system_prompt(user_info: dict | None = None, channel: str = "web"):
         markdown_links_section = """## Referring to records
 Your reply is relayed to an external application (the user's Lambda assistant / app), NOT the ERP web interface. Links into the ERP web UI are NOT clickable there, so refer to every record by its human identifier in plain text — e.g. "Quotation **QTN-2298**", "Sales Invoice **SINV-0012**". Do not paste `/app/...`, `/masters/...`, or `/reports/...` URLs; they do not work outside the ERP."""
         document_links_section = """## Delivering document PDFs
-When the user wants a document as a file (an invoice, quotation, delivery note, etc.), include exactly one canonical PDF reference in the form `/api/documents/{doctype-slug}/{name}/pdf` — e.g. `/api/documents/sales-invoice/SINV-0001/pdf`. The platform detects this reference, fetches the PDF, and delivers it to the user as a downloadable attachment. So phrase it as the file being provided ("I've attached the PDF of QTN-2298"), NOT as a link to click. Do not include `/app/...` view links or `/masters/...` links — name the record instead."""
+Call generate_document_pdf for every requested file. Only a successful result means a file is generated and available for attachment. The platform attaches that exact validated file. Do not invent PDF URLs or claim generation after an error. Name the document in prose; no /app or /masters view links on this channel."""
     else:
         markdown_links_section = """## Always use markdown links
 Every URL you mention in chat MUST be written as a markdown link `[label](url)` — never a bare URL on its own. The chat UI only turns `[label](url)` into a proper clickable link. A bare `/reports/analytics?report_id=...` still works (a fallback linkifier catches it), but markdown form is the expected shape.
@@ -2436,14 +2461,14 @@ When referencing records, always use clickable markdown links so the user can op
 
 **Documents** (quotations, invoices, orders, deliveries, receipts, payments, journal entries, stock entries):
 - **View/edit link:** `/app/{doctype-slug}/{name}` — e.g. [SINV-0001](/app/sales-invoice/SINV-0001)
-- **PDF link:** `/api/documents/{doctype-slug}/{name}/pdf` — e.g. [Download PDF](/api/documents/sales-invoice/SINV-0001/pdf)
+- **PDF files:** call generate_document_pdf. Only link the returned download_url after successful generation; never construct PDF links yourself.
 The doctype slug is the lowercase, hyphenated form: sales-invoice, purchase-order, delivery-note, etc.
 
 **Master records** (customer, supplier, item, warehouse, company):
 - **View/edit link:** `/masters/{master-type}/{name}` — e.g. [SUPP-001](/masters/supplier/SUPP-001), [CUST-003](/masters/customer/CUST-003), [ITEM-001](/masters/item/ITEM-001)
 - NEVER use `/app/...` for masters — that path is only for transactional documents.
 
-Always include the view link after creating, submitting, converting, or updating a record. Include the PDF link when the user asks for a printable version or when sharing an invoice/quotation."""
+Always include the view link after creating, submitting, converting, or updating a record. Call generate_document_pdf when a printable file is requested. Only confirm and link a successfully generated file."""
 
     if user_role == "admin":
         role_desc = "You have **admin** access — full permissions to create, edit, submit, cancel documents, manage master data, run reports, and manage users."
@@ -2583,7 +2608,7 @@ Shape — note it does NOT use `items`:
 - Parent fields: `title` (e.g. "Offerte"), `customer`, `company`, `proposal_date`, `partner_name`, `partner_email`, `cover_letter` (the intro/greeting letter text).
 - Child table `quotations[]` — one row per offer to include, in display order. Each row has: `quotation` (the name of an existing Quotation), optional `position_title` and `position_blurb` (default from the quotation), and `is_recommended` (0 or 1 — set 1 on the offer you recommend, which draws an "Empfehlung" badge).
 
-To build one: ensure each offer already exists as its own Quotation (create them first if needed), then call create_document with doctype "proposal" and a data object whose `quotations` array references those quotations by name. Do NOT submit it; link the user to the PDF at `/api/documents/proposal/<name>/pdf` (and the editor at `/app/proposal/<name>`).
+To build one: ensure each offer already exists as its own Quotation (create them first if needed), then call create_document with doctype "proposal" and a data object whose `quotations` array references those quotations by name. Do NOT submit it; call generate_document_pdf with doctype proposal and link the returned download_url (and the editor at `/app/proposal/<name>`).
 
 ### Recurring offer lines (quotation line `frequency`)
 A **Quotation** line item carries an optional `frequency` that controls how it is billed and totalled on the offer:
@@ -3468,6 +3493,7 @@ async def run_thinking_loop(
     # immediately affects resource-aware handlers as well as the shared policy.
     principal_ref = [user_info]
     tool_handlers = dict(TOOL_HANDLERS)
+    tool_handlers["generate_document_pdf"] = lambda args: _handle_generate_document_pdf(args, principal_ref[0])
     # delete_master needs the caller's role (admin-only) — scoped here rather
     # than in TOOL_HANDLERS, whose handlers are called with (args) only.
     tool_handlers["delete_master"] = lambda args: _handle_delete_master(args, principal_ref[0])
@@ -3720,6 +3746,10 @@ async def run_thinking_loop(
                 and result.get("id")
             ):
                 event_payload["report_id"] = result["id"]
+            if fn_name == "generate_document_pdf":
+                event_payload["document_request"] = {key: fn_args.get(key) for key in ("doctype", "name")}
+            if success and fn_name == "generate_document_pdf" and isinstance(result, dict) and result.get("artifact_id"):
+                event_payload["document"] = result
             if session_id:
                 _save_tool_trace(session_id, "tool_result", {**event_payload, "result": result})
             await on_event(event_payload)
@@ -3912,8 +3942,15 @@ async def run_session_turn(
 
     messages.extend(conversation)
 
+    generated_files = []
+
+    async def pdf_events(event):
+        if event.get('type') == 'tool_result' and event.get('tool') == 'generate_document_pdf' and event.get('success') and event.get('document'):
+            generated_files.append(event['document'])
+        await on_event(event)
+
     await run_thinking_loop(
-        messages, on_event,
+        messages, pdf_events,
         session_id=session_id,
         user_info=user_info,
         client_ip=client_ip,
@@ -3923,6 +3960,20 @@ async def run_session_turn(
     for msg in reversed(messages):
         if msg.get("role") == "assistant" and msg.get("content"):
             assistant_content = msg["content"]
+            allowed_urls = {d[key] for d in generated_files for key in ('download_url', 'pdf_url')}
+            pdf_pattern = r"/api/(?:v1/)?documents/[^\s`<>)]*/pdf(?:\?[^\s`<>)]*)?"
+            ungenerated = []
+            def verified_link(match):
+                if match.group(0) in allowed_urls:
+                    return match.group(0)
+                ungenerated.append(match.group(0))
+                return '[PDF not generated]'
+            assistant_content = re.sub(pdf_pattern, verified_link, assistant_content)
+            if ungenerated:
+                event = {'type': 'tool_result', 'tool': 'generate_document_pdf', 'success': False,
+                         'error': 'The reply referenced a PDF that was not generated. Generate the file before offering it.', 'warnings': [], 'document_request': {'doctype': None, 'name': None}}
+                await on_event(event)
+                _save_tool_trace(session_id, 'tool_result', event)
             save_chat_message(session_id, "assistant", assistant_content)
             if on_assistant_message:
                 await on_assistant_message(session_id, assistant_content)

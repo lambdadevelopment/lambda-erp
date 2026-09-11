@@ -9,6 +9,7 @@ prev/next (adjacent) tracks the searched list.
 Run:  python -m tests.test_search
       LAMBDA_ERP_TEST_DB=postgresql://... python -m tests.test_search   # CI runs both
 """
+from api.pdf_profiles import DisabledPDF
 import os
 import sys
 
@@ -34,7 +35,7 @@ def _register():
         def validate(self):
             pass
 
-    register_doctype("Widget", Widget)
+    register_doctype("Widget", Widget, pdf_profile=DisabledPDF("Synthetic non-printable test fixture"))
     register_table(WIDGET_TABLE)
     register_table(GADGET_TABLE)
 

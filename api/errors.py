@@ -76,6 +76,10 @@ async def _integrity_handler(request: Request, exc: Exception):
 
 
 def register_exception_handlers(app: FastAPI):
+    from api.pdf_contract import PDFError
+    async def pdf_error_handler(request, exc):
+        return JSONResponse(status_code=422, content={"detail": {"code": exc.code, "message": str(exc), "fields": exc.fields}})
+    app.add_exception_handler(PDFError, pdf_error_handler)
 
     @app.exception_handler(ValueError)
     async def value_error(request: Request, exc: ValueError):

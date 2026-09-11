@@ -61,6 +61,7 @@
 </style>
 </head>
 <body>
+<div style="font-size:9pt; margin-bottom:8pt">{{ pdf_status }}</div>
 
 {# ---- Header ---- #}
 <div class="header">
@@ -130,11 +131,11 @@
     <tr>
       <td>{{ loop.index }}</td>
       <td style="font-weight: 600">{{ item.item_code or "" }}</td>
-      <td>{{ item.item_name or item.description or "" }}</td>
+      <td>{{ item.item_name or item.description or "" }}{% if item.frequency %}<br>{{ item.frequency }}{% endif %}</td>
       {% if show_warehouse %}<td>{{ item.warehouse or "" }}</td>{% endif %}
       <td class="num">{{ item.qty }}</td>
       <td class="num">{{ "%.2f"|format(item.rate or 0) }}</td>
-      <td class="num">{{ "%.2f"|format(item.amount or item.net_amount or (item.qty or 0) * (item.rate or 0)) }}</td>
+      <td class="num">{{ "%.2f"|format(item.amount) }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -165,6 +166,7 @@
 </div>
 {% endif %}
 
+{% for grp in recurring_summary %}<p>{{ grp.frequency }}: {{ currency }} {{ "%.2f"|format(grp.net_total) }} + {{ "%.2f"|format(grp.total_taxes_and_charges) }} Tax = {{ "%.2f"|format(grp.grand_total) }}</p>{% endfor %}
 {# ---- Totals ---- #}
 <div class="totals">
   <table>

@@ -1,3 +1,4 @@
+import { PdfButton } from "@/components/document/pdf-button";
 import { useState, useEffect, useRef } from "react";
 import { usePageTitle } from "@/lib/use-page-title";
 import { formatLocalDate } from "@/lib/utils";
@@ -199,9 +200,7 @@ export default function ProposalForm() {
             </Button>
           )}
           {!isNew && (
-            <Button variant="secondary" onClick={() => window.open(api.proposalPdfUrl(name!), "_blank")}>
-              {tr("common.pdf", "PDF")}
-            </Button>
+            <PdfButton doctype="proposal" name={name!} />
           )}
           <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
             {saveMut.isPending ? tr("common.saving", "Saving…") : tr("common.save", "Save")}

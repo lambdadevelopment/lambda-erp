@@ -12,6 +12,7 @@ list_documents chat tool gained order_by/order.
 Run:  python -m tests.test_chat_doctype
       LAMBDA_ERP_TEST_DB=postgresql://... python -m tests.test_chat_doctype   # CI runs both
 """
+from api.pdf_profiles import DisabledPDF
 import os
 import sys
 
@@ -53,8 +54,8 @@ def check_chat_doctype():
             pass
 
     with TestClient(app) as client:
-        services.register_doctype("Gadget", Gadget)
-        services.register_doctype("Widget", Widget)
+        services.register_doctype("Gadget", Gadget, pdf_profile=DisabledPDF("Synthetic non-printable test fixture"))
+        services.register_doctype("Widget", Widget, pdf_profile=DisabledPDF("Synthetic non-printable test fixture"))
         services.register_chat_doctype("gadget", description="A gadget.")  # page="self" default
         services.register_chat_doctype(
             "widget", description="A widget attached to a gadget.",

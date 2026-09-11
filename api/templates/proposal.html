@@ -37,6 +37,7 @@
 </style>
 </head>
 <body>
+<div style="font-size:9pt; margin-bottom:8pt">{{ pdf_status }}</div>
 
 <div class="header">
   <div><div class="company">{{ company_name or proposal.company or "" }}</div></div>
@@ -68,6 +69,7 @@
 {% if proposal.cover_letter %}<div class="cover">{{ proposal.cover_letter }}</div>{% endif %}
 
 {% for p in positions %}
+<div style="font-size:8pt">{{ p.quotation }} · {{ p.pdf_status }}</div>
 <div class="position">
   <div class="pos-head">
     <span class="letter">{{ p.letter }}</span>
@@ -77,11 +79,12 @@
   <table class="lines">
     {% for item in p["items"] %}
     <tr>
-      <td class="desc">{{ item.item_name or item.description or item.item_code or "" }}{% if item.qty and item.qty != 1 %} ({{ "%g"|format(item.qty) }}×){% endif %}</td>
-      <td class="amount">{{ p.currency }} {{ "%.2f"|format(item.amount or item.net_amount or (item.qty or 0) * (item.rate or 0)) }}</td>
+      <td class="desc">{{ item.item_name or item.description or item.item_code or "" }} ({{ "%g"|format(item.qty) }} × {{ p.currency }} {{ "%.2f"|format(item.rate) }}){% if item.frequency %} · {{ item.frequency }}{% endif %}</td>
+      <td class="amount">{{ p.currency }} {{ "%.2f"|format(item.amount) }}</td>
     </tr>
     {% endfor %}
   </table>
+  {% include "_proposal_totals.html" %}
 </div>
 {% endfor %}
 

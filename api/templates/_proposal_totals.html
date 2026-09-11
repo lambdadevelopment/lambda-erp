@@ -1,0 +1,11 @@
+<table class="lines">
+<tr><td>Netto{% if p.recurring_summary %} (einmalig){% endif %}</td><td>{{ p.currency }} {{ "%.2f"|format(p.net_total) }}</td></tr>
+{% for tax in p.taxes %}<tr><td>{{ tax.description or tax.account_head or 'Steuern' }}</td><td>{{ p.currency }} {{ "%.2f"|format(tax.tax_amount) }}</td></tr>{% endfor %}
+<tr><td>Steuern gesamt</td><td>{{ p.currency }} {{ "%.2f"|format(p.total_taxes_and_charges) }}</td></tr>
+<tr><td>Total{% if p.recurring_summary %} (einmalig){% endif %}</td><td>{{ p.currency }} {{ "%.2f"|format(p.grand_total) }}</td></tr>
+{% for grp in p.recurring_summary %}
+<tr><td>{{ grp.frequency }} netto</td><td>{{ p.currency }} {{ "%.2f"|format(grp.net_total) }}</td></tr>
+<tr><td>{{ grp.frequency }} Steuern</td><td>{{ p.currency }} {{ "%.2f"|format(grp.total_taxes_and_charges) }}</td></tr>
+<tr><td>{{ grp.frequency }} Total</td><td>{{ p.currency }} {{ "%.2f"|format(grp.grand_total) }}</td></tr>
+{% endfor %}
+</table>

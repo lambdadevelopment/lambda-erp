@@ -38,6 +38,7 @@ function formatErrorDetail(detail: unknown): string {
   }
   if (typeof detail === "object") {
     const rec = detail as Record<string, unknown>;
+    if (typeof rec.message === "string") return rec.message;
     if (typeof rec.msg === "string") return rec.msg;
     return JSON.stringify(detail);
   }
@@ -361,6 +362,12 @@ export const api = {
     ),
 
   // Documents
+  documentFields: (doctype: string) =>
+    request<{ pdf: { supported: boolean; reason?: string; kind?: string; required_fields?: string[] } }>(`/documents/${encodeURIComponent(doctype)}/fields`),
+
+  generateDocumentPdf: (doctype: string, name: string) =>
+    request<{ artifact_id: string; filename: string; sha256: string }>(`/documents/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}/pdf`, { method: "POST" }),
+
   listDocuments: (doctype: string, params?: Record<string, string | number | undefined>) =>
     request<{ rows: any[]; total: number; limit: number; offset: number; text_fields: string[] }>(
       `/documents/${doctype}${qs(params)}`,

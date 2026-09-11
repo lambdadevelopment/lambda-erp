@@ -31,6 +31,7 @@ from api.chat import (
     save_chat_message,
 )
 from api.pdf import generate_pdf
+from api.pdf_exports import create_pdf_export, get_pdf_export, pdf_content_disposition
 from api.services import load_document
 
 router = APIRouter(prefix="/v1", tags=["chat-api"])
@@ -41,41 +42,11 @@ class ChatApiRequest(BaseModel):
     session_id: str | None = None
 
 
-# The agent references document PDFs as `/api/documents/{slug}/{name}/pdf` (a
-# cookie-gated web path). An API caller can't open that, so we surface each one as
-# a structured `documents` entry whose `pdf_url` points at the Bearer-gated v1
-# document endpoint the caller CAN fetch. This is the machine-readable contract the
-# orchestrator uses to attach PDFs, instead of re-parsing the prose itself.
-_PDF_LINK_RE = re.compile(r"/api/documents/([^/()\s]+)/([^/()\s]+)/pdf")
-
-
-def _extract_documents(reply: str, request: Request) -> list[dict]:
-    """Pull referenced document PDFs out of a reply as absolute, fetchable refs."""
-    base = str(request.base_url).rstrip("/")
-    seen: set[tuple[str, str]] = set()
-    documents: list[dict] = []
-    for doctype_slug, name in _PDF_LINK_RE.findall(reply or ""):
-        if (doctype_slug, name) in seen:
-            continue
-        seen.add((doctype_slug, name))
-        entry = {
-            "doctype": doctype_slug,
-            "name": name,
-            "pdf_url": f"{base}/api/v1/documents/{doctype_slug}/{name}/pdf",
-        }
-        # Version stamp: a document can change after an earlier turn fetched its
-        # PDF, making that attachment stale. `modified` lets the caller tell v1
-        # from v2 (e.g. timestamped attachment filenames) and reason about which
-        # is current. Best-effort — a vanished doc still gets its pdf_url.
-        try:
-            doc = load_document(doctype_slug, name)
-            modified = doc.get("modified") if isinstance(doc, dict) else None
-            if modified:
-                entry["modified"] = str(modified)
-        except Exception:
-            pass
-        documents.append(entry)
-    return documents
+def _extract_documents(reply: str, request: Request, generated=()) -> list[dict]:
+    """Only server-generated files may become attachments; prose is not evidence."""
+    base = str(request.base_url).rstrip('/')
+    latest = {(d['doctype'], d['name']): d for d in generated}
+    return [{**d, 'pdf_url': base + d['pdf_url']} for d in latest.values()]
 
 
 def _client_ip(request: Request) -> str | None:
@@ -113,8 +84,16 @@ async def chat(payload: ChatApiRequest, request: Request, caller: dict = Depends
     save_chat_message(target_session_id, "user", message)
 
     tool_results = []
+    generated = []
+    pdf_attempts = {}
 
     async def collect_event(event):
+        if event.get('type') == 'tool_result' and event.get('tool') == 'generate_document_pdf':
+            target = event.get('document_request') or {}
+            pdf_attempts[(target.get('doctype'), target.get('name'))] = event
+
+        if event.get("type") == "tool_result" and event.get("tool") == "generate_document_pdf" and event.get("success") and event.get("document"):
+            generated.append(event["document"])
         if event.get("type") == "tool_result":
             tool_results.append({key: event[key] for key in ("tool", "success", "error", "warnings") if key in event})
 
@@ -133,13 +112,27 @@ async def chat(payload: ChatApiRequest, request: Request, caller: dict = Depends
         "reply": reply or "",
         "session_id": target_session_id,
         "title": session["title"] if session else None,
-        "documents": _extract_documents(reply or "", request),
+        "documents": _extract_documents(reply or "", request,
+            [d for d in generated if pdf_attempts.get((d['doctype'], d['name']), {}).get('success')]),
         "tool_results": tool_results,
+        "document_errors": [{**(event.get('document_request') or {}), 'error': event.get('error')}
+                            for event in pdf_attempts.values() if not event.get('success')],
     }
 
 
+@router.get("/documents/{doctype_slug}/fields")
+def document_fields(doctype_slug: str, caller: dict = Depends(get_api_caller)):
+    from api.services import document_field_metadata
+    return document_field_metadata(doctype_slug)
+
+
+@router.post("/documents/{doctype_slug}/{name}/pdf")
+def export_pdf(doctype_slug: str, name: str, caller: dict = Depends(get_api_caller)):
+    return create_pdf_export(doctype_slug, name, caller)
+
+
 @router.get("/documents/{doctype_slug}/{name}/pdf")
-def document_pdf(doctype_slug: str, name: str, caller: dict = Depends(get_api_caller)):
+def document_pdf(doctype_slug: str, name: str, artifact_id: str | None = None, caller: dict = Depends(get_api_caller)):
     """Render a document's PDF for a Bearer-key caller.
 
     The chat agent's replies link to `/api/documents/{slug}/{name}/pdf`, but that
@@ -149,11 +142,11 @@ def document_pdf(doctype_slug: str, name: str, caller: dict = Depends(get_api_ca
     ValidationError("… not found") → 404, an unknown doctype ValueError → 422, via
     the global handlers.
     """
-    pdf_bytes = generate_pdf(doctype_slug, name)
+    pdf_bytes = get_pdf_export(artifact_id, doctype_slug, name, caller) if artifact_id else generate_pdf(doctype_slug, name)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{name}.pdf"'},
+        headers={"Content-Disposition": pdf_content_disposition(name)},
     )
 
 

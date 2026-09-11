@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+@page { size: {{ page_size }}; margin: 19mm 15mm; @bottom-right { content: counter(page) " / " counter(pages); font-size: 8pt; color: #64748b; } }
+body { font-family: Helvetica, Arial, sans-serif; color: #17253b; font-size: 10pt; line-height: 1.45; }
+h1 { font-size: 23pt; margin-bottom: 4mm; } h2 { font-size: 13pt; margin-top: 8mm; }
+.header { border-bottom: 2pt solid #334b70; margin-bottom: 7mm; padding-bottom: 5mm; }
+.state { color: #475569; margin-bottom: 5mm; } .warning { border-left: 3pt solid #b45309; padding: 3mm; margin-bottom: 4mm; background: #fffbeb; }
+table { width: 100%; border-collapse: collapse; margin: 4mm 0; table-layout: fixed; }
+th,td { padding: 2.5mm; text-align: left; vertical-align: top; overflow-wrap: anywhere; white-space: pre-wrap; }
+th { background: #eef2f6; font-weight: 600; } td { border-bottom: .5pt solid #dbe2eb; }
+.fields { margin: 0; } .fields th { width: 30%; } .lines { font-size: 8pt; } thead { display: table-header-group; }
+tr { break-inside: avoid; } .brand { font-weight: bold; letter-spacing: .8pt; } .muted { color: #64748b; font-size: 9pt; }
+.long-field { white-space: pre-wrap; overflow-wrap: anywhere; } .field-heading { break-after: avoid; }
+{% block styles %}{% endblock %}
+</style></head><body>
+{% macro label(key) %}{{ print_labels.get(key, key.replace('_',' ').capitalize()) }}{% endmacro %}
+{% block letterhead %}<div class="header"><div class="brand">{{ company_name }}</div>{% if company_info.get('address') %}<div class="muted">{{ company_info.get('address') }}</div>{% endif %}</div>{% endblock %}
+<h1>{{ print_title }}</h1>
+<div class="state">{{ name }} · {{ pdf_status }}</div>
+{% for warning in pdf_warnings %}<div class="warning">{{ warning.message }}</div>{% endfor %}
+{% if party_name %}<p><strong>{{ party_name }}</strong></p>{% endif %}
+{% if company_currency %}<div class="muted">{{ label('company_currency') }}: {{ company_currency }}</div>{% endif %}
+{% for field in print_fields %}
+{% if field.value|length > 400 or '\n' in field.value %}
+<h2 class="field-heading">{{ label(field.key) }}</h2><div class="long-field">{{ field.value }}</div>
+{% else %}<table class="fields"><tbody><tr><th>{{ label(field.key) }}</th><td>{{ field.value }}</td></tr></tbody></table>{% endif %}
+{% endfor %}
+{% for table in print_tables %}
+<h2>{{ label(table.key) }}</h2>
+<table class="lines"><thead><tr>{% for key in table.columns %}<th>{{ label(key) }}</th>{% endfor %}</tr></thead><tbody>
+{% for row in table.rows %}<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table>
+{% endfor %}
+{% block footer %}{% endblock %}
+</body></html>
