@@ -6,13 +6,16 @@ entries to any accounts. Used for:
 - Opening balances
 - Adjustments
 - Expense accruals
-- Inter-company transactions
+- Company-specific adjustments
 - Write-offs
 
 GL entries are created directly from the Journal Entry Account rows.
 The key constraint: total debits MUST equal total credits.
 """
 
+import math
+from collections import defaultdict
+from lambda_erp.accounting.settlement import journal_reduction, validate_reduction
 from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
@@ -25,8 +28,9 @@ class JournalEntry(Document):
         "accounts": ("Journal Entry Account", None),
     }
     PREFIX = "JV"
-    REQUIRED_FIELDS = ('accounts',)
+    REQUIRED_FIELDS = ('company', 'accounts')
     CONDITIONAL_REQUIREMENTS = (
+        'Invoice allocations are summed per invoice, must reduce its signed outstanding, and require the original company, party and receivable/payable account. Use account-currency amounts and the booked exchange rate for foreign-currency settlement.',
         'Account rows must balance debit and credit. Submission requires at least one nonzero line.',
         'Invoice reference type and name must be provided together and match the row party and receivable/payable account.',
     )
@@ -56,17 +60,14 @@ class JournalEntry(Document):
         "Sales Invoice": {
             "party_field": "customer",
             "allowed_party_type": "Customer",
-            "reduction": lambda row: flt(row.get("credit")) - flt(row.get("debit")),
         },
         "POS Invoice": {
             "party_field": "customer",
             "allowed_party_type": "Customer",
-            "reduction": lambda row: flt(row.get("credit")) - flt(row.get("debit")),
         },
         "Purchase Invoice": {
             "party_field": "supplier",
             "allowed_party_type": "Supplier",
-            "reduction": lambda row: flt(row.get("debit")) - flt(row.get("credit")),
         },
     }
 
@@ -91,6 +92,15 @@ class JournalEntry(Document):
         remain zero.
         """
         for row in self.get("accounts") or []:
+            for field in ('debit', 'credit', 'debit_in_account_currency', 'credit_in_account_currency'):
+                if row.get(field) is not None:
+                    try:
+                        value = float(row[field])
+                    except (TypeError, ValueError):
+                        raise ValidationError(f'Journal Entry {field} must be a finite number')
+                    if not math.isfinite(value):
+                        raise ValidationError(f'Journal Entry {field} must be a finite number')
+                    row[field] = value
             debit = row.get("debit")
             credit = row.get("credit")
             dr_ac = row.get("debit_in_account_currency")
@@ -163,7 +173,11 @@ class JournalEntry(Document):
         subledger by driving the invoice past zero or tagging the wrong party.
         """
         db = get_db()
+        grouped = defaultdict(float)
+        invoices = {}
         for idx, row in enumerate(self.get("accounts") or [], start=1):
+            if row.get('reference_doctype') and row.get('reference_type') and row['reference_doctype'] != row['reference_type']:
+                raise ValidationError('reference_doctype and legacy reference_type must agree')
             ref_dt = row.get("reference_doctype") or row.get("reference_type")
             ref_name = row.get("reference_name")
             if not ref_dt and not ref_name:
@@ -179,10 +193,12 @@ class JournalEntry(Document):
                     f"Journal Entry: row {idx} cannot reference unsupported doctype {ref_dt}"
                 )
 
+            row['reference_doctype'] = ref_dt
+
             invoice = db.get_value(
                 ref_dt,
                 ref_name,
-                [meta["party_field"], "docstatus", "outstanding_amount"],
+                [meta["party_field"], "docstatus", "outstanding_amount", "company", "currency", "conversion_rate", "is_return", "debit_to", "credit_to"],
             )
             if not invoice:
                 raise ValidationError(
@@ -206,16 +222,14 @@ class JournalEntry(Document):
                     f"{meta['allowed_party_type']} '{expected_party}', not '{row.get('party')}'"
                 )
 
-            reduction = meta["reduction"](row)
-            if not reduction:
-                continue
-
-            current = flt(invoice.get("outstanding_amount"))
-            if reduction > abs(current) + 0.01:
-                raise ValidationError(
-                    f"Journal Entry: row {idx} reduces {ref_dt} {ref_name} by {reduction}, "
-                    f"which exceeds its remaining outstanding ({abs(current)})"
-                )
+            if invoice.company != self.company:
+                raise ValidationError('Journal Entry and referenced invoice must belong to the same Company')
+            reduction = journal_reduction(row, ref_dt, invoice)
+            grouped[(ref_dt, ref_name)] += reduction
+            invoices[(ref_dt, ref_name)] = invoice
+        for (kind, name), reduction in grouped.items():
+            invoice = invoices[(kind, name)]
+            validate_reduction(kind, name, reduction, flt(invoice.outstanding_amount), is_return=bool(flt(invoice.is_return)))
 
     def _update_referenced_outstanding(self, cancel=False):
         """When a Journal Entry row carries a reference_doctype + reference_name
@@ -225,26 +239,17 @@ class JournalEntry(Document):
         AR would zero the account while the invoice still shows outstanding.
         """
         db = get_db()
-        for row in self.get("accounts") or []:
-            ref_dt = row.get("reference_doctype") or row.get("reference_type")
-            ref_name = row.get("reference_name")
-            if not ref_dt or not ref_name:
+        grouped = defaultdict(float)
+        for row in self.get('accounts') or []:
+            kind, name = row.get('reference_doctype') or row.get('reference_type'), row.get('reference_name')
+            if not kind or not name:
                 continue
-            meta = self._REFERENCE_META.get(ref_dt)
-            if not meta:
-                continue
-
-            reduction = meta["reduction"](row)
-            if cancel:
-                reduction = -reduction
-            if not reduction:
-                continue
-
-            current = flt(db.get_value(ref_dt, ref_name, "outstanding_amount"))
-            new_outstanding = current - reduction
-            if abs(new_outstanding) < 0.01:
-                new_outstanding = 0
-            db.set_value(ref_dt, ref_name, "outstanding_amount", flt(new_outstanding, 2))
+            invoice = db.get_value(kind, name, ['company', 'currency', 'conversion_rate', 'debit_to', 'credit_to'])
+            grouped[(kind, name)] += journal_reduction(row, kind, invoice)
+        for (kind, name), reduction in grouped.items():
+            current = flt(db.get_value(kind, name, 'outstanding_amount'))
+            value = current - reduction * (-1 if cancel else 1)
+            db.set_value(kind, name, 'outstanding_amount', flt(value, 2))
         if not db._in_transaction:
             db.commit()
 

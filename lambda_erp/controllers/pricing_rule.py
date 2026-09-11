@@ -50,6 +50,9 @@ def apply_pricing_rules(doc):
     is_buying = hasattr(doc, "supplier") and doc.supplier
 
     for item in doc.get("items") or []:
+        # An explicit free line must not acquire a price from a rule.
+        if item.get('rate') is not None and flt(item['rate']) == 0:
+            continue
         item_code = item.get("item_code")
         if not item_code:
             continue

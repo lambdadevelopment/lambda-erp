@@ -3013,6 +3013,31 @@ def main():
     checked_issue.cancel()
     checked_receipt.cancel()
 
+    print_header("REGRESSION — aggregate settlement and explicit zero price")
+    free = SalesInvoice(company='Lambda Corp', customer='CUST-001',
+                        items=[_dict(item_code='SVC-001', qty=1, rate=0)]).save()
+    assert free.grand_total == 0 and free.items[0]['rate'] == 0
+    free.discard()
+    debt = SalesInvoice(company='Lambda Corp', customer='CUST-001',
+                        items=[_dict(item_code='SVC-001', qty=1, rate=100)]).save().submit()
+    for amounts, valid in (((60, 60), False), ((40, 60), True)):
+        payment = CheckedPayment(company='Lambda Corp', payment_type='Receive', party_type='Customer',
+            party='CUST-001', paid_amount=sum(amounts), references=[_dict(reference_doctype='Sales Invoice',
+                reference_name=debt.name, allocated_amount=amount) for amount in amounts])
+        if not valid:
+            try:
+                payment.save()
+                raise AssertionError('split references must not exceed invoice outstanding')
+            except ValidationError as error:
+                assert 'remaining outstanding' in str(error), str(error)
+            assert db.get_value('Sales Invoice', debt.name, 'outstanding_amount') == 100
+        else:
+            payment.save().submit()
+            assert db.get_value('Sales Invoice', debt.name, 'outstanding_amount') == 0
+            payment.cancel()
+            assert db.get_value('Sales Invoice', debt.name, 'outstanding_amount') == 100
+    debt.cancel()
+
     print_header("TRIAL BALANCE")
 
     all_accounts = db.get_all(

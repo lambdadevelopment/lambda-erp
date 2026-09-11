@@ -254,12 +254,13 @@ def build_buy_side_sles(doc, items):
         if not warehouse or not item.get("item_code"):
             continue
         actual_qty = flt(item["qty"])
-        rate = flt(item.get("net_rate") or item.get("rate", 0)) * conversion_rate
+        rate = flt(item.get("net_rate") if item.get("net_rate") is not None else item.get("rate")) * conversion_rate
         sl_entries.append(_dict(
             item_code=item["item_code"],
             warehouse=warehouse,
             actual_qty=actual_qty,
             incoming_rate=rate if actual_qty > 0 else 0,
+            incoming_rate_is_explicit=actual_qty > 0,
             outgoing_rate=0,
             voucher_type=doc.DOCTYPE,
             voucher_no=doc.name,
@@ -338,5 +339,7 @@ def reverse_stock_sles(sl_entries):
         outgoing = sle.get("outgoing_rate", 0)
         flipped["incoming_rate"] = outgoing
         flipped["outgoing_rate"] = incoming
+        flipped['incoming_rate_is_explicit'] = sle.get('outgoing_rate_is_explicit', False)
+        flipped['outgoing_rate_is_explicit'] = sle.get('incoming_rate_is_explicit', False)
         reversed_.append(flipped)
     return reversed_

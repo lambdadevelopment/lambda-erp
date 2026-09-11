@@ -89,6 +89,7 @@ def document_requirements(cls):
     if cls.DOCTYPE in RETURN_TYPES:
         rules.append('Returns require a submitted non-return original with matching company and party, negative quantities, original order-line references and quantities within the remaining returnable amount across all rows and previous returns. Use the return converter.')
     if cls.DOCTYPE in TRANSACTION_TYPES:
+        rules.append('Supplied warehouse, account and cost-center links must belong to company. Explicit rate=0 means free and is preserved; only absent/blank prices use defaults. Prices must be finite and non-negative.')
         required += ['company', 'items']
         party = 'supplier' if cls.DOCTYPE in {'Purchase Order', 'Purchase Invoice', 'Purchase Receipt'} else 'customer'
         required.append(party)

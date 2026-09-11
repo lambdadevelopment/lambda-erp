@@ -17,6 +17,8 @@ GL entries on submit:
 """
 
 import math
+from collections import defaultdict
+from lambda_erp.accounting.settlement import invoice_account, validate_reduction
 from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
@@ -36,6 +38,7 @@ class PaymentEntry(Document):
     PREFIX = "PE"
     CONDITIONAL_REQUIREMENTS = (
         "payment_type must be Receive, Pay or Internal Transfer. Both accounts must exist, belong to company and be distinct; transfers require bank/cash accounts. Amounts must be positive and finite.",
+        "Allocations are summed per invoice and must not exceed its outstanding amount. Invoice company, currency, party account and payment/refund direction must match. Cancel linked settlements before cancelling invoices.",
         "Each supplied references row requires reference_doctype, reference_name and a positive allocated_amount. Omit references entirely only for an intentional on-account payment.",
     )
 
@@ -187,6 +190,8 @@ class PaymentEntry(Document):
         """
         db = get_db()
         total_allocated = 0.0
+        by_invoice = defaultdict(float)
+        invoices = {}
         allowed_dts = self._ALLOWED_REFERENCE_DOCTYPES.get(self.party_type, set())
 
         for ref in self.get("references") or []:
@@ -209,7 +214,7 @@ class PaymentEntry(Document):
             invoice = db.get_value(
                 doctype,
                 docname,
-                ["customer", "supplier", "docstatus", "outstanding_amount", "is_return", "currency"],
+                ["customer", "supplier", "docstatus", "outstanding_amount", "is_return", "currency", "company", "debit_to", "credit_to"],
             )
             if not invoice:
                 raise ValidationError(f"{doctype} {docname} does not exist")
@@ -233,6 +238,19 @@ class PaymentEntry(Document):
                     f"'{expected_party}', not '{self.party}'"
                 )
 
+            if invoice.company != self.company:
+                raise ValidationError('Payment and referenced invoice must belong to the same Company')
+            receiving = self.party_type == 'Customer'
+            if flt(invoice.is_return):
+                receiving = not receiving
+            if self.payment_type != ('Receive' if receiving else 'Pay'):
+                raise ValidationError('Payment direction must match the invoice or return')
+            party_account = self.paid_from if self.payment_type == 'Receive' else self.paid_to
+            if party_account != invoice_account(doctype, invoice):
+                raise ValidationError('Payment must use the referenced invoice receivable/payable account')
+            by_invoice[(doctype, docname)] += allocated
+            invoices[(doctype, docname)] = invoice
+
             current = flt(invoice.get("outstanding_amount"))
             # Return invoices carry a negative outstanding. Allocations against
             # them (refund flow) always reduce |outstanding| — compare on
@@ -244,6 +262,11 @@ class PaymentEntry(Document):
                 )
 
             total_allocated += allocated
+
+        for (doctype, name), allocated in by_invoice.items():
+            invoice = invoices[(doctype, name)]
+            sign = -1 if flt(invoice.is_return) else 1
+            validate_reduction(doctype, name, sign * allocated, flt(invoice.outstanding_amount), is_return=sign < 0)
 
         if total_allocated > flt(self.paid_amount) + 0.01:
             raise ValidationError(
@@ -530,23 +553,14 @@ class PaymentEntry(Document):
         "almost paid" state after 100/3-style splits.
         """
         db = get_db()
-        for ref in self.get("references") or []:
-            doctype = ref.get("reference_doctype")
-            docname = ref.get("reference_name")
-            allocated = flt(ref.get("allocated_amount"))
-
-            if not doctype or not docname or not allocated:
-                continue
-
-            current = flt(db.get_value(doctype, docname, "outstanding_amount"))
-            direction = 1 if current >= 0 else -1  # +: reduce, -: add (refund)
-            delta = allocated if not cancel else -allocated
-            new_outstanding = current - direction * delta
-
-            if abs(new_outstanding) < 0.01:
-                new_outstanding = 0
-
-            db.set_value(doctype, docname, "outstanding_amount", flt(new_outstanding, 2))
-
+        grouped = defaultdict(float)
+        for ref in self.get('references') or []:
+            grouped[(ref['reference_doctype'], ref['reference_name'])] += flt(ref['allocated_amount'])
+        for (doctype, name), allocated in grouped.items():
+            invoice = db.get_value(doctype, name, ['outstanding_amount', 'is_return'])
+            sign = -1 if flt(invoice.is_return) else 1
+            reduction = sign * allocated * (-1 if cancel else 1)
+            value = flt(invoice.outstanding_amount) - reduction
+            db.set_value(doctype, name, 'outstanding_amount', flt(value, 2))
         if not db._in_transaction:
             db.commit()

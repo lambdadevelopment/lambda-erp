@@ -14,6 +14,11 @@ def lock_workflow_references(doc):
     """Serialize checks against the same original/order, including cancel."""
     db = get_db()
     refs = set()
+    from lambda_erp.accounting.settlement import INVOICE_TYPES
+    if doc.DOCTYPE in {'Payment Entry', 'Journal Entry'}:
+        field = 'references' if doc.DOCTYPE == 'Payment Entry' else 'accounts'
+        refs.update((row.get('reference_doctype') or row.get('reference_type'), row['reference_name']) for row in doc.get(field)
+                    if (row.get('reference_doctype') or row.get('reference_type')) in INVOICE_TYPES and row.get('reference_name'))
     if doc.DOCTYPE in RETURN_TYPES and doc.get('return_against'):
         refs.add((doc.DOCTYPE, doc.return_against))
     rule = ORDER_REFERENCES.get(doc.DOCTYPE)
@@ -142,6 +147,14 @@ def validate_order_quantities(doc, *, cancelling=False):
 
 def validate_cancellation(doc):
     db = get_db()
+    from lambda_erp.accounting.settlement import INVOICE_TYPES
+    if doc.DOCTYPE in INVOICE_TYPES:
+        for kind, child in [('Journal Entry', 'Journal Entry Account'), ('Payment Entry', 'Payment Entry Reference')]:
+            discriminator = "COALESCE(NULLIF(r.reference_doctype, ''), r.reference_type)" if kind == 'Journal Entry' else 'r.reference_doctype'
+            rows = db.sql(f'SELECT p.name FROM "{kind}" p JOIN "{child}" r ON r.parent = p.name '
+                          f'WHERE p.docstatus = 1 AND {discriminator} = ? AND r.reference_name = ? LIMIT 1', [doc.DOCTYPE, doc.name])
+            if rows:
+                raise ValidationError(f'Cancel linked {kind} {rows[0].name} before cancelling {doc.DOCTYPE} {doc.name}')
     if doc.DOCTYPE in RETURN_TYPES and db.get_all(doc.DOCTYPE, filters={'return_against': doc.name, 'docstatus': 1}, limit=1):
         raise ValidationError('Cancel the submitted returns before cancelling their original document')
     if doc.DOCTYPE in {'Sales Order', 'Purchase Order'}:

@@ -61,10 +61,12 @@ class TaxCalculator:
 
         for item in self.doc.get("items"):
             # Apply discount to get rate from price_list_rate
-            if flt(item.get("discount_percentage")) == 100:
+            if item.get('rate') is not None and flt(item['rate']) == 0:
+                item['rate'] = 0.0
+            elif flt(item.get("discount_percentage")) == 100:
                 item["rate"] = 0.0
-            elif item.get("price_list_rate"):
-                if not item.get("rate") or flt(item.get("discount_percentage")) > 0:
+            elif item.get("price_list_rate") is not None and (flt(item['price_list_rate']) != 0 or item.get('rate') is None):
+                if item.get("rate") is None or flt(item.get("discount_percentage")) > 0:
                     item["rate"] = flt(
                         flt(item["price_list_rate"]) * (1.0 - flt(item.get("discount_percentage")) / 100.0),
                         2,

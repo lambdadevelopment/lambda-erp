@@ -16,7 +16,7 @@ from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
 from lambda_erp.controllers.defaults import set_default_currency
 from lambda_erp.exceptions import ValidationError
-from lambda_erp.stock.stock_ledger import make_sl_entries
+from lambda_erp.stock.stock_ledger import make_sl_entries, reverse_stock_sles
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 
 class PurchaseReceipt(Document):
@@ -77,7 +77,7 @@ class PurchaseReceipt(Document):
                     item["item_name"] = item_data.item_name
                     item["description"] = item.get("description") or item_data.description
                     item["uom"] = item.get("uom") or item_data.stock_uom
-                    if not item.get("rate"):
+                    if item.get("rate") is None and item.get("price_list_rate") is None:
                         item["rate"] = flt(item_data.standard_rate)
 
     def _validate_return(self):
@@ -115,14 +115,7 @@ class PurchaseReceipt(Document):
         # rolls back. Cheap check first, expensive work after.
         self._check_no_linked_purchase_invoice()
 
-        sl_entries = self._get_sl_entries()
-        for sle in sl_entries:
-            sle["actual_qty"] = -flt(sle["actual_qty"])
-            incoming = sle.get("incoming_rate", 0)
-            outgoing = sle.get("outgoing_rate", 0)
-            sle["incoming_rate"] = outgoing
-            sle["outgoing_rate"] = incoming
-        make_sl_entries(sl_entries, allow_negative_stock=True)
+        make_sl_entries(reverse_stock_sles(self._get_sl_entries()), allow_negative_stock=True)
 
         make_reverse_gl_entries(
             voucher_type=self.DOCTYPE,
@@ -179,6 +172,8 @@ class PurchaseReceipt(Document):
                 warehouse=warehouse,
                 actual_qty=actual_qty,
                 incoming_rate=rate if actual_qty > 0 else 0,
+                incoming_rate_is_explicit=actual_qty > 0,
+                outgoing_rate_is_explicit=actual_qty < 0,
                 outgoing_rate=rate if actual_qty < 0 else 0,
                 voucher_type=self.DOCTYPE,
                 voucher_no=self.name,

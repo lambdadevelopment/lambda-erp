@@ -86,7 +86,7 @@ class SalesOrder(Document):
                     item["item_name"] = item_data.item_name
                     item["description"] = item.get("description") or item_data.description
                     item["uom"] = item.get("uom") or item_data.stock_uom
-                    if not item.get("rate") and not item.get("price_list_rate"):
+                    if item.get("rate") is None and item.get("price_list_rate") is None:
                         item["rate"] = flt(item_data.standard_rate)
 
     def _validate_delivery_date(self):

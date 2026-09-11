@@ -201,6 +201,9 @@ class Document:
                     f"{self.DOCTYPE}: {where}{_label(field)} '{value}' does not "
                     f"exist in {master}"
                 )
+            if self.get('company') and master in {'Warehouse', 'Account', 'Cost Center'}:
+                if db.get_value(master, value, 'company') != self.company:
+                    raise ValidationError(f'{self.DOCTYPE}: {where}{_label(field)} must belong to Company {self.company}')
 
         for field, master in self.LINK_FIELDS.items():
             _check(master, self.get(field), "", field)
@@ -302,7 +305,10 @@ class Document:
             with db.atomic():
                 self._check_write_state(DRAFT)
                 self._data["modified"] = now()
+                from lambda_erp.controllers.item_prices import normalize_item_prices
+                normalize_item_prices(self)
                 self.validate()
+                normalize_item_prices(self)
                 from lambda_erp.validation import validate_document_requirements
                 validate_document_requirements(self)
                 self._validate_links()
@@ -329,7 +335,10 @@ class Document:
                 from lambda_erp.workflow import lock_workflow_references
                 lock_workflow_references(self)
                 self._data["modified"] = now()
+                from lambda_erp.controllers.item_prices import normalize_item_prices
+                normalize_item_prices(self)
                 self.validate()
+                normalize_item_prices(self)
                 from lambda_erp.validation import validate_document_requirements
                 validate_document_requirements(self)
                 self._validate_links()

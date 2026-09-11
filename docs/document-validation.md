@@ -179,3 +179,38 @@ These requirements feed REST field discovery and the generated chat/MCP tool
 metadata. They are enforced in the shared model/services, independent of the
 prompt. Historical overwritten vouchers or mismatched ledgers require a
 separate reconciliation; the migration never guesses corrective postings.
+
+## Settlement references and explicit zero prices
+
+The settlement follow-up is covered by `tests.test_settlement_guards` on SQLite
+and PostgreSQL, including simultaneous payment/journal submissions:
+
+- Payments sum allocations per invoice. Journals sum the signed net movement
+  per invoice. The result must reduce the invoice/return outstanding without
+  crossing zero. Payment direction follows the original invoice's return flag,
+  including when a fully settled refund is cancelled. Invalid historical signs
+  are reported for reconciliation rather than increased by another settlement.
+- Payment and journal references lock their target invoices through validation
+  and posting, including cancellation. Company, party, original receivable/
+  payable account and payment currency must match. Journals use actual account
+  currency amounts; company-currency amounts are translated at the invoice's
+  booked rate. A foreign settlement account must match invoice currency and its
+  base amount must agree with that booked rate. Other FX effects need separate
+  gain/loss rows.
+- Sales, purchase and POS invoices cannot be cancelled while a submitted
+  Payment Entry or Journal Entry references them. Reverse the settlement first.
+  Legacy Journal Entry `reference_type` aliases are normalized on writes and
+  recognized by locks, outstanding updates and cancellation checks. Conflicting
+  old/new discriminator values are rejected.
+- Declared Warehouse, Account and Cost Center document links must belong to the
+  document company; this applies to all document write paths, including stock
+  movement through delivery/receipt notes and invoices.
+- Transaction rates distinguish missing/blank from explicit zero. Missing
+  prices may use defaults; zero is preserved across item defaults, price lists,
+  pricing rules and tax calculation. Supplied prices must be finite and
+  non-negative. Zero-valued purchase receipts/direct-stock invoices keep zero
+  as an explicit incoming cost; reversals preserve that distinction too.
+
+These rules are advertised in field metadata and the generated prompt and
+enforced on both save and submit. No historical settlement or financial ledger
+is automatically rewritten by these changes.
