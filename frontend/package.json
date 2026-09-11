@@ -1,7 +1,7 @@
 {
   "name": "@lambda-development/erp-core",
-  "version": "0.8.34",
-  "description": "Frontend core of Lambda ERP — app shell, document/master pages, chat UI, reports, and extension registries.",
+  "version": "1.0.0",
+  "description": "Frontend core of Lambda ERP \u2014 app shell, document/master pages, chat UI, reports, and extension registries.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

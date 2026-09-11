@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-11
+
 ### PDF output contracts
 - Give every document type an explicit PDF profile. Reservations, logistics,
   payments, journal entries and record overviews no longer fall back to empty
@@ -1757,7 +1759,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.34...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.34...v1.0.0
 [0.8.34]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.33...v0.8.34
 [0.8.28]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.27...v0.8.28
 [0.8.27]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.26...v0.8.27
