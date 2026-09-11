@@ -84,6 +84,9 @@ def document_requirements(cls):
     """Machine-readable minimums plus conditional rules owned by the class."""
     required = list(getattr(cls, 'REQUIRED_FIELDS', ()))
     rules = list(getattr(cls, 'CONDITIONAL_REQUIREMENTS', ()))
+    managed = list(cls.SERVER_MANAGED_FIELDS)
+    if managed:
+        rules.append(f'Server-managed fields ({", ".join(managed)}) cannot be supplied on create or changed on update; unchanged values may be echoed. Use the owning workflow to advance them.')
     if cls.SUBMITTABLE:
         rules.append('Supports submit/cancel. Resolve active linked reservations before cancelling or discarding their voucher.')
     else:
@@ -116,4 +119,5 @@ def document_requirements(cls):
             ],
         }
     return {'required': sorted(set(required)), 'conditional': rules, 'children': children,
+            'server_managed_fields': managed,
             'lifecycle': {'submit': cls.SUBMITTABLE, 'cancel': cls.SUBMITTABLE, 'discard': supports_discard}}

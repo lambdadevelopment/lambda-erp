@@ -166,7 +166,7 @@ class Reservation(Document):
         # Capacity is counted from Asset rows, so an item with no units has no
         # pool to reserve against. Pooled reservation of ordinary (untracked)
         # stock is a different feature — see the ADR's scope note.
-        if not is_asset_tracked(db, item_code):
+        if status in BLOCKING_STATUSES and not is_asset_tracked(db, item_code):
             raise ValidationError(
                 f"Item '{item_code}' is not asset-tracked. Set is_asset_tracked = 1 "
                 f"on the Item before reserving it."

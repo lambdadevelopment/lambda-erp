@@ -56,7 +56,7 @@ DELETE_REFERENCE_CHECKS = {
         ('SELECT 1 FROM "POS Invoice" WHERE company = ? LIMIT 1', "POS invoice"),
         ('SELECT 1 FROM "Budget" WHERE company = ? LIMIT 1', "budget"),
         ('SELECT 1 FROM "Subscription" WHERE company = ? LIMIT 1', "subscription"),
-        ('SELECT 1 FROM "Bank Transaction" WHERE company = ? LIMIT 1', "bank transaction"),
+        ('SELECT 1 FROM "Bank Transaction" t JOIN "Bank Account" a ON a.name = t.bank_account WHERE a.company = ? LIMIT 1', "bank transaction"),
     ],
     "customer": [
         ('SELECT 1 FROM "Quotation" WHERE customer = ? LIMIT 1', "quotation"),
@@ -119,7 +119,6 @@ DELETE_REFERENCE_CHECKS = {
         ('SELECT 1 FROM "Tax Template Detail" WHERE account_head = ? LIMIT 1', "tax template detail"),
         ('SELECT 1 FROM "Company" WHERE round_off_account = ? OR default_receivable_account = ? OR default_payable_account = ? OR default_income_account = ? OR default_expense_account = ? OR stock_received_but_not_billed = ? OR stock_adjustment_account = ? OR accumulated_depreciation_account = ? OR depreciation_expense_account = ? LIMIT 1', "company"),
         ('SELECT 1 FROM "Warehouse" WHERE account = ? LIMIT 1', "warehouse"),
-        ('SELECT 1 FROM "Pricing Rule" WHERE discount_account = ? LIMIT 1', "pricing rule"),
         ('SELECT 1 FROM "Budget" WHERE account = ? LIMIT 1', "budget"),
         ('SELECT 1 FROM "Bank Transaction" WHERE bank_account = ? LIMIT 1', "bank transaction"),
     ],
@@ -226,7 +225,38 @@ def master_requirements(master_type):
     if doctype in services.DOCUMENT_CLASSES:
         from lambda_erp.validation import document_requirements
         return document_requirements(services.DOCUMENT_CLASSES[doctype])
-    return {'required': [display], 'conditional': ['Unknown input fields are rejected; supplied links must exist.'], 'children': {}}
+    from lambda_erp.master_integrity import structure_requirements, STRUCTURAL_FIELDS
+    return {'required': [display], 'conditional': ['Unknown input fields are rejected; supplied links must exist.'] + structure_requirements(master_type), 'children': {},
+            'structural_fields': list(STRUCTURAL_FIELDS.get(master_type, ()))}
+
+
+def _structural_reference(master_type, doctype, name):
+    """Check declared links too; new document types inherit reference protection.
+
+    Unlike best-effort delete diagnostics, validation must not swallow SQL
+    failures and then approve a structural change.
+    """
+    from api import services
+    db = get_db()
+    links = set()
+    for cls in services.DOCUMENT_CLASSES.values():
+        links.update((cls.DOCTYPE, field) for field, target in cls.LINK_FIELDS.items() if target == doctype)
+        for key, fields in cls.CHILD_LINK_FIELDS.items():
+            links.update((cls.CHILD_TABLES[key][0], field) for field, target in fields.items() if target == doctype)
+    for kind, fields in MASTER_LINK_FIELDS.items():
+        table, _ = _get_table(kind)
+        links.update((table, field) for field, target in fields.items() if target == doctype)
+    for table, field in sorted(links):
+        # Some declarations validate transient/defaulted inputs. Only stored
+        # columns can carry a persistent reference (SQLite masks missing ones).
+        if field not in db._get_table_columns(table):
+            continue
+        if db.sql(f'SELECT name FROM "{table}" WHERE "{field}" = ? LIMIT 1', [name]):
+            return f'{table}.{field}'
+    for query, label in [*DELETE_REFERENCE_CHECKS.get(master_type, []), *MASTER_REFERENCE_CHECKS.get(master_type, [])]:
+        if db.sql(query, [name] * query.count('?')):
+            return label
+    return None
 
 
 def _validate_master_input(master_type, doctype, data, name=None):
@@ -248,6 +278,11 @@ def _validate_master_input(master_type, doctype, data, name=None):
 
 
 def create_master_record(master_type: str, data: dict) -> dict:
+    with get_db().atomic():
+        return _create_master_record(master_type, data)
+
+
+def _create_master_record(master_type: str, data: dict) -> dict:
     doctype, _ = _get_table(master_type)
     if not doctype:
         raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
@@ -310,6 +345,13 @@ def create_master_record(master_type: str, data: dict) -> dict:
 
 
 def update_master_record(master_type: str, name: str, data: dict) -> dict:
+    from lambda_erp.master_integrity import STRUCTURAL_FIELDS
+    exclusive = bool(set(data) & set(STRUCTURAL_FIELDS.get(master_type, ())))
+    with get_db().atomic(exclusive_master_edit=exclusive):
+        return _update_master_record(master_type, name, data)
+
+
+def _update_master_record(master_type: str, name: str, data: dict) -> dict:
     doctype, _ = _get_table(master_type)
     if not doctype:
         raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
@@ -342,6 +384,13 @@ def update_master_record(master_type: str, name: str, data: dict) -> dict:
     if not db.exists(doctype, name):
         raise HTTPException(status_code=404, detail=f"{doctype} {name} not found")
     _validate_master_input(master_type, doctype, normalized, name)
+    from lambda_erp.master_integrity import structural_changes
+    stored = db.get_value(doctype, name, list(db._get_table_columns(doctype)))
+    changed = structural_changes(master_type, stored, normalized)
+    if changed:
+        reference = _structural_reference(master_type, doctype, name)
+        if reference:
+            raise ValidationError(f'{doctype} {name}: cannot change structural fields {", ".join(changed)}; referenced by {reference}. Use a new master or a deliberate migration.')
     if "modified" in db._get_table_columns(doctype) and "modified" not in update_fields:
         update_fields["modified"] = now()
     if update_fields:

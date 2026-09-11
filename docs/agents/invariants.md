@@ -71,6 +71,11 @@ before touching any accounting, stock, or lifecycle path.
 
 ## Declarative validations — declare them on every new document
 
+Declare `SERVER_MANAGED_FIELDS` for persisted progress owned by a workflow.
+Generic save checks supplied values against storage before validation; workflow
+methods may derive and persist them within their transaction. Do not rely on a
+frontend read-only field to protect billing progress.
+
 `REQUIRED_FIELDS` are checked on save and submit. Implement conditional checks
 in `validate()` and describe them in `CONDITIONAL_REQUIREMENTS`, which feeds
 field metadata and the chat prompt. Document service inputs reject unknown

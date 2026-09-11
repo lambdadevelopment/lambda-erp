@@ -249,3 +249,34 @@ is automatically rewritten by these changes.
 Lifecycle support and conditional rules appear in document field discovery
 and the generated chat prompt. Enforcement remains in the shared model, so
 REST, chat, MCP and direct model writes receive the same validation errors.
+
+## Server-owned billing progress and master structure
+
+- `Subscription.current_invoice_start` and `current_invoice_end` are declared
+  `SERVER_MANAGED_FIELDS`. Save rejects supplied initial values and changes to
+  stored values, including clearing them. Unchanged values can be round-tripped
+  by a form. Only the subscription workflow initializes/advances the period.
+  The shared model enforces this for direct model writes, REST, batch updates
+  and chat. Field metadata exposes `read_only_fields` and the generated prompt
+  explains the restriction.
+- Ordinary master updates cannot change structural properties once the master
+  is referenced: account classification/currency/company/group/parent,
+  warehouse company/account/group/parent, item tracking/stock flag/UOM,
+  cost-center company/group/parent and company base currency. Unused masters
+  remain configurable; labels and unchanged structural values remain editable.
+- Reference guards check both registered document link declarations and
+  explicit ledger/configuration/plugin references. Errors name the dependency;
+  validation errors are not swallowed. Structural corrections need a new
+  master or a deliberate migration, rather than reinterpreting historical
+  records through an ordinary edit.
+- Structural edits run in their own atomic transaction. PostgreSQL uses a
+  transaction advisory lock exclusive to these edits; normal atomic workflows
+  use the shared version and remain concurrent with one another. This prevents
+  a first reference from being inserted between the check and the edit. SQLite
+  uses its existing write transaction. Nested upgrades to structural edits are
+  rejected; trusted direct database writes/migrations bypass application rules.
+- Reservations whose item tracking was already removed can still transition
+  to a non-blocking state. No historical account classifications, invoice
+  periods or ledger records are automatically rewritten.
+
+Covered by `tests.test_master_structure_guards` on both database backends.

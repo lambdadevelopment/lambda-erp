@@ -2085,7 +2085,7 @@ class Database:
                 self.conn.commit()
 
     @contextmanager
-    def atomic(self):
+    def atomic(self, *, exclusive_master_edit=False):
         """Compose document/plugin writes, including nested operations."""
         import uuid
         with self._lock:
@@ -2093,6 +2093,8 @@ class Database:
             # Do this before marking the block active, or inserts may auto-commit.
             self.conn
             outer = self._in_transaction
+            if outer and exclusive_master_edit:
+                raise ValueError('Structural master edits must start their own transaction; lock upgrades inside a document workflow are unsupported')
             point = 'atomic_' + uuid.uuid4().hex
             self._in_transaction = True
             try:
@@ -2101,6 +2103,12 @@ class Database:
                     self.conn.execute('BEGIN IMMEDIATE')
                 self.sql(f'SAVEPOINT {point}')
                 try:
+                    if self.dialect == 'postgres':
+                        # Normal workflows share this lock and remain concurrent.
+                        # A rare structural master edit excludes them while checking
+                        # references, including the first concurrent use of a master.
+                        lock = 'pg_advisory_xact_lock' if exclusive_master_edit else 'pg_advisory_xact_lock_shared'
+                        self.sql(f'SELECT {lock}(?)', [715624180031])
                     yield
                 except BaseException:
                     self.sql(f'ROLLBACK TO SAVEPOINT {point}')

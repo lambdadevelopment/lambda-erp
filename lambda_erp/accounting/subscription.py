@@ -20,6 +20,7 @@ class Subscription(Document):
         "plans": ("Subscription Plan", None),
     }
     PREFIX = "SUB"
+    SERVER_MANAGED_FIELDS = ('current_invoice_start', 'current_invoice_end')
     REQUIRED_FIELDS = ('party_type', 'party', 'company', 'start_date', 'plans')
     CHILD_REQUIREMENTS = {'plans': {'required': ['item_code', 'qty', 'rate']}}
     LINK_FIELDS = {'company': 'Company'}

@@ -473,6 +473,7 @@ def document_field_metadata(doctype_slug: str) -> dict:
         "link_fields": dict(cls.LINK_FIELDS),
         "dynamic_link_fields": dict(cls.DYNAMIC_LINK_FIELDS),
         "input_fields": sorted(cls.INPUT_FIELDS),
+        "read_only_fields": sorted(cls.SERVER_MANAGED_FIELDS),
         "child_input_fields": {key: sorted(value) for key, value in cls.CHILD_INPUT_FIELDS.items()},
         "requirements": document_requirements(cls),
     }

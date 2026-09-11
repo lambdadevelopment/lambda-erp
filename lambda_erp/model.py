@@ -36,6 +36,7 @@ class Document:
     REQUIRED_FIELDS = ()
     CONDITIONAL_REQUIREMENTS = ()
     CHILD_REQUIREMENTS = {}
+    SERVER_MANAGED_FIELDS = ()
 
     CHILD_TABLES = {}  # {"items": ("Sales Invoice Item", SalesInvoiceItem), ...}
     PREFIX = "DOC"  # For auto-naming
@@ -307,6 +308,7 @@ class Document:
         try:
             with db.atomic():
                 self._check_write_state(DRAFT)
+                self._validate_server_managed_fields()
                 from lambda_erp.assets.lifecycle import lock_rental_references
                 lock_rental_references(self)
                 self._data["modified"] = now()
@@ -326,6 +328,16 @@ class Document:
             raise
         return self
 
+    def _validate_server_managed_fields(self):
+        """Allow round trips, but only the owning workflow can change progress."""
+        if not self.SERVER_MANAGED_FIELDS:
+            return
+        stored = get_db().get_value(self.DOCTYPE, self.name, list(self.SERVER_MANAGED_FIELDS)) if self._persisted else {}
+        for field in self.SERVER_MANAGED_FIELDS:
+            current, previous = self.get(field), (stored or {}).get(field)
+            if current != previous and not (current in (None, '') and previous in (None, '')):
+                raise ValidationError(f'{self.DOCTYPE}: {field} is server-managed and cannot be supplied or changed; use the document workflow')
+
     def submit(self):
         """Validate and post once; quantities and ledgers share one transaction."""
         self._require_submittable()
@@ -339,6 +351,7 @@ class Document:
             with db.atomic():
                 self._check_write_state(DRAFT)
                 from lambda_erp.workflow import lock_workflow_references
+                self._validate_server_managed_fields()
                 lock_workflow_references(self)
                 self._data["modified"] = now()
                 from lambda_erp.controllers.item_prices import normalize_item_prices
