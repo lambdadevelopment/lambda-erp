@@ -13,7 +13,7 @@ GL entries for perpetual inventory.
 from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
-from lambda_erp.stock.stock_ledger import make_sl_entries
+from lambda_erp.stock.stock_ledger import make_sl_entries, reverse_stock_sles
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
 from lambda_erp.exceptions import ValidationError
 import math
@@ -27,6 +27,7 @@ class StockEntry(Document):
     REQUIRED_FIELDS = ("company", "items", "stock_entry_type")
     CHILD_REQUIREMENTS = {'items': {'required': ['item_code', 'qty']}}
     CONDITIONAL_REQUIREMENTS = (
+        "Receipt/opening rows require an explicit finite basic_rate >= 0 in company currency (zero means intentionally unvalued). Issues and transfers use actual inventory cost, not a supplied selling rate. Financial postings derive from posted stock values.",
         "stock_entry_type must be Opening Stock, Material Receipt, Material Issue or Material Transfer.",
         "Every items row requires an existing item_code and a positive finite qty. Receipt/opening need t_warehouse; issue needs s_warehouse; transfer needs two distinct warehouses. Warehouses must belong to company.",
     )
@@ -66,6 +67,14 @@ class StockEntry(Document):
             if not math.isfinite(qty) or qty <= 0:
                 raise ValidationError(f"Stock Entry row {idx}: Qty must be positive and finite")
             item['qty'] = qty
+            if self.stock_entry_type in {'Opening Stock', 'Material Receipt'}:
+                try:
+                    rate = float(item.get('basic_rate'))
+                except (TypeError, ValueError):
+                    raise ValidationError('Basic Rate is required for receipts/opening stock; use zero only for intentionally unvalued stock')
+                if not math.isfinite(rate) or rate < 0:
+                    raise ValidationError('Basic Rate must be finite and non-negative')
+                item['basic_rate'] = rate
 
         self._validate_warehouses()
         db = get_db()
@@ -146,218 +155,76 @@ class StockEntry(Document):
         self._data["total_amount"] = flt(total_amount, 2)
 
     def on_submit(self):
-        """Create Stock Ledger Entries and GL entries.
-
-        - update_stock_ledger() -> make_sl_entries()
-        - make_gl_entries() (for perpetual inventory)
-        """
-        sl_entries = self._get_sl_entries()
-        make_sl_entries(sl_entries)
-
-        # GL entries for perpetual inventory
-        gl_entries = self._get_gl_entries()
-        if gl_entries:
-            make_gl_entries(gl_entries)
+        db = get_db()
+        incoming = outgoing = 0
+        for item in self.get('items'):
+            base = _dict(item_code=item['item_code'], voucher_type=self.DOCTYPE,
+                         voucher_no=self.name, voucher_detail_no=item['name'],
+                         posting_date=self.posting_date, posting_time=self.posting_time or '00:00:00',
+                         company=self.company)
+            rate = flt(item.get('basic_rate'))
+            if item.get('s_warehouse'):
+                make_sl_entries([{**base, 'warehouse': item['s_warehouse'], 'actual_qty': -flt(item['qty']), 'outgoing_rate': 0}])
+                posted = db.get_value('Stock Ledger Entry', {'voucher_type': self.DOCTYPE, 'voucher_no': self.name, 'voucher_detail_no': item['name'], 'warehouse': item['s_warehouse']}, ['stock_value_difference'])
+                value = -flt(posted.stock_value_difference)
+                rate = value / flt(item['qty'])
+                outgoing += value
+            if item.get('t_warehouse'):
+                make_sl_entries([{**base, 'warehouse': item['t_warehouse'], 'actual_qty': flt(item['qty']), 'incoming_rate': rate, 'incoming_rate_is_explicit': True}])
+                incoming += flt(item['qty']) * rate
+            item['basic_rate'] = rate
+            item['basic_amount'] = item['amount'] = flt(flt(item['qty']) * rate, 2)
+        self.total_incoming_value = flt(incoming, 2)
+        self.total_outgoing_value = flt(outgoing, 2)
+        self.value_difference = flt(incoming - outgoing, 2)
+        self.total_amount = flt(sum(row['basic_amount'] for row in self.get('items')), 2)
+        self._persist(commit=False)
+        entries = self._get_gl_entries()
+        if entries:
+            make_gl_entries(entries)
 
     def on_cancel(self):
-        """Reverse SLEs and GL entries."""
-        # Reverse SLEs by creating negative entries
-        sl_entries = self._get_sl_entries()
-        for sle in sl_entries:
-            sle["actual_qty"] = -flt(sle["actual_qty"])
-            # Swap incoming/outgoing rates
-            incoming = sle.get("incoming_rate", 0)
-            outgoing = sle.get("outgoing_rate", 0)
-            sle["incoming_rate"] = outgoing
-            sle["outgoing_rate"] = incoming
-        make_sl_entries(sl_entries, allow_negative_stock=True)
-
-        # Reverse GL entries
-        make_reverse_gl_entries(
-            voucher_type=self.DOCTYPE,
-            voucher_no=self.name,
-        )
-
-    def _get_sl_entries(self):
-        """Build Stock Ledger Entry list.
-
-        For Material Transfer, each item creates TWO SLEs:
-        1. Negative from source warehouse
-        2. Positive to target warehouse
-        """
-        sl_entries = []
-
-        for item in self.get("items"):
-            # Outgoing (from source warehouse)
-            if item.get("s_warehouse"):
-                sl_entries.append(
-                    _dict(
-                        item_code=item["item_code"],
-                        warehouse=item["s_warehouse"],
-                        actual_qty=-flt(item["qty"]),
-                        outgoing_rate=flt(item.get("basic_rate") or item.get("valuation_rate", 0)),
-                        incoming_rate=0,
-                        voucher_type=self.DOCTYPE,
-                        voucher_no=self.name,
-                        voucher_detail_no=item.get("name"),
-                        posting_date=self.posting_date,
-                        posting_time=self.posting_time or "00:00:00",
-                        company=self.company,
-                    )
-                )
-
-            # Incoming (to target warehouse)
-            if item.get("t_warehouse"):
-                sl_entries.append(
-                    _dict(
-                        item_code=item["item_code"],
-                        warehouse=item["t_warehouse"],
-                        actual_qty=flt(item["qty"]),
-                        incoming_rate=flt(item.get("basic_rate") or item.get("valuation_rate", 0)),
-                        outgoing_rate=0,
-                        voucher_type=self.DOCTYPE,
-                        voucher_no=self.name,
-                        voucher_detail_no=item.get("name"),
-                        posting_date=self.posting_date,
-                        posting_time=self.posting_time or "00:00:00",
-                        company=self.company,
-                    )
-                )
-
-        return sl_entries
+        # Reverse the actual posted cost, even if moving-average cost changed.
+        rows = get_db().get_all('Stock Ledger Entry', filters={
+            'voucher_type': self.DOCTYPE, 'voucher_no': self.name, 'is_cancelled': 0}, fields=['*'])
+        reversals = reverse_stock_sles(rows)
+        for row in reversals:
+            row['incoming_rate_is_explicit'] = True
+            row['outgoing_rate_is_explicit'] = True
+        make_sl_entries(reversals, allow_negative_stock=True)
+        make_reverse_gl_entries(voucher_type=self.DOCTYPE, voucher_no=self.name)
 
     def _get_gl_entries(self):
-        """Build GL entries for perpetual inventory.
-
-        In perpetual inventory, stock movements also create accounting entries:
-        - Opening Stock:   Debit Stock In Hand, Credit Opening Balance Equity
-                           (one-time seed of inventory at company setup)
-        - Material Receipt: Debit Stock In Hand, Credit Stock Adjustment
-                           (manual adjustments / found stock, not supplier deliveries)
-        - Material Issue:  Debit Stock Adjustment, Credit Stock In Hand
-                           (write-offs / internal consumption)
-        - Material Transfer: No GL impact (same Stock In Hand account)
-        """
+        """One stock leg per warehouse; all values come from posted SLEs."""
         db = get_db()
-        if not self.company:
-            return []
-
-        gl_entries = []
-        stock_account = None
-        expense_account = None
-
-        # Get stock and expense accounts from warehouse or company defaults
-        for item in self.get("items"):
-            if item.get("t_warehouse"):
-                stock_account = (
-                    db.get_value("Warehouse", item["t_warehouse"], "account")
-                    or db.get_value("Account",
-                                    {"company": self.company, "account_type": "Stock", "is_group": 0},
-                                    "name")
-                )
-            if item.get("s_warehouse"):
-                stock_account = stock_account or (
-                    db.get_value("Warehouse", item["s_warehouse"], "account")
-                    or db.get_value("Account",
-                                    {"company": self.company, "account_type": "Stock", "is_group": 0},
-                                    "name")
-                )
-
-        if not stock_account:
-            return []  # No perpetual inventory
-
-        cost_center = db.get_value("Company", self.company, "default_cost_center")
-
-        if self.stock_entry_type == "Opening Stock":
-            # One-time seed of inventory at company setup. Contra to equity
-            # (Opening Balance Equity) so the P&L is not distorted by stock
-            # that the business had on day one but didn't "earn".
-            contra_account = db.get_value(
-                "Company", self.company, "default_opening_balance_equity"
-            )
-            if stock_account and contra_account:
-                gl_entries = [
-                    _dict(
-                        account=stock_account,
-                        debit=flt(self.total_incoming_value, 2),
-                        debit_in_account_currency=flt(self.total_incoming_value, 2),
-                        credit=0, credit_in_account_currency=0,
-                        cost_center=cost_center,
-                        voucher_type=self.DOCTYPE, voucher_no=self.name,
-                        posting_date=self.posting_date, company=self.company,
-                        remarks=f"Opening stock via {self.name}",
-                    ),
-                    _dict(
-                        account=contra_account,
-                        credit=flt(self.total_incoming_value, 2),
-                        credit_in_account_currency=flt(self.total_incoming_value, 2),
-                        debit=0, debit_in_account_currency=0,
-                        cost_center=cost_center,
-                        voucher_type=self.DOCTYPE, voucher_no=self.name,
-                        posting_date=self.posting_date, company=self.company,
-                        remarks=f"Opening stock via {self.name}",
-                    ),
-                ]
-
-        elif self.stock_entry_type == "Material Receipt":
-            # Manual inventory receipts (adjustments, found stock). Contra to
-            # Stock Adjustment (expense). For opening balances use the
-            # dedicated "Opening Stock" type above instead.
-            contra_account = db.get_value("Company", self.company, "stock_adjustment_account")
-            if stock_account and contra_account:
-                gl_entries = [
-                    _dict(
-                        account=stock_account,
-                        debit=flt(self.total_incoming_value, 2),
-                        debit_in_account_currency=flt(self.total_incoming_value, 2),
-                        credit=0, credit_in_account_currency=0,
-                        cost_center=cost_center,
-                        voucher_type=self.DOCTYPE, voucher_no=self.name,
-                        posting_date=self.posting_date, company=self.company,
-                        remarks=f"Material Receipt via {self.name}",
-                    ),
-                    _dict(
-                        account=contra_account,
-                        credit=flt(self.total_incoming_value, 2),
-                        credit_in_account_currency=flt(self.total_incoming_value, 2),
-                        debit=0, debit_in_account_currency=0,
-                        cost_center=cost_center,
-                        voucher_type=self.DOCTYPE, voucher_no=self.name,
-                        posting_date=self.posting_date, company=self.company,
-                        remarks=f"Material Receipt via {self.name}",
-                    ),
-                ]
-
-        elif self.stock_entry_type == "Material Issue":
-            # Manual issues are write-offs or internal consumption, not sales.
-            # Route them to Stock Adjustment rather than COGS/default expense —
-            # COGS should only be credited/debited by documents that actually
-            # correspond to a sale (Sales Invoice, Delivery Note, POS).
-            expense_account = db.get_value("Company", self.company, "stock_adjustment_account")
-            if stock_account and expense_account:
-                gl_entries = [
-                    _dict(
-                        account=expense_account,
-                        debit=flt(self.total_outgoing_value, 2),
-                        debit_in_account_currency=flt(self.total_outgoing_value, 2),
-                        credit=0, credit_in_account_currency=0,
-                        cost_center=cost_center,
-                        voucher_type=self.DOCTYPE, voucher_no=self.name,
-                        posting_date=self.posting_date, company=self.company,
-                        remarks=f"Material Issue via {self.name}",
-                    ),
-                    _dict(
-                        account=stock_account,
-                        credit=flt(self.total_outgoing_value, 2),
-                        credit_in_account_currency=flt(self.total_outgoing_value, 2),
-                        debit=0, debit_in_account_currency=0,
-                        cost_center=cost_center,
-                        voucher_type=self.DOCTYPE, voucher_no=self.name,
-                        posting_date=self.posting_date, company=self.company,
-                        remarks=f"Material Issue via {self.name}",
-                    ),
-                ]
-
-        # Material Transfer has no GL impact (stock stays in same Stock In Hand account)
-
-        return gl_entries
+        rows = db.sql('SELECT warehouse, SUM(stock_value_difference) AS value FROM "Stock Ledger Entry" '
+                      'WHERE voucher_type = ? AND voucher_no = ? AND is_cancelled = 0 GROUP BY warehouse', [self.DOCTYPE, self.name])
+        amounts = {}
+        for row in rows:
+            value = flt(row.value, 2)
+            if not value:
+                continue
+            account = db.get_value('Warehouse', row.warehouse, 'account') or db.get_value(
+                'Account', {'company': self.company, 'account_type': 'Stock', 'is_group': 0}, 'name')
+            if not account:
+                raise ValidationError('Stock account is required before posting a valued stock movement')
+            info = db.get_value('Account', account, ['company', 'is_group', 'account_type'])
+            if not info or info.company != self.company or info.is_group or info.account_type != 'Stock':
+                raise ValidationError('Warehouse stock account must be a Stock account belonging to Company')
+            amounts[account] = amounts.get(account, 0) + value
+        if self.stock_entry_type != 'Material Transfer':
+            total = sum(amounts.values())
+            if total:
+                field = 'default_opening_balance_equity' if self.stock_entry_type == 'Opening Stock' else 'stock_adjustment_account'
+                contra = db.get_value('Company', self.company, field)
+                if not contra:
+                    raise ValidationError(f'{field} is required before posting a valued stock movement')
+                amounts[contra] = amounts.get(contra, 0) - total
+        elif abs(sum(amounts.values())) > 0.01:
+            raise ValidationError('Transfer must preserve stock value across warehouses')
+        cost_center = db.get_value('Company', self.company, 'default_cost_center')
+        return [_dict(account=account, debit=max(0, flt(value, 2)), credit=max(0, -flt(value, 2)),
+                      debit_in_account_currency=max(0, flt(value, 2)), credit_in_account_currency=max(0, -flt(value, 2)),
+                      cost_center=cost_center, voucher_type=self.DOCTYPE, voucher_no=self.name,
+                      posting_date=self.posting_date, company=self.company, remarks=f'{self.stock_entry_type} via {self.name}')
+                for account, value in amounts.items() if flt(value, 2)]

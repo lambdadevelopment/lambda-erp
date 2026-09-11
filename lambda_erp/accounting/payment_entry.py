@@ -16,6 +16,7 @@ GL entries on submit:
     Credit: Bank/Cash Account         = paid_amount
 """
 
+import math
 from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
@@ -34,6 +35,7 @@ class PaymentEntry(Document):
     }
     PREFIX = "PE"
     CONDITIONAL_REQUIREMENTS = (
+        "payment_type must be Receive, Pay or Internal Transfer. Both accounts must exist, belong to company and be distinct; transfers require bank/cash accounts. Amounts must be positive and finite.",
         "Each supplied references row requires reference_doctype, reference_name and a positive allocated_amount. Omit references entirely only for an intentional on-account payment.",
     )
 
@@ -65,11 +67,11 @@ class PaymentEntry(Document):
     _ALLOWED_PARTY_TYPES = {"Customer", "Supplier"}
 
     def validate(self):
-        if not self.payment_type:
+        if self.payment_type not in {"Receive", "Pay", "Internal Transfer"}:
             raise ValidationError("Payment Type is required (Receive, Pay, or Internal Transfer)")
         if not self.posting_date:
             self.posting_date = nowdate()
-        if not self.paid_amount or flt(self.paid_amount) <= 0:
+        if not self.paid_amount or not math.isfinite(flt(self.paid_amount)) or flt(self.paid_amount) <= 0:
             raise ValidationError("Paid Amount must be greater than zero")
 
         if self.payment_type != "Internal Transfer":
@@ -79,8 +81,26 @@ class PaymentEntry(Document):
                 raise ValidationError("Party is required for Receive and Pay entries")
 
         self._set_missing_values()
+        self._validate_accounts_and_amounts()
         self._set_currency()
         self._validate_references()
+
+    def _validate_accounts_and_amounts(self):
+        db = get_db()
+        if not self.company:
+            raise ValidationError('Company is required')
+        if not math.isfinite(flt(self.received_amount)) or flt(self.received_amount) <= 0:
+            raise ValidationError('Received Amount must be positive and finite')
+        if self.paid_from == self.paid_to:
+            raise ValidationError('Paid From and Paid To must be different accounts')
+        for field in ('paid_from', 'paid_to'):
+            account = db.get_value('Account', self.get(field), ['company', 'is_group', 'account_type']) if self.get(field) else None
+            if not account or account.is_group or account.company != self.company:
+                raise ValidationError(f'{field} must be an existing non-group account belonging to Company')
+            bank_leg = self.payment_type == 'Internal Transfer' or field == ('paid_to' if self.payment_type == 'Receive' else 'paid_from')
+            expected = {'Bank', 'Cash'} if bank_leg else {'Receivable' if self.party_type == 'Customer' else 'Payable'}
+            if account.account_type not in expected:
+                raise ValidationError(f'{field} must have account type {" or ".join(sorted(expected))}')
 
     def _set_currency(self):
         """Settle in the currency of the invoices being paid; fall back to the
@@ -119,7 +139,7 @@ class PaymentEntry(Document):
             if not self.paid_to and self.company:
                 self._data["paid_to"] = self._get_default_party_ledger_account()
 
-        if not self.received_amount:
+        if self.received_amount is None:
             self._data["received_amount"] = self.paid_amount
 
         if self.party and not self.party_name:
@@ -175,7 +195,7 @@ class PaymentEntry(Document):
             allocated = flt(ref.get("allocated_amount"))
             if not doctype or not docname:
                 raise ValidationError("Every payment reference requires Reference Doctype and Reference Name; omit references only for an intentional on-account payment")
-            if allocated <= 0:
+            if not math.isfinite(allocated) or allocated <= 0:
                 raise ValidationError(
                     f"Allocated amount on {doctype} {docname} must be positive"
                 )
@@ -528,4 +548,5 @@ class PaymentEntry(Document):
 
             db.set_value(doctype, docname, "outstanding_amount", flt(new_outstanding, 2))
 
-        db.commit()
+        if not db._in_transaction:
+            db.commit()

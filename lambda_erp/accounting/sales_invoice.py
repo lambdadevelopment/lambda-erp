@@ -176,54 +176,8 @@ class SalesInvoice(Document):
                 )
 
     def _validate_return(self):
-        """Validate return-specific rules."""
-        if not self.return_against:
-            raise ValidationError("Return Against is required for a return invoice")
-
-        db = get_db()
-        original = db.get_value(self.DOCTYPE, self.return_against, ["name", "docstatus", "grand_total"])
-        if not original:
-            raise ValidationError(f"Original invoice {self.return_against} not found")
-        if original.docstatus != 1:
-            raise ValidationError(f"Original invoice {self.return_against} must be submitted")
-
-        # Aggregate already-returned qty per item across other submitted return
-        # invoices against the same original. Without this, the same item can be
-        # returned twice in separate credit notes, driving the original's
-        # outstanding negative and producing phantom AR credits.
-        already_returned: dict[str, float] = {}
-        prev_rows = db.sql(
-            """SELECT sii.item_code, COALESCE(SUM(ABS(sii.qty)), 0) AS qty
-               FROM "Sales Invoice Item" sii
-               JOIN "Sales Invoice" si ON si.name = sii.parent
-               WHERE si.return_against = ?
-                 AND si.docstatus = 1
-                 AND si.name != ?
-               GROUP BY sii.item_code""",
-            [self.return_against, self.name or ""],
-        )
-        for row in prev_rows:
-            already_returned[row["item_code"]] = flt(row["qty"])
-
-        # Verify return quantities don't exceed original minus what's been returned.
-        original_doc = SalesInvoice.load(self.return_against)
-        original_items = {item["item_code"]: flt(item["qty"]) for item in original_doc.get("items")}
-        for item in self.get("items"):
-            orig_qty = original_items.get(item.get("item_code"), 0)
-            prev = already_returned.get(item.get("item_code"), 0)
-            return_qty = abs(flt(item.get("qty")))
-            remaining = max(0, orig_qty - prev)
-            if return_qty > remaining + 0.01:
-                hint = (
-                    f"original qty {orig_qty}, already returned {prev}, "
-                    f"remaining {remaining}"
-                    if prev
-                    else f"original qty {orig_qty}"
-                )
-                raise ValidationError(
-                    f"Return qty ({return_qty}) for {item.get('item_code')} exceeds "
-                    f"remaining returnable qty ({hint})"
-                )
+        from lambda_erp.workflow import validate_return
+        validate_return(self)
 
     def _update_original_outstanding(self):
         """Reduce original invoice outstanding when a return is submitted."""
@@ -320,8 +274,7 @@ class SalesInvoice(Document):
 
         make_gl_entries(gl_entries)
 
-        # Update Sales Order billing status if linked
-        self._update_sales_order_billing()
+        # Shared lifecycle recalculates order progress after ledger hooks.
 
         # Update original invoice outstanding for returns
         if self.is_return and self.return_against:
@@ -349,8 +302,7 @@ class SalesInvoice(Document):
         if self.is_return and self.return_against:
             self._reverse_original_outstanding()
 
-        # Reverse Sales Order billing status
-        self._update_sales_order_billing(cancel=True)
+        # Shared lifecycle recalculates order progress after ledger hooks.
 
     def _get_gl_entries(self):
         """Build the GL entry map for this invoice.
@@ -436,40 +388,8 @@ class SalesInvoice(Document):
         return build_sell_side_sles(self, self.get("items"))
 
     def _update_sales_order_billing(self, cancel=False):
-        """Update the billing status on linked Sales Orders.
-
-        Instead of incrementing/decrementing billed_qty, we recalculate it
-        from all submitted (non-cancelled) invoices. This prevents drift
-        from failed submits or repeated cancellations.
-        """
-        db = get_db()
-        so_names = set()
-        so_items = set()
-        for item in self.get("items"):
-            if item.get("sales_order"):
-                so_names.add(item["sales_order"])
-            if item.get("sales_order_item"):
-                so_items.add(item["sales_order_item"])
-
-        # Recalculate billed_qty for each SO item from submitted invoices
-        for so_item in so_items:
-            result = db.sql(
-                """SELECT COALESCE(SUM(qty), 0) as total_billed
-                   FROM "Sales Invoice Item"
-                   WHERE sales_order_item = ?
-                     AND parent IN (
-                         SELECT name FROM "Sales Invoice" WHERE docstatus = 1
-                     )""",
-                [so_item],
-            )
-            billed = flt(result[0]["total_billed"]) if result else 0
-            db.set_value("Sales Order Item", so_item, "billed_qty", billed)
-
-        # Recalculate per_billed on each Sales Order
-        for so_name in so_names:
-            from lambda_erp.selling.sales_order import SalesOrder
-            so = SalesOrder.load(so_name)
-            so.update_billing_status()
+        from lambda_erp.workflow import refresh_order_progress
+        refresh_order_progress(self)
 
 def make_sales_return(sinv_name):
     """Create a Credit Note (return Sales Invoice) from an existing Sales Invoice."""
@@ -496,7 +416,8 @@ def make_sales_return(sinv_name):
         update_stock=flt(original.get("update_stock")) or 0,
     )
 
-    for item in original.get("items"):
+    from lambda_erp.workflow import returnable_rows
+    for item in returnable_rows(original):
         return_inv.append("items", _dict(
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),

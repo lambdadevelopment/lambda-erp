@@ -25,6 +25,11 @@ inflating Y1 profit by the full opening inventory value. Use the
 - Outgoing SLEs with `outgoing_rate=0` use the current `valuation_rate`.
   **All sell-side docs (DN, SI update_stock, POS update_stock) pass 0** —
   passing the sell rate instead posts COGS at revenue value.
+- Stock Entry receipts explicitly distinguish a supplied zero rate from a
+  missing rate. Issues use current cost; transfers copy actual outgoing value.
+  Their GL is built from posted SLE values per warehouse. Cancellation passes
+  the original rates explicitly so later valuation changes do not alter the
+  reversal. Transient `*_rate_is_explicit` flags never become database columns.
 
 ## The helpers
 

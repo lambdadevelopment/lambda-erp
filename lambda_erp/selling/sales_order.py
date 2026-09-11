@@ -112,51 +112,23 @@ class SalesOrder(Document):
             else:
                 self._data["status"] = "To Deliver and Bill"
 
-    def on_submit(self):
-        """On submit, update stock reservations (ordered_qty in Bin).
-
-        In the reference implementation, submitting a Sales Order updates the Bin.ordered_qty
-        so that MRP/stock planning can account for upcoming demand.
-        """
-        self._update_reserved_qty(1)
-
-    def on_cancel(self):
-        """Reverse stock reservations."""
-        self._update_reserved_qty(-1)
-
     def _update_reserved_qty(self, direction=1):
-        """Update Bin.reserved_qty for each item+warehouse."""
-        db = get_db()
-        for item in self.get("items"):
-            if item.get("warehouse") and item.get("item_code"):
-                qty = flt(item.get("qty", 0)) * direction
-                bin_data = db.get_value(
-                    "Bin",
-                    {"item_code": item["item_code"], "warehouse": item["warehouse"]},
-                    ["name", "reserved_qty"],
-                )
-                if bin_data:
-                    new_reserved = flt(bin_data.reserved_qty) + qty
-                    db.set_value("Bin", bin_data.name, "reserved_qty", max(0, new_reserved))
-        db.commit()
+        from lambda_erp.workflow import refresh_order_progress
+        refresh_order_progress(self)
 
     def update_delivery_status(self):
-        """Update per_delivered based on delivered quantities."""
-        total_qty = sum(flt(item.get("qty")) for item in self.get("items"))
-        delivered_qty = sum(flt(item.get("delivered_qty")) for item in self.get("items"))
-        if total_qty:
-            self._data["per_delivered"] = flt(delivered_qty / total_qty * 100, 2)
-        self._set_status()
-        self._persist()
+        """Refresh progress from submitted vouchers, not caller-supplied counters."""
+        from lambda_erp.workflow import refresh_order_progress
+        with get_db().atomic():
+            refresh_order_progress(self)
+        self.reload()
 
     def update_billing_status(self):
-        """Update per_billed based on billed quantities."""
-        total_qty = sum(flt(item.get("qty")) for item in self.get("items"))
-        billed_qty = sum(flt(item.get("billed_qty")) for item in self.get("items"))
-        if total_qty:
-            self._data["per_billed"] = flt(billed_qty / total_qty * 100, 2)
-        self._set_status()
-        self._persist()
+        """Refresh progress from submitted vouchers, not caller-supplied counters."""
+        from lambda_erp.workflow import refresh_order_progress
+        with get_db().atomic():
+            refresh_order_progress(self)
+        self.reload()
 
 def make_sales_invoice(sales_order_name):
     """Convert a Sales Order into a Sales Invoice.

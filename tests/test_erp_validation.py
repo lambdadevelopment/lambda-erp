@@ -1642,7 +1642,7 @@ def main():
         third_bad.save()
         raise AssertionError("Third return should have been rejected")
     except Exception as err:
-        assert "exceeds" in str(err).lower() and "remaining" in str(err).lower(), \
+        assert "remaining" in str(err).lower() and ("exceeds" in str(err).lower() or "no remaining" in str(err).lower()), \
             f"Unexpected error: {err}"
         print(f"  Third return rejected: {err}")
 
@@ -1663,7 +1663,7 @@ def main():
         second_pret_bad.save()
         raise AssertionError("Second PI return should have been rejected")
     except Exception as err:
-        assert "exceeds" in str(err).lower() and "remaining" in str(err).lower(), \
+        assert "remaining" in str(err).lower() and ("exceeds" in str(err).lower() or "no remaining" in str(err).lower()), \
             f"Unexpected error: {err}"
         print(f"  Second PI return rejected: {err}")
 
@@ -2978,7 +2978,7 @@ def main():
     from lambda_erp.stock.stock_entry import StockEntry as CheckedStockEntry
     for broken in (
         CheckedStockEntry(company='Lambda Corp', stock_entry_type='Material Receipt',
-                          items=[_dict(item_code='ITEM-001', t_warehouse='Stores - LAMB')]),
+                          items=[_dict(item_code='ITEM-001', t_warehouse='Main Warehouse - LAMB')]),
         SalesInvoice(customer='CUST-001', company='Lambda Corp',
                      items=[_dict(item_code='ITEM-001', qty=1, rate=100, sales_order='SO-INCOMPLETE')]),
     ):
@@ -2992,6 +2992,26 @@ def main():
         assert not db.exists(broken.DOCTYPE, broken.name)
         assert len(db.get_all('GL Entry')) == before_gl
         assert len(db.get_all('Stock Ledger Entry')) == before_sle
+
+    print_header("REGRESSION — actual stock cost and booked-document identity")
+    checked_receipt = CheckedStockEntry(company='Lambda Corp', stock_entry_type='Material Receipt',
+        items=[_dict(item_code='ITEM-001', qty=2, basic_rate=10, t_warehouse='Main Warehouse - LAMB')]).save().submit()
+    checked_issue = CheckedStockEntry(company='Lambda Corp', stock_entry_type='Material Issue',
+        items=[_dict(item_code='ITEM-001', qty=1, s_warehouse='Main Warehouse - LAMB')]).save().submit()
+    stock_value_change = db.sql('SELECT SUM(stock_value_difference) AS amount FROM "Stock Ledger Entry" WHERE voucher_type=? AND voucher_no=?',
+                               ['Stock Entry', checked_issue.name])[0]['amount']
+    gl_debits = db.sql('SELECT SUM(debit) AS amount FROM "GL Entry" WHERE voucher_type=? AND voucher_no=?',
+                       ['Stock Entry', checked_issue.name])[0]['amount']
+    assert abs(flt(gl_debits) + flt(stock_value_change)) < 0.01
+    try:
+        CheckedStockEntry(name=checked_issue.name, company='Lambda Corp', stock_entry_type='Material Issue',
+            items=[_dict(item_code='ITEM-001', qty=2, s_warehouse='Main Warehouse - LAMB')]).save()
+        raise AssertionError('create must never overwrite a booked voucher')
+    except DocumentStatusError:
+        pass
+    assert db.get_value('Stock Entry', checked_issue.name, 'docstatus') == 1
+    checked_issue.cancel()
+    checked_receipt.cancel()
 
     print_header("TRIAL BALANCE")
 

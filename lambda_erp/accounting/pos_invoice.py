@@ -75,27 +75,8 @@ class POSInvoice(Document):
         self._set_status()
 
     def _validate_return(self):
-        if not self.return_against:
-            raise ValidationError("return_against is required for a POS return")
-        db = get_db()
-        original = db.get_value(self.DOCTYPE, self.return_against, ["name", "docstatus"])
-        if not original:
-            raise ValidationError(f"Original POS Invoice {self.return_against} not found")
-        if original.docstatus != 1:
-            raise ValidationError(f"Original POS Invoice {self.return_against} must be submitted")
-
-        original_doc = POSInvoice.load(self.return_against)
-        original_items = {
-            item["item_code"]: flt(item["qty"]) for item in original_doc.get("items")
-        }
-        for item in self.get("items"):
-            orig_qty = original_items.get(item.get("item_code"), 0)
-            return_qty = abs(flt(item.get("qty")))
-            if return_qty > orig_qty:
-                raise ValidationError(
-                    f"Return qty ({return_qty}) for {item.get('item_code')} exceeds "
-                    f"original qty ({orig_qty})"
-                )
+        from lambda_erp.workflow import validate_return
+        validate_return(self)
 
     def _set_customer_name(self):
         if not self.customer_name and self.customer:
@@ -317,7 +298,8 @@ def make_pos_return(posi_name):
         update_stock=flt(original.get("update_stock")) or 0,
     )
 
-    for item in original.get("items"):
+    from lambda_erp.workflow import returnable_rows
+    for item in returnable_rows(original):
         return_pos.append("items", _dict(
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),

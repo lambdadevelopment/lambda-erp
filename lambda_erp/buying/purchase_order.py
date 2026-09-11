@@ -78,42 +78,16 @@ class PurchaseOrder(Document):
                     if not item.get("rate"):
                         item["rate"] = flt(item_data.standard_rate)
 
-    def on_submit(self):
-        """Update ordered_qty in Bin for MRP planning."""
-        self._update_ordered_qty(1)
-
-    def on_cancel(self):
-        self._update_ordered_qty(-1)
-
     def _update_ordered_qty(self, direction=1):
-        db = get_db()
-        for item in self.get("items"):
-            if item.get("warehouse") and item.get("item_code"):
-                qty = flt(item.get("qty", 0)) * direction
-                bin_data = db.get_value(
-                    "Bin",
-                    {"item_code": item["item_code"], "warehouse": item["warehouse"]},
-                    ["name", "ordered_qty"],
-                )
-                if bin_data:
-                    new_ordered = flt(bin_data.ordered_qty) + qty
-                    db.set_value("Bin", bin_data.name, "ordered_qty", max(0, new_ordered))
-                elif direction > 0:
-                    db.insert("Bin", _dict(
-                        name=f"{item['item_code']}-{item['warehouse']}",
-                        item_code=item["item_code"],
-                        warehouse=item["warehouse"],
-                        ordered_qty=qty,
-                    ))
-        db.commit()
+        from lambda_erp.workflow import refresh_order_progress
+        refresh_order_progress(self)
 
     def update_receipt_status(self):
-        """Update per_received based on received quantities."""
-        total_qty = sum(flt(item.get("qty")) for item in self.get("items"))
-        received_qty = sum(flt(item.get("received_qty")) for item in self.get("items"))
-        if total_qty:
-            self._data["per_received"] = flt(received_qty / total_qty * 100, 2)
-        self._persist()
+        """Refresh progress from submitted vouchers, not caller-supplied counters."""
+        from lambda_erp.workflow import refresh_order_progress
+        with get_db().atomic():
+            refresh_order_progress(self)
+        self.reload()
 
 def make_purchase_invoice(purchase_order_name):
     """Convert a Purchase Order into a Purchase Invoice."""

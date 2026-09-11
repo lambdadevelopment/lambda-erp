@@ -137,3 +137,45 @@ plugin code or all document hooks transactional automatically.
 Existing posted records are not rewritten. Invalid legacy drafts must be
 completed before their next save/submit/process/export. Roll out the backend
 and internal plugin together; the plugin now needs the core `atomic()` method.
+
+## Voucher identity, cumulative quantities and stock valuation
+
+`tests.test_workflow_integrity` exercises the second audit's six groups on
+SQLite and PostgreSQL, including concurrent submits and REST responses:
+
+- New document instances insert new identities. An existing name is a conflict
+  (HTTP 409); updating requires a loaded draft. Save/submit/cancel/discard check
+  the stored status and the loaded modification timestamp under the transaction
+  lock. Stale objects cannot overwrite a newer draft or post/cancel twice.
+- All document lifecycle writes and their database hooks use `Database.atomic`.
+  Ledger helpers respect commit ownership. SQLite takes its write reservation
+  before validation; PostgreSQL locks referenced originals, orders and items
+  through posting. Nested lifecycle calls leave commit to their outer owner.
+- Delivery/receipt and invoice returns require the original company/party,
+  negative quantities and original order-line references. Quantities aggregate
+  across duplicate rows and previous submitted returns. Invoice stock mode must
+  match the original. Converters propose remaining quantities; submit rechecks.
+  Active returns block cancellation of their original.
+- Referenced order quantities are capped across submitted documents. Physical
+  fulfillment includes direct-stock invoices; billing is tracked separately.
+  There is currently no implicit overdelivery tolerance. Cancelling a return
+  cannot overfill an order after a replacement shipment consumed its capacity.
+- Order progress and Bin reserved/ordered quantities are recalculated from
+  submitted vouchers, including partial fulfillment, returns and cancellations.
+  Migration 28 rebuilds these derived counters and missing stock planning bins
+  from existing references. It does not change posted financial or stock ledger
+  entries and cannot infer missing historical order references.
+- Stock receipts/opening entries require an explicit non-negative finite rate
+  in company currency; zero is an intentional zero-valued receipt. Issues use
+  current cost; transfers carry the source's actual value into the destination.
+  GL entries use posted SLE values per warehouse account. Missing accounts block
+  valued posting atomically. Cancellation reverses the posted cost, including
+  explicit zero, even if the average cost changed afterwards.
+- Payment types are restricted to Receive, Pay and Internal Transfer. Accounts
+  must belong to the company, be distinct, non-group and of the required types;
+  amounts must be positive and finite. Invalid legacy drafts fail on submit too.
+
+These requirements feed REST field discovery and the generated chat/MCP tool
+metadata. They are enforced in the shared model/services, independent of the
+prompt. Historical overwritten vouchers or mismatched ledgers require a
+separate reconciliation; the migration never guesses corrective postings.

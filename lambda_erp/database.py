@@ -255,7 +255,7 @@ class Database:
         self._col_cache = {}  # doctype -> set(columns); invalidated on ALTER
         self._text_col_cache = {}  # doctype -> set(text columns); invalidated on ALTER
         if self._is_memory:
-            self._lock = threading.Lock()
+            self._lock = threading.RLock()
             self._shared_conn = self._open_conn()
             self._shared_in_transaction = False
         else:
@@ -2090,6 +2090,9 @@ class Database:
             point = 'atomic_' + uuid.uuid4().hex
             self._in_transaction = True
             try:
+                if not outer and self.dialect == 'sqlite' and not self.conn.in_transaction:
+                    # Take the write reservation before validating a snapshot.
+                    self.conn.execute('BEGIN IMMEDIATE')
                 self.sql(f'SAVEPOINT {point}')
                 try:
                     yield
@@ -2526,6 +2529,40 @@ def _m027_reservation_allocation_mode(db: "Database") -> None:
     ], ["Reservation"])
 
 
+def _m028_order_planning(db: "Database") -> None:
+    """Repair derived counters only; never change vouchers or posted ledgers."""
+    with db.atomic():
+        for order, movement, move_line, invoice, inv_line, progress, percent, planning in (
+            ('Sales Order', 'Delivery Note', 'so_detail', 'Sales Invoice', 'sales_order_item', 'delivered_qty', 'per_delivered', 'reserved_qty'),
+            ('Purchase Order', 'Purchase Receipt', 'po_detail', 'Purchase Invoice', 'purchase_order_item', 'received_qty', 'per_received', 'ordered_qty'),
+        ):
+            for kind, field in ((movement, move_line), (invoice, inv_line)):
+                index = 'idx_' + kind.lower().replace(' ', '_') + '_order_line'
+                db.sql(f'CREATE INDEX IF NOT EXISTS "{index}" ON "{kind} Item" ("{field}")')
+            def total(kind, line, stock_only=False):
+                return (f'(SELECT COALESCE(SUM(r.qty), 0) FROM "{kind} Item" r '
+                        f'JOIN "{kind}" p ON p.name = r.parent WHERE r."{line}" = i.name AND p.docstatus = 1'
+                        + (' AND p.update_stock = 1' if stock_only else '') + ')')
+            db.sql(f'UPDATE "{order} Item" AS i SET "{progress}" = {total(movement, move_line)} + {total(invoice, inv_line, True)}, billed_qty = {total(invoice, inv_line)}')
+            assignments = []
+            for child, parent in ((progress, percent), ('billed_qty', 'per_billed')):
+                if parent in db._get_table_columns(order):
+                    assignments.append(f'"{parent}" = COALESCE((SELECT SUM(i."{child}") * 100.0 / NULLIF(SUM(i.qty), 0) FROM "{order} Item" i WHERE i.parent = o.name), 0)')
+            db.sql(f'UPDATE "{order}" AS o SET ' + ', '.join(assignments))
+            db.sql(f'INSERT INTO "Bin" (name, item_code, warehouse) '
+                   f'SELECT DISTINCT i.item_code || \'-\' || i.warehouse, i.item_code, i.warehouse FROM "{order} Item" i '
+                   f'JOIN "{order}" p ON p.name = i.parent JOIN "Item" m ON m.name = i.item_code '
+                   'JOIN "Warehouse" w ON w.name = i.warehouse WHERE p.docstatus = 1 AND m.is_stock_item = 1 '
+                   'ON CONFLICT DO NOTHING')
+            db.sql(f'UPDATE "Bin" AS b SET "{planning}" = (SELECT COALESCE(SUM(CASE WHEN i.qty > COALESCE(i."{progress}", 0) '
+                   f'THEN i.qty - COALESCE(i."{progress}", 0) ELSE 0 END), 0) FROM "{order} Item" i '
+                   f'JOIN "{order}" p ON p.name = i.parent JOIN "Item" m ON m.name = i.item_code '
+                   'WHERE p.docstatus = 1 AND m.is_stock_item = 1 AND i.item_code = b.item_code AND i.warehouse = b.warehouse)')
+        db.sql('UPDATE "Sales Order" SET status = CASE WHEN per_delivered >= 100 AND per_billed >= 100 THEN \'Completed\' '
+               'WHEN per_delivered > 0 AND per_delivered < 100 THEN \'To Deliver\' '
+               'WHEN per_billed > 0 AND per_billed < 100 THEN \'To Bill\' ELSE \'To Deliver and Bill\' END WHERE docstatus = 1')
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2554,6 +2591,7 @@ Database.MIGRATIONS = [
     (25, "bank_reconciliation_multi_account_voucher", _m025_bank_reconciliation_multi_account_voucher),
     (26, "bank_reconciliation_groups", _m026_bank_reconciliation_groups),
     (27, "reservation_allocation_mode", _m027_reservation_allocation_mode),
+    (28, "order_planning_from_posted_documents", _m028_order_planning),
 ]
 
 

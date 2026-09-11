@@ -215,53 +215,8 @@ class PurchaseInvoice(Document):
                         item["rate"] = flt(item_data.standard_rate)
 
     def _validate_return(self):
-        """Validate return-specific rules."""
-        if not self.return_against:
-            raise ValidationError("Return Against is required for a return invoice")
-
-        db = get_db()
-        original = db.get_value(self.DOCTYPE, self.return_against, ["name", "docstatus", "grand_total"])
-        if not original:
-            raise ValidationError(f"Original invoice {self.return_against} not found")
-        if original.docstatus != 1:
-            raise ValidationError(f"Original invoice {self.return_against} must be submitted")
-
-        # Aggregate already-returned qty per item across other submitted return
-        # invoices against the same original. Without this, the same item can be
-        # returned twice in separate debit notes, driving the original's
-        # outstanding negative and producing phantom AP balances.
-        already_returned: dict[str, float] = {}
-        prev_rows = db.sql(
-            """SELECT pii.item_code, COALESCE(SUM(ABS(pii.qty)), 0) AS qty
-               FROM "Purchase Invoice Item" pii
-               JOIN "Purchase Invoice" pi ON pi.name = pii.parent
-               WHERE pi.return_against = ?
-                 AND pi.docstatus = 1
-                 AND pi.name != ?
-               GROUP BY pii.item_code""",
-            [self.return_against, self.name or ""],
-        )
-        for row in prev_rows:
-            already_returned[row["item_code"]] = flt(row["qty"])
-
-        original_doc = PurchaseInvoice.load(self.return_against)
-        original_items = {item["item_code"]: flt(item["qty"]) for item in original_doc.get("items")}
-        for item in self.get("items"):
-            orig_qty = original_items.get(item.get("item_code"), 0)
-            prev = already_returned.get(item.get("item_code"), 0)
-            return_qty = abs(flt(item.get("qty")))
-            remaining = max(0, orig_qty - prev)
-            if return_qty > remaining + 0.01:
-                hint = (
-                    f"original qty {orig_qty}, already returned {prev}, "
-                    f"remaining {remaining}"
-                    if prev
-                    else f"original qty {orig_qty}"
-                )
-                raise ValidationError(
-                    f"Return qty ({return_qty}) for {item.get('item_code')} exceeds "
-                    f"remaining returnable qty ({hint})"
-                )
+        from lambda_erp.workflow import validate_return
+        validate_return(self)
 
     def _update_original_outstanding(self):
         """Reduce original invoice outstanding when a return is submitted."""
@@ -327,7 +282,7 @@ class PurchaseInvoice(Document):
         # so the Stock-In-Hand GL matches the stock-ledger value.
         to_base_currency(gl_entries, self.get("conversion_rate"))
         make_gl_entries(gl_entries)
-        self._update_purchase_order_billing()
+        # Shared lifecycle recalculates order progress after ledger hooks.
 
         if self.is_return and self.return_against:
             self._update_original_outstanding()
@@ -350,7 +305,7 @@ class PurchaseInvoice(Document):
         if self.is_return and self.return_against:
             self._reverse_original_outstanding()
 
-        self._update_purchase_order_billing(cancel=True)
+        # Shared lifecycle recalculates order progress after ledger hooks.
 
     def _get_stock_sl_entries(self):
         """SLEs for direct-receive PIs. Only stock items contribute; services
@@ -437,20 +392,8 @@ class PurchaseInvoice(Document):
         return gl_entries
 
     def _update_purchase_order_billing(self, cancel=False):
-        db = get_db()
-        for item in self.get("items"):
-            if item.get("purchase_order") and item.get("purchase_order_item"):
-                billed_qty = flt(item.get("qty"))
-                if cancel:
-                    billed_qty = -billed_qty
-                current = db.get_value(
-                    "Purchase Order Item", item["purchase_order_item"], "billed_qty"
-                ) or 0
-                db.set_value(
-                    "Purchase Order Item", item["purchase_order_item"],
-                    "billed_qty", flt(current) + billed_qty
-                )
-        db.commit()
+        from lambda_erp.workflow import refresh_order_progress
+        refresh_order_progress(self)
 
 def make_purchase_return(pinv_name):
     """Create a Debit Note (return Purchase Invoice) from an existing Purchase Invoice."""
@@ -477,7 +420,8 @@ def make_purchase_return(pinv_name):
         update_stock=flt(original.get("update_stock")) or 0,
     )
 
-    for item in original.get("items"):
+    from lambda_erp.workflow import returnable_rows
+    for item in returnable_rows(original):
         return_inv.append("items", _dict(
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),

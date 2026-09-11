@@ -6,7 +6,6 @@ In the reference implementation, every DocType instance is a Document with lifec
 and automatic DB persistence. This module provides the same pattern.
 """
 
-import copy
 from lambda_erp.utils import _dict, flt, new_name, now
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError, DocumentStatusError
@@ -65,6 +64,8 @@ class Document:
         self._data = _dict(data or {})
         self._data.update(kwargs)
         self._children = {}  # field_name -> list of child dicts
+        self._persisted = False
+        self._loaded_modified = None
 
         if not self._data.get("name"):
             self._data["name"] = new_name(self.PREFIX)
@@ -275,137 +276,112 @@ class Document:
 
     # --- Persistence ---
 
-    def save(self):
-        """Validate and save to database.
+    def _check_write_state(self, expected):
+        """Check persisted identity/status under the transaction's row lock."""
+        db = get_db()
+        suffix = ' FOR UPDATE' if db.dialect == 'postgres' else ''
+        rows = db.sql(f'SELECT * FROM "{self.DOCTYPE}" WHERE name = ?{suffix}', [self.name])
+        current = rows[0] if rows else None
+        if current and not self._persisted:
+            raise DocumentStatusError(f"{self.DOCTYPE} {self.name} already exists; load it to update a draft, or use a new name")
+        if self._persisted and not current:
+            raise DocumentStatusError(f"{self.DOCTYPE} {self.name} no longer exists; reload before writing")
+        if current:
+            if current.get('docstatus', DRAFT) != expected or current.get('discarded'):
+                raise DocumentStatusError(f"Cannot write {self.DOCTYPE} {self.name}: stored document is submitted, cancelled or discarded; reload it")
+            if current.get('modified') != self._loaded_modified:
+                raise DocumentStatusError(f"{self.DOCTYPE} {self.name} changed since it was loaded; reload before writing")
 
-        Only drafts can be saved. Submitted documents are immutable by design
-        — re-running validate() on a submitted doc would recompute totals and
-        reset outstanding_amount, silently decoupling the subledger (aging,
-        outstanding) from the already-posted GL. Post-submit mutations that
-        are genuinely needed (outstanding_amount, billed_qty, modified) go
-        through db.set_value directly rather than round-tripping save().
-        """
+    def save(self):
+        """Create a new draft or update a loaded draft, atomically with hooks."""
         if self.docstatus != DRAFT:
-            raise DocumentStatusError(
-                f"Cannot save {self.DOCTYPE} {self.name}: document is "
-                f"{'submitted' if self.docstatus == SUBMITTED else 'cancelled'}. "
-                f"Submitted docs are immutable; cancel and create a new one to amend."
-            )
-        self._data["modified"] = now()
-        self.validate()
-        from lambda_erp.validation import validate_document_requirements
-        validate_document_requirements(self)
-        self._validate_links()
-        self.before_save()
-        run_hooks(f"{self.DOCTYPE}:before_save", self)
-        self._persist()
-        run_hooks(f"{self.DOCTYPE}:after_save", self)
+            raise DocumentStatusError(f"Cannot save {self.DOCTYPE} {self.name}: submitted docs are immutable; cancel and create a new one to amend")
+        db = get_db()
+        persisted = self._persisted, self._loaded_modified
+        try:
+            with db.atomic():
+                self._check_write_state(DRAFT)
+                self._data["modified"] = now()
+                self.validate()
+                from lambda_erp.validation import validate_document_requirements
+                validate_document_requirements(self)
+                self._validate_links()
+                self.before_save()
+                run_hooks(f"{self.DOCTYPE}:before_save", self)
+                self._persist()
+                run_hooks(f"{self.DOCTYPE}:after_save", self)
+        except Exception:
+            self._persisted, self._loaded_modified = persisted
+            raise
         return self
 
     def submit(self):
-        """Submit the document (docstatus 0 -> 1).
-
-        In the reference implementation, submitting a document is what actually posts GL entries,
-        creates stock ledger entries, etc. Draft documents have no effect
-        on the ledgers.
-
-        The entire operation (docstatus change + on_submit hooks like GL/stock
-        posting) is wrapped in a transaction. If on_submit() fails, the
-        docstatus change is rolled back.
-        """
+        """Validate and post once; quantities and ledgers share one transaction."""
         if self.docstatus != DRAFT:
-            raise DocumentStatusError(
-                f"Cannot submit {self.DOCTYPE} {self.name}: docstatus is {self.docstatus}"
-            )
-        # A discarded draft is voided — refuse to submit it, otherwise it would
-        # post to the ledger while staying hidden from lists ("posted but
-        # invisible"). Discard is terminal.
+            raise DocumentStatusError(f"Cannot submit {self.DOCTYPE} {self.name}: docstatus is {self.docstatus}")
         if self._data.get("discarded"):
-            raise DocumentStatusError(
-                f"Cannot submit {self.DOCTYPE} {self.name}: it was discarded."
-            )
-
+            raise DocumentStatusError(f"Cannot submit {self.DOCTYPE} {self.name}: it was discarded.")
         db = get_db()
-        db._in_transaction = True
+        snapshot = (_dict(self._data), {key: [_dict(row) for row in rows] for key, rows in self._children.items()}, self._persisted, self._loaded_modified)
         try:
-            self._data["modified"] = now()
-            self.validate()
-            from lambda_erp.validation import validate_document_requirements
-            validate_document_requirements(self)
-            self._validate_links()
-            self.before_submit()
-            self._data["docstatus"] = SUBMITTED
-            self._data["status"] = "Submitted"
-            # Inside the transaction: a raising before_submit hook aborts and
-            # rolls back the whole submit (use for guards / extra validation).
-            run_hooks(f"{self.DOCTYPE}:before_submit", self)
-            self._persist(commit=False)
-            self.on_submit()
-            db.commit()
+            with db.atomic():
+                self._check_write_state(DRAFT)
+                from lambda_erp.workflow import lock_workflow_references
+                lock_workflow_references(self)
+                self._data["modified"] = now()
+                self.validate()
+                from lambda_erp.validation import validate_document_requirements
+                validate_document_requirements(self)
+                self._validate_links()
+                self.before_submit()
+                self._data["docstatus"] = SUBMITTED
+                self._data["status"] = "Submitted"
+                run_hooks(f"{self.DOCTYPE}:before_submit", self)
+                self._persist(commit=False)
+                self.on_submit()
+                from lambda_erp.workflow import refresh_order_progress
+                refresh_order_progress(self)
         except Exception:
-            db.conn.rollback()
-            # Restore in-memory state
-            self._data["docstatus"] = DRAFT
-            self._data["status"] = "Draft"
+            self._data, self._children, self._persisted, self._loaded_modified = snapshot
             raise
-        finally:
-            db._in_transaction = False
-        # Post-commit: the voucher is durable. after_submit is for side-effects
-        # (notifications, external sync); a raise here does NOT undo the submit.
         run_hooks(f"{self.DOCTYPE}:after_submit", self)
         return self
 
     def cancel(self):
-        """Cancel a submitted document (docstatus 1 -> 2).
-
-        Wrapped in a transaction — if on_cancel() fails (e.g. reversing
-        GL entries), the docstatus change is rolled back.
-        """
+        """Reverse a submitted document once, including its planning effects."""
         if self.docstatus != SUBMITTED:
-            raise DocumentStatusError(
-                f"Cannot cancel {self.DOCTYPE} {self.name}: docstatus is {self.docstatus}"
-            )
-
+            raise DocumentStatusError(f"Cannot cancel {self.DOCTYPE} {self.name}: docstatus is {self.docstatus}")
         db = get_db()
-        db._in_transaction = True
-        self._data["docstatus"] = CANCELLED
-        self._data["status"] = "Cancelled"
-        self._data["modified"] = now()
+        snapshot = (_dict(self._data), {key: [_dict(row) for row in rows] for key, rows in self._children.items()}, self._persisted, self._loaded_modified)
         try:
-            run_hooks(f"{self.DOCTYPE}:before_cancel", self)
-            self._persist(commit=False)
-            self.on_cancel()
-            db.commit()
+            with db.atomic():
+                self._check_write_state(SUBMITTED)
+                from lambda_erp.workflow import lock_workflow_references, validate_cancellation, refresh_order_progress
+                lock_workflow_references(self)
+                validate_cancellation(self)
+                self._data["docstatus"] = CANCELLED
+                self._data["status"] = "Cancelled"
+                self._data["modified"] = now()
+                run_hooks(f"{self.DOCTYPE}:before_cancel", self)
+                self._persist(commit=False)
+                self.on_cancel()
+                refresh_order_progress(self)
         except Exception:
-            db.conn.rollback()
-            self._data["docstatus"] = SUBMITTED
-            self._data["status"] = "Submitted"
+            self._data, self._children, self._persisted, self._loaded_modified = snapshot
             raise
-        finally:
-            db._in_transaction = False
         run_hooks(f"{self.DOCTYPE}:after_cancel", self)
         return self
 
     def discard(self):
-        """Void an unwanted DRAFT (docstatus 0) — a soft delete that keeps the row.
-
-        Unlike cancel (which reverses a submission's GL/stock postings), a draft
-        has never posted anything, so there is nothing to reverse. Discarding
-        just flags the document `discarded` and sets status 'Discarded' so it
-        drops out of default lists, while the record itself is preserved for the
-        audit trail (no hard delete — see docs/agents/invariants.md). Only valid
-        on drafts; a submitted document must be cancelled instead.
-        """
+        """Void a draft without deleting its audit trail."""
         if self.docstatus != DRAFT:
-            raise DocumentStatusError(
-                f"Cannot discard {self.DOCTYPE} {self.name}: only drafts can be "
-                f"discarded (docstatus is {self.docstatus}). A submitted document "
-                f"must be cancelled."
-            )
-        self._data["discarded"] = 1
-        self._data["status"] = "Discarded"
-        self._data["modified"] = now()
-        self._persist()
+            raise DocumentStatusError(f"Cannot discard {self.DOCTYPE} {self.name}: only drafts can be discarded; a submitted document must be cancelled")
+        with get_db().atomic():
+            self._check_write_state(DRAFT)
+            self._data["discarded"] = 1
+            self._data["status"] = "Discarded"
+            self._data["modified"] = now()
+            self._persist()
         return self
 
     def _persist(self, commit=True):
@@ -419,11 +395,11 @@ class Document:
             if key not in self._children:
                 parent_data[key] = value
 
-        # Upsert parent (only persist columns that exist in the table)
+        # Insert new identities; only loaded/persisted instances may update.
         valid_columns = db._get_table_columns(doctype)
         filtered_data = {k: v for k, v in parent_data.items() if k in valid_columns}
 
-        if db.exists(doctype, self._data["name"]):
+        if self._persisted:
             sets = ", ".join(f'"{k}" = ?' for k in filtered_data if k != "name")
             params = [v for k, v in filtered_data.items() if k != "name"]
             params.append(filtered_data["name"])
@@ -441,6 +417,8 @@ class Document:
 
         if commit and not db._in_transaction:
             db.commit()
+        self._persisted = True
+        self._loaded_modified = self._data.get("modified")
 
     def reload(self):
         """Reload from database."""
@@ -448,6 +426,8 @@ class Document:
         rows = db.get_all(self.DOCTYPE, filters={"name": self.name}, fields=["*"])
         if rows:
             self._data = rows[0]
+            self._persisted = True
+            self._loaded_modified = self._data.get("modified")
             for field_name, (child_doctype, child_cls) in self.CHILD_TABLES.items():
                 children = db.get_all(
                     child_doctype,
@@ -466,6 +446,8 @@ class Document:
             raise ValidationError(f"{cls.DOCTYPE} {name} not found")
 
         doc = cls(rows[0])
+        doc._persisted = True
+        doc._loaded_modified = doc._data.get("modified")
         for field_name, (child_doctype, child_cls) in cls.CHILD_TABLES.items():
             children = db.get_all(
                 child_doctype,

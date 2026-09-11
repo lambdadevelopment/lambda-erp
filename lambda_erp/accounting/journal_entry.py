@@ -245,7 +245,8 @@ class JournalEntry(Document):
             if abs(new_outstanding) < 0.01:
                 new_outstanding = 0
             db.set_value(ref_dt, ref_name, "outstanding_amount", flt(new_outstanding, 2))
-        db.commit()
+        if not db._in_transaction:
+            db.commit()
 
     def _get_gl_entries(self):
         """Build GL entries from Journal Entry Account rows.

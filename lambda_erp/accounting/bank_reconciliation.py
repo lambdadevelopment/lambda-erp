@@ -619,6 +619,8 @@ def reconcile_with_payment(bank_transaction: str, allocations: list[dict], *,
         )
         payment._data["bank_reconciliation"] = reconciliation
         payment.submit()
+        db.commit()
+        db._in_transaction = False
     except Exception:
         db.conn.rollback()
         db._in_transaction = False
@@ -699,6 +701,8 @@ def reconcile_with_journal(bank_transaction: str, counterparty_account: str, *,
         )
         journal._data["bank_reconciliation"] = reconciliation
         journal.submit()
+        db.commit()
+        db._in_transaction = False
     except Exception:
         db.conn.rollback()
         db._in_transaction = False
@@ -866,6 +870,8 @@ def undo_reconciliation(bank_transaction: str, *, user: str | None = None,
         db.set_value("Bank Reconciliation", audit["name"], "reversed_by", user)
         try:
             document.cancel()
+            db.commit()
+            db._in_transaction = False
         except Exception:
             db.conn.rollback()
             db._in_transaction = False

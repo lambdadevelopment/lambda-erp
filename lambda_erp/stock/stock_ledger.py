@@ -68,7 +68,11 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
         )
 
         # Calculate running balances
+        sle_doc['incoming_rate_is_explicit'] = sle.get('incoming_rate_is_explicit', False)
+        sle_doc['outgoing_rate_is_explicit'] = sle.get('outgoing_rate_is_explicit', False)
         update_stock_values(sle_doc, allow_negative_stock)
+        sle_doc.pop('incoming_rate_is_explicit', None)
+        sle_doc.pop('outgoing_rate_is_explicit', None)
 
         # Persist
         db.insert("Stock Ledger Entry", sle_doc)
@@ -76,7 +80,8 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
         # Update Bin (summary table)
         update_bin(sle_doc)
 
-    db.commit()
+    if not db._in_transaction:
+        db.commit()
 
 def update_stock_values(sle, allow_negative_stock=False):
     """Calculate qty_after_transaction, valuation_rate, stock_value.
@@ -118,7 +123,7 @@ def update_stock_values(sle, allow_negative_stock=False):
         # If the caller passes 0 (e.g. a customer-return delivery note), use
         # the current moving-average so the return lands at the same cost
         # basis the shipment went out at — symmetric with the outgoing branch.
-        incoming_rate = flt(sle.get("incoming_rate")) or prev_val_rate
+        incoming_rate = flt(sle.get("incoming_rate")) if sle.get("incoming_rate_is_explicit") else (flt(sle.get("incoming_rate")) or prev_val_rate)
         incoming_value = flt(sle["actual_qty"]) * incoming_rate
         new_stock_value = prev_stock_value + incoming_value
 
@@ -131,10 +136,10 @@ def update_stock_values(sle, allow_negative_stock=False):
         sle["stock_value_difference"] = incoming_value
     else:
         # Outgoing: use current valuation rate
-        outgoing_rate = flt(sle.get("outgoing_rate")) or prev_val_rate
+        outgoing_rate = flt(sle.get("outgoing_rate")) if sle.get("outgoing_rate_is_explicit") else (flt(sle.get("outgoing_rate")) or prev_val_rate)
         outgoing_value = abs(flt(sle["actual_qty"])) * outgoing_rate
         new_stock_value = prev_stock_value - outgoing_value
-        new_val_rate = prev_val_rate  # doesn't change on outgoing
+        new_val_rate = new_stock_value / new_qty if sle.get('outgoing_rate_is_explicit') and new_qty > 0 else prev_val_rate
 
         sle["outgoing_rate"] = outgoing_rate
         sle["stock_value_difference"] = -outgoing_value

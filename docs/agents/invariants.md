@@ -53,10 +53,11 @@ before touching any accounting, stock, or lifecycle path.
   `update_stock=1` → Stock In Hand. For stock items with `update_stock=0`
   → SRBNB (to clear a prior PR). For non-stock → default_expense_account.
   If you touch `_set_missing_accounts`, preserve all three branches.
-- **Billing recalc beats incremental.** `_update_sales_order_billing`
-  (SI side) recalculates from `SUM(qty)` across all submitted SIs. PI
-  billing is incremental (`+= qty`) and therefore drift-prone on failed
-  submits. Prefer the SUM pattern in new code.
+- **Order progress is derived.** `workflow.refresh_order_progress` recalculates
+  billing and fulfillment from submitted vouchers on both sales and purchase
+  paths. Direct-stock invoices count toward fulfillment. Bin planning is the
+  remaining quantity, not the original order quantity. Never increment cached
+  counters or commit from a lifecycle helper.
 - **Opening Stock + opening-balances wizard are deterministic.** The
   simulator pins `start=2023-04-20 end=2026-04-20 seed=42`. The demo chat
   script references specific invoice names produced by that sim. Breaking

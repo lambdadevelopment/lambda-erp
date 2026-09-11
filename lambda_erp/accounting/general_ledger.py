@@ -307,7 +307,8 @@ def make_reverse_gl_entries(gl_entries=None, voucher_type=None, voucher_no=None)
         )
         db.insert("GL Entry", reverse)
 
-    db.commit()
+    if not db._in_transaction:
+        db.commit()
 
 def get_account_balances(account, company=None):
     """Return (base_balance, account_currency_balance) for an account.

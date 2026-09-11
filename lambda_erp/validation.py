@@ -51,6 +51,8 @@ def validate_document_requirements(doc):
         if missing(doc.get(field)):
             raise ValidationError(f"{doc.DOCTYPE}: {field.replace('_', ' ').title()} is required")
     validate_order_references(doc)
+    from lambda_erp.workflow import validate_order_quantities
+    validate_order_quantities(doc)
     if doc.DOCTYPE not in TRANSACTION_TYPES:
         return
     if missing(doc.get('company')):
@@ -77,10 +79,15 @@ def document_requirements(cls):
     """Machine-readable minimums plus conditional rules owned by the class."""
     required = list(getattr(cls, 'REQUIRED_FIELDS', ()))
     rules = list(getattr(cls, 'CONDITIONAL_REQUIREMENTS', ()))
+    rules.append('Create requires a new document name (omit name for automatic naming). Existing documents must be loaded and updated as drafts; submitted/cancelled/discarded or stale records cannot be overwritten. Reload after a conflict.')
     children = dict(getattr(cls, 'CHILD_REQUIREMENTS', {}))
     if cls.DOCTYPE in ORDER_REFERENCES:
         table, parent, line, party = ORDER_REFERENCES[cls.DOCTYPE]
+        rules.append('Cumulative submitted quantities cannot exceed the referenced order line quantity; check remaining quantities before creating another delivery or invoice.')
         rules.append(f'{parent} and {line} must be supplied together, referencing a submitted {table} and its exact item line with matching company, {party} and item_code. Use the converter when possible.')
+    from lambda_erp.workflow import RETURN_TYPES
+    if cls.DOCTYPE in RETURN_TYPES:
+        rules.append('Returns require a submitted non-return original with matching company and party, negative quantities, original order-line references and quantities within the remaining returnable amount across all rows and previous returns. Use the return converter.')
     if cls.DOCTYPE in TRANSACTION_TYPES:
         required += ['company', 'items']
         party = 'supplier' if cls.DOCTYPE in {'Purchase Order', 'Purchase Invoice', 'Purchase Receipt'} else 'customer'

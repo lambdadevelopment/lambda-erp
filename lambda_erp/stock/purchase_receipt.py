@@ -81,27 +81,8 @@ class PurchaseReceipt(Document):
                         item["rate"] = flt(item_data.standard_rate)
 
     def _validate_return(self):
-        """Validate return-specific rules."""
-        if not self.return_against:
-            raise ValidationError("Return Against is required for a return Purchase Receipt")
-
-        db = get_db()
-        original = db.get_value(self.DOCTYPE, self.return_against, ["name", "docstatus"])
-        if not original:
-            raise ValidationError(f"Original Purchase Receipt {self.return_against} not found")
-        if original.docstatus != 1:
-            raise ValidationError(f"Original Purchase Receipt {self.return_against} must be submitted")
-
-        original_doc = PurchaseReceipt.load(self.return_against)
-        original_items = {item["item_code"]: flt(item["qty"]) for item in original_doc.get("items")}
-        for item in self.get("items"):
-            orig_qty = original_items.get(item.get("item_code"), 0)
-            return_qty = abs(flt(item.get("qty")))
-            if return_qty > orig_qty:
-                raise ValidationError(
-                    f"Return qty ({return_qty}) for {item.get('item_code')} exceeds "
-                    f"original qty ({orig_qty})"
-                )
+        from lambda_erp.workflow import validate_return
+        validate_return(self)
 
     def _set_status(self):
         if self.docstatus == 0:
@@ -126,7 +107,7 @@ class PurchaseReceipt(Document):
             to_base_currency(gl_entries, self.get("conversion_rate"))
             make_gl_entries(gl_entries)
 
-        self._update_purchase_order_received()
+        # Shared lifecycle recalculates order progress after ledger hooks.
 
     def on_cancel(self):
         # Must be the first thing — if we've already touched the ledgers,
@@ -148,7 +129,7 @@ class PurchaseReceipt(Document):
             voucher_no=self.name,
         )
 
-        self._update_purchase_order_received(cancel=True)
+        # Shared lifecycle recalculates order progress after ledger hooks.
 
     def _check_no_linked_purchase_invoice(self):
         """Block cancel if a submitted Purchase Invoice for the same PO has
@@ -250,32 +231,8 @@ class PurchaseReceipt(Document):
         return gl_entries
 
     def _update_purchase_order_received(self, cancel=False):
-        db = get_db()
-        updated_pos = set()
-        po_details = set()
-        for item in self.get("items"):
-            if item.get("against_purchase_order"):
-                updated_pos.add(item["against_purchase_order"])
-            if item.get("po_detail"):
-                po_details.add(item["po_detail"])
-
-        for po_detail in po_details:
-            result = db.sql(
-                """SELECT COALESCE(SUM(qty), 0) as total_received
-                   FROM "Purchase Receipt Item"
-                   WHERE po_detail = ?
-                     AND parent IN (
-                         SELECT name FROM "Purchase Receipt" WHERE docstatus = 1
-                     )""",
-                [po_detail],
-            )
-            received = flt(result[0]["total_received"]) if result else 0
-            db.set_value("Purchase Order Item", po_detail, "received_qty", received)
-
-        for po_name in updated_pos:
-            from lambda_erp.buying.purchase_order import PurchaseOrder
-            po = PurchaseOrder.load(po_name)
-            po.update_receipt_status()
+        from lambda_erp.workflow import refresh_order_progress
+        refresh_order_progress(self)
 
 def make_purchase_receipt(purchase_order_name):
     """Convert a Purchase Order into a Purchase Receipt."""
@@ -340,7 +297,8 @@ def make_purchase_receipt_return(prec_name):
         return_against=original.name,
     )
 
-    for item in original.get("items"):
+    from lambda_erp.workflow import returnable_rows
+    for item in returnable_rows(original):
         return_pr.append("items", _dict(
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
