@@ -3,11 +3,11 @@
 # database to shield, and skipping the VNet removes NAT Gateway cost (~$65/mo)
 # and a lot of config. Ingress is public with Azure-managed TLS.
 resource "azurerm_container_app_environment" "cae" {
-  name                       = local.cae_name
-  location                   = azurerm_resource_group.rg.location
-  resource_group_name        = azurerm_resource_group.rg.name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
-  tags                       = local.tags
+  name                = local.cae_name
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  logs_destination    = "azure-monitor"
+  tags                = local.tags
 
   lifecycle {
     ignore_changes = [
