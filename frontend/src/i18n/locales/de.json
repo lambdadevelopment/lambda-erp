@@ -928,5 +928,15 @@
       "from_datetime": "Genauer Beginn — Datum und Uhrzeit (z. B. 14:27). Ein reines Datum bedeutet 00:00.",
       "to_datetime": "Genaues Ende. Fenster sind halboffen [von, bis): eine Miete, die um 09:00 endet, und die nächste um 09:00 beginnende, kollidieren NICHT."
     }
+  },
+  "companyTax": {
+    "label": "Standard-Verkaufssteuer",
+    "none": "Keine automatische Übernahme",
+    "hint": "Wird bei neuen Offerten, Aufträgen und Rechnungen übernommen, sofern keine Steuern ausdrücklich vorgegeben werden. Bestehende Belege bleiben unverändert. Mit „Speichern“ übernehmen.",
+    "saveFirst": "Firma zuerst speichern. Anschliessend können Sie eine ihrer Verkaufsteuervorlagen auswählen.",
+    "loadError": "Steuervorlagen konnten nicht geladen werden. Die gespeicherte Auswahl bleibt erhalten.",
+    "retry": "Erneut versuchen",
+    "unavailable": "Die gespeicherte Vorlage ist für diese Firma nicht als Verkaufsteuervorlage verfügbar. Bitte prüfen Sie die Auswahl.",
+    "empty": "Für diese Firma sind noch keine Verkaufsteuervorlagen hinterlegt."
   }
 }

@@ -928,5 +928,15 @@
       "from_datetime": "Exact start — date and time (e.g. 14:27). A bare date means 00:00.",
       "to_datetime": "Exact end. Windows are half-open [from, to): a hire ending 09:00 and the next starting 09:00 do NOT clash."
     }
+  },
+  "companyTax": {
+    "label": "Default sales tax",
+    "none": "No automatic tax application",
+    "hint": "Applied to new quotations, orders and invoices when taxes are not explicitly provided. Existing documents remain unchanged. Use Save to apply.",
+    "saveFirst": "Save the company first, then select one of its sales tax templates.",
+    "loadError": "Tax templates could not be loaded. The saved selection is preserved.",
+    "retry": "Try again",
+    "unavailable": "The saved template is not available as a sales tax template for this company. Please check the selection.",
+    "empty": "This company has no sales tax templates yet."
   }
 }

@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import type { FieldDef } from "@/lib/doctypes";
 import { getMasterConfig } from "@/lib/masters";
 import { BUILTIN_MASTER_FIELDS } from "@/lib/master-fields";
+import { CompanySalesTaxField } from "@/components/company-sales-tax-field";
 
 const TYPE_LABELS: Record<string, string> = {
   customer: "Customer",
@@ -241,6 +242,16 @@ export default function MasterFormPage() {
       <Card>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {fields.map((field) => {
+            if (type === "company" && field.name === "default_sales_tax_template") {
+              return (
+                <CompanySalesTaxField
+                  key={field.name}
+                  company={isNew ? undefined : name}
+                  value={formData[field.name] ?? ""}
+                  onChange={(value) => setField(field.name, value)}
+                />
+              );
+            }
             // Name field is read-only on edit
             const isNameField = field.name === "name" && !isNew;
             const isReadOnly = isNameField || field.readOnly;

@@ -13,6 +13,12 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.0.1-dev.1] - 2026-09-14
+
+- Add a company-form selector for the default sales tax template, scoped to the company, with an explicit no-automatic-tax option and guidance in German, English and French.
+- Validate company ownership and Sales type when selecting a default through the existing master APIs/chat. Existing documents are unchanged.
+- Publish preview packages under the npm `develop` tag and mark their GitHub releases as prereleases.
+
 ## [1.0.0] - 2026-09-11
 
 ### PDF output contracts

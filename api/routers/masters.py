@@ -275,6 +275,20 @@ def _validate_master_input(master_type, doctype, data, name=None):
     for field, table in MASTER_LINK_FIELDS.get(master_type, {}).items():
         if merged.get(field) and not db.exists(table, merged[field]):
             raise ValidationError(f'{doctype}: {field} must reference an existing {table}')
+    if master_type == 'company' and data.get('default_sales_tax_template'):
+        template = db.get_value('Tax Template', data['default_sales_tax_template'], ['company', 'tax_type'])
+        if not template or template['company'] != (name or data.get('name')) or template['tax_type'] != 'Sales':
+            raise ValidationError('Default sales tax template must be a Sales template belonging to this Company')
+
+
+@router.get('/company/{name}/sales-tax-templates')
+def company_sales_tax_templates(name: str, _user: dict = _viewer):
+    """Choices for the company default, using existing tax templates only."""
+    db = get_db()
+    if not db.exists('Company', name):
+        raise HTTPException(status_code=404, detail='Company not found')
+    return db.get_all('Tax Template', filters={'company': name, 'tax_type': 'Sales'},
+                      fields=['name', 'title'], order_by='title, name')
 
 
 def create_master_record(master_type: str, data: dict) -> dict:

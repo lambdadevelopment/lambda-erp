@@ -48,6 +48,14 @@ in place. Kept here as the setup record for a fresh repo.
 
 ## Cutting a release (every time)
 
+For a Develop preview, commit on `develop` with matching versions such as
+`1.0.1-dev.1` in both package manifests, then tag `v1.0.1-dev.1`.
+The publisher uses npm's `develop` tag and a GitHub prerelease; it does not move
+npm's stable `latest` tag or deploy the `master` applications. PyPI normalizes
+this version to `1.0.1.dev1`. Pin both preview packages explicitly in the
+deployment's `develop` branch. A preview remains a separate immutable release
+from the eventual stable `1.0.1`.
+
 1. Make sure `master` is green and contains everything for the release.
 2. **Update the changelog** — in `CHANGELOG.md`, move the `[Unreleased]` items
    into a new `## [X.Y.Z] - YYYY-MM-DD` section and add the `[X.Y.Z]` compare

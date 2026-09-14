@@ -928,5 +928,15 @@
       "from_datetime": "Début exact — date et heure (p. ex. 14:27). Une date seule signifie 00:00.",
       "to_datetime": "Fin exacte. Les fenêtres sont semi-ouvertes [de, à) : une location finissant à 09:00 et la suivante commençant à 09:00 ne se chevauchent PAS."
     }
+  },
+  "companyTax": {
+    "label": "Taxe de vente par défaut",
+    "none": "Aucune application automatique",
+    "hint": "Appliquée aux nouveaux devis, commandes et factures si les taxes ne sont pas explicitement définies. Les documents existants restent inchangés. Cliquez sur Enregistrer pour appliquer.",
+    "saveFirst": "Enregistrez d’abord l’entreprise, puis sélectionnez un de ses modèles de taxes de vente.",
+    "loadError": "Impossible de charger les modèles de taxes. La sélection enregistrée est conservée.",
+    "retry": "Réessayer",
+    "unavailable": "Le modèle enregistré n’est pas disponible comme modèle de taxes de vente pour cette entreprise. Vérifiez la sélection.",
+    "empty": "Aucun modèle de taxes de vente n’est encore défini pour cette entreprise."
   }
 }
