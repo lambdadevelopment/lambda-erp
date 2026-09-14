@@ -13,11 +13,10 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
-## [1.0.1-dev.1] - 2026-09-14
+## [1.0.1] - 2026-09-14
 
 - Add a company-form selector for the default sales tax template, scoped to the company, with an explicit no-automatic-tax option and guidance in German, English and French.
 - Validate company ownership and Sales type when selecting a default through the existing master APIs/chat. Existing documents are unchanged.
-- Publish preview packages under the npm `develop` tag and mark their GitHub releases as prereleases.
 
 ## [1.0.0] - 2026-09-11
 
@@ -1765,7 +1764,7 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.0.1...HEAD
 [1.0.0]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.34...v1.0.0
 [0.8.34]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.33...v0.8.34
 [0.8.28]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.27...v0.8.28
@@ -1792,3 +1791,5 @@ package. No PyPI release and no functional changes; superseded by 0.1.1.
 [0.1.2]: https://github.com/lambdadevelopment/lambda-erp/releases/tag/v0.1.2
 [0.1.1]: https://github.com/lambdadevelopment/lambda-erp/releases/tag/v0.1.1
 [0.1.0]: https://www.npmjs.com/package/@lambda-development/erp-core/v/0.1.0
+
+[1.0.1]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.0.0...v1.0.1

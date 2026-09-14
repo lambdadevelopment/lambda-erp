@@ -115,13 +115,7 @@ jobs:
           npm ci
           npm run build:lib        # -> dist/index.js + dist/index.d.ts (peers external)
       - name: Publish (scoped public, trusted publishing)
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if [[ "$VERSION" == *-* ]]; then
-            npm publish --access public --tag develop
-          else
-            npm publish --access public
-          fi
+        run: npm publish --access public
 
   # After both packages are live, cut the GitHub Release for the tag, with notes
   # pulled from the matching CHANGELOG.md section. Tag-only (workflow_dispatch
@@ -149,7 +143,4 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          FLAGS=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then FLAGS+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag "${FLAGS[@]}"
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
