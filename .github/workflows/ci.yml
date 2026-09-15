@@ -30,7 +30,8 @@ jobs:
   validation:
     name: Validation suite (SQLite + Postgres)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Full SQLite/PostgreSQL regressions can exceed 15 minutes on slower runners.
+    timeout-minutes: 25
 
     services:
       postgres:
