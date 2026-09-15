@@ -1854,9 +1854,10 @@ class Database:
     def _ensure_list_indexes(self) -> None:
         """Reconcile legacy creation indexes and parsed-instant list indexes.
 
-        Mixed timestamp representations require an expression index for correct,
-        efficient range queries and stable timestamp/name pagination. Apply after
-        core and plugin schema setup; failures are retried on a subsequent boot.
+        PostgreSQL indexes parsed instants for efficient range queries. SQLite
+        evaluates the parser at query time: persisting an index that calls a
+        connection-local UDF would break ordinary sqlite3 writers and imports.
+        Apply after core/plugin schema setup; failures retry on subsequent boots.
         """
         for table in self._all_user_tables():
             try:
@@ -1873,7 +1874,14 @@ class Database:
                         # Hash names to stay within PostgreSQL's 63-byte limit.
                         import hashlib
                         suffix = hashlib.sha256(f"{table}/{field}".encode()).hexdigest()[:16]
-                        indexes.append((f"ix_time_{suffix}", f'erp_timestamp_epoch("{field}"), name'))
+                        idx = f"ix_time_{suffix}"
+                        if self.dialect == "postgres":
+                            indexes.append((idx, f'erp_timestamp_epoch("{field}"), name'))
+                        else:
+                            # Remove only our prototype's own indexes on any
+                            # database that ran the pre-release master commit.
+                            self.conn.execute(f'DROP INDEX IF EXISTS "{idx}"')
+                            self.conn.commit()
             for idx, expression in indexes:
                 try:
                     self.conn.execute(f'CREATE INDEX IF NOT EXISTS "{idx}" ON "{table}" ({expression})')

@@ -93,7 +93,9 @@ nullable `creation`/`modified` columns to Customer, Supplier, Item, Warehouse,
 Account, Company and Cost Center. SQLite registers the equivalent deterministic
 function per connection. Queries compare instants, so historical space-separated
 UTC values and ISO strings with offsets are not sorted lexicographically.
-Indexes cover parsed creation/modified/occurred_at for core and plugin tables.
+PostgreSQL indexes parsed creation/modified/occurred_at for core and plugin tables.
+SQLite parses instants at query time; it deliberately avoids indexes referencing
+connection-local functions, so direct SQLite writers/import tools keep working.
 
 Old masters retain unknown (NULL) timestamps; migration time is **not** their
 creation time. New core master inserts (including bulk inserts) and updates via

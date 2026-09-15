@@ -18,7 +18,7 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 - Add shared relative/absolute timestamp filters to document and master lists,
   exposed through REST, chat and MCP. Return resolved windows, totals, pagination
   and warnings for records with missing or invalid timestamps.
-- Compare timestamps as instants on SQLite and PostgreSQL, with expression indexes,
+- Compare timestamps as instants on SQLite and PostgreSQL, with PostgreSQL expression indexes,
   and capture creation/modification times for core masters without inventing
   timestamps for historical records.
 - Normalize document timestamps before plugin validation and persistence to prevent

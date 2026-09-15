@@ -73,8 +73,21 @@ def check_time_filters():
     assert page['coverage'] == {'complete': False, 'unknown_time_rows': 2}
     assert page['warnings'] and set(page['rows'][0]) == {'name'}
     if db.dialect == 'sqlite':
-        plan = db.sql('EXPLAIN QUERY PLAN SELECT name FROM "Activity" WHERE erp_timestamp_epoch(occurred_at) >= ? AND erp_timestamp_epoch(occurred_at) < ?', [0, 1])
-        assert any('ix_time_' in row['detail'] for row in plan), plan
+        import hashlib
+        import sqlite3
+        # A plain external connection must be able to write without registering
+        # our query UDF. Also reconcile indexes from the pre-release prototype.
+        idx = 'ix_time_' + hashlib.sha256(b'Activity/occurred_at').hexdigest()[:16]
+        db.conn.execute(f'CREATE INDEX "{idx}" ON "Activity" (erp_timestamp_epoch(occurred_at), name)')
+        db.conn.commit()
+        db._ensure_list_indexes()
+        plain = sqlite3.connect(path)
+        try:
+            plain.execute('INSERT INTO "Activity" (name, occurred_at) VALUES (?, ?)',
+                          ['external-writer', '2026-09-15 10:00:00'])
+            plain.rollback()
+        finally:
+            plain.close()
     else:
         assert db.sql("SELECT indexdef FROM pg_indexes WHERE tablename = 'Activity' AND indexdef LIKE '%erp_timestamp_epoch(occurred_at)%'")
     second = services.list_document_page('activity', time_filter=page['time_filter'], offset=2, limit=2)
