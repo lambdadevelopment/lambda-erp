@@ -18,6 +18,7 @@ from api.services import (
 )
 from api.auth import require_role, require_non_public_manager
 from api.list_values import distinct_list_values
+from api.time_filters import request_time_filter, resolve_time_filter, time_predicate
 from lambda_erp.exceptions import ValidationError
 from lambda_erp.validation import missing
 
@@ -303,6 +304,8 @@ def _create_master_record(master_type: str, data: dict) -> dict:
 
     db = get_db()
     doc = _normalize_master_data(data)
+    doc.pop("creation", None)
+    doc.pop("modified", None)
 
     # Let callers set the code under its intuitive alias (item_code -> name).
     # An explicit `name` still wins; the alias key is consumed either way so it
@@ -372,6 +375,8 @@ def _update_master_record(master_type: str, name: str, data: dict) -> dict:
 
     db = get_db()
     normalized = _normalize_master_data(data)
+    normalized.pop("creation", None)
+    normalized.pop("modified", None)
 
     # The alias (item_code) is the identity, not a mutable column. Allow it as a
     # no-op when it matches the record being updated, but reject a rename — the
@@ -422,7 +427,7 @@ def _update_master_record(master_type: str, name: str, data: dict) -> dict:
 # suffix used by Smart Search.
 _MASTER_LIST_RESERVED = {
     "limit", "offset", "include_disabled", "search", "search_fields", "fields",
-    "order_by", "order",
+    "order_by", "order", "time_filter",
 }
 
 
@@ -471,6 +476,16 @@ def _master_list_where(db, doctype: str, master_type: str, request: Request,
             where_parts.append(clause)
             params += sp
 
+    try:
+        window = resolve_time_filter(db, doctype, request_time_filter(request))
+        if window:
+            if window["field"] in _master_request_filters(db, doctype, request):
+                raise ValueError("Do not combine time_filter with a filter on the same timestamp field")
+            clause, bounds = time_predicate(window)
+            where_parts.append(clause)
+            params.extend(bounds)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return where_parts, params, columns
 
 
@@ -503,14 +518,15 @@ def _master_order(columns: set, order_by: str | None, order: str) -> tuple[str, 
     return order_by or "name", direction if order_by else "asc"
 
 
-def _master_order_sql(column: str, direction: str, *, reverse: bool = False) -> str:
+def _master_order_sql(column: str, direction: str, *, reverse: bool = False, expression: str | None = None) -> str:
     """Deterministic master ordering with NULL values consistently at the end."""
     effective = direction
     nulls = "LAST"
     if reverse:
         effective = "desc" if direction == "asc" else "asc"
         nulls = "FIRST"
-    sql = f'"{column}" {effective.upper()}'
+    expression = expression or f'"{column}"'
+    sql = f'{expression} {effective.upper()}'
     if column != "name":
         sql += f" NULLS {nulls}, name {effective.upper()}"
     return sql
@@ -541,12 +557,13 @@ def master_filter_values(
 def list_masters(
     master_type: str,
     request: Request,
-    limit: int = Query(default=50, le=1000),
+    limit: int = Query(default=50, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     include_disabled: bool = False,
     search: str | None = None,
     search_fields: str | None = None,
     fields: str | None = None,
+    time_filter: str | None = None,
     order_by: str | None = None,
     order: str = "asc",
     _user: dict = _viewer,
@@ -572,6 +589,7 @@ def list_masters(
             limit=limit,
             offset=offset,
             fields=requested_fields or None,
+            time_filter=request_time_filter(request),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -623,10 +641,14 @@ def adjacent_master(
     where_parts, params, columns = _master_list_where(
         db, doctype, master_type, request, include_disabled, search, search_fields,
     )
-    sort_column, sort_direction = _master_order(columns, order_by, order)
+    window = resolve_time_filter(db, doctype, request_time_filter(request))
+    sort_column, sort_direction = _master_order(columns, order_by or (window["field"] if window else None), order)
+    sort_expression = f'"{sort_column}"'
+    if window and sort_column == window["field"]:
+        sort_expression = f'erp_timestamp_epoch({sort_expression})'
     base_where = (" AND ".join(where_parts)) if where_parts else "1 = 1"
     current_rows = db.sql(
-        f'SELECT "{sort_column}" AS sort_value FROM "{doctype}" '
+        f'SELECT {sort_expression} AS sort_value FROM "{doctype}" '
         f"WHERE {base_where} AND name = ? LIMIT 1",
         [*params, name],
     )
@@ -647,26 +669,26 @@ def adjacent_master(
             key_params = [name]
         elif current_value is None:
             if after:
-                keyset = f'"{sort_column}" IS NULL AND name {same_cmp} ?'
+                keyset = f'{sort_expression} IS NULL AND name {same_cmp} ?'
             else:
                 keyset = (
-                    f'("{sort_column}" IS NOT NULL OR '
-                    f'("{sort_column}" IS NULL AND name {same_cmp} ?))'
+                    f'({sort_expression} IS NOT NULL OR '
+                    f'({sort_expression} IS NULL AND name {same_cmp} ?))'
                 )
             key_params = [name]
         else:
             keyset = (
-                f'("{sort_column}" {primary_cmp} ? OR '
-                f'("{sort_column}" = ? AND name {same_cmp} ?)'
+                f'({sort_expression} {primary_cmp} ? OR '
+                f'({sort_expression} = ? AND name {same_cmp} ?)'
             )
             key_params = [current_value, current_value, name]
             if after:
-                keyset += f' OR "{sort_column}" IS NULL'
+                keyset += f' OR {sort_expression} IS NULL'
             keyset += ")"
 
         rows = db.sql(
             f'SELECT name FROM "{doctype}" WHERE {base_where} AND {keyset} '
-            f'ORDER BY {_master_order_sql(sort_column, sort_direction, reverse=not after)} LIMIT 1',
+            f'ORDER BY {_master_order_sql(sort_column, sort_direction, reverse=not after, expression=sort_expression)} LIMIT 1',
             [*params, *key_params],
         )
         return rows[0]["name"] if rows else None

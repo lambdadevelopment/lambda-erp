@@ -1,5 +1,8 @@
 # REST API
 
+Recent-change and outreach queries use the shared [time filters](time-filters.md),
+including pagination and timestamp-quality metadata.
+
 Document write requirements, field discovery and structured warnings are
 documented in [Document validation](document-validation.md). In particular,
 unknown fields and incomplete required data return HTTP 422.

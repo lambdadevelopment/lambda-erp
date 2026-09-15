@@ -225,6 +225,14 @@ jobs:
       - name: List performance (index + count cache + projection) — SQLite (in-memory)
         run: python -m tests.test_list_perf
 
+      - name: Recent-change windows, timestamp migration and REST/chat/MCP — SQLite
+        run: python -m tests.test_time_filters
+
+      - name: Recent-change windows, timestamp migration and REST/chat/MCP — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_time_filters
+
       - name: List performance (index + count cache + projection) — PostgreSQL
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test

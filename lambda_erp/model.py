@@ -10,6 +10,7 @@ from lambda_erp.utils import _dict, flt, new_name, now
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError, DocumentStatusError
 from lambda_erp.hooks import run_hooks
+from lambda_erp.timestamps import normalize_timestamp
 
 
 # Document status constants (mirrors the framework's docstatus)
@@ -31,6 +32,7 @@ class Document:
 
     DOCTYPE = None  # Override in subclasses, e.g. "Sales Invoice"
     SUBMITTABLE = False  # Explicit opt-in to Draft/Submitted/Cancelled.
+    TIMESTAMP_FIELDS = ("creation", "modified", "occurred_at")
     INPUT_FIELDS = set()  # Explicit transient input fields consumed by plugins.
     CHILD_INPUT_FIELDS = {}
     REQUIRED_FIELDS = ()
@@ -301,6 +303,21 @@ class Document:
             if current.get('modified') != self._loaded_modified:
                 raise DocumentStatusError(f"{self.DOCTYPE} {self.name} changed since it was loaded; reload before writing")
 
+    def _normalize_timestamps(self, *, before_validate=False):
+        for field in self.TIMESTAMP_FIELDS:
+            value = self._data.get(field)
+            if value in (None, ""):
+                continue
+            # Existing date-only CRM inputs are completed by their controller.
+            # Normalize full timestamps before that controller sees a space
+            # separator and accidentally appends a second clock reading.
+            if before_validate and field == "occurred_at" and isinstance(value, str) and len(value) == 10:
+                continue
+            try:
+                self._data[field] = normalize_timestamp(value)
+            except ValueError as exc:
+                raise ValidationError(f"{self.DOCTYPE}.{field}: {exc}") from exc
+
     def save(self):
         """Create a new draft or update a loaded draft, atomically with hooks."""
         if self._data.get('discarded'):
@@ -318,6 +335,7 @@ class Document:
                 self._data["modified"] = now()
                 from lambda_erp.controllers.item_prices import normalize_item_prices
                 normalize_item_prices(self)
+                self._normalize_timestamps(before_validate=True)
                 self.validate()
                 normalize_item_prices(self)
                 from lambda_erp.validation import validate_document_requirements
@@ -363,6 +381,7 @@ class Document:
                 self._data["modified"] = now()
                 from lambda_erp.controllers.item_prices import normalize_item_prices
                 normalize_item_prices(self)
+                self._normalize_timestamps(before_validate=True)
                 self.validate()
                 normalize_item_prices(self)
                 from lambda_erp.validation import validate_document_requirements
@@ -438,6 +457,7 @@ class Document:
         db = get_db()
         doctype = self.DOCTYPE
 
+        self._normalize_timestamps()
         # Build a clean dict with only the parent-level fields
         parent_data = {}
         for key, value in self._data.items():

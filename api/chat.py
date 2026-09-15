@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends as _Depends, HTTPException, WebSocket, WebSocketDisconnect
 from openai import OpenAI
 
+from api.time_filters import TIME_FILTER_SCHEMA, time_filter_fields
 from api import services
 from api.tool_permissions import tool_allowed, tool_permission_error
 from api.demo_limits import (
@@ -474,13 +475,16 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_documents",
-            "description": "List or search documents of a given type. Returns an array of document summaries (header fields only — child tables like 'items' and 'taxes' are NOT included to keep results compact). Use get_document to drill into a single document's line items. Results are ordered by creation DESC (newest first). Page past `limit` with `offset`; trim the payload to only the columns you need with `fields`.",
+            "description": "List or search documents of a given type. With time_filter or include_meta=true returns {rows,total,has_more,next_offset,time_filter,coverage,warnings}; otherwise returns an array of document summaries (header fields only — child tables like 'items' and 'taxes' are NOT included to keep results compact). Use get_document to drill into a single document's line items. Results default to creation DESC, or the parsed time_filter field DESC when supplied. Page past `limit` with `offset`; trim the payload to only the columns you need with `fields`.",
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "time_filter": TIME_FILTER_SCHEMA,
+                    "include_meta": {"type": "boolean", "description": "Use true for complete lists or overviews: returns exact total and pagination/coverage metadata."},
+                    "include_discarded": {"type": "boolean", "description": "Include discarded drafts when checking recent changes; default false."},
                     "doctype": {"type": "string", "enum": DOCUMENT_SLUGS, "description": "Document type slug"},
-                    "filters": {"type": "object", "description": "Optional filters on any column. Equality: {\"status\": \"Draft\", \"customer\": \"CUST-001\"}. Comparison (value = a 2-item array [op, value]): {\"grand_total\": [\">\", 100]}, {\"fit\": [\"!=\", \"A\"]}. Case-insensitive text substring: {\"customer_name\": [\"contains\", \"acme\"]}. NULL checks (1-item array): {\"fit\": [\"is null\"]}, {\"main_email\": [\"is not null\"]}. Allowed ops: =, !=, >, <, >=, <=, contains, like, not like, is null, is not null. Free-text search: {\"search\": \"acme\"} matches the doctype's default text columns; narrow it with {\"search\": \"acme\", \"search_fields\": [\"company_name\", \"tags\"]}.", "default": {}},
-                    "order_by": {"type": "string", "description": "Optional column to sort by (e.g. \"occurred_at\" for a timeline). Defaults to creation."},
+                    "filters": {"type": "object", "description": "Optional filters on any column. Equality: {\"status\": \"Draft\", \"customer\": \"CUST-001\"}. Comparison (value = a 2-item array [op, value]): {\"grand_total\": [\">\", 100]}, {\"fit\": [\"!=\", \"A\"]}. Case-insensitive text substring: {\"customer_name\": [\"contains\", \"acme\"]}. NULL checks (1-item array): {\"fit\": [\"is null\"]}, {\"main_email\": [\"is not null\"]}. Allowed ops: =, !=, >, <, >=, <=, in, not in, contains, like, not like, is null, is not null. IN example: {\"type\": [\"in\", [\"call\", \"email\", \"note\"]]}. Free-text search: {\"search\": \"acme\"} matches the doctype's default text columns; narrow it with {\"search\": \"acme\", \"search_fields\": [\"company_name\", \"tags\"]}.", "default": {}},
+                    "order_by": {"type": "string", "description": "Optional column to sort by. Defaults to the time_filter field when supplied, otherwise creation."},
                     "order": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction (default desc)", "default": "desc"},
                     "limit": {"type": "integer", "description": "Max results (default 20, max 500)", "default": 20},
                     "offset": {"type": "integer", "description": "Skip this many rows before returning — for paging past `limit`. Default 0.", "default": 0},
@@ -494,7 +498,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_document_fields",
-            "description": "List the available columns of a document type and identify which are text fields. Call this before building list_documents filters when you are unsure of a field name or whether it supports the case-insensitive contains operator. Also returns required fields, conditional business rules, child requirements, dynamic links and supported transient inputs. Check these before creating or updating a document; unknown fields are rejected.",
+            "description": "List available columns, text fields and supported time_filter_fields of a document type. Call this before building list_documents filters when you are unsure of a field name or whether it supports the case-insensitive contains operator. Also returns required fields, conditional business rules, child requirements, dynamic links and supported transient inputs. Check these before creating or updating a document; unknown fields are rejected.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -663,10 +667,12 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_masters",
-            "description": "Search and filter master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). `query` is a case-insensitive free-text lookup with fuzzy fallback for simple misspellings. Use `filters` for deterministic field-aware queries and for combining different values across fields. Returns ALL matching records by default (no cap); pass `limit` only to bound a large list.",
+            "description": "Search and filter master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). `query` is a case-insensitive free-text lookup with fuzzy fallback for simple misspellings. Use `filters` for deterministic field-aware queries and for combining different values across fields. With time_filter or include_meta=true returns a page object with rows, total, pagination and coverage (default limit 50, max 500; no fuzzy fallback). Legacy simple lookups return all matches as an array unless limit is supplied.",
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "time_filter": TIME_FILTER_SCHEMA,
+                    "include_meta": {"type": "boolean", "description": "Use true for overviews: returns rows, exact total, pagination and coverage. Automatically enabled with time_filter."},
                     "master_type": {"type": "string", "enum": MASTER_TYPES},
                     "query": {"type": "string", "description": "Search term (empty string returns all)", "default": ""},
                     "fields": {
@@ -679,9 +685,9 @@ TOOLS = [
                         "description": "Optional deterministic filters on any real column, ANDed together and with `query`. Scalar values are exact: {\"disabled\": 0}. Text substring: {\"legal_form\": [\"contains\", \"AG\"]}. Comparisons and NULL checks use the same forms as list_documents. `contains` is only valid for schema-confirmed text fields.",
                         "default": {},
                     },
-                    "order_by": {"type": "string", "description": "Optional real column to sort by. Defaults to name."},
+                    "order_by": {"type": "string", "description": "Optional real column to sort by. Defaults to the time_filter field when supplied, otherwise name."},
                     "order": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction (default asc).", "default": "asc"},
-                    "limit": {"type": "integer", "description": "Optional max number of results. OMIT for no cap — returns ALL matches (e.g. to see the entire chart of accounts). Pass a number only to bound a large list."},
+                    "limit": {"type": "integer", "description": "Maximum results. With time_filter/include_meta: default 50, range 1–500. Legacy simple lookups have no cap when omitted."},
                     "offset": {"type": "integer", "description": "Skip this many matching rows. Use with limit for pagination.", "default": 0},
                     "result_fields": {
                         "type": "array",
@@ -1454,39 +1460,28 @@ def _validate_filter_columns(doctype_slug, filters) -> str | None:
 
 
 def _handle_list_documents(args):
-    # List views don't need child tables — strip them so the LLM can see more rows
-    # within the tool-result budget. Use get_document to drill into one doc.
     doctype = args["doctype"]
-    filters = args.get("filters") or {}
-    err = _validate_filter_columns(doctype, filters)
-    if err:
-        return {"error": err}
-    order_by = args.get("order_by")
-    cols = services.document_columns(doctype)
-    if order_by and cols and order_by not in cols:
-        return {"error": f"Unknown order_by column for {doctype}: {order_by}"}
-
-    cls_entry = services.DOCUMENT_CLASSES.get(services.SLUG_TO_DOCTYPE.get(doctype, ""))
-    child_keys = list(cls_entry.CHILD_TABLES.keys()) if cls_entry and cls_entry.CHILD_TABLES else []
-
-    fields = args.get("fields")
     try:
-        rows = services.list_documents(
-            doctype,
-            filters=filters,
-            limit=args.get("limit", 20),
-            offset=args.get("offset", 0) or 0,
-            order_by=order_by,
-            order=args.get("order", "desc"),
-            fields=fields,
+        kwargs = dict(
+            filters=args.get("filters") or {}, limit=args.get("limit", 20),
+            offset=args.get("offset", 0) or 0, order_by=args.get("order_by"),
+            order=args.get("order", "desc"), fields=args.get("fields"),
+            include_discarded=bool(args.get("include_discarded")),
         )
-    except ValueError as e:  # bad filter operator / malformed operator list
-        return {"error": str(e)}
-    if not fields:  # projection already excludes child tables
+        if isinstance(kwargs["limit"], bool) or not isinstance(kwargs["limit"], int) or not 1 <= kwargs["limit"] <= 500:
+            raise ValueError("limit must be an integer between 1 and 500")
+        if not isinstance(kwargs["offset"], int) or isinstance(kwargs["offset"], bool) or kwargs["offset"] < 0:
+            raise ValueError("offset must be a non-negative integer")
+        meta = args.get("include_meta") or args.get("time_filter") is not None
+        result = services.list_document_page(doctype, time_filter=args.get("time_filter"), **kwargs) if meta else services.list_documents(doctype, **kwargs)
+        rows = result["rows"] if meta else result
+        cls = services.DOCUMENT_CLASSES.get(services.SLUG_TO_DOCTYPE.get(doctype, ""))
         for row in rows:
-            for key in child_keys:
+            for key in (cls.CHILD_TABLES if cls else {}):
                 row.pop(key, None)
-    return rows
+        return result
+    except (TypeError, ValueError) as exc:
+        return {"error": str(exc)}
 
 
 def _handle_generate_document_pdf(args, user=None):
@@ -1598,6 +1593,7 @@ def _handle_get_master_fields(args):
     cls = services.DOCUMENT_CLASSES.get(doctype)
     return {
         "master_type": master_type,
+        "time_filter_fields": time_filter_fields(db, doctype),
         "fields": sorted(db._get_table_columns(doctype)),
         "text_fields": sorted(db._get_text_columns(doctype)),
         # What search_masters searches when `fields` is omitted.
@@ -1613,6 +1609,7 @@ def _handle_get_master_fields(args):
 
 def _handle_search_masters(args):
     db = get_db()
+    meta = bool(args.get("include_meta")) or args.get("time_filter") is not None
     master_type = args["master_type"]
     query = (args.get("query") or "").strip()
 
@@ -1626,6 +1623,13 @@ def _handle_search_masters(args):
             limit = max(1, int(_raw_limit))
         except (TypeError, ValueError):
             limit = None
+    if meta:
+        limit = args.get("limit", 50)
+        offset = args.get("offset", 0)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
+            return {"error": "limit must be an integer between 1 and 500"}
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+            return {"error": "offset must be a non-negative integer"}
 
     entry = services.MASTER_TABLES.get(master_type)
     if not entry:
@@ -1685,11 +1689,14 @@ def _handle_search_masters(args):
             limit=limit,
             offset=offset,
             fields=result_fields,
-            with_total=False,
+            with_total=meta,
+            time_filter=args.get("time_filter"),
         )
     except (TypeError, ValueError) as exc:
         return {"error": str(exc)}
     rows = [dict(row) for row in result["rows"]]
+    if meta:
+        return result
     if rows or not query:
         return rows
 
@@ -2515,6 +2522,34 @@ Only state that something was done — created, changed, enabled/disabled, booke
 ## Answering data questions — three paths
 
 **Path 1: single-record lookup → `list_documents` / `get_document`.** For "is SINV-0042 paid", "what did customer X order last", "show me the latest 5 purchase orders" — fetch the rows directly. Don't try to aggregate in your head unless there are only a handful of rows in front of you.
+
+**Recent changes and outreach:** For "last N hours" use `list_documents` or
+`search_masters` with `time_filter={{"field":"modified","last_hours":24}}`
+(or the requested hours), so the server resolves the exact window. Use `creation`
+for newly created records, `modified` for changed records, `occurred_at` for CRM
+interactions. Never substitute yesterday at midnight for the last 24 hours. Reuse
+returned `time_filter` since/until for subsequent pages and other types; for today
+or yesterday resolve local calendar boundaries using the user's known timezone
+(and get_current_time), asking if the timezone is unknown and affects the answer.
+For "what happened in this ERP", cover relevant documents, masters and registered
+CRM activities; query changes as well as creations. Do not claim no changes from
+a creation-only search. Describe which areas were checked; this is a current-record
+overview, not a complete audit trail of deletions, old field values or every edit.
+For outreach include relevant `note` entries describing draft preparation and
+scheduled sends, as well as calls/emails/meetings; a call/email-only filter misses
+planned outreach. Preserve distinctions between prepared, scheduled, sent and
+replied, and between interaction time and planned future send time. Load linked
+leads only to enrich the matching activities; unfiltered old lead state is not
+proof of activity during the period. Use supported IN filters to select multiple
+types; if a filter fails, fix it without silently dropping its restriction.
+For overviews use time_filter or include_meta=true, inspect total/has_more, and
+page when exhaustive detail is requested. Never count only the first page as the
+total. Mention coverage warnings: missing/invalid timestamps mean unknown history,
+not no activity. Unsupported fields/query errors are not empty results. Do not
+infer who changed what from modified alone; current fields are not before/after
+history. For core masters predating timestamp capture, creation can be unknown. Include
+disabled/discarded records when the overview requires them. Low-level SQL and some
+indirect document updates may not maintain modified; do not promise all changes.
 
 **Path 2: aggregated facts → `query_dataset`.** For "who is our top customer by revenue", "total sales this month", "outstanding AR by customer", "average invoice size", "count of POs per supplier" — anything that requires summing, counting, ranking, or grouping across many rows — call `query_dataset`. It runs a deterministic SQL aggregation server-side and returns the actual aggregated numbers you can cite in chat. NEVER try to compute a top-N or sum by eyeballing a `list_documents` sample — it defaults to 20 rows and will give a wrong answer on any meaningful dataset.
 

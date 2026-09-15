@@ -275,6 +275,9 @@ docs/agents/        # Invariants, gotchas, design decisions (LLM-readable)
 
 `docs/agents/` is worth a read if you're going to contribute - it captures the invariants the code assumes but doesn't always enforce, plus the landmines that have bitten us.
 
+[Recent changes and outreach](docs/time-filters.md): shared time filters for REST,
+chat and MCP lists, with exact windows, pagination and timestamp-quality metadata.
+
 ---
 
 ## Building a customer deployment on top of the core

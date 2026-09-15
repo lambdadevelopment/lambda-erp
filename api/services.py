@@ -4,6 +4,7 @@ import re
 import time
 
 from lambda_erp.utils import _dict, now
+from api.time_filters import resolve_time_filter, time_predicate, time_quality, page_metadata, time_filter_fields
 from lambda_erp.database import get_db, get_write_generation
 
 from lambda_erp.selling.quotation import (
@@ -194,6 +195,7 @@ def apply_plugin_schema() -> None:
     db.conn.commit()
 
     if not _PLUGIN_MIGRATIONS:
+        db._ensure_list_indexes()
         return
 
     db.conn.execute(
@@ -217,6 +219,8 @@ def apply_plugin_schema() -> None:
         except Exception as e:
             db.conn.rollback()
             print(f"[plugin-migration] FAILED {migration_id}: {e!r} — will retry next boot", flush=True)
+
+    db._ensure_list_indexes()
 
 
 def document_columns(doctype_slug: str) -> set:
@@ -477,6 +481,7 @@ def document_field_metadata(doctype_slug: str) -> dict:
         "fields": sorted(db._get_table_columns(doctype)),
         "text_fields": sorted(db._get_text_columns(doctype)),
         "default_search_fields": document_search_columns(db, doctype_slug),
+        "time_filter_fields": time_filter_fields(db, doctype),
         "child_tables": sorted(cls.CHILD_TABLES),
         "link_fields": dict(cls.LINK_FIELDS),
         "dynamic_link_fields": dict(cls.DYNAMIC_LINK_FIELDS),
@@ -810,10 +815,12 @@ def _order_clause(order_by: str = None, order: str = "desc") -> str:
     """ORDER BY clause for list queries. Defaults to newest-created first.
     `order_by`, when given, must already be a validated column name (the
     documents router checks it against document_columns) — it is quoted here."""
+    if not isinstance(order, str) or order.lower() not in ("asc", "desc"):
+        raise ValueError("order must be 'asc' or 'desc'")
     if not order_by:
-        return "creation DESC"
-    direction = "ASC" if str(order).lower() == "asc" else "DESC"
-    return f'"{order_by}" {direction}'
+        return "creation DESC, name DESC"
+    direction = order.upper()
+    return f'"{order_by}" {direction}' + (f", name {direction}" if order_by != "name" else "")
 
 
 # --- Filter operators (safe, whitelisted) ---
@@ -830,6 +837,7 @@ _FILTER_OPS = {
     ">": ">", "<": "<", ">=": ">=", "<=": "<=",
     "like": "LIKE", "not like": "NOT LIKE",
     "contains": "CONTAINS",
+    "in": "IN", "not in": "NOT IN",
     "is null": "IS NULL", "is not null": "IS NOT NULL",
 }
 _NULLARY_OPS = {"IS NULL", "IS NOT NULL"}  # take no bound value
@@ -865,6 +873,13 @@ def _filter_atom(col: str, value):
             op = _resolve_op(value[0])
             if op in _NULLARY_OPS:
                 return f'"{col}" {op}', []  # value ignored for IS [NOT] NULL
+            if op in {"IN", "NOT IN"}:
+                values = value[1]
+                if not isinstance(values, (list, tuple)) or len(values) > 500 or any(isinstance(x, (dict, list, tuple)) or x is None for x in values):
+                    raise ValueError(f"{op} requires an array of at most 500 non-null scalar values")
+                if not values:
+                    return ("1=0" if op == "IN" else "1=1"), []
+                return f'"{col}" {op} (' + ", ".join("?" for _ in values) + ")", list(values)
             if op == "CONTAINS":
                 # Literal, case-insensitive substring search. Escape LIKE's two
                 # wildcard characters so a user-entered '%' or '_' keeps its
@@ -937,88 +952,52 @@ def _projection_columns(doctype_slug: str, fields) -> set:
 
 def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, offset: int = 0,
                    include_discarded: bool = False, order_by: str = None, order: str = "desc",
-                   fields: list = None) -> list:
+                   fields: list = None, time_filter: dict = None) -> list:
     doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     if not doctype:
         raise ValueError(f"Unknown document type: {doctype_slug}")
-
     db = get_db()
-    db_filters = {}
-    from_date = None
-    to_date = None
-    date_field_override = None
-    search = None
-    search_fields = None
-    if filters:
-        for key, value in filters.items():
-            if value is None or value == "":
-                continue
-            if key == "from_date":
-                from_date = value
-            elif key == "to_date":
-                to_date = value
-            elif key == "date_field":
-                date_field_override = value
-            elif key == "search":
-                search = value
-            elif key == "search_fields":
-                search_fields = value
-            else:
-                db_filters[key] = value
-
-    _exclude_discarded(db, doctype, db_filters, include_discarded)
-    _validate_typed_filters(db, doctype, db_filters)
-
-    # Date range filtering via the doctype's primary date field
-    date_field = _resolve_date_field(db, doctype, date_field_override)
-    if date_field:
-        if from_date:
-            db_filters[date_field] = (">=", from_date)
-        if to_date:
-            # If we already set from_date, we need a second condition on the same field
-            if from_date:
-                # Use raw SQL fallback below
-                pass
-            else:
-                db_filters[date_field] = ("<=", to_date)
-
-    search_where, search_params = _search_clause(db, doctype, doctype_slug, search, search_fields)
-
+    window = resolve_time_filter(db, doctype, time_filter)
+    where, params = _filter_where(db, doctype, doctype_slug, filters, include_discarded,
+                                  time_filter=window)
+    columns = db._get_table_columns(doctype)
+    if order_by and order_by not in columns:
+        raise ValueError(f"Unknown order_by field: {order_by}")
     order_clause = _order_clause(order_by, order)
+    if window and (order_by is None or order_by == window["field"]):
+        order_clause = f'erp_timestamp_epoch("{window["field"]}") {order.upper()}, name {order.upper()}'
+    projection = ", ".join(f'"{x}"' for x in sorted(_projection_columns(doctype_slug, fields))) if fields else "*"
+    query = f'SELECT {projection} FROM "{doctype}"'
+    if where:
+        query += " WHERE " + " AND ".join(f"({x})" for x in where)
+    query += " ORDER BY " + order_clause
+    if limit is not None:
+        query += " LIMIT ?"
+        params.append(max(1, int(limit)))
+    if offset:
+        if limit is None and db.dialect == "sqlite":
+            query += " LIMIT -1"
+        query += " OFFSET ?"
+        params.append(max(0, int(offset)))
+    rows = db.sql(query, params)
+    return rows if fields else _attach_children(db, doctype_slug, rows)
 
-    # get_all handles only pure-equality filters (no OFFSET, no free-text OR-group,
-    # no whitelisted operator/NULL forms), so drop to raw SQL whenever any of those
-    # is in play. An operator filter shows up as a list/tuple value in db_filters.
-    has_op_filter = any(isinstance(v, (list, tuple)) for v in db_filters.values())
 
-    if date_field and from_date and to_date:
-        # Both bounds set: the dict can only hold one constraint per key, so this
-        # path adds both date conditions explicitly.
-        rows = _list_with_date_range(
-            db, doctype, doctype_slug, db_filters, date_field, from_date, to_date, limit, offset,
-            extra_where=search_where, extra_params=search_params,
-        )
-    elif offset or search_where or has_op_filter:
-        rows = _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, order_clause,
-                                 extra_where=search_where, extra_params=search_params)
-    else:
-        rows = db.get_all(
-            doctype,
-            # Project to the requested columns at the DB (not just *-then-trim) so a
-            # wide table doesn't ship every column for a few-column list view.
-            fields=(sorted(_projection_columns(doctype_slug, fields)) if fields else ["*"]),
-            filters=db_filters if db_filters else None,
-            order_by=order_clause,
-            limit=limit,
-        )
-        rows = _attach_children(db, doctype_slug, rows)
-
-    # `fields` projection: keep only the requested real columns (+ name) to trim
-    # the payload — child tables (never selected here) drop out automatically.
-    if fields:
-        keep = _projection_columns(doctype_slug, fields)
-        rows = [{k: v for k, v in row.items() if k in keep} for row in rows]
-    return rows
+def list_document_page(doctype_slug: str, *, time_filter=None, **kwargs):
+    db = get_db()
+    doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
+    if not doctype:
+        raise ValueError(f"Unknown document type: {doctype_slug}")
+    window = resolve_time_filter(db, doctype, time_filter)
+    rows = list_documents(doctype_slug, time_filter=window, **kwargs)
+    filters = kwargs.get("filters")
+    discarded = kwargs.get("include_discarded", False)
+    total = count_documents(doctype_slug, filters, discarded, time_filter=window)
+    unknown = 0
+    if window:
+        where, params = _filter_where(db, doctype, doctype_slug, filters, discarded)
+        unknown = time_quality(db, doctype, window, where, params)
+    return page_metadata(rows, total, kwargs.get("limit", 50), kwargs.get("offset", 0), window, unknown)
 
 
 # Exact list counts are cached per (doctype, filters). The count is the one O(N)
@@ -1097,6 +1076,7 @@ def list_master_records(
     offset: int = 0,
     fields: list[str] | None = None,
     with_total: bool = True,
+    time_filter: dict | None = None,
 ) -> dict:
     """Deterministic master-list query shared by REST and chat/MCP.
 
@@ -1109,6 +1089,7 @@ def list_master_records(
         raise ValueError(f"Unknown master type: {master_type}")
     doctype, _ = entry
     db = get_db()
+    window = resolve_time_filter(db, doctype, time_filter)
     columns = db._get_table_columns(doctype)
     text_fields = sorted(db._get_text_columns(doctype))
 
@@ -1121,6 +1102,8 @@ def list_master_records(
         raise ValueError(
             f"Unknown filter column(s) for {master_type}: {', '.join(unknown_filters)}"
         )
+    if window and window["field"] in db_filters:
+        raise ValueError("Do not combine time_filter with a filter on the same timestamp field")
     _validate_typed_filters(db, doctype, db_filters)
 
     where_parts, params = _where_from_filters(db_filters)
@@ -1157,15 +1140,23 @@ def list_master_records(
         projection = ", ".join(f'"{field}"' for field in requested_fields)
     else:
         projection = "*"
+    unknown = time_quality(db, doctype, window, where_parts, params) if window else 0
+    if window:
+        clause, bounds = time_predicate(window)
+        where_parts.append(clause)
+        params.extend(bounds)
 
     where = " WHERE " + " AND ".join(where_parts) if where_parts else ""
     total = (
         count_query_cached(f'SELECT COUNT(*) AS c FROM "{doctype}"{where}', params)
         if with_total else None
     )
+    sort_sql = _master_sort_sql(sort_column, direction)
+    if window and (order_by is None or order_by == window["field"]):
+        sort_sql = f'erp_timestamp_epoch("{window["field"]}") {direction.upper()}, name {direction.upper()}'
     query = (
         f'SELECT {projection} FROM "{doctype}"{where} '
-        f'ORDER BY {_master_sort_sql(sort_column, direction)}'
+        f'ORDER BY {sort_sql}'
     )
     if limit is not None:
         query += f" LIMIT {max(1, int(limit))}"
@@ -1174,18 +1165,17 @@ def list_master_records(
     if offset:
         query += f" OFFSET {max(0, int(offset))}"
 
-    return {
-        "rows": db.sql(query, params),
-        "total": total,
-        "limit": limit,
-        "offset": max(0, int(offset)),
-        "text_fields": text_fields,
-    }
+    rows = db.sql(query, params)
+    result = page_metadata(rows, total, limit, max(0, int(offset)), window, unknown) if total is not None else {"rows": rows}
+    return {**result, "text_fields": text_fields}
 
 
-def count_documents(doctype_slug: str, filters: dict = None, include_discarded: bool = False) -> int:
+def count_documents(doctype_slug: str, filters: dict = None, include_discarded: bool = False, time_filter=None) -> int:
     """Exact count of documents matching the filters, cached per filter-set until
     the next write (write-generation) or the TTL, whichever comes first."""
+    if time_filter is not None:
+        # Resolve a moving window once and avoid caching it under a relative key.
+        return _count_documents_uncached(doctype_slug, filters, include_discarded, time_filter)
     key = _count_cache_key(doctype_slug, filters, include_discarded)
     gen = get_write_generation()
     now_mono = time.monotonic()
@@ -1199,65 +1189,19 @@ def count_documents(doctype_slug: str, filters: dict = None, include_discarded: 
     return result
 
 
-def _count_documents_uncached(doctype_slug: str, filters: dict = None, include_discarded: bool = False) -> int:
-    """Count documents matching the filters (ignores limit/offset)."""
+def _count_documents_uncached(doctype_slug: str, filters: dict = None, include_discarded: bool = False, time_filter=None) -> int:
     doctype = SLUG_TO_DOCTYPE.get(doctype_slug)
     if not doctype:
         raise ValueError(f"Unknown document type: {doctype_slug}")
-
     db = get_db()
-    db_filters = {}
-    from_date = None
-    to_date = None
-    date_field_override = None
-    search = None
-    search_fields = None
-    if filters:
-        for key, value in filters.items():
-            if value is None or value == "":
-                continue
-            if key == "from_date":
-                from_date = value
-            elif key == "to_date":
-                to_date = value
-            elif key == "date_field":
-                date_field_override = value
-            elif key == "search":
-                search = value
-            elif key == "search_fields":
-                search_fields = value
-            else:
-                db_filters[key] = value
-
-    _exclude_discarded(db, doctype, db_filters, include_discarded)
-    _validate_typed_filters(db, doctype, db_filters)
-
-    date_field = _resolve_date_field(db, doctype, date_field_override)
-    where_parts = []
-    params = []
-    if date_field and from_date:
-        where_parts.append(f'"{date_field}" >= ?')
-        params.append(from_date)
-    if date_field and to_date:
-        where_parts.append(f'"{date_field}" <= ?')
-        params.append(to_date)
-    fparts, fparams = _where_from_filters(db_filters)
-    where_parts.extend(fparts)
-    params.extend(fparams)
-
-    search_where, search_params = _search_clause(db, doctype, doctype_slug, search, search_fields)
-    if search_where:
-        where_parts.append(search_where)
-        params.extend(search_params)
-
-    query = f'SELECT COUNT(*) as c FROM "{doctype}"'
-    if where_parts:
-        query += " WHERE " + " AND ".join(where_parts)
-    rows = db.sql(query, params)
-    return int(rows[0]["c"]) if rows else 0
+    where, params = _filter_where(db, doctype, doctype_slug, filters, include_discarded, time_filter=time_filter)
+    query = f'SELECT COUNT(*) AS c FROM "{doctype}"'
+    if where:
+        query += " WHERE " + " AND ".join(f"({x})" for x in where)
+    return int(db.sql(query, params)[0]["c"])
 
 
-def _filter_where(db, doctype: str, doctype_slug: str, filters: dict, include_discarded: bool):
+def _filter_where(db, doctype: str, doctype_slug: str, filters: dict, include_discarded: bool, time_filter=None):
     """Build (where_parts, params) for a doctype from a list-style `filters` dict
     (equality filters + from_date/to_date on the doctype's date field + free-text
     search + discard exclusion). Same semantics as list_documents/count_documents
@@ -1279,6 +1223,12 @@ def _filter_where(db, doctype: str, doctype_slug: str, filters: dict, include_di
             search_fields = value
         else:
             db_filters[key] = value
+    unknown = set(db_filters) - set(db._get_table_columns(doctype))
+    if unknown:
+        raise ValueError(f"Unknown filter fields: {', '.join(sorted(unknown))}")
+    window = resolve_time_filter(db, doctype, time_filter)
+    if window and (from_date or to_date or date_field_override or window["field"] in db_filters):
+        raise ValueError("Do not combine time_filter with legacy date filters or another filter on the same field")
     _exclude_discarded(db, doctype, db_filters, include_discarded)
     _validate_typed_filters(db, doctype, db_filters)
 
@@ -1294,12 +1244,16 @@ def _filter_where(db, doctype: str, doctype_slug: str, filters: dict, include_di
     if search_where:
         where_parts.append(search_where)
         params.extend(search_params)
+    if window:
+        clause, bounds = time_predicate(window)
+        where_parts.append(clause)
+        params.extend(bounds)
     return where_parts, params
 
 
 def adjacent_documents(doctype_slug: str, name: str, filters: dict = None,
                        include_discarded: bool = False, order_by: str = None,
-                       order: str = "desc") -> dict:
+                       order: str = "desc", time_filter=None) -> dict:
     """The records immediately before/after `name` in the same order+filters the
     list uses — {"prev": name|None, "next": name|None}. `prev` is one step *up*
     the list (toward the top), `next` one step *down*. Keyset queries (indexed,
@@ -1310,25 +1264,32 @@ def adjacent_documents(doctype_slug: str, name: str, filters: dict = None,
         raise ValueError(f"Unknown document type: {doctype_slug}")
     db = get_db()
     cols = db._get_table_columns(doctype)
-    oc = order_by if (order_by and order_by in cols) else "creation"
+    window = resolve_time_filter(db, doctype, time_filter)
+    _order_clause(order_by, order)
+    if order_by and order_by not in cols:
+        raise ValueError(f"Unknown order_by field: {order_by}")
+    oc = order_by or (window["field"] if window else "creation")
+    expression = f'"{oc}"'
+    if window and oc == window["field"]:
+        expression = f'erp_timestamp_epoch("{oc}")'
+    base_where, base_params = _filter_where(db, doctype, doctype_slug, filters or {}, include_discarded, time_filter=window)
+    base_clause = " AND ".join(f"({part})" for part in base_where) or "1=1"
     desc = str(order).lower() != "asc"
 
-    cur = db.sql(f'SELECT "{oc}" AS oc FROM "{doctype}" WHERE name = ?', [name])
+    cur = db.sql(f'SELECT {expression} AS oc FROM "{doctype}" WHERE ({base_clause}) AND name = ?', [*base_params, name])
     if not cur:
         return {"prev": None, "next": None}
     cur_oc = cur[0]["oc"]
-
-    base_where, base_params = _filter_where(db, doctype, doctype_slug, filters or {}, include_discarded)
 
     def neighbor(direction):
         # DESC list: next = tuple < current, prev = tuple > current (ASC flips).
         going_less = (direction == "next") == desc
         cmp = "<" if going_less else ">"
         dir_sql = "DESC" if going_less else "ASC"
-        keyset = f'(("{oc}" {cmp} ?) OR ("{oc}" = ? AND name {cmp} ?))'
+        keyset = f'(({expression} {cmp} ?) OR ({expression} = ? AND name {cmp} ?))'
         query = (f'SELECT name FROM "{doctype}" WHERE '
                  + " AND ".join(base_where + [keyset])
-                 + f' ORDER BY "{oc}" {dir_sql}, name {dir_sql} LIMIT 1')
+                 + f' ORDER BY {expression} {dir_sql}, name {dir_sql} LIMIT 1')
         rows = db.sql(query, base_params + [cur_oc, cur_oc, name])
         return rows[0]["name"] if rows else None
 

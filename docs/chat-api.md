@@ -1,5 +1,8 @@
 # Chat API
 
+Recent-change and outreach queries use the shared [time filters](time-filters.md),
+including pagination and timestamp-quality metadata.
+
 Responses also include `tool_results` with success/error/warning information
 for each attempted tool operation. A completed chat turn is not itself proof
 that a business operation succeeded. See [Document validation](document-validation.md)

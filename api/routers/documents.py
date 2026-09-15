@@ -11,6 +11,7 @@ from api.services import (
     discard_document,
     convert_document,
     list_documents,
+    list_document_page,
     count_documents,
     document_columns,
     adjacent_documents,
@@ -21,6 +22,7 @@ from api.pdf import generate_pdf
 from api.pdf_exports import create_pdf_export, get_pdf_export, pdf_content_disposition
 from api.auth import require_role
 from api.list_values import distinct_list_values
+from api.time_filters import request_time_filter
 from lambda_erp.database import get_db
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -34,7 +36,7 @@ _manager = Depends(require_role("manager"))
 _LIST_RESERVED = {
     "status", "party", "from_date", "to_date", "docstatus",
     "include_discarded", "limit", "offset", "order_by", "order",
-    "date_field", "search", "search_fields", "fields",
+    "date_field", "search", "search_fields", "fields", "time_filter",
 }
 
 
@@ -60,7 +62,8 @@ def list_docs(
     search: str | None = None,
     search_fields: str | None = None,
     fields: str | None = None,
-    limit: int = Query(default=50, le=500),
+    time_filter: str | None = None,
+    limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     _user: dict = _viewer,
 ):
@@ -130,17 +133,15 @@ def list_docs(
     if fields:
         projection = [f.strip() for f in fields.split(",") if f.strip() and f.strip() in columns]
 
-    rows = list_documents(doctype_slug, filters=filters, limit=limit, offset=offset,
-                          include_discarded=include_discarded, order_by=order_by, order=order,
-                          fields=projection)
-    total = count_documents(doctype_slug, filters=filters, include_discarded=include_discarded)
-    return {
-        "rows": rows,
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-        "text_fields": sorted(get_db()._get_text_columns(doctype)),
-    }
+    try:
+        result = list_document_page(
+            doctype_slug, filters=filters, limit=limit, offset=offset,
+            include_discarded=include_discarded, order_by=order_by, order=order,
+            fields=projection, time_filter=request_time_filter(request),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {**result, "text_fields": sorted(get_db()._get_text_columns(doctype))}
 
 
 @router.get("/{doctype_slug}/{name}/adjacent")
@@ -204,8 +205,12 @@ def adjacent_doc(
         raise HTTPException(status_code=400, detail=f"Unknown order_by field: {order_by}")
     if order.lower() not in ("asc", "desc"):
         raise HTTPException(status_code=400, detail="order must be 'asc' or 'desc'")
-    return adjacent_documents(doctype_slug, name, filters=filters,
-                              include_discarded=include_discarded, order_by=order_by, order=order)
+    try:
+        return adjacent_documents(doctype_slug, name, filters=filters,
+                                  include_discarded=include_discarded, order_by=order_by, order=order,
+                                  time_filter=request_time_filter(request))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/{doctype_slug}/search")

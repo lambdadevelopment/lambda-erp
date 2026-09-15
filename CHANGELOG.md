@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-09-15
+
+- Add shared relative/absolute timestamp filters to document and master lists,
+  exposed through REST, chat and MCP. Return resolved windows, totals, pagination
+  and warnings for records with missing or invalid timestamps.
+- Compare timestamps as instants on SQLite and PostgreSQL, with expression indexes,
+  and capture creation/modification times for core masters without inventing
+  timestamps for historical records.
+- Normalize document timestamps before plugin validation and persistence to prevent
+  the CRM duplicated-clock bug. Include a separate, review-first maintenance script
+  for existing malformed Activity timestamps; no automatic data repair is performed.
+- Support IN/NOT IN filters and guide chat to use exact elapsed-hour windows,
+  distinguish prepared/scheduled/sent outreach and disclose coverage limitations.
+- Keep the aggregate activity-feed design deferred: these lists summarize current
+  records, not a complete history of edits or deletions. See docs/time-filters.md.
+
 ## [1.0.1] - 2026-09-14
 
 - Add a company-form selector for the default sales tax template, scoped to the company, with an explicit no-automatic-tax option and guidance in German, English and French.
@@ -1793,3 +1809,4 @@ package. No PyPI release and no functional changes; superseded by 0.1.1.
 [0.1.0]: https://www.npmjs.com/package/@lambda-development/erp-core/v/0.1.0
 
 [1.0.1]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.0.0...v1.0.1
+[1.0.2]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.0.1...v1.0.2

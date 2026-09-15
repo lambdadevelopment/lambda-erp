@@ -13,7 +13,11 @@ import os
 import sqlite3
 import threading
 from contextlib import contextmanager
-from lambda_erp.utils import _dict
+from lambda_erp.utils import _dict, now
+from lambda_erp.timestamps import timestamp_epoch, POSTGRES_TIMESTAMP_FUNCTION
+
+
+_TIMED_MASTERS = {"Customer", "Supplier", "Item", "Warehouse", "Account", "Company", "Cost Center"}
 
 
 _VALID_JOURNAL_MODES = {"WAL", "DELETE", "TRUNCATE", "PERSIST", "MEMORY", "OFF"}
@@ -283,6 +287,7 @@ class Database:
     def _open_sqlite_conn(self):
         conn = sqlite3.connect(self.db_path, check_same_thread=False, factory=_SqliteConn)
         conn.row_factory = sqlite3.Row
+        conn.create_function("erp_timestamp_epoch", 1, timestamp_epoch, deterministic=True)
         conn.execute(f"PRAGMA journal_mode={_journal_mode()}")
         conn.execute("PRAGMA foreign_keys=ON")
         # Wait up to 5s for the file lock instead of raising SQLITE_BUSY when
@@ -1847,30 +1852,34 @@ class Database:
         ]
 
     def _ensure_list_indexes(self) -> None:
-        """Index `creation` on every table that has it — the generic list-speed fix.
+        """Reconcile legacy creation indexes and parsed-instant list indexes.
 
-        Every document/master list defaults to `ORDER BY creation DESC`, but tables
-        ship with only a `name` primary key. So once a table grows large, each list
-        load does a full sequential scan + top-N sort: the Leads page at 89K rows
-        measured ~340ms; ~0.3ms with this index. Reconciled here (idempotent,
-        CREATE INDEX IF NOT EXISTS) so it covers core, plugin AND future doctypes,
-        and back-fills existing tables on the next deploy. `creation` is a
-        fixed-width ISO string, so a plain btree sorts chronologically and the
-        planner scans it backward for DESC. Best-effort per table — a failure on one
-        (e.g. two replicas racing to build it at boot) never blocks startup.
+        Mixed timestamp representations require an expression index for correct,
+        efficient range queries and stable timestamp/name pagination. Apply after
+        core and plugin schema setup; failures are retried on a subsequent boot.
         """
         for table in self._all_user_tables():
             try:
-                if "creation" not in self._get_table_columns(table):
-                    continue
+                columns = self._get_table_columns(table)
+                text_columns = self._get_text_columns(table)
             except Exception:
                 continue
-            idx = f"ix_{table.replace(' ', '_')}_creation"
-            try:
-                self.conn.execute(f'CREATE INDEX IF NOT EXISTS "{idx}" ON "{table}" ("creation")')
-                self.conn.commit()
-            except Exception:
-                self.conn.rollback()
+            indexes = []
+            if "creation" in columns:
+                indexes.append((f"ix_{table.replace(' ', '_')}_creation", '"creation"'))
+            if "name" in columns:
+                for field in ("creation", "modified", "occurred_at"):
+                    if field in text_columns:
+                        # Hash names to stay within PostgreSQL's 63-byte limit.
+                        import hashlib
+                        suffix = hashlib.sha256(f"{table}/{field}".encode()).hexdigest()[:16]
+                        indexes.append((f"ix_time_{suffix}", f'erp_timestamp_epoch("{field}"), name'))
+            for idx, expression in indexes:
+                try:
+                    self.conn.execute(f'CREATE INDEX IF NOT EXISTS "{idx}" ON "{table}" ({expression})')
+                    self.conn.commit()
+                except Exception:
+                    self.conn.rollback()
 
     # --- Core query interface (mirrors framework.db) ---
 
@@ -1963,6 +1972,11 @@ class Database:
 
     def set_value(self, doctype, name, fieldname, value=None):
         """Set a single field value. Mirrors framework.db.set_value()."""
+        if doctype in _TIMED_MASTERS:
+            fields = dict(fieldname) if isinstance(fieldname, dict) else {fieldname: value}
+            if "modified" in self._get_table_columns(doctype):
+                fields.setdefault("modified", now())
+            fieldname = fields
         if isinstance(fieldname, dict):
             sets = ", ".join(f'"{k}" = ?' for k in fieldname)
             params = list(fieldname.values()) + [name]
@@ -2048,6 +2062,12 @@ class Database:
     def insert(self, doctype, doc):
         """Insert a record from a dict. Ignores fields not in the table schema."""
         valid_columns = self._get_table_columns(doctype)
+        if doctype in _TIMED_MASTERS:
+            doc = dict(doc)
+            stamp = now()
+            for field in ("creation", "modified"):
+                if field in valid_columns and not doc.get(field):
+                    doc[field] = stamp
         fields = [f for f in doc.keys() if f in valid_columns]
         if not fields:
             return
@@ -2065,6 +2085,14 @@ class Database:
         """Insert multiple records."""
         if not docs:
             return
+        if doctype in _TIMED_MASTERS:
+            stamp = now()
+            columns = self._get_table_columns(doctype)
+            docs = [dict(doc) for doc in docs]
+            for doc in docs:
+                for field in ("creation", "modified"):
+                    if field in columns and not doc.get(field):
+                        doc[field] = stamp
         fields = list(docs[0].keys())
         placeholders = ", ".join(["?"] * len(fields))
         field_str = ", ".join(f'"{f}"' for f in fields)
@@ -2596,6 +2624,16 @@ def _m030_generated_pdfs(db: "Database") -> None:
     db.sql('CREATE INDEX IF NOT EXISTS idx_generated_pdf_expiry ON "Generated PDF" (expires_at)')
 
 
+def _m031_time_queries(db):
+    if db.dialect == "postgres":
+        db.conn.execute(POSTGRES_TIMESTAMP_FUNCTION)
+    # Historical timestamps are unknown: leave existing rows NULL. Filling them
+    # with migration time would falsely report every old master as new activity.
+    for table in _TIMED_MASTERS:
+        db.ensure_column(table, "creation", "TEXT")
+        db.ensure_column(table, "modified", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2627,6 +2665,7 @@ Database.MIGRATIONS = [
     (28, "order_planning_from_posted_documents", _m028_order_planning),
     (29, "subscription_discarded", _m029_subscription_discarded),
     (30, "generated_pdfs", _m030_generated_pdfs),
+    (31, "time_queries_and_master_timestamps", _m031_time_queries),
 ]
 
 

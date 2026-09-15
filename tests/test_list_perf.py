@@ -39,13 +39,11 @@ def check_list_perf():
                 cols.append(str(i["name"]))
         return " ".join(cols)
 
-    # Document tables list by `creation DESC`, so they get the index. (Masters
-    # like Customer have no `creation` column — they sort by the `name` PK — so
-    # they are correctly skipped.)
+    # Masters now capture timestamps too; historical rows remain NULL.
     for table in ("Quotation", "Sales Invoice", "Sales Order", "Payment Entry"):
         assert "creation" in _index_columns(table), f"no creation index on {table}"
-    assert "creation" not in _index_columns("Customer"), "master should not be indexed on creation"
-    print("  A: creation index present on document tables, skipped on masters")
+    assert "creation" in _index_columns("Customer"), "master timestamp index missing"
+    print("  A: creation index present on documents and timestamped masters")
 
     db._ensure_list_indexes()  # idempotent — a second reconcile must not error
     print("  A: _ensure_list_indexes is idempotent")
