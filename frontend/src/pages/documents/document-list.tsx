@@ -239,7 +239,7 @@ export default function DocumentListPage() {
     return f;
   }, [status, fromDate, toDate, showDiscarded, pageSize, page, config?.dateField, configFilters, filterValues, queryFilterValues, searchFields, urlQ, activeSortCol, activeSortDir, fieldsParam]);
 
-  const { data, isLoading } = useDocumentList(doctype ?? "", filters);
+  const { data, isLoading, refetch } = useDocumentList(doctype ?? "", filters);
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const textFields = useMemo(() => new Set(data?.text_fields ?? []), [data?.text_fields]);
@@ -460,11 +460,15 @@ export default function DocumentListPage() {
             fields={smartFields}
             filters={queryFilterValues}
             onFiltersChange={(updates) => patchUrl({ ...updates, page: null })}
-            onSubmit={(search, updates) => patchUrl({
-              q: search || null,
-              ...updates,
-              page: null,
-            })}
+            onSubmit={(search, updates) => {
+              const unchanged = page === 0 && search === urlQ &&
+                Object.entries(updates).every(([key, value]) =>
+                  (queryFilterValues[key] ?? "") === (value === "All" ? "" : value || ""));
+              patchUrl({ q: search || null, ...updates, page: null });
+              // Changed filters/page fetch through the query key; an unchanged
+              // submission explicitly reloads without fetching the old filters.
+              if (unchanged) void refetch();
+            }}
             loadValues={(field, prefix) =>
               api.documentFilterValues(doctype!, field, prefix, 12).then((result) => result.values)
             }

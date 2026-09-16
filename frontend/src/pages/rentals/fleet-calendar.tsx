@@ -67,7 +67,7 @@ export default function FleetCalendarPage() {
     [winStart, winDays],
   );
 
-  const { data, isLoading, error } = useFleetCalendar({
+  const { data, isLoading, error, refetch } = useFleetCalendar({
     from: ymd(winStart),
     to: ymd(winEnd),
     warehouse: warehouse || undefined,
@@ -107,6 +107,8 @@ export default function FleetCalendarPage() {
   const apply = () => {
     setWarehouse(whInput);
     setItemCode(itemInput);
+    // New filters fetch automatically; applying the same filters refreshes.
+    if (whInput === warehouse && itemInput === itemCode) void refetch();
   };
   const shift = (deltaDays: number) => setWinStart((d) => addDays(d, deltaDays));
 

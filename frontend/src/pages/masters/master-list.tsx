@@ -117,7 +117,7 @@ export default function MasterListPage() {
       ...queryFilterValues,
     }), [page, pageSize, showDisabled, urlQ, queryFilterValues, config, activeSortCol, activeSortDir]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ["masters", type, listParams],
     queryFn: () => api.listMasters(type!, listParams),
     enabled: !!type,
@@ -270,11 +270,15 @@ export default function MasterListPage() {
           fields={smartFields}
           filters={queryFilterValues}
           onFiltersChange={(updates) => patchUrl({ ...updates, page: null })}
-          onSubmit={(search, updates) => patchUrl({
-            q: search || null,
-            ...updates,
-            page: null,
-          })}
+          onSubmit={(search, updates) => {
+            const unchanged = page === 0 && search === urlQ &&
+              Object.entries(updates).every(([key, value]) =>
+                (queryFilterValues[key] ?? "") === (value || ""));
+            patchUrl({ q: search || null, ...updates, page: null });
+            // Changed filters/page fetch through the query key; an unchanged
+            // submission explicitly reloads without fetching the old filters.
+            if (unchanged) void refetch();
+          }}
           loadValues={(field, prefix) =>
             api.masterFilterValues(type!, field, prefix, 12).then((result) => result.values)
           }
