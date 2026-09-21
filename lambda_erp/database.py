@@ -581,7 +581,10 @@ class Database:
                 docstatus INTEGER DEFAULT 0,
                 discarded INTEGER DEFAULT 0,
                 creation TEXT,
-                modified TEXT
+                modified TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_source TEXT,
+                external_reference TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Quotation Item" (
@@ -606,6 +609,9 @@ class Database:
                 base_net_rate REAL DEFAULT 0,
                 base_net_amount REAL DEFAULT 0,
                 warehouse TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_line_reference TEXT,
+                pricing_rule TEXT,
                 FOREIGN KEY (parent) REFERENCES "Quotation"(name)
             )""",
 
@@ -686,7 +692,10 @@ class Database:
                 docstatus INTEGER DEFAULT 0,
                 discarded INTEGER DEFAULT 0,
                 creation TEXT,
-                modified TEXT
+                modified TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_source TEXT,
+                external_reference TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Sales Order Item" (
@@ -713,6 +722,9 @@ class Database:
                 base_net_amount REAL DEFAULT 0,
                 warehouse TEXT,
                 quotation_item TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_line_reference TEXT,
+                pricing_rule TEXT,
                 FOREIGN KEY (parent) REFERENCES "Sales Order"(name)
             )""",
 
@@ -743,7 +755,10 @@ class Database:
                 docstatus INTEGER DEFAULT 0,
                 discarded INTEGER DEFAULT 0,
                 creation TEXT,
-                modified TEXT
+                modified TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_source TEXT,
+                external_reference TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Purchase Order Item" (
@@ -769,6 +784,9 @@ class Database:
                 base_net_rate REAL DEFAULT 0,
                 base_net_amount REAL DEFAULT 0,
                 warehouse TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_line_reference TEXT,
+                pricing_rule TEXT,
                 FOREIGN KEY (parent) REFERENCES "Purchase Order"(name)
             )""",
 
@@ -783,7 +801,7 @@ class Database:
                 company TEXT,
                 currency TEXT DEFAULT 'USD',
                 conversion_rate REAL DEFAULT 1.0,
-                debit_to TEXT,  -- receivable account
+                debit_to TEXT,  -- receivable account,
                 total_qty REAL DEFAULT 0,
                 total REAL DEFAULT 0,
                 net_total REAL DEFAULT 0,
@@ -809,7 +827,10 @@ class Database:
                 discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
-                modified TEXT
+                modified TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_source TEXT,
+                external_reference TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Sales Invoice Item" (
@@ -837,6 +858,9 @@ class Database:
                 warehouse TEXT,
                 sales_order TEXT,
                 sales_order_item TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_line_reference TEXT,
+                pricing_rule TEXT,
                 FOREIGN KEY (parent) REFERENCES "Sales Invoice"(name)
             )""",
 
@@ -851,7 +875,7 @@ class Database:
                 company TEXT,
                 currency TEXT DEFAULT 'USD',
                 conversion_rate REAL DEFAULT 1.0,
-                credit_to TEXT,  -- payable account
+                credit_to TEXT,  -- payable account,
                 total_qty REAL DEFAULT 0,
                 total REAL DEFAULT 0,
                 net_total REAL DEFAULT 0,
@@ -874,7 +898,10 @@ class Database:
                 discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
-                modified TEXT
+                modified TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_source TEXT,
+                external_reference TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Purchase Invoice Item" (
@@ -902,6 +929,9 @@ class Database:
                 warehouse TEXT,
                 purchase_order TEXT,
                 purchase_order_item TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_line_reference TEXT,
+                pricing_rule TEXT,
                 FOREIGN KEY (parent) REFERENCES "Purchase Invoice"(name)
             )""",
 
@@ -1171,7 +1201,10 @@ class Database:
                 discarded INTEGER DEFAULT 0,
                 remarks TEXT,
                 creation TEXT,
-                modified TEXT
+                modified TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_source TEXT,
+                external_reference TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "POS Invoice Item" (
@@ -1197,6 +1230,9 @@ class Database:
                 income_account TEXT,
                 cost_center TEXT,
                 warehouse TEXT,
+                ignore_pricing_rule INTEGER DEFAULT 0,
+                external_line_reference TEXT,
+                pricing_rule TEXT,
                 FOREIGN KEY (parent) REFERENCES "POS Invoice"(name)
             )""",
 
@@ -1214,7 +1250,14 @@ class Database:
             """CREATE TABLE IF NOT EXISTS "Pricing Rule" (
                 name TEXT PRIMARY KEY,
                 title TEXT,
+                apply_on TEXT DEFAULT 'Item Code',
                 item_code TEXT,
+                item_group TEXT,
+                applicable_for TEXT,
+                customer TEXT,
+                customer_group TEXT,
+                territory TEXT,
+                supplier TEXT,
                 selling INTEGER DEFAULT 0,
                 buying INTEGER DEFAULT 0,
                 rate_or_discount TEXT DEFAULT 'Discount Percentage',
@@ -1222,6 +1265,9 @@ class Database:
                 discount_percentage REAL DEFAULT 0,
                 discount_amount REAL DEFAULT 0,
                 min_qty REAL DEFAULT 0,
+                max_qty REAL DEFAULT 0,
+                min_amt REAL DEFAULT 0,
+                max_amt REAL DEFAULT 0,
                 valid_from TEXT,
                 valid_upto TEXT,
                 priority INTEGER DEFAULT 0,
@@ -1229,6 +1275,38 @@ class Database:
                 enabled INTEGER DEFAULT 1,
                 status TEXT DEFAULT 'Active',
                 docstatus INTEGER DEFAULT 0,
+                creation TEXT,
+                modified TEXT
+            )""",
+
+            # --- Price List / Item Price (base price, "layer 1") ---
+            # A Price List is per-currency by construction: a rate only means
+            # something alongside the currency it is quoted in. Resolution
+            # therefore requires the list currency to equal the document
+            # currency rather than converting — see controllers/item_price.py.
+            """CREATE TABLE IF NOT EXISTS "Price List" (
+                name TEXT PRIMARY KEY,
+                price_list_name TEXT NOT NULL,
+                currency TEXT DEFAULT 'USD',
+                selling INTEGER DEFAULT 0,
+                buying INTEGER DEFAULT 0,
+                enabled INTEGER DEFAULT 1,
+                creation TEXT,
+                modified TEXT
+            )""",
+
+            """CREATE TABLE IF NOT EXISTS "Item Price" (
+                name TEXT PRIMARY KEY,
+                item_code TEXT NOT NULL,
+                price_list TEXT NOT NULL,
+                customer TEXT,
+                supplier TEXT,
+                uom TEXT,
+                min_qty REAL DEFAULT 0,
+                rate REAL DEFAULT 0,
+                valid_from TEXT,
+                valid_upto TEXT,
+                enabled INTEGER DEFAULT 1,
                 creation TEXT,
                 modified TEXT
             )""",
@@ -2642,6 +2720,113 @@ def _m031_time_queries(db):
         db.ensure_column(table, "modified", "TEXT")
 
 
+# Document tables whose lines carry an externally-agreed price, and which can
+# therefore opt out of Pricing Rule application. Both invoice types, both
+# orders and the quotation: every document `apply_pricing_rules` touches.
+_PRICED_DOCUMENTS = [
+    ("Quotation", "Quotation Item"),
+    ("Sales Order", "Sales Order Item"),
+    ("Sales Invoice", "Sales Invoice Item"),
+    ("POS Invoice", "POS Invoice Item"),
+    ("Purchase Order", "Purchase Order Item"),
+    ("Purchase Invoice", "Purchase Invoice Item"),
+]
+
+
+def _m032_ignore_pricing_rule(db: "Database") -> None:
+    """Let a document declare that its rates were agreed elsewhere.
+
+    Before this, the only way to stop `apply_pricing_rules` overwriting a
+    supplied rate was to send rate=0 — which the engine reads as an explicit
+    free line, the opposite of what an externally-priced line means. A partner
+    system that has already computed a contractual charge had no way to say so,
+    and because pricing runs inside validate() the overwrite also repeated on
+    every later draft save.
+
+    Defaults to 0 everywhere, so existing documents price exactly as before.
+    The per-item flag covers mixed documents where only some lines are
+    externally priced."""
+    for doc_table, item_table in _PRICED_DOCUMENTS:
+        db.ensure_column(doc_table, "ignore_pricing_rule", "INTEGER DEFAULT 0")
+        db.ensure_column(item_table, "ignore_pricing_rule", "INTEGER DEFAULT 0")
+        # The engine has always stamped the winning rule onto the line, but no
+        # item table had the column, so db.insert silently dropped it and the
+        # provenance was lost. Persist it: "why is this rate what it is" is the
+        # first question anyone asks about an automatically adjusted price.
+        db.ensure_column(item_table, "pricing_rule", "TEXT")
+
+
+def _m033_external_source(db: "Database") -> None:
+    """Identify documents owned by an upstream system.
+
+    An integration that creates documents here needs a durable, unique handle
+    on what it already sent, so a retry after an uncertain outcome finds the
+    existing document instead of creating a second one. HTTP-level idempotency
+    is not enough: the retry may happen days later, from another process.
+
+    The same marker also makes two invariants structural rather than
+    conventional. An externally-sourced document defaults to
+    ignore_pricing_rule=1 (its rates are already agreed), and must not carry
+    update_stock=1 (the upstream system's own stock movement already accounts
+    for the goods; see the guard in accounting/sales_invoice.py)."""
+    for doc_table, item_table in _PRICED_DOCUMENTS:
+        db.ensure_column(doc_table, "external_source", "TEXT")
+        db.ensure_column(doc_table, "external_reference", "TEXT")
+        db.ensure_column(item_table, "external_line_reference", "TEXT")
+        # Partial index: rows without an external reference are the norm and
+        # must not collide with each other on NULL.
+        try:
+            db.conn.execute(db._ddl(
+                f'CREATE UNIQUE INDEX IF NOT EXISTS '
+                f'"ux_{doc_table.replace(" ", "_").lower()}_external" '
+                f'ON "{doc_table}" (external_source, external_reference) '
+                f'WHERE external_source IS NOT NULL AND external_reference IS NOT NULL'
+            ))
+            db.conn.commit()
+        except Exception:
+            db.conn.rollback()
+
+
+def _m034_price_list(db: "Database") -> None:
+    """Base prices per customer class, replacing one global rate per item.
+
+    Item.standard_rate is a single number per item: every customer, every
+    currency, the same price. Customer.default_price_list has existed since the
+    first schema but pointed at nothing, and price_list_rate was a column on
+    every transaction line that no master ever populated — so a percentage
+    discount computed off it was a discount from an undefined base.
+
+    Price List + Item Price fill that layer. With no rows configured,
+    resolution falls through to standard_rate exactly as before."""
+    db.ensure_column("Company", "default_price_list", "TEXT")
+
+
+def _m035_pricing_rule_dimensions(db: "Database") -> None:
+    """Match rules on more than item_code.
+
+    The masters have carried customer_group, territory and item_group all
+    along; the rule engine looked at none of them, so expressing "wholesale
+    pays list minus 15%" needed one rule per item. Existing rules get
+    apply_on='Item Code' and a NULL applicable_for, which reproduces their
+    current matching exactly."""
+    db.ensure_column("Pricing Rule", "apply_on", "TEXT DEFAULT 'Item Code'")
+    db.ensure_column("Pricing Rule", "item_group", "TEXT")
+    db.ensure_column("Pricing Rule", "applicable_for", "TEXT")
+    db.ensure_column("Pricing Rule", "customer", "TEXT")
+    db.ensure_column("Pricing Rule", "customer_group", "TEXT")
+    db.ensure_column("Pricing Rule", "territory", "TEXT")
+    db.ensure_column("Pricing Rule", "supplier", "TEXT")
+    db.ensure_column("Pricing Rule", "max_qty", "REAL DEFAULT 0")
+    db.ensure_column("Pricing Rule", "min_amt", "REAL DEFAULT 0")
+    db.ensure_column("Pricing Rule", "max_amt", "REAL DEFAULT 0")
+    # Existing rows predate apply_on and must keep matching on item_code.
+    db.conn.execute(
+        'UPDATE "Pricing Rule" SET apply_on = ? WHERE apply_on IS NULL',
+        ["Item Code"],
+    )
+    db.conn.commit()
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2674,6 +2859,10 @@ Database.MIGRATIONS = [
     (29, "subscription_discarded", _m029_subscription_discarded),
     (30, "generated_pdfs", _m030_generated_pdfs),
     (31, "time_queries_and_master_timestamps", _m031_time_queries),
+    (32, "ignore_pricing_rule", _m032_ignore_pricing_rule),
+    (33, "external_source", _m033_external_source),
+    (34, "price_list", _m034_price_list),
+    (35, "pricing_rule_dimensions", _m035_pricing_rule_dimensions),
 ]
 
 

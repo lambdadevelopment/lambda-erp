@@ -16,6 +16,7 @@ from lambda_erp.utils import _dict, flt, getdate, nowdate, new_name
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
 from lambda_erp.controllers.defaults import set_default_currency
+from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.exceptions import ValidationError
 
 class Quotation(Document):
@@ -60,12 +61,12 @@ class Quotation(Document):
 
         self._validate_valid_till()
         self._set_customer_name()
+        set_default_currency(self, "Customer", "customer")
         self._set_item_defaults()
 
         from lambda_erp.controllers.pricing_rule import apply_pricing_rules
         apply_pricing_rules(self)
 
-        set_default_currency(self, "Customer", "customer")
 
         # Calculate taxes and totals (the core shared calculation)
         calculate_taxes_and_totals(self)
@@ -125,19 +126,8 @@ class Quotation(Document):
             self.customer_name = db.get_value("Customer", self.customer, "customer_name")
 
     def _set_item_defaults(self):
-        """Fill in item names and rates from master data."""
-        db = get_db()
-        for item in self.get("items"):
-            if item.get("item_code") and not item.get("item_name"):
-                item_data = db.get_value(
-                    "Item", item["item_code"], ["item_name", "description", "stock_uom", "standard_rate"]
-                )
-                if item_data:
-                    item["item_name"] = item_data.item_name
-                    item["description"] = item.get("description") or item_data.description
-                    item["uom"] = item.get("uom") or item_data.stock_uom
-                    if item.get("rate") is None and item.get("price_list_rate") is None:
-                        item["rate"] = flt(item_data.standard_rate)
+        """Names, units and unsupplied rates. See controllers/item_price.py."""
+        set_item_defaults(self, "Customer", "customer")
 
     def on_submit(self):
         """On submit, set status to Open."""

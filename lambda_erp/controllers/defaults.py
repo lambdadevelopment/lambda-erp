@@ -49,3 +49,21 @@ def set_default_currency(doc, party_type=None, party_field=None):
         doc_date = doc._data.get("posting_date") or doc._data.get("transaction_date")
         rate = get_exchange_rate(currency, base_currency or "USD", doc_date)
     doc._data["conversion_rate"] = rate
+
+
+def apply_external_source_defaults(doc):
+    """Safe defaults for a document owned by an upstream system.
+
+    `external_source` means another system already decided this document's
+    content: it computed the rates under its own contract, and if goods moved
+    it recorded that movement in its own ledger. So pricing rules are off by
+    default here — re-deriving a rate that was already agreed is how an
+    integration silently bills a different number than the source system shows.
+
+    An explicit `ignore_pricing_rule: 0` still wins, for the caller that wants
+    upstream identity but local pricing.
+    """
+    if not doc._data.get("external_source"):
+        return
+    if doc._data.get("ignore_pricing_rule") is None:
+        doc._data["ignore_pricing_rule"] = 1
