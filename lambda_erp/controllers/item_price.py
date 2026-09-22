@@ -117,8 +117,8 @@ def resolve_price_list(doc, party_type=None, party_field=None):
     for name in candidates:
         if not name:
             continue
-        row = db.get_value("Price List", name, ["currency", "enabled", "selling", "buying"])
-        if not row or not row.enabled:
+        row = db.get_value("Price List", name, ["currency", "enabled", "selling", "buying", "discarded"])
+        if not row or not row.enabled or row.discarded:
             continue
         if not row.get(side):
             continue
@@ -147,6 +147,7 @@ def get_item_price(item_code, price_list, qty=0, party_field=None, party=None,
         WHERE item_code = ?
           AND price_list = ?
           AND COALESCE(enabled, 1) = 1
+          AND COALESCE(discarded, 0) = 0
           AND (valid_from IS NULL OR valid_from = '' OR valid_from <= ?)
           AND (valid_upto IS NULL OR valid_upto = '' OR valid_upto >= ?)
           AND (COALESCE(min_qty, 0) = 0 OR COALESCE(min_qty, 0) <= ?)

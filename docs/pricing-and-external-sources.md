@@ -64,9 +64,10 @@ Sales Invoice and POS Invoice income postings aggregate by both income account
 and cost centre. Returns and cancellation preserve that attribution. Historical
 postings are not rewritten; any historical repair requires a separate review.
 
-Migrations 32–36 add the fields and indexes. Migration 36 retries external-index
-creation for pre-release databases and adds per-document line uniqueness. These
-and subsequent migrations fail startup visibly if they fail. Resolve conflicting
+Migrations 32–37 add the fields and indexes. Migration 36 retries external-index
+creation for pre-release databases and adds per-document line uniqueness.
+Migration 37 adds draft/discard fields for the pricing screens. These and
+subsequent migrations fail startup visibly if they fail. Resolve conflicting
 identities explicitly before retrying an upgrade; migrations never delete or
 rewrite duplicates automatically. Existing installations without external IDs
 remain unaffected by the uniqueness constraints.

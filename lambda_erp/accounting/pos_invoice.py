@@ -103,8 +103,8 @@ class POSInvoice(Document):
             raise ValidationError(
                 f"Cannot submit with update_stock=1: this document is sourced "
                 f"from {self._data['external_source']}, which already recorded "
-                f"the stock movement. Use it as a bill only, or clear "
-                f"external_source if this document owns the movement."
+                f"the stock movement. Use this invoice as a bill only and "
+                f"record any required stock movement in a separate stock document."
             )
 
     def _validate_return(self):

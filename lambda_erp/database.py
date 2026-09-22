@@ -1291,6 +1291,8 @@ class Database:
                 selling INTEGER DEFAULT 0,
                 buying INTEGER DEFAULT 0,
                 enabled INTEGER DEFAULT 1,
+                docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 creation TEXT,
                 modified TEXT
             )""",
@@ -1307,6 +1309,8 @@ class Database:
                 valid_from TEXT,
                 valid_upto TEXT,
                 enabled INTEGER DEFAULT 1,
+                docstatus INTEGER DEFAULT 0,
+                discarded INTEGER DEFAULT 0,
                 creation TEXT,
                 modified TEXT
             )""",
@@ -2839,6 +2843,13 @@ def _m036_external_identity_integrity(db: "Database") -> None:
     db.conn.commit()
 
 
+def _m037_pricing_record_lifecycle(db: "Database") -> None:
+    # Non-submittable documents still use draft/discard state in generic CRUD.
+    for table in ("Price List", "Item Price"):
+        db.ensure_column(table, "docstatus", "INTEGER DEFAULT 0")
+        db.ensure_column(table, "discarded", "INTEGER DEFAULT 0")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2876,6 +2887,7 @@ Database.MIGRATIONS = [
     (34, "price_list", _m034_price_list),
     (35, "pricing_rule_dimensions", _m035_pricing_rule_dimensions),
     (36, "external_identity_integrity", _m036_external_identity_integrity),
+    (37, "pricing_record_lifecycle", _m037_pricing_record_lifecycle),
 ]
 
 

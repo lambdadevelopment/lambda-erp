@@ -832,7 +832,7 @@ export default function DocumentFormPage() {
         const next = { ...prev, [fieldName]: value };
         // A new currency invalidates any prior rate; clear it so the backend
         // re-resolves the exchange rate for the chosen currency.
-        if (fieldName === "currency") next.conversion_rate = 0;
+        if (fieldName === "currency" && config?.fields.some((f) => f.name === "conversion_rate")) next.conversion_rate = 0;
         if (doctype === "reservation" && fieldName === "asset" && value) next.allocation_mode = "Unit";
         return recalculate(next, config);
       });

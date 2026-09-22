@@ -130,8 +130,8 @@ class PricingIntegrity(unittest.TestCase):
     def test_pricing_master_api_and_repeated_discount_save(self):
         from api.routers.masters import update_master_record
         self.rule.enabled=0; self.rule.save()
-        pl=services.create_document('price-list',dict(price_list_name='CHF prices',currency='USD',selling='1',buying='0',enabled='1'))
-        services.create_document('item-price',dict(item_code='M',price_list=pl['name'],rate=180,customer='C'))
+        pl=services.create_document('price-list',dict(price_list_name='CHF prices',currency='USD',selling='1',buying='0',enabled='1',docstatus=0))
+        services.create_document('item-price',dict(item_code='M',price_list=pl['name'],rate=180,customer='C',docstatus=0))
         update_master_record('customer','C',{'default_price_list':pl['name']})
         with self.assertRaises(ValidationError): update_master_record('customer','C',{'default_price_list':'missing'})
         for bad in [dict(selling='0',buying='0'),dict(currency='')]:
@@ -177,7 +177,7 @@ class PricingIntegrity(unittest.TestCase):
         self.assertIsNone(restored.external_reference)
         restored.save()
         self.assertEqual(restored.grand_total,120)
-        self.assertEqual(len(self.db.sql('SELECT version FROM "_SchemaMigrations" WHERE version >= 32')),5)
+        self.assertEqual(len(self.db.sql('SELECT version FROM "_SchemaMigrations" WHERE version >= 32')),6)
         self.invoice().save()
         with self.assertRaises(Exception): self.invoice().save()
 
