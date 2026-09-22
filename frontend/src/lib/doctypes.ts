@@ -43,6 +43,8 @@ export interface DoctypeConfig {
   partyField?: string;
   partyLabel?: string;
   amountField?: string;
+  // Currency-only catalogues do not carry a transaction conversion_rate.
+  usesExchangeRate?: boolean;
   fields: FieldDef[];
   childTables: ChildTableDef[];
   listColumns: string[];
@@ -545,7 +547,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
   },
 
   "price-list": {
-    slug: "price-list", label: "Price List", dateField: "creation",
+    slug: "price-list", label: "Price List", dateField: "creation", usesExchangeRate: false,
     fields: [
       { name: "price_list_name", label: "Price List Name", type: "text", required: true },
       { name: "currency", label: "Currency", type: "select", optionsSource: "currency", required: true },
