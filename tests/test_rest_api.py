@@ -20,6 +20,7 @@ Run:  python -m tests.test_rest_api
 """
 import os
 import sys
+from unittest.mock import patch
 
 
 def _reset_db():
@@ -53,6 +54,17 @@ def check_rest_api():
     os.environ.setdefault("JWT_SECRET_KEY", "test-secret-not-for-prod")
     os.environ.setdefault("OPENAI_API_KEY", "sk-test-not-used")
 
+    # Upgrade an existing customer table, including populated rows. The current
+    # fresh-install schema already includes website, so remove it in this
+    # pre-migration fixture to exercise the real ALTER rather than a no-op.
+    from lambda_erp.database import Database, setup
+    with patch.object(Database, "MIGRATIONS", Database.MIGRATIONS[:37]):
+        legacy = setup(db_path)
+        legacy.drop_column("Customer", "website")
+        legacy.insert("Customer", {"name": "WEBSITE-LEGACY", "customer_name": "Legacy Customer"})
+        assert "website" not in legacy._get_table_columns("Customer")
+        legacy.close()
+
     from fastapi.testclient import TestClient
     from api.main import app
 
@@ -62,6 +74,12 @@ def check_rest_api():
                         json={"email": "admin@example.com", "full_name": "Admin",
                               "password": "test-password-123"})
         assert r.status_code == 200 and r.json()["role"] == "admin", r.text[:300]
+
+        from api import chat
+        fields = chat._handle_get_master_fields({"master_type": "customer"})
+        assert "website" in fields["fields"] and "website" in fields["text_fields"], fields
+        legacy_row = client.get("/api/masters/customer/WEBSITE-LEGACY").json()
+        assert legacy_row["customer_name"] == "Legacy Customer" and legacy_row["website"] is None, legacy_row
 
         # A cookie session drives the REST API regardless of the flag.
         assert client.get("/api/documents/quotation").status_code == 200
@@ -96,10 +114,19 @@ def check_rest_api():
             # --- Manager key: reads AND writes. ------------------------------
             assert api.get("/api/documents/quotation", headers=mgr_h).status_code == 200
             r = api.post("/api/masters/customer",
-                         json={"customer_name": "Bearer Co"}, headers=mgr_h)
+                         json={"customer_name": "Bearer Co", "website": "https://example.com"}, headers=mgr_h)
             assert r.status_code == 200, f"manager key create → {r.status_code}: {r.text[:200]}"
             created = r.json()
             assert created.get("name"), created
+            customer_path = f'/api/masters/customer/{created["name"]}'
+            assert api.get(customer_path, headers=mgr_h).json()["website"] == "https://example.com"
+            r = api.put(customer_path, json={"website": "https://example.org"}, headers=mgr_h)
+            assert r.status_code == 200 and r.json()["website"] == "https://example.org", r.text
+            # A later unrelated edit preserves the website; null clears it.
+            r = api.put(customer_path, json={"phone": "+41 44 123 45 67"}, headers=mgr_h)
+            assert r.status_code == 200 and r.json()["website"] == "https://example.org", r.text
+            r = api.put(customer_path, json={"website": None}, headers=mgr_h)
+            assert r.status_code == 200 and r.json()["website"] is None, r.text
             # Attribution: the key acts as the real user, not an `api:` shadow.
             me = api.get("/api/auth/me", headers=mgr_h).json()
             assert me["email"] == "admin@example.com" and me["role"] == "manager", me

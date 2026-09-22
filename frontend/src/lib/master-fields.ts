@@ -10,6 +10,7 @@ export const BUILTIN_MASTER_FIELDS: Record<string, FieldDef[]> = {
     { name: "default_currency", label: "Currency", type: "select", options: ["", "USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY", "INR"] },
     { name: "default_price_list", label: "Default Price List", type: "link", linkDoctype: "price-list" },
     { name: "credit_limit", label: "Credit Limit", type: "currency" },
+    { name: "website", label: "Website", type: "text" },
     { name: "email", label: "Email", type: "text" },
     { name: "phone", label: "Phone", type: "text" },
     { name: "address", label: "Address", type: "textarea" },

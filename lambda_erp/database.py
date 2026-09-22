@@ -408,6 +408,7 @@ class Database:
                 default_currency TEXT DEFAULT 'USD',
                 default_price_list TEXT,
                 credit_limit REAL DEFAULT 0,
+                website TEXT,
                 email TEXT,
                 phone TEXT,
                 address TEXT,
@@ -2850,6 +2851,10 @@ def _m037_pricing_record_lifecycle(db: "Database") -> None:
         db.ensure_column(table, "discarded", "INTEGER DEFAULT 0")
 
 
+def _m038_customer_website(db: "Database") -> None:
+    db.ensure_column("Customer", "website", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2888,6 +2893,7 @@ Database.MIGRATIONS = [
     (35, "pricing_rule_dimensions", _m035_pricing_rule_dimensions),
     (36, "external_identity_integrity", _m036_external_identity_integrity),
     (37, "pricing_record_lifecycle", _m037_pricing_record_lifecycle),
+    (38, "customer_website", _m038_customer_website),
 ]
 
 
