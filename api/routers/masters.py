@@ -14,7 +14,7 @@ from api.services import (
     MASTER_IDENTITY_ALIAS,
     MASTER_REFERENCE_CHECKS,
     _filter_atom, _search_clause, _where_from_filters,
-    list_master_records, master_search_columns, parse_list_filter,
+    list_master_records, master_search_columns, parse_list_filter, master_field_aliases,
 )
 from api.auth import require_role, require_non_public_manager
 from api.list_values import distinct_list_values
@@ -31,9 +31,10 @@ _admin = Depends(require_role("admin"))
 
 def _echo_identity_alias(master_type: str, row):
     """Mirror the master's `name` back under its intuitive alias (item_code)."""
-    alias = MASTER_IDENTITY_ALIAS.get(master_type)
-    if alias and isinstance(row, dict) and row.get("name") is not None:
-        row[alias] = row["name"]
+    if isinstance(row, dict):
+        for alias, column in master_field_aliases(master_type).items():
+            if row.get(column) is not None:
+                row[alias] = row[column]
     return row
 
 DELETE_REFERENCE_CHECKS = {
@@ -313,11 +314,11 @@ def _create_master_record(master_type: str, data: dict) -> dict:
     doc.pop("modified", None)
 
     # Let callers set the code under its intuitive alias (item_code -> name).
-    # An explicit `name` still wins; the alias key is consumed either way so it
-    # isn't reported as an ignored field.
-    alias = MASTER_IDENTITY_ALIAS.get(master_type)
-    if alias:
+    # Conflicting identities must never silently select one of the records.
+    for alias in master_field_aliases(master_type):
         alias_val = doc.pop(alias, None)
+        if alias_val and doc.get("name") and alias_val != doc["name"]:
+            raise ValidationError(f"Conflicting name and {alias}; both must identify the same {master_type}")
         if alias_val and not doc.get("name"):
             doc["name"] = alias_val
 
@@ -386,9 +387,8 @@ def _update_master_record(master_type: str, name: str, data: dict) -> dict:
     # The alias (item_code) is the identity, not a mutable column. Allow it as a
     # no-op when it matches the record being updated, but reject a rename — the
     # code is a primary key referenced across every transaction.
-    alias = MASTER_IDENTITY_ALIAS.get(master_type)
-    if alias and alias in normalized:
-        alias_val = normalized.pop(alias)
+    for alias in master_field_aliases(master_type):
+        alias_val = normalized.pop(alias, None)
         if alias_val and alias_val != name:
             raise HTTPException(
                 status_code=422,
@@ -454,24 +454,15 @@ def _master_list_where(db, doctype: str, master_type: str, request: Request,
         where_parts += wp
         params += ps
 
-    for key, value in request.query_params.items():
-        if key in _MASTER_LIST_RESERVED:
-            continue
-        try:
-            field, parsed_value = parse_list_filter(db, doctype, key, value)
-        except KeyError:
-            raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
-        except TypeError:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Contains filter is only supported for text fields: {key}",
-            )
+    for field, parsed_value in _master_request_filters(db, doctype, request, master_type).items():
         clause, clause_params = _filter_atom(field, parsed_value)
         where_parts.append(clause)
         params.extend(clause_params)
 
     if search:
         requested = [f.strip() for f in (search_fields or "").split(",") if f.strip()]
+        aliases = master_field_aliases(master_type)
+        requested = list(dict.fromkeys(aliases.get(f, f) for f in requested))
         unknown = [f for f in requested if f not in columns]
         if unknown:
             raise HTTPException(status_code=400, detail=f"Unknown search field(s): {', '.join(unknown)}")
@@ -484,7 +475,7 @@ def _master_list_where(db, doctype: str, master_type: str, request: Request,
     try:
         window = resolve_time_filter(db, doctype, request_time_filter(request))
         if window:
-            if window["field"] in _master_request_filters(db, doctype, request):
+            if window["field"] in _master_request_filters(db, doctype, request, master_type):
                 raise ValueError("Do not combine time_filter with a filter on the same timestamp field")
             clause, bounds = time_predicate(window)
             where_parts.append(clause)
@@ -494,14 +485,17 @@ def _master_list_where(db, doctype: str, master_type: str, request: Request,
     return where_parts, params, columns
 
 
-def _master_request_filters(db, doctype: str, request: Request) -> dict:
+def _master_request_filters(db, doctype: str, request: Request, master_type: str) -> dict:
     """Parse the REST query-string field filters into the shared internal form."""
     filters = {}
+    aliases = master_field_aliases(master_type)
     for key, value in request.query_params.items():
         if key in _MASTER_LIST_RESERVED:
             continue
         try:
-            field, parsed_value = parse_list_filter(db, doctype, key, value)
+            suffix = "__contains" if key.endswith("__contains") else ""
+            base = key[:-len(suffix)] if suffix else key
+            field, parsed_value = parse_list_filter(db, doctype, aliases.get(base, base) + suffix, value)
         except KeyError:
             raise HTTPException(status_code=400, detail=f"Unknown filter field: {key}")
         except TypeError:
@@ -509,6 +503,8 @@ def _master_request_filters(db, doctype: str, request: Request) -> dict:
                 status_code=400,
                 detail=f"Contains filter is only supported for text fields: {key}",
             )
+        if field in filters and filters[field] != parsed_value:
+            raise HTTPException(status_code=400, detail=f"Conflicting filters for {field} and its alias")
         filters[field] = parsed_value
     return filters
 
@@ -552,7 +548,7 @@ def master_filter_values(
         raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
     db = get_db()
     try:
-        values = distinct_list_values(db, doctype, field, q, limit)
+        values = distinct_list_values(db, doctype, master_field_aliases(master_type).get(field, field), q, limit)
     except KeyError:
         raise HTTPException(status_code=400, detail=f"Unknown field: {field}")
     return {"values": values}
@@ -577,7 +573,7 @@ def list_masters(
     if not doctype:
         return {"detail": f"Unknown master type: {master_type}"}
     db = get_db()
-    field_filters = _master_request_filters(db, doctype, request)
+    field_filters = _master_request_filters(db, doctype, request, master_type)
     requested_search_fields = [
         field.strip() for field in (search_fields or "").split(",") if field.strip()
     ]
@@ -647,6 +643,7 @@ def adjacent_master(
         db, doctype, master_type, request, include_disabled, search, search_fields,
     )
     window = resolve_time_filter(db, doctype, request_time_filter(request))
+    order_by = master_field_aliases(master_type).get(order_by, order_by)
     sort_column, sort_direction = _master_order(columns, order_by or (window["field"] if window else None), order)
     sort_expression = f'"{sort_column}"'
     if window and sort_column == window["field"]:

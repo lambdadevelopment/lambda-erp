@@ -79,6 +79,11 @@ def check_master_registry():
         DOCTYPE = "Gadget"
         CHILD_TABLES = {}
         PREFIX = "GAD"
+        INPUT_FIELDS = {"_set_town"}
+
+        def validate(self):
+            if self.get("_set_town"):
+                self.town = self.get("_set_town")
 
     try:
         with TestClient(app) as client:
@@ -132,6 +137,8 @@ def check_master_registry():
             # `notes` is a generic bulk column: reachable, but not searched by default.
             assert "notes" in fields["bulk_text_fields"]
             assert "notes" not in fields["default_search_fields"]
+            assert fields["field_aliases"] == {"gadget_code": "name"}, fields
+            assert {"gadget_code", "_set_town"} <= set(fields["input_fields"]), fields
 
             # --- Chat CRUD round-trip: auto-name, search, fuzzy, update. -----
             created = chat._handle_create_master(
@@ -156,6 +163,12 @@ def check_master_registry():
             by_code = chat._handle_search_masters(
                 {"master_type": "gadget", "query": "GAD-001", "fields": ["gadget_code"]})
             assert isinstance(by_code, list) and by_code and by_code[0]["name"] == "GAD-001", by_code
+            page = chat._handle_search_masters({
+                "master_type": "gadget", "filters": {"gadget_code": ["contains", "GAD-"]},
+                "order_by": "gadget_code", "result_fields": ["gadget_code", "name", "gadget_code"],
+                "include_meta": True, "limit": 1,
+            })
+            assert page["total"] == 1 and page["rows"][0]["gadget_code"] == "GAD-001", page
             # A bogus column no longer errors — it degrades to the default text
             # search (unknown names ignored), so the query still resolves.
             fallback = chat._handle_search_masters(
@@ -167,6 +180,24 @@ def check_master_registry():
             assert updated.get("status") == "Qualified", updated
             assert updated["view_url"] == "/masters/gadget/GAD-001", updated
             assert fallback[0]["view_url"] == "/masters/gadget/GAD-001", fallback
+            transient = chat._handle_update_master({"master_type": "gadget", "name": "GAD-001",
+                                                    "data": {"_set_town": "New Town"}})
+            assert transient["town"] == "New Town" and "_warning" not in transient, transient
+            unknown_write = chat._handle_update_master({"master_type": "gadget", "name": "GAD-001",
+                                                       "data": {"invented_field": "x"}})
+            assert "error" in unknown_write, unknown_write
+
+            # A plugin's real column must not be overwritten by a legacy alias.
+            services.MASTER_IDENTITY_ALIAS["gadget"] = "town"
+            try:
+                assert services.master_field_aliases("gadget") == {}
+                actual = chat._handle_update_master({"master_type": "gadget", "name": "GAD-001",
+                                                    "data": {"town": "Actual Town"}})
+                assert actual["town"] == "Actual Town", actual
+                rows = services.list_master_records("gadget", fields=["town"], filters={"town": "Actual Town"})["rows"]
+                assert rows == [{"name": "GAD-001", "town": "Actual Town"}], rows
+            finally:
+                services.MASTER_IDENTITY_ALIAS["gadget"] = "gadget_code"
 
             # Unknown master types still error cleanly.
             unknown = chat._handle_search_masters({"master_type": "widget", "query": "x"})
@@ -213,6 +244,7 @@ def check_master_registry():
         services.MASTER_NAME_DIGITS.pop("wide-gadget", None)
         services.MASTER_RANDOM_NAME_TYPES.discard("random-gadget")
         services.MASTER_METADATA.pop("gadget", None)
+        services.MASTER_IDENTITY_ALIAS.pop("gadget", None)
         services.MASTER_REFERENCE_CHECKS.pop("gadget", None)
         services.DOCUMENT_CLASSES.pop("Gadget", None)
         services.SLUG_TO_DOCTYPE.pop("gadget", None)

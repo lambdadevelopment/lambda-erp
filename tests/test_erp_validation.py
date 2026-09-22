@@ -1997,11 +1997,17 @@ def main():
     assert db.exists("Item", "SVC-SPARK"), "Item SVC-SPARK should exist in the DB"
     print(f"  item_code alias honored: code = {created['name']}, item_name = {created['item_name']}")
 
-    # An explicit `name` still wins over the alias.
-    explicit = create_master_record("item", {"name": "SVC-FLOW", "item_code": "IGNORED", "item_name": "Flow"})
-    assert explicit["name"] == "SVC-FLOW", \
-        f"Explicit name should win, got {explicit['name']!r}"
-    print(f"  Explicit name wins over alias: code = {explicit['name']}")
+    # Contradictory identifiers must be rejected before anything is written.
+    from lambda_erp.exceptions import ValidationError
+    try:
+        create_master_record("item", {"name": "SVC-FLOW", "item_code": "OTHER", "item_name": "Flow"})
+        raise AssertionError("Conflicting name and item_code should be rejected")
+    except ValidationError as err:
+        assert "Conflicting" in str(err), err
+    assert not db.exists("Item", "SVC-FLOW") and not db.exists("Item", "OTHER")
+    explicit = create_master_record("item", {"name": "SVC-FLOW", "item_code": "SVC-FLOW", "item_name": "Flow"})
+    assert explicit["name"] == explicit["item_code"] == "SVC-FLOW", explicit
+    print("  Conflicting identifiers rejected; matching identifiers accepted")
 
     # Omitting the code still auto-generates the ITEM-NNN fallback.
     auto = create_master_record("item", {"item_name": "Auto Numbered"})
@@ -2026,9 +2032,9 @@ def main():
 
     # The chat layer must NOT flag item_code as an ignored/unknown field — it
     # was honored, so a misleading "ignored" warning would just confuse the LLM.
-    from api.chat import _ignored_master_fields
-    assert _ignored_master_fields("item", {"item_code": "SVC-NEXUS", "item_name": "Nexus"}) == [], \
-        "item_code must be recognized as a valid alias, not reported as ignored"
+    from api.chat import _handle_create_master
+    chat_created = _handle_create_master({"master_type": "item", "data": {"item_code": "SVC-NEXUS", "item_name": "Nexus"}})
+    assert chat_created.get("name") == "SVC-NEXUS" and "_warning" not in chat_created, chat_created
     print(f"  Chat layer treats item_code as a valid field (no spurious warning)")
 
     # A company creates from company_name alone — its id defaults to the name

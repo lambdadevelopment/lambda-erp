@@ -169,6 +169,59 @@ def check_mcp():
                                  }}}, mgr_h).json()["result"]
         assert bad_contains["isError"] is True, bad_contains
 
+        # Reproduce the reported Item projection over the actual MCP transport.
+        for code in ("ALIAS-001", "ALIAS-002"):
+            made = api.post("/api/masters/item", headers=mgr_h, json={
+                "name": code, "item_code": code, "item_name": "Philips Everflo Pädiatrisch",
+                "standard_rate": 125, "is_stock_item": 0, "disabled": 1,
+            })
+            assert made.status_code == 200, made.text
+
+        def item_tool(tool, args, error=False):
+            result = rpc(api, {"jsonrpc": "2.0", "id": 620, "method": "tools/call",
+                               "params": {"name": tool, "arguments": {"master_type": "item", **args}}},
+                         mgr_h).json()["result"]
+            assert result["isError"] is error, result
+            return json.loads(result["content"][0]["text"])
+
+        projection = ["item_code", "item_name", "standard_rate", "is_stock_item", "stock_uom", "disabled"]
+        rows = item_tool("search_masters", {"query": "Philips Everflo Pädiatrisch",
+                                           "include_disabled": True, "result_fields": projection})
+        assert [row["item_code"] for row in rows] == ["ALIAS-001", "ALIAS-002"], rows
+        assert all(row["item_code"] == row["name"] and row["standard_rate"] == 125 for row in rows), rows
+        assert item_tool("search_masters", {"query": "Philips Everflo Pädiatrisch", "result_fields": projection}) == []
+        schema = item_tool("get_master_fields", {})
+        assert schema["field_aliases"] == {"item_code": "name"} and "item_code" not in schema["fields"], schema
+        canonical = item_tool("search_masters", {"include_disabled": True,
+                              "filters": {"name": "ALIAS-001"}, "result_fields": ["name"]})
+        assert canonical[0]["name"] == "ALIAS-001" and "item_code" not in canonical[0], canonical
+
+        rest_args = {"include_disabled": "true", "fields": "item_code,item_name",
+                     "item_code__contains": "ALIAS-", "search": "ALIAS", "search_fields": "item_code",
+                     "order_by": "item_code", "order": "desc", "limit": 1, "offset": 1}
+        rest = api.get("/api/masters/item", params=rest_args, headers=mgr_h)
+        assert rest.status_code == 200 and rest.json()["rows"][0]["item_code"] == "ALIAS-001", rest.text
+        page = item_tool("search_masters", {"include_disabled": True, "query": "ALIAS", "fields": ["item_code"],
+                         "filters": {"item_code": ["contains", "ALIAS-"]}, "order_by": "item_code", "order": "desc",
+                         "result_fields": ["item_code", "item_name"], "include_meta": True, "limit": 1, "offset": 1})
+        assert page["total"] == 2 and page["rows"][0]["item_code"] == "ALIAS-001", page
+        assert {k: v for k, v in page["rows"][0].items() if k != "view_url"} == rest.json()["rows"][0]
+        adjacent = api.get("/api/masters/item/ALIAS-002/adjacent", params=rest_args, headers=mgr_h)
+        assert adjacent.status_code == 200 and adjacent.json() == {"prev": None, "next": "ALIAS-001"}, adjacent.text
+        values = api.get("/api/masters/item/filter-values", params={"field": "item_code", "q": "ALIAS-"}, headers=mgr_h)
+        assert values.status_code == 200 and values.json()["values"] == ["ALIAS-001", "ALIAS-002"], values.text
+
+        for args in ({"result_fields": ["invented_field"]}, {"filters": {"name": "ALIAS-001", "item_code": "ALIAS-002"}}):
+            item_tool("search_masters", args, error=True)
+        conflict = api.get("/api/masters/item", params={"name": "ALIAS-001", "item_code": "ALIAS-002"}, headers=mgr_h)
+        assert conflict.status_code == 400, conflict.text
+        unknown = api.get("/api/masters/item", params={"fields": "invented_field"}, headers=mgr_h)
+        assert unknown.status_code == 400, unknown.text
+        item_tool("create_master", {"data": {"name": "ALIAS-CONFLICT", "item_code": "OTHER",
+                                              "item_name": "Must not exist"}}, error=True)
+        assert item_tool("search_masters", {"filters": {"name": "ALIAS-CONFLICT"}}) == []
+        item_tool("update_master", {"name": "ALIAS-001", "data": {"item_code": "OTHER"}}, error=True)
+
         # Bare document free-text search uses server-side defaults over both
         # REST and MCP, and get_document_fields exposes those defaults.
         from lambda_erp.database import get_db

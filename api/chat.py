@@ -38,7 +38,7 @@ from api.demo_limits import (
     limiter as demo_limiter,
 )
 from api.providers import cost_of_openai_call, cost_of_transcription
-from api.routers.masters import create_master_record, update_master_record, delete_master_record, MASTER_IDENTITY_ALIAS
+from api.routers.masters import create_master_record, update_master_record, delete_master_record
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt, now, nowdate
 
@@ -683,17 +683,17 @@ TOOLS = [
                     },
                     "filters": {
                         "type": "object",
-                        "description": "Optional deterministic filters on any real column, ANDed together and with `query`. Scalar values are exact: {\"disabled\": 0}. Text substring: {\"legal_form\": [\"contains\", \"AG\"]}. Comparisons and NULL checks use the same forms as list_documents. `contains` is only valid for schema-confirmed text fields.",
+                        "description": "Optional deterministic filters on any real column or registered alias (item_code = name), ANDed together and with `query`. Scalar values are exact: {\"disabled\": 0}. Text substring: {\"legal_form\": [\"contains\", \"AG\"]}. Comparisons and NULL checks use the same forms as list_documents. `contains` is only valid for schema-confirmed text fields.",
                         "default": {},
                     },
-                    "order_by": {"type": "string", "description": "Optional real column to sort by. Defaults to the time_filter field when supplied, otherwise name."},
+                    "order_by": {"type": "string", "description": "Optional real column or registered alias (item_code = name) to sort by. Defaults to the time_filter field when supplied, otherwise name."},
                     "order": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction (default asc).", "default": "asc"},
                     "limit": {"type": "integer", "description": "Maximum results. With time_filter/include_meta: default 50, range 1–500. Legacy simple lookups have no cap when omitted."},
                     "offset": {"type": "integer", "description": "Skip this many matching rows. Use with limit for pagination.", "default": 0},
                     "result_fields": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Optional result projection. Returns only these real columns plus name. This is separate from `fields`, which selects columns searched by `query`.",
+                        "description": "Optional result projection. Returns requested columns plus name. Registered aliases are accepted: item_code resolves to name and is also returned as item_code when requested. This is separate from `fields`, which selects columns searched by `query`.",
                     },
                     "include_disabled": {"type": "boolean", "description": "Default false (active records only). Set true to ALSO return disabled/archived records — needed to find a record you must inspect, re-enable, or reference, or to answer 'what's disabled'. Retry with this if a lookup for a record you know exists comes back empty."},
                 },
@@ -705,7 +705,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_master_fields",
-            "description": "List the available columns of a master type (customer, supplier, item, ...). Call this WHENEVER you're unsure which columns exist: before passing `fields` or `filters` to search_masters, and before building a create/update payload. Returns all fields, text fields (the columns that support `contains`), default free-text search fields, and bulk text fields that are searched only when explicitly named.",
+            "description": "List the available columns of a master type (customer, supplier, item, ...). Call this WHENEVER you're unsure which columns exist: before passing `fields`, `filters`, `result_fields` or `order_by` to search_masters, and before building a create/update payload. Returns real fields, field_aliases (e.g. item_code maps to name), text fields (the columns that support `contains`), default free-text search fields, and bulk text fields that are searched only when explicitly named.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -720,11 +720,11 @@ TOOLS = [
         "function": {
             "name": "create_master",
             "description": (
-                "Create a new master record. You MUST include the full `data` object using the EXACT field names listed below — unknown fields are silently dropped.\n\n"
-                "Every record's id is `name`. Customer/Supplier/Item/Warehouse auto-generate it (CUST-/SUPP-/ITEM-/WH-NNN) when omitted; Company/Account/Cost Center have NO auto-id, so `name` is required for them.\n\n"
+                "Create a new master record. You MUST include the full `data` object using the EXACT field names listed below — unknown fields are rejected. Call get_master_fields for the live schema, including extension fields.\n\n"
+                "Every record's id is `name`. Customer/Supplier/Item/Warehouse auto-generate it (CUST-/SUPP-/ITEM-/WH-NNN) when omitted; Company defaults it to company_name. Account/Cost Center require an explicit `name`.\n\n"
                 "**Customer fields:** name (optional custom id; auto CUST-NNN), customer_name (required), customer_group, territory, default_currency, credit_limit, website, email, phone, address, city, zip_code, country, tax_id, contact_person (named contact at the customer), contact_email, contact_phone.\n"
                 "**Supplier fields:** name (optional custom id; auto SUPP-NNN), supplier_name (required), supplier_group, default_currency, email, phone, address, city, zip_code, country, tax_id.\n"
-                "**Item fields:** item_code (the unique item code/id, e.g. \"SVC-SPARK\" — optional, may use ANY prefix, not just ITEM; auto-generated as ITEM-NNN if omitted), item_name (required, the human-readable name), item_group, stock_uom (prefer one of the units listed under 'Item Units' in the system context — exact spelling; a new unit is allowed when none fits), standard_rate, is_stock_item, default_warehouse, description.\n"
+                "**Item fields:** name (the unique item code/id, e.g. \"SVC-SPARK\" — optional, may use ANY prefix, not just ITEM; auto-generated as ITEM-NNN if omitted), item_name (required, the human-readable name), item_group, stock_uom (prefer one of the units listed under 'Item Units' in the system context — exact spelling; a new unit is allowed when none fits), standard_rate, is_stock_item, default_warehouse, description.\n"
                 "**Warehouse fields:** name (optional custom id; auto WH-NNN), warehouse_name (required), company, parent_warehouse (omit or null when not needed), address, city, zip_code, country.\n"
                 "**Company fields:** name (the company id — optional, defaults to company_name), company_name (required), default_currency, email, phone, address, city, zip_code, country, tax_id.\n"
                 "**Account fields:** name (REQUIRED — full account id, conventionally \"<account_name> - <company abbr>\", e.g. \"Marketing Expenses - LAMB\"), account_name (required), company (required), root_type (Asset/Liability/Equity/Income/Expense), report_type (\"Balance Sheet\" or \"Profit and Loss\"), account_type (e.g. Receivable, Payable, Bank, Cash, Stock, Tax), parent_account, account_currency, is_group (0/1).\n"
@@ -732,7 +732,7 @@ TOOLS = [
                 "zip_code is free text (e.g. \"8400\", \"ZH 8400\", \"59123\"), never numeric.\n"
                 "When the user names a contact person at a customer (e.g. \"Kontakt/Ansprechpartner ist Marlene Voss, 079 123 45 67\"), put the person's name in contact_person and their phone/email in contact_phone/contact_email — NOT in the company-level phone/email. There is no separate contact tool; contact-person data lives on these Customer columns, so never claim you cannot store a contact person.\n"
                 "Supplier example: {\"master_type\":\"supplier\",\"data\":{\"supplier_name\":\"Schlafteq\",\"email\":\"jacob@schlafteq.ch\",\"phone\":\"+1 555-0104\",\"address\":\"145 Harbor Rd\",\"city\":\"Seattle\",\"zip_code\":\"98101\",\"country\":\"US\",\"tax_id\":\"98-7654321\"}}\n"
-                "Item example (custom code): {\"master_type\":\"item\",\"data\":{\"item_code\":\"SVC-SPARK\",\"item_name\":\"Spark\",\"item_group\":\"Services\",\"is_stock_item\":0,\"standard_rate\":310}}\n"
+                "Item example (custom code): {\"master_type\":\"item\",\"data\":{\"name\":\"SVC-SPARK\",\"item_name\":\"Spark\",\"item_group\":\"Services\",\"is_stock_item\":0,\"standard_rate\":310}}\n"
                 "Customer example (with contact person): {\"master_type\":\"customer\",\"data\":{\"customer_name\":\"Foglio AG\",\"address\":\"Seeweg 12\",\"city\":\"Bramblewick\",\"zip_code\":\"9999\",\"contact_person\":\"Marlene Voss\",\"contact_phone\":\"079 123 45 67\"}}"
             ),
             "parameters": {
@@ -1603,6 +1603,7 @@ def _handle_get_master_fields(args):
     cls = services.DOCUMENT_CLASSES.get(doctype)
     return {
         "master_type": master_type,
+        "field_aliases": services.master_field_aliases(master_type),
         "time_filter_fields": time_filter_fields(db, doctype),
         "fields": sorted(db._get_table_columns(doctype)),
         "text_fields": sorted(db._get_text_columns(doctype)),
@@ -1613,7 +1614,7 @@ def _handle_get_master_fields(args):
         "requirements": master_requirements(master_type),
         "link_fields": dict(cls.LINK_FIELDS) if cls else MASTER_LINK_FIELDS.get(master_type, {}),
         "dynamic_link_fields": dict(cls.DYNAMIC_LINK_FIELDS) if cls else {},
-        "input_fields": sorted(set(cls.INPUT_FIELDS if cls else ()) | ({services.MASTER_IDENTITY_ALIAS[master_type]} if master_type in services.MASTER_IDENTITY_ALIAS else set())),
+        "input_fields": sorted(set(cls.INPUT_FIELDS if cls else ()) | set(services.master_field_aliases(master_type))),
     }
 
 
@@ -1661,18 +1662,13 @@ def _handle_search_masters(args):
     requested = args.get("fields") or []
     if requested:
         valid = columns
-        # The identity alias (e.g. "item_code") is what the model calls the code
-        # everywhere else — create_master, document lines, the asset/reservation
-        # prompt — so it naturally passes fields=["item_code"]. But the real
-        # column is the `name` PK; resolve the alias to `name` so that lookup
-        # works instead of erroring "None of fields ['item_code'] exist".
-        alias = MASTER_IDENTITY_ALIAS.get(master_type)
+        aliases = services.master_field_aliases(master_type)
         search_cols = []
         for c in requested:
             if c in valid:
                 search_cols.append(c)
-            elif alias and c == alias and "name" in valid:
-                search_cols.append("name")
+            elif c in aliases:
+                search_cols.append(aliases[c])
         search_cols = sorted(set(search_cols))
         # Nothing resolved (all names unknown) — degrade to the default text
         # search rather than erroring: the value the caller meant is almost
@@ -1719,22 +1715,6 @@ def _handle_search_masters(args):
     return _fuzzy_master_search(db, doctype, search_cols, query, filter_disabled, limit=limit)
 
 
-def _ignored_master_fields(master_type: str, data: dict) -> list[str]:
-    """Return field names in `data` that aren't valid columns on the master's table."""
-    entry = services.MASTER_TABLES.get(master_type)
-    if not entry:
-        return []
-    doctype, _ = entry
-    from lambda_erp.database import get_db
-    valid = set(get_db()._get_table_columns(doctype))
-    # item_code is a recognized alias for the Item's `name` PK, not an unknown
-    # field — don't warn that it was ignored when it was actually honored.
-    alias = MASTER_IDENTITY_ALIAS.get(master_type)
-    if alias:
-        valid.add(alias)
-    return [k for k in data.keys() if k not in valid]
-
-
 @with_record_view_urls("master_type", master=True)
 def _handle_create_master(args):
     master_type = args["master_type"]
@@ -1745,20 +1725,12 @@ def _handle_create_master(args):
     if master_type == "warehouse" and data.get("parent_warehouse") in ("", "-", "none", "None", None):
         data = {k: v for k, v in data.items() if k != "parent_warehouse"}
 
-    ignored = _ignored_master_fields(master_type, data)
-
     try:
         result = dict(create_master_record(master_type, data))
     except Exception as exc:
         detail = getattr(exc, "detail", None)
         return {"error": detail or str(exc)}
 
-    if ignored:
-        result["_warning"] = (
-            f"These fields were IGNORED because they are not valid columns on the {master_type}: "
-            f"{ignored}. Call get_master_fields(master_type=\"{master_type}\") to see the real columns, "
-            f"then retry mapping those values onto valid field names."
-        )
     return result
 
 
@@ -1775,19 +1747,12 @@ def _handle_update_master(args):
     if master_type == "warehouse" and data.get("parent_warehouse") in ("", "-", "none", "None", None):
         data = {k: v for k, v in data.items() if k != "parent_warehouse"}
 
-    ignored = _ignored_master_fields(master_type, data)
-
     try:
         result = dict(update_master_record(master_type, name, data))
     except Exception as exc:
         detail = getattr(exc, "detail", None)
         return {"error": detail or str(exc)}
 
-    if ignored:
-        result["_warning"] = (
-            f"These fields were IGNORED because they are not valid columns on the {master_type}: "
-            f"{ignored}. Retry the call using the correct field names."
-        )
     return result
 
 
@@ -2838,8 +2803,8 @@ When creating a payment-entry, the `data` object MUST include:
 
 ## Master keys vs display names — CRITICAL
 
-Every master record has a primary key (the `name` column) and a human-readable display field:
-- **Item:** key = `item_code` (e.g. `SVC-005`), display = `item_name` (e.g. "Project Management")
+Every master record has a primary key (the `name` column) and a human-readable display field. `get_master_fields` lists real columns separately from `field_aliases`. Prefer canonical `name` in new master calls and result projections; aliases remain for compatibility. Registered aliases work in master search fields, filters, sorting and result projection; requesting an alias returns it alongside `name`. Unknown result fields are errors:
+- **Item:** stored key = `name` (e.g. `SVC-005`); `item_code` is its registered alias and the item-reference field on document lines; display = `item_name` (e.g. "Project Management")
 - **Customer:** key = `name` (e.g. `CUST-007`), display = `customer_name` (e.g. "Redstone Automotive")
 - **Supplier:** key = `name` (e.g. `SUPP-003`), display = `supplier_name`
 - **Warehouse / Company / Account / Cost Center:** key = `name`{extension_master_keys}

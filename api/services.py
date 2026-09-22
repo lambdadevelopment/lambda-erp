@@ -1066,6 +1066,27 @@ def _master_sort_sql(column: str, direction: str) -> str:
     return sql
 
 
+def master_field_aliases(master_type: str) -> dict[str, str]:
+    """Registered virtual fields only; a real column always keeps its meaning."""
+    entry = MASTER_TABLES.get(master_type)
+    if not entry:
+        return {}
+    columns = get_db()._get_table_columns(entry[0])
+    alias = MASTER_IDENTITY_ALIAS.get(master_type)
+    return {alias: "name"} if alias and alias not in columns and "name" in columns else {}
+
+
+def resolve_master_filters(master_type: str, filters: dict) -> dict:
+    aliases = master_field_aliases(master_type)
+    resolved = {}
+    for key, value in filters.items():
+        column = aliases.get(key, key)
+        if column in resolved and resolved[column] != value:
+            raise ValueError(f"Conflicting filters for {column} and its alias")
+        resolved[column] = value
+    return resolved
+
+
 def list_master_records(
     master_type: str,
     *,
@@ -1095,11 +1116,12 @@ def list_master_records(
     window = resolve_time_filter(db, doctype, time_filter)
     columns = db._get_table_columns(doctype)
     text_fields = sorted(db._get_text_columns(doctype))
+    aliases = master_field_aliases(master_type)
 
-    db_filters = {
+    db_filters = resolve_master_filters(master_type, {
         key: value for key, value in (filters or {}).items()
         if value is not None and value != ""
-    }
+    })
     unknown_filters = [key for key in db_filters if key not in columns]
     if unknown_filters:
         raise ValueError(
@@ -1114,7 +1136,7 @@ def list_master_records(
         where_parts.insert(0, '"disabled" = ?')
         params.insert(0, 0)
 
-    requested_search_fields = list(search_fields or [])
+    requested_search_fields = list(dict.fromkeys(aliases.get(field, field) for field in (search_fields or [])))
     unknown_search = [field for field in requested_search_fields if field not in columns]
     if unknown_search:
         raise ValueError(f"Unknown search field(s): {', '.join(unknown_search)}")
@@ -1126,14 +1148,15 @@ def list_master_records(
         where_parts.append(search_where)
         params.extend(search_params)
 
-    sort_column = order_by or "name"
+    sort_column = aliases.get(order_by, order_by) or "name"
     if sort_column not in columns:
         raise ValueError(f"Unknown order_by column for {master_type}: {sort_column}")
     direction = str(order).lower()
     if direction not in ("asc", "desc"):
         raise ValueError("order must be 'asc' or 'desc'")
 
-    requested_fields = list(fields or [])
+    requested_aliases = {field: aliases[field] for field in (fields or []) if field in aliases}
+    requested_fields = list(dict.fromkeys(aliases.get(field, field) for field in (fields or [])))
     unknown_fields = [field for field in requested_fields if field not in columns]
     if unknown_fields:
         raise ValueError(f"Unknown result field(s): {', '.join(unknown_fields)}")
@@ -1169,6 +1192,9 @@ def list_master_records(
         query += f" OFFSET {max(0, int(offset))}"
 
     rows = db.sql(query, params)
+    for row in rows:
+        for alias, column in requested_aliases.items():
+            row[alias] = row[column]
     result = page_metadata(rows, total, limit, max(0, int(offset)), window, unknown) if total is not None else {"rows": rows}
     return {**result, "text_fields": text_fields}
 

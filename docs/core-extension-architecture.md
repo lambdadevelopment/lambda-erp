@@ -82,14 +82,24 @@ One call makes the type first-class on every master surface:
 without an explicit `name`; `name_digits=4` produces `GAD-0001`. With
 `random_name=True`, ids use an opaque
 `GAD-<hex>` suffix instead; use this for high-volume reference tables where a
-restart-time sequential suffix scan would be inappropriate. `identity_alias`
-exposes the `name` PK under a
-friendlier key, like Item's `item_code`. `description`/`fields` add deployment
+restart-time sequential suffix scan would be inappropriate. `name` is the
+canonical primary key for every master. `identity_alias` retains compatibility
+with alternative keys such as Item's `item_code`: the shared master service
+resolves these aliases in search fields, filters, sorting and result projections.
+An explicitly projected alias is returned alongside `name`; ordinary reads
+retain their canonical column names. `get_master_fields` (also REST `/fields`)
+exposes the mapping as `field_aliases`. Real columns always take precedence
+over alias registrations. Writes accept the alias, but contradictory `name`
+and alias values are rejected. Document references such as an order line's
+`item_code` remain real fields and are not renamed.
+
+`description`/`fields` add deployment
 guidance to the chat prompt. `reference_checks` gives plugin masters the same
 safe-delete behavior as core masters: a referenced row is disabled when it has
-a `disabled` column, otherwise deletion returns 409. Caveat: chat/REST master
-writes are plain row CRUD (a registered Document class's `validate()` does not
-run on this path).
+a `disabled` column, otherwise deletion returns 409. Chat/REST master writes
+use a registered Document class's validation and declared transient
+`INPUT_FIELDS`; otherwise the strict master row validation applies. Unknown
+write fields are rejected, not silently discarded.
 
 The frontend has a parallel build-time `registerMaster(config)` registry for
 generic master pages. It configures fields, lightweight list projection,
