@@ -14,7 +14,11 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, getdate, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.controllers.defaults import set_default_currency
+from lambda_erp.controllers.defaults import (
+    set_default_currency, apply_external_source_defaults,
+    derived_pricing_fields, derived_line_pricing_fields,
+)
+from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.exceptions import ValidationError
 
 class PurchaseOrder(Document):
@@ -49,13 +53,14 @@ class PurchaseOrder(Document):
         if not self.transaction_date:
             self.transaction_date = nowdate()
 
+        apply_external_source_defaults(self)
         self._set_supplier_name()
+        set_default_currency(self, "Supplier", "supplier")
         self._set_item_defaults()
 
         from lambda_erp.controllers.pricing_rule import apply_pricing_rules
         apply_pricing_rules(self)
 
-        set_default_currency(self, "Supplier", "supplier")
 
         calculate_taxes_and_totals(self)
 
@@ -65,19 +70,8 @@ class PurchaseOrder(Document):
             self.supplier_name = db.get_value("Supplier", self.supplier, "supplier_name")
 
     def _set_item_defaults(self):
-        db = get_db()
-        for item in self.get("items"):
-            if item.get("item_code") and not item.get("item_name"):
-                item_data = db.get_value(
-                    "Item", item["item_code"],
-                    ["item_name", "description", "stock_uom", "standard_rate"]
-                )
-                if item_data:
-                    item["item_name"] = item_data.item_name
-                    item["description"] = item.get("description") or item_data.description
-                    item["uom"] = item.get("uom") or item_data.stock_uom
-                    if item.get("rate") is None and item.get("price_list_rate") is None:
-                        item["rate"] = flt(item_data.standard_rate)
+        """Names, units and unsupplied rates. See controllers/item_price.py."""
+        set_item_defaults(self, "Supplier", "supplier")
 
     def _update_ordered_qty(self, direction=1):
         from lambda_erp.workflow import refresh_order_progress
@@ -101,6 +95,7 @@ def make_purchase_invoice(purchase_order_name):
         raise ValidationError("Purchase Order must be submitted before creating Purchase Invoice")
 
     pi = PurchaseInvoice(
+        **derived_pricing_fields(po, is_return=False),
         supplier=po.supplier,
         supplier_name=po.supplier_name,
         company=po.company,
@@ -116,6 +111,7 @@ def make_purchase_invoice(purchase_order_name):
             continue
 
         pi.append("items", _dict(
+            **derived_line_pricing_fields(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),

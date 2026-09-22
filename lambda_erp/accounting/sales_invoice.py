@@ -18,7 +18,11 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, getdate, nowdate, add_days
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.controllers.defaults import set_default_currency
+from lambda_erp.controllers.defaults import (
+    set_default_currency, apply_external_source_defaults,
+    derived_pricing_fields, derived_line_pricing_fields,
+)
+from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 from lambda_erp.stock.stock_ledger import (
     make_sl_entries,
@@ -81,10 +85,13 @@ class SalesInvoice(Document):
         if not self.posting_date:
             self.posting_date = nowdate()
 
+        apply_external_source_defaults(self)
         self._set_customer_name()
         self._set_missing_accounts()
+        set_default_currency(self, "Customer", "customer")
         self._set_item_defaults()
         self._validate_no_double_shipment()
+        self._validate_external_source_stock()
 
         if self.is_return:
             self._validate_return()
@@ -92,7 +99,6 @@ class SalesInvoice(Document):
         from lambda_erp.controllers.pricing_rule import apply_pricing_rules
         apply_pricing_rules(self)
 
-        set_default_currency(self, "Customer", "customer")
 
         calculate_taxes_and_totals(self)
 
@@ -133,19 +139,27 @@ class SalesInvoice(Document):
                     item["cost_center"] = default_cc
 
     def _set_item_defaults(self):
-        db = get_db()
-        for item in self.get("items"):
-            if item.get("item_code") and not item.get("item_name"):
-                item_data = db.get_value(
-                    "Item", item["item_code"],
-                    ["item_name", "description", "stock_uom", "standard_rate"]
-                )
-                if item_data:
-                    item["item_name"] = item_data.item_name
-                    item["description"] = item.get("description") or item_data.description
-                    item["uom"] = item.get("uom") or item_data.stock_uom
-                    if item.get("rate") is None and item.get("price_list_rate") is None:
-                        item["rate"] = flt(item_data.standard_rate)
+        """Names, units and unsupplied rates. See controllers/item_price.py."""
+        set_item_defaults(self, "Customer", "customer")
+
+    def _validate_external_source_stock(self):
+        """An upstream system's stock movement already accounts for the goods.
+
+        `_validate_no_double_shipment` catches the same mistake on the Sales
+        Order -> Delivery Note path by looking up `sales_order_item`. A document
+        created from an external system has no such link, so that lookup finds
+        nothing and passes. Without this guard the upstream issue and this
+        document's own update_stock each decrement the same quantity.
+        """
+        if not self._data.get("external_source"):
+            return
+        if flt(self.get("update_stock")):
+            raise ValidationError(
+                f"Cannot submit with update_stock=1: this document is sourced "
+                f"from {self._data['external_source']}, which already recorded "
+                f"the stock movement. Use this invoice as a bill only and "
+                f"record any required stock movement in a separate stock document."
+            )
 
     def _validate_no_double_shipment(self):
         """Block update_stock=1 when the referenced Sales Order already has a
@@ -338,15 +352,14 @@ class SalesInvoice(Document):
         )
 
         # 2. Credit: Income accounts (per item)
-        #    In the reference implementation, items with the same income_account are grouped
+        # Group only lines with the same account AND cost centre.
         income_accounts = {}
         for item in self.get("items"):
             account = item.get("income_account")
-            if account not in income_accounts:
-                income_accounts[account] = 0
-            income_accounts[account] += flt(item.get("net_amount", 0))
+            key = (account, item.get("cost_center"))
+            income_accounts[key] = income_accounts.get(key, 0) + flt(item.get("net_amount", 0))
 
-        for account, amount in income_accounts.items():
+        for (account, cost_center), amount in income_accounts.items():
             gl_entries.append(
                 _dict(
                     account=account,
@@ -354,7 +367,7 @@ class SalesInvoice(Document):
                     credit_in_account_currency=flt(amount, 2),
                     debit=0,
                     debit_in_account_currency=0,
-                    cost_center=self.get("items")[0].get("cost_center") if self.get("items") else None,
+                    cost_center=cost_center,
                     voucher_type=self.DOCTYPE,
                     voucher_no=self.name,
                     posting_date=self.posting_date,
@@ -373,7 +386,7 @@ class SalesInvoice(Document):
                         credit_in_account_currency=flt(tax["tax_amount"], 2),
                         debit=0,
                         debit_in_account_currency=0,
-                        cost_center=self.get("items")[0].get("cost_center") if self.get("items") else None,
+                        cost_center=get_db().get_value("Company", self.company, "default_cost_center"),
                         voucher_type=self.DOCTYPE,
                         voucher_no=self.name,
                         posting_date=self.posting_date,
@@ -404,6 +417,7 @@ def make_sales_return(sinv_name):
         raise ValidationError("Cannot create a return against a return")
 
     return_inv = SalesInvoice(
+        **derived_pricing_fields(original, is_return=True),
         customer=original.customer,
         company=original.company,
         currency=original.get("currency") or "USD",
@@ -421,6 +435,7 @@ def make_sales_return(sinv_name):
     from lambda_erp.workflow import returnable_rows
     for item in returnable_rows(original):
         return_inv.append("items", _dict(
+            **derived_line_pricing_fields(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),

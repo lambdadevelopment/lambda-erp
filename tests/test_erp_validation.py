@@ -3039,6 +3039,178 @@ def main():
             assert db.get_value('Sales Invoice', debt.name, 'outstanding_amount') == 100
     debt.cancel()
 
+    print_header("REGRESSION — price lists, rule matching, and externally-priced documents")
+    from lambda_erp.exceptions import ValidationError as _PErr
+    from lambda_erp.accounting.sales_invoice import SalesInvoice as _SI
+    from lambda_erp.accounting.pos_invoice import POSInvoice as _POS
+    from lambda_erp.controllers.pricing_rule import PricingRule as _Rule
+    from lambda_erp.controllers.item_price import PriceList as _PL, ItemPrice as _IP
+
+    # A rented machine, priced per hour. standard_rate is the fallback floor.
+    db.insert("Item", _dict(name="RENT-EXC3", item_name="3t Excavator (hourly)",
+                            stock_uom="Hour", standard_rate=200, is_stock_item=0,
+                            item_group="Rental"))
+    db.insert("Customer", _dict(name="CUST-BAU", customer_name="BauRent Example",
+                                customer_group="Rental", territory="Ost"))
+
+    # --- Layer 1: base price ------------------------------------------------
+    # No price list yet: the line falls through to Item.standard_rate, which is
+    # exactly how pricing behaved before this layer existed.
+    si = _SI(company='Lambda Corp', customer='CUST-BAU',
+             items=[_dict(item_code='RENT-EXC3', qty=10)]).save()
+    assert si.items[0]['rate'] == 200, si.items[0]['rate']
+    si.discard()
+
+    _PL(name='Standard Selling', price_list_name='Standard Selling',
+        currency='USD', selling=1).save()
+    _IP(item_code='RENT-EXC3', price_list='Standard Selling', rate=180).save()
+    db.set_value('Customer', 'CUST-BAU', 'default_price_list', 'Standard Selling')
+
+    si = _SI(company='Lambda Corp', customer='CUST-BAU',
+             items=[_dict(item_code='RENT-EXC3', qty=10)]).save()
+    assert si.items[0]['rate'] == 180, si.items[0]['rate']
+    assert si.items[0]['price_list_rate'] == 180
+    si.discard()
+
+    # A row naming the party beats the list price; a volume break beats both.
+    _IP(item_code='RENT-EXC3', price_list='Standard Selling',
+        customer='CUST-BAU', rate=165).save()
+    si = _SI(company='Lambda Corp', customer='CUST-BAU',
+             items=[_dict(item_code='RENT-EXC3', qty=10)]).save()
+    assert si.items[0]['rate'] == 165, si.items[0]['rate']
+    si.discard()
+
+    _IP(item_code='RENT-EXC3', price_list='Standard Selling',
+        customer='CUST-BAU', min_qty=40, rate=150).save()
+    si = _SI(company='Lambda Corp', customer='CUST-BAU',
+             items=[_dict(item_code='RENT-EXC3', qty=40)]).save()
+    assert si.items[0]['rate'] == 150, si.items[0]['rate']
+    si.discard()
+
+    # Currency is matched, never converted: a list quoted in another currency
+    # does not price this document, so it falls back to standard_rate.
+    _PL(name='EUR Selling', price_list_name='EUR Selling',
+        currency='EUR', selling=1).save()
+    _IP(item_code='RENT-EXC3', price_list='EUR Selling', rate=99).save()
+    db.set_value('Customer', 'CUST-BAU', 'default_price_list', 'EUR Selling')
+    si = _SI(company='Lambda Corp', customer='CUST-BAU',
+             items=[_dict(item_code='RENT-EXC3', qty=1)]).save()
+    assert si.items[0]['rate'] == 200, si.items[0]['rate']
+    si.discard()
+    db.set_value('Customer', 'CUST-BAU', 'default_price_list', 'Standard Selling')
+
+    # --- Layer 2: rules match on more than item_code ------------------------
+    # A customer-group rule the old engine could not express at all.
+    _Rule(name='RULE-GROUP', title='Rental group discount', apply_on='Item Code', item_code='RENT-EXC3',
+          applicable_for='Customer Group', customer_group='Rental', selling=1,
+          rate_or_discount='Discount Percentage', discount_percentage=10).save()
+    si = _SI(company='Lambda Corp', customer='CUST-BAU',
+             items=[_dict(item_code='RENT-EXC3', qty=10)]).save()
+    # 10% off the resolved customer price, not off an undefined base.
+    assert si.items[0]['rate'] == 148.5, si.items[0]['rate']
+    assert si.items[0]['pricing_rule'] == 'RULE-GROUP'
+    si.discard()
+
+    # A rule naming the customer outranks one naming their group, even though
+    # both sit at the default priority.
+    _Rule(name='RULE-CUSTOMER', title='BauRent standing rate', apply_on='Item Code', item_code='RENT-EXC3',
+          applicable_for='Customer', customer='CUST-BAU', selling=1,
+          rate_or_discount='Rate', rate=140).save()
+    si = _SI(company='Lambda Corp', customer='CUST-BAU',
+             items=[_dict(item_code='RENT-EXC3', qty=10)]).save()
+    assert si.items[0]['rate'] == 140, si.items[0]['rate']
+    assert si.items[0]['pricing_rule'] == 'RULE-CUSTOMER'
+    si.discard()
+
+    # Priority is the deliberate override and beats specificity.
+    _Rule(name='RULE-CAMPAIGN', title='Autumn campaign', apply_on='Item Group', item_group='Rental',
+          selling=1, priority=10,
+          rate_or_discount='Rate', rate=120).save()
+    si = _SI(company='Lambda Corp', customer='CUST-BAU',
+             items=[_dict(item_code='RENT-EXC3', qty=10)]).save()
+    assert si.items[0]['rate'] == 120, si.items[0]['rate']
+    assert si.items[0]['pricing_rule'] == 'RULE-CAMPAIGN'
+    si.discard()
+
+    # The stamp must survive the round-trip — it used to be dropped on insert.
+    kept = _SI(company='Lambda Corp', customer='CUST-BAU',
+               items=[_dict(item_code='RENT-EXC3', qty=1)]).save()
+    assert db.get_all('Sales Invoice Item', filters={'parent': kept.name},
+                      fields=['pricing_rule'])[0]['pricing_rule'] == 'RULE-CAMPAIGN'
+    kept.discard()
+
+    # --- Externally-priced documents keep their rate ------------------------
+    # This is the case that motivated the flag: an upstream system computed a
+    # contractual charge, and validation must not re-derive it.
+    agreed = _SI(company='Lambda Corp', customer='CUST-BAU', ignore_pricing_rule=1,
+                 items=[_dict(item_code='RENT-EXC3', qty=12, rate=145)]).save()
+    assert agreed.items[0]['rate'] == 145, agreed.items[0]['rate']
+    assert agreed.grand_total == 1740, agreed.grand_total
+    # Re-saving the draft must not let the rule back in.
+    agreed.save()
+    assert agreed.items[0]['rate'] == 145, agreed.items[0]['rate']
+    agreed.discard()
+
+    # Without the flag the same document is silently repriced — the bug.
+    exposed = _SI(company='Lambda Corp', customer='CUST-BAU',
+                  items=[_dict(item_code='RENT-EXC3', qty=12, rate=145)]).save()
+    assert exposed.items[0]['rate'] == 120, exposed.items[0]['rate']
+    exposed.discard()
+
+    # A per-line flag covers mixed documents.
+    mixed = _SI(company='Lambda Corp', customer='CUST-BAU', items=[
+        _dict(item_code='RENT-EXC3', qty=1, rate=145, ignore_pricing_rule=1),
+        _dict(item_code='RENT-EXC3', qty=1, rate=145),
+    ]).save()
+    assert mixed.items[0]['rate'] == 145 and mixed.items[1]['rate'] == 120
+    mixed.discard()
+
+    # external_source implies it, so an integration cannot forget to set it.
+    sourced = _SI(company='Lambda Corp', customer='CUST-BAU',
+                  external_source='findmee', external_reference='EXP-001',
+                  items=[_dict(item_code='RENT-EXC3', qty=12, rate=145)]).save()
+    assert sourced.items[0]['rate'] == 145, sourced.items[0]['rate']
+    # ... but an explicit 0 still wins, for upstream identity with local pricing.
+    local = _SI(company='Lambda Corp', customer='CUST-BAU',
+                external_source='findmee', external_reference='EXP-002',
+                ignore_pricing_rule=0,
+                items=[_dict(item_code='RENT-EXC3', qty=12, rate=145)]).save()
+    assert local.items[0]['rate'] == 120, local.items[0]['rate']
+    local.discard()
+
+    # An externally-sourced document must not move stock a second time.
+    try:
+        _SI(company='Lambda Corp', customer='CUST-BAU', update_stock=1,
+            external_source='findmee', external_reference='EXP-003',
+            items=[_dict(item_code='ITEM-001', qty=1, rate=10,
+                         warehouse='Main Warehouse - LAMB')]).save()
+        raise AssertionError('externally-sourced documents must not update stock')
+    except _PErr as err:
+        assert 'already recorded the stock movement' in str(err), str(err)
+    sourced.discard()
+
+    # A buying document must not price itself from a selling list. Layer 1 is
+    # wired for both sides but only selling lists are configured in practice,
+    # so a purchase invoice falls through to standard_rate.
+    from lambda_erp.accounting.purchase_invoice import PurchaseInvoice as _PI
+    db.insert("Supplier", _dict(name="SUPP-RENT", supplier_name="Rental Supply"))
+    db.set_value('Company', 'Lambda Corp', 'default_price_list', 'Standard Selling')
+    pi = _PI(company='Lambda Corp', supplier='SUPP-RENT',
+             items=[_dict(item_code='RENT-EXC3', qty=1)]).save()
+    assert pi.items[0]['rate'] == 200, pi.items[0]['rate']
+    pi.discard()
+    db.set_value('Company', 'Lambda Corp', 'default_price_list', None)
+
+    # --- POS applies pricing rules at all --------------------------------
+    # It was the only selling document that skipped them entirely, so the same
+    # item rang up at base rate over the counter and at the discounted rate on
+    # an invoice.
+    pos_named = _POS(company='Lambda Corp', customer='CUST-BAU',
+                     items=[_dict(item_code='RENT-EXC3', qty=1)],
+                     payments=[_dict(mode_of_payment='Cash', account='Cash - LAMB', amount=120)]).save()
+    assert pos_named.items[0]['rate'] == 120, pos_named.items[0]['rate']
+    pos_named.discard()
+
     print_header("TRIAL BALANCE")
 
     all_accounts = db.get_all(

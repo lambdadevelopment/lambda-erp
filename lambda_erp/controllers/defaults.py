@@ -2,6 +2,7 @@
 
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt
+from lambda_erp.exceptions import ValidationError
 from lambda_erp.controllers.currency import get_exchange_rate
 
 
@@ -49,3 +50,65 @@ def set_default_currency(doc, party_type=None, party_field=None):
         doc_date = doc._data.get("posting_date") or doc._data.get("transaction_date")
         rate = get_exchange_rate(currency, base_currency or "USD", doc_date)
     doc._data["conversion_rate"] = rate
+
+
+def apply_external_source_defaults(doc):
+    """Safe defaults for a document owned by an upstream system.
+
+    `external_source` means another system already decided this document's
+    content: it computed the rates under its own contract, and if goods moved
+    it recorded that movement in its own ledger. So pricing rules are off by
+    default here — re-deriving a rate that was already agreed is how an
+    integration silently bills a different number than the source system shows.
+
+    An explicit `ignore_pricing_rule: 0` still wins, for the caller that wants
+    upstream identity but local pricing.
+    """
+    for field in ("external_source", "external_reference"):
+        value = doc.get(field)
+        if value is not None and (not isinstance(value, str) or not value.strip() or value != value.strip()):
+            raise ValidationError(f"{field} must be a nonblank string without surrounding whitespace")
+    if doc.get("external_reference") and not doc.get("external_source"):
+        raise ValidationError("external_reference requires external_source")
+    if doc._persisted:
+        stored = get_db().get_value(doc.DOCTYPE, doc.name, ["external_source", "external_reference"])
+        for field in ("external_source", "external_reference"):
+            if stored and stored.get(field) and stored[field] != doc.get(field):
+                raise ValidationError(f"Cannot change {field} after it has been assigned")
+    seen = set()
+    for item in doc.get("items") or []:
+        ref = item.get("external_line_reference")
+        if ref is None:
+            continue
+        if not isinstance(ref, str) or not ref.strip() or ref != ref.strip():
+            raise ValidationError("external_line_reference must be a nonblank string without surrounding whitespace")
+        if ref in seen:
+            raise ValidationError("Duplicate external_line_reference in this document")
+        seen.add(ref)
+    if not doc._data.get("external_source"):
+        return
+    if doc._data.get("ignore_pricing_rule") is None:
+        doc._data["ignore_pricing_rule"] = 1
+    if doc.DOCTYPE in {"Sales Invoice", "Purchase Invoice", "POS Invoice"} and doc.get("update_stock") is None:
+        # POS's database default is 1. Persist the bill-only policy explicitly
+        # so loading or returning this document cannot enable stock movement.
+        doc._data["update_stock"] = 0
+
+
+def derived_pricing_fields(source, *, is_return=False):
+    """Carry price/stock policy, but never reuse an imported document identity.
+
+    Partial invoices and credits are new documents. Their connector must assign
+    a new external_reference; external_source alone retains the stock guard.
+    Returns reverse historical prices, regardless of today's pricing rules.
+    """
+    return {
+        "ignore_pricing_rule": 1 if is_return else source.get("ignore_pricing_rule"),
+        "external_source": source.get("external_source"),
+    }
+
+
+def derived_line_pricing_fields(item):
+    return {field: item.get(field) for field in (
+        "ignore_pricing_rule", "external_line_reference", "pricing_rule",
+    )}

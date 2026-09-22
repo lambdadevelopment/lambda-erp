@@ -23,6 +23,7 @@ from lambda_erp.stock.delivery_note import DeliveryNote, make_delivery_note, mak
 from lambda_erp.stock.purchase_receipt import PurchaseReceipt, make_purchase_receipt, make_purchase_receipt_return
 from lambda_erp.accounting.pos_invoice import POSInvoice
 from lambda_erp.controllers.pricing_rule import PricingRule
+from lambda_erp.controllers.item_price import PriceList, ItemPrice
 from lambda_erp.accounting.budget import Budget
 from lambda_erp.accounting.subscription import Subscription
 from lambda_erp.accounting.bank_transaction import BankTransaction
@@ -47,6 +48,8 @@ DOCUMENT_CLASSES = {
     "Purchase Receipt": PurchaseReceipt,
     "POS Invoice": POSInvoice,
     "Pricing Rule": PricingRule,
+    "Price List": PriceList,
+    "Item Price": ItemPrice,
     "Budget": Budget,
     "Subscription": Subscription,
     "Bank Transaction": BankTransaction,

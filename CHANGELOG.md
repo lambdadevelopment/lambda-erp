@@ -13,6 +13,61 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-22
+
+- Add a Price List / Item Price layer for base prices. Resolution runs explicit
+  rate, then a party-specific Item Price, then the list price, then
+  `Item.standard_rate`, so deployments with no price lists configured price
+  exactly as before. Price lists are per-currency and are matched, never
+  converted, and a list only applies to the side of the business it is marked
+  for. `Customer.default_price_list` now resolves against real data instead of
+  pointing at nothing, and `price_list_rate` is populated, which gives
+  percentage discounts a defined base.
+- Match Pricing Rules on more than `item_code`: `apply_on` (item code or item
+  group), `applicable_for` (customer, customer group, territory or supplier),
+  a maximum quantity and an amount band. Among matching rules the highest
+  priority wins, then the most specific match, so a rule naming one customer
+  beats one naming their group without anyone setting a priority. Existing
+  rules are backfilled to their current matching behaviour.
+- Let a document declare `ignore_pricing_rule` when its rates were agreed
+  elsewhere. Previously the only way to protect a supplied rate was to send
+  zero, which the engine reads as an explicit free line, and because pricing
+  runs inside `validate()` the overwrite repeated on every later draft save.
+  A per-item flag covers documents where only some lines are externally priced.
+- Record `external_source` / `external_reference` on documents and
+  `external_line_reference` on their lines, with a unique index so an
+  integration retrying an uncertain outcome finds the existing document instead
+  of creating a second one. An externally-sourced document defaults to
+  `ignore_pricing_rule` and refuses `update_stock=1`, since the upstream system
+  already recorded the goods movement — the existing double-shipment guard only
+  sees the sales-order-to-delivery-note path and cannot catch that case.
+- Apply pricing rules to POS Invoice, which was the only selling document that
+  skipped them, and derive a document's trade side from its type rather than
+  from whether a party field happens to be populated.
+- Persist the `pricing_rule` stamp on transaction lines. The engine has always
+  set it, but no line table had the column so it was silently dropped on insert.
+- Replace the six near-identical `_set_item_defaults` implementations with one
+  shared resolver. Rate resolution no longer depends on whether the caller
+  supplied `item_name`.
+
+- Add Price List and Item Price screens, customer/company default-list selectors,
+  and the expanded Pricing Rule form. A blank transaction rate resolves on save;
+  an explicit zero remains a free line.
+- Preserve pricing protection through quotation/order/invoice conversions and
+  historical prices on sales, purchase and POS returns. Derived documents keep
+  source and line provenance but require a fresh external document reference.
+- Apply external-source defaults to quotations and orders as well as invoices;
+  persist bill-only stock policy even for POS's stock-updating database default.
+- Preserve income cost centres per line in Sales Invoice and POS Invoice GL
+  posting, returns and cancellation. Historical ledger entries are unchanged.
+- Reject malformed/changed external document identities and duplicate line
+  identities. Reconcile external unique indexes in migration 36 and fail startup
+  visibly on failed migrations from version 32 onwards.
+- Keep discount bases stable across repeated saves, and test pricing, provenance,
+  cost centres and legacy-schema upgrades against SQLite and PostgreSQL.
+- Document the ERP primitives and remaining connector responsibilities in
+  `docs/pricing-and-external-sources.md`.
+
 ## [1.0.2] - 2026-09-15
 
 - Add shared relative/absolute timestamp filters to document and master lists,

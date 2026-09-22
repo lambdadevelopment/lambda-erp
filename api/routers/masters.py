@@ -67,6 +67,8 @@ DELETE_REFERENCE_CHECKS = {
         ('SELECT 1 FROM "POS Invoice" WHERE customer = ? LIMIT 1', "POS invoice"),
         ('SELECT 1 FROM "Payment Entry" WHERE party_type = \'Customer\' AND party = ? LIMIT 1', "payment entry"),
         ('SELECT 1 FROM "Subscription" WHERE party_type = \'Customer\' AND party = ? LIMIT 1', "subscription"),
+        ('SELECT 1 FROM "Item Price" WHERE customer = ? LIMIT 1', "item price"),
+        ('SELECT 1 FROM "Pricing Rule" WHERE customer = ? LIMIT 1', "pricing rule"),
     ],
     "supplier": [
         ('SELECT 1 FROM "Purchase Order" WHERE supplier = ? LIMIT 1', "purchase order"),
@@ -88,6 +90,7 @@ DELETE_REFERENCE_CHECKS = {
         ('SELECT 1 FROM "Stock Ledger Entry" WHERE item_code = ? LIMIT 1', "stock ledger entry"),
         ('SELECT 1 FROM "Bin" WHERE item_code = ? LIMIT 1', "bin"),
         ('SELECT 1 FROM "Pricing Rule" WHERE item_code = ? LIMIT 1', "pricing rule"),
+        ('SELECT 1 FROM "Item Price" WHERE item_code = ? LIMIT 1', "item price"),
         ('SELECT 1 FROM "Subscription Plan" WHERE item_code = ? LIMIT 1', "subscription plan"),
         ('SELECT 1 FROM "Asset" WHERE item_code = ? LIMIT 1', "asset"),
         ('SELECT 1 FROM "Reservation" WHERE item_code = ? LIMIT 1', "reservation"),
@@ -213,6 +216,8 @@ def _normalize_master_data(data: dict) -> dict:
 
 
 MASTER_LINK_FIELDS = {
+    'customer': {'default_price_list': 'Price List'},
+    'company': {'default_price_list': 'Price List'},
     'item': {'default_warehouse': 'Warehouse'},
     'warehouse': {'company': 'Company', 'account': 'Account', 'parent_warehouse': 'Warehouse'},
     'account': {'company': 'Company', 'parent_account': 'Account'},

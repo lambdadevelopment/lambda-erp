@@ -15,7 +15,11 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, getdate, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.controllers.defaults import set_default_currency
+from lambda_erp.controllers.defaults import (
+    set_default_currency, apply_external_source_defaults,
+    derived_pricing_fields, derived_line_pricing_fields,
+)
+from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.exceptions import ValidationError
 
 class SalesOrder(Document):
@@ -55,14 +59,15 @@ class SalesOrder(Document):
         if not self.transaction_date:
             self.transaction_date = nowdate()
 
+        apply_external_source_defaults(self)
         self._set_customer_name()
+        set_default_currency(self, "Customer", "customer")
         self._set_item_defaults()
         self._validate_delivery_date()
 
         from lambda_erp.controllers.pricing_rule import apply_pricing_rules
         apply_pricing_rules(self)
 
-        set_default_currency(self, "Customer", "customer")
 
         # Calculate taxes and totals
         calculate_taxes_and_totals(self)
@@ -75,20 +80,8 @@ class SalesOrder(Document):
             self.customer_name = db.get_value("Customer", self.customer, "customer_name")
 
     def _set_item_defaults(self):
-        """Fill in item names and rates from master data."""
-        db = get_db()
-        for item in self.get("items"):
-            if item.get("item_code") and not item.get("item_name"):
-                item_data = db.get_value(
-                    "Item", item["item_code"],
-                    ["item_name", "description", "stock_uom", "standard_rate"]
-                )
-                if item_data:
-                    item["item_name"] = item_data.item_name
-                    item["description"] = item.get("description") or item_data.description
-                    item["uom"] = item.get("uom") or item_data.stock_uom
-                    if item.get("rate") is None and item.get("price_list_rate") is None:
-                        item["rate"] = flt(item_data.standard_rate)
+        """Names, units and unsupplied rates. See controllers/item_price.py."""
+        set_item_defaults(self, "Customer", "customer")
 
     def _validate_delivery_date(self):
         if self.delivery_date and getdate(self.delivery_date) < getdate(self.transaction_date):
@@ -145,6 +138,7 @@ def make_sales_invoice(sales_order_name):
         raise ValidationError("Sales Order must be submitted before creating Sales Invoice")
 
     si = SalesInvoice(
+        **derived_pricing_fields(so, is_return=False),
         customer=so.customer,
         customer_name=so.customer_name,
         company=so.company,
@@ -160,6 +154,7 @@ def make_sales_invoice(sales_order_name):
             continue
 
         si.append("items", _dict(
+            **derived_line_pricing_fields(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),
@@ -168,6 +163,7 @@ def make_sales_invoice(sales_order_name):
             rate=item.get("rate"),
             price_list_rate=item.get("price_list_rate"),
             discount_percentage=item.get("discount_percentage"),
+            discount_amount=item.get("discount_amount"),
             warehouse=item.get("warehouse"),
             cost_center=item.get("cost_center"),
             sales_order=so.name,

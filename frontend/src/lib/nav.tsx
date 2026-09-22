@@ -127,6 +127,8 @@ const NAV_GROUPS: NavGroup[] = [
     icon: <Settings className="h-4 w-4" />,
     items: [
       { label: "General", path: "/admin/settings" },
+      { label: "Price List", path: "/app/price-list" },
+      { label: "Item Price", path: "/app/item-price" },
       { label: "Pricing Rule", path: "/app/pricing-rule" },
       { label: "Users & Team", path: "/admin/users" },
     ],

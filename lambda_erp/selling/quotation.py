@@ -15,7 +15,11 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, getdate, nowdate, new_name
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.controllers.defaults import set_default_currency
+from lambda_erp.controllers.defaults import (
+    set_default_currency, apply_external_source_defaults,
+    derived_pricing_fields, derived_line_pricing_fields,
+)
+from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.exceptions import ValidationError
 
 class Quotation(Document):
@@ -59,13 +63,14 @@ class Quotation(Document):
             self.transaction_date = nowdate()
 
         self._validate_valid_till()
+        apply_external_source_defaults(self)
         self._set_customer_name()
+        set_default_currency(self, "Customer", "customer")
         self._set_item_defaults()
 
         from lambda_erp.controllers.pricing_rule import apply_pricing_rules
         apply_pricing_rules(self)
 
-        set_default_currency(self, "Customer", "customer")
 
         # Calculate taxes and totals (the core shared calculation)
         calculate_taxes_and_totals(self)
@@ -125,19 +130,8 @@ class Quotation(Document):
             self.customer_name = db.get_value("Customer", self.customer, "customer_name")
 
     def _set_item_defaults(self):
-        """Fill in item names and rates from master data."""
-        db = get_db()
-        for item in self.get("items"):
-            if item.get("item_code") and not item.get("item_name"):
-                item_data = db.get_value(
-                    "Item", item["item_code"], ["item_name", "description", "stock_uom", "standard_rate"]
-                )
-                if item_data:
-                    item["item_name"] = item_data.item_name
-                    item["description"] = item.get("description") or item_data.description
-                    item["uom"] = item.get("uom") or item_data.stock_uom
-                    if item.get("rate") is None and item.get("price_list_rate") is None:
-                        item["rate"] = flt(item_data.standard_rate)
+        """Names, units and unsupplied rates. See controllers/item_price.py."""
+        set_item_defaults(self, "Customer", "customer")
 
     def on_submit(self):
         """On submit, set status to Open."""
@@ -174,6 +168,7 @@ def make_sales_order(quotation_name):
 
     # Map Quotation fields to Sales Order
     so = SalesOrder(
+        **derived_pricing_fields(quotation, is_return=False),
         customer=quotation.customer,
         customer_name=quotation.customer_name,
         company=quotation.company,
@@ -185,6 +180,7 @@ def make_sales_order(quotation_name):
     # Map items
     for item in quotation.get("items"):
         so.append("items", _dict(
+            **derived_line_pricing_fields(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),
@@ -193,6 +189,7 @@ def make_sales_order(quotation_name):
             rate=item.get("rate"),
             price_list_rate=item.get("price_list_rate"),
             discount_percentage=item.get("discount_percentage"),
+            discount_amount=item.get("discount_amount"),
             warehouse=item.get("warehouse"),
             quotation_item=item.get("name"),
         ))
@@ -227,6 +224,7 @@ def make_sales_invoice_from_quotation(quotation_name):
         raise ValidationError("Validity period of this quotation has ended")
 
     sinv = SalesInvoice(
+        **derived_pricing_fields(quotation, is_return=False),
         customer=quotation.customer,
         customer_name=quotation.customer_name,
         company=quotation.company,
@@ -237,6 +235,7 @@ def make_sales_invoice_from_quotation(quotation_name):
 
     for item in quotation.get("items"):
         sinv.append("items", _dict(
+            **derived_line_pricing_fields(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),
@@ -245,6 +244,7 @@ def make_sales_invoice_from_quotation(quotation_name):
             rate=item.get("rate"),
             price_list_rate=item.get("price_list_rate"),
             discount_percentage=item.get("discount_percentage"),
+            discount_amount=item.get("discount_amount"),
             warehouse=item.get("warehouse"),
         ))
 
