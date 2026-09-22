@@ -138,6 +138,7 @@ def check_master_registry():
                 {"master_type": "gadget",
                  "data": {"gadget_name": "Nimbus Coil", "town": "Bramblewick"}})
             assert created.get("name") == "GAD-001", created
+            assert created["view_url"] == "/masters/gadget/GAD-001", created
             assert "_warning" not in created, created
 
             hits = chat._handle_search_masters({"master_type": "gadget", "query": "nimbus"})
@@ -164,6 +165,8 @@ def check_master_registry():
             updated = chat._handle_update_master(
                 {"master_type": "gadget", "name": "GAD-001", "data": {"status": "Qualified"}})
             assert updated.get("status") == "Qualified", updated
+            assert updated["view_url"] == "/masters/gadget/GAD-001", updated
+            assert fallback[0]["view_url"] == "/masters/gadget/GAD-001", fallback
 
             # Unknown master types still error cleanly.
             unknown = chat._handle_search_masters({"master_type": "widget", "query": "x"})

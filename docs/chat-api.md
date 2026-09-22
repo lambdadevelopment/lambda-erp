@@ -76,6 +76,15 @@ refers to records by their identifier (e.g. "Quotation QTN-2298") in plain text
 instead of emitting `/app/…` or `/masters/…` links that only resolve inside the
 ERP. The one exception is document PDFs — see below.
 
+In the web chat, document and master tools supply a canonical `view_url` on
+record results, list/search rows, and successful batch entries. The model is
+instructed to copy that URL exactly into its markdown link. Plugin documents
+use their registered page or parent-page metadata; records without a page
+return `null`. A projected row missing its parent's ID also returns `null`;
+`get_document` supplies the full record when needed. These URLs are tool output
+metadata (also exposed through MCP), not fields to send back in create/update
+data. The ordinary document/master REST responses are unchanged.
+
 ### `documents` — referenced PDFs, ready to fetch
 
 When the reply refers to a document the user may want as a file, the response

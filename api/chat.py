@@ -28,6 +28,7 @@ from openai import OpenAI
 
 from api.time_filters import TIME_FILTER_SCHEMA, time_filter_fields
 from api import services
+from api.chat_links import with_record_view_urls
 from api.tool_permissions import tool_allowed, tool_permission_error
 from api.demo_limits import (
     demo_call_reserve_usd,
@@ -1459,6 +1460,7 @@ def _validate_filter_columns(doctype_slug, filters) -> str | None:
     return None
 
 
+@with_record_view_urls("doctype")
 def _handle_list_documents(args):
     doctype = args["doctype"]
     try:
@@ -1497,10 +1499,12 @@ def _handle_get_document_fields(args):
     return services.document_field_metadata(args["doctype"])
 
 
+@with_record_view_urls("doctype")
 def _handle_get_document(args):
     return services.load_document(args["doctype"], args["name"])
 
 
+@with_record_view_urls("doctype")
 def _handle_create_document(args):
     data = args.get("data")
     if not data:
@@ -1508,10 +1512,12 @@ def _handle_create_document(args):
     return services.create_document(args["doctype"], data)
 
 
+@with_record_view_urls("doctype")
 def _handle_update_document(args):
     return services.update_document(args["doctype"], args["name"], args.get("data", {}))
 
 
+@with_record_view_urls("doctype")
 def _handle_batch_update_documents(args):
     try:
         return services.batch_update_documents(args["doctype"], args.get("updates"))
@@ -1519,18 +1525,22 @@ def _handle_batch_update_documents(args):
         return {"error": str(e)}
 
 
+@with_record_view_urls("doctype")
 def _handle_submit_document(args):
     return services.submit_document(args["doctype"], args["name"])
 
 
+@with_record_view_urls("doctype")
 def _handle_cancel_document(args):
     return services.cancel_document(args["doctype"], args["name"])
 
 
+@with_record_view_urls("doctype")
 def _handle_discard_document(args):
     return services.discard_document(args["doctype"], args["name"])
 
 
+@with_record_view_urls("target_doctype")
 def _handle_convert_document(args):
     return services.convert_document(args["doctype"], args["name"], args["target_doctype"])
 
@@ -1607,6 +1617,7 @@ def _handle_get_master_fields(args):
     }
 
 
+@with_record_view_urls("master_type", master=True)
 def _handle_search_masters(args):
     db = get_db()
     meta = bool(args.get("include_meta")) or args.get("time_filter") is not None
@@ -1724,6 +1735,7 @@ def _ignored_master_fields(master_type: str, data: dict) -> list[str]:
     return [k for k in data.keys() if k not in valid]
 
 
+@with_record_view_urls("master_type", master=True)
 def _handle_create_master(args):
     master_type = args["master_type"]
     data = args.get("data")
@@ -1750,6 +1762,7 @@ def _handle_create_master(args):
     return result
 
 
+@with_record_view_urls("master_type", master=True)
 def _handle_update_master(args):
     master_type = args["master_type"]
     name = args.get("name")
@@ -2464,18 +2477,11 @@ Examples:
 - Correct: `[SINV-0012](/app/sales-invoice/SINV-0012)`
 - Avoid:   `/reports/analytics?report_id=RPT-AB12CD34` (bare URL)"""
         document_links_section = """## Document & Master Links
-When referencing records, always use clickable markdown links so the user can open them directly.
-
-**Documents** (quotations, invoices, orders, deliveries, receipts, payments, journal entries, stock entries):
-- **View/edit link:** `/app/{doctype-slug}/{name}` — e.g. [SINV-0001](/app/sales-invoice/SINV-0001)
-- **PDF files:** call generate_document_pdf. Only link the returned download_url after successful generation; never construct PDF links yourself.
-The doctype slug is the lowercase, hyphenated form: sales-invoice, purchase-order, delivery-note, etc.
-
-**Master records** (customer, supplier, item, warehouse, company):
-- **View/edit link:** `/masters/{master-type}/{name}` — e.g. [SUPP-001](/masters/supplier/SUPP-001), [CUST-003](/masters/customer/CUST-003), [ITEM-001](/masters/item/ITEM-001)
-- NEVER use `/app/...` for masters — that path is only for transactional documents.
-
-Always include the view link after creating, submitting, converting, or updating a record. Call generate_document_pdf when a printable file is requested. Only confirm and link a successfully generated file."""
+Document and master tools return a canonical `view_url` on each record, including list/search rows and successful batch results. When linking a record, copy that exact value into a markdown link `[label](view_url)`. Never construct a record URL yourself, add a `#`, change the path, or re-encode the returned URL.
+`view_url` is tool output metadata, not a document/master field; never include it in create/update data.
+If `view_url` is null, refer to the record in plain text. For a projected document list or batch result missing parent-page information, call get_document to obtain its view_url if a link is needed. Some records have no page at all.
+Always include the returned view link, when available, after creating, submitting, converting, or updating a record.
+For PDF files, call generate_document_pdf and copy its returned download_url only after successful generation. Never construct PDF links yourself."""
 
     if user_role == "admin":
         role_desc = "You have **admin** access — full permissions to create, edit, submit, cancel documents, manage master data, run reports, and manage users."

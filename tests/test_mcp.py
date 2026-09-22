@@ -139,7 +139,9 @@ def check_mcp():
                          }}}, mgr_h).json()["result"]
         assert call["isError"] is False, call
         mcp_rows = json.loads(call["content"][0]["text"])
-        assert mcp_rows == rest_rows and [row["customer_name"] for row in mcp_rows] == ["MCP Test AG"], (mcp_rows, rest_rows)
+        assert [{k: v for k, v in row.items() if k != "view_url"} for row in mcp_rows] == rest_rows, (mcp_rows, rest_rows)
+        assert [row["customer_name"] for row in mcp_rows] == ["MCP Test AG"], mcp_rows
+        assert mcp_rows[0]["view_url"] == f"/masters/customer/{mcp_rows[0]['name']}", mcp_rows
 
         page_call = rpc(api, {"jsonrpc": "2.0", "id": 600, "method": "tools/call",
                               "params": {"name": "search_masters", "arguments": {
@@ -184,7 +186,9 @@ def check_mcp():
                                  "fields": ["customer_name"],
                              }}}, mgr_h).json()["result"]
         mcp_docs = json.loads(doc_call["content"][0]["text"])
-        assert mcp_docs == rest_docs.json()["rows"] and [row["name"] for row in mcp_docs] == ["QTN-MCP-1"], (mcp_docs, rest_docs.json())
+        assert [{k: v for k, v in row.items() if k != "view_url"} for row in mcp_docs] == rest_docs.json()["rows"], (mcp_docs, rest_docs.json())
+        assert [row["name"] for row in mcp_docs] == ["QTN-MCP-1"], mcp_docs
+        assert mcp_docs[0]["view_url"] == "/app/quotation/QTN-MCP-1", mcp_docs
         doc_meta_call = rpc(api, {"jsonrpc": "2.0", "id": 64, "method": "tools/call",
                                   "params": {"name": "get_document_fields", "arguments": {
                                       "doctype": "quotation",

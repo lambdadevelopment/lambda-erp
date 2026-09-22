@@ -76,6 +76,63 @@ def check_chat_doctype():
         assert services.chat_doctype_page_info("widget") == {
             "kind": "via", "link_field": "gadget_id", "parent_slug": "gadget"}
 
+        # Tools supply the actual destination, including plugin parent pages.
+        # Exercise saved results so view_url cannot become persisted input.
+        from lambda_erp.database import get_db
+        db = get_db()
+        for table in ("Gadget", "Widget"):
+            db.sql(f'''CREATE TABLE "{table}" (
+                name TEXT PRIMARY KEY, label TEXT, gadget_id TEXT,
+                docstatus INTEGER DEFAULT 0, discarded INTEGER DEFAULT 0,
+                creation TEXT, modified TEXT, owner TEXT)''')
+            db._col_cache.pop(table, None)
+            db._text_col_cache.pop(table, None)
+        db.conn.commit()
+        gadget_name = "GAD / Zürich?#(1)"
+        expected_url = "/app/gadget/GAD%20%2F%20Z%C3%BCrich%3F%23%281%29"
+        created = chat.TOOL_HANDLERS["create_document"]({
+            "doctype": "gadget", "data": {"name": gadget_name, "label": "Before"}})
+        assert created["view_url"] == expected_url, created
+        updated = chat.TOOL_HANDLERS["update_document"]({
+            "doctype": "gadget", "name": gadget_name, "data": {"label": "After"}})
+        assert updated["view_url"] == expected_url, updated
+        assert "view_url" not in services.load_document("gadget", gadget_name)
+        widget = chat.TOOL_HANDLERS["create_document"]({
+            "doctype": "widget", "data": {"gadget_id": gadget_name, "label": "Child"}})
+        assert widget["view_url"] == expected_url, widget
+        fetched = chat.TOOL_HANDLERS["get_document"]({"doctype": "widget", "name": widget["name"]})
+        assert fetched["view_url"] == expected_url, fetched
+        for meta in (False, True):
+            listed = chat.TOOL_HANDLERS["list_documents"]({"doctype": "widget", "include_meta": meta})
+            assert (listed["rows"] if meta else listed)[0]["view_url"] == expected_url, listed
+        projected = chat.TOOL_HANDLERS["list_documents"]({"doctype": "widget", "fields": ["name"]})
+        assert projected[0]["view_url"] is None, projected
+        batch = chat.TOOL_HANDLERS["batch_update_documents"]({"doctype": "gadget", "updates": [
+            {"name": gadget_name, "data": {"label": "Batch"}},
+            {"name": "missing", "data": {"label": "Failure"}},
+        ]})
+        assert batch["results"][0]["view_url"] == expected_url, batch
+        assert "view_url" not in batch["results"][1], batch
+        services.register_chat_doctype("widget", description="No standalone page.", page=None)
+        assert chat.TOOL_HANDLERS["get_document"]({"doctype": "widget", "name": widget["name"]})["view_url"] is None
+        services.register_chat_doctype("widget", description="A widget.", page="gadget_id")
+
+        from unittest.mock import patch
+        # A conversion's link must point at the target, never the source type.
+        with patch.object(services, "convert_document", return_value={"name": "SINV-001"}):
+            converted = chat.TOOL_HANDLERS["convert_document"]({
+                "doctype": "sales-order", "name": "SO-001", "target_doctype": "Sales Invoice"})
+        assert converted["view_url"] == "/app/sales-invoice/SINV-001", converted
+        from api.chat_links import record_view_url
+        assert record_view_url("customer", {"name": "CUST-001"}, master=True) == "/masters/customer/CUST-001"
+        assert record_view_url("company", {"name": "My Co"}, master=True) == "/masters/company/My%20Co"
+        assert record_view_url("account", {"name": "Sales & Services"}, master=True) == "/reports/general-ledger?account=Sales+%26+Services"
+        assert record_view_url("cost-center", {"name": "Main"}, master=True) is None
+        assert record_view_url("unknown", {"name": "Missing"}) is None
+        assert "copy that exact value" in prompt and "Never construct a record URL" in prompt
+        api_prompt = chat.build_system_prompt({"role": "manager"}, channel="api")
+        assert "Do not paste `/app/...`" in api_prompt
+
         # /api/chat-doctypes exposes the resolved page info for the frontend.
         rows = {d["slug"]: d for d in client.get("/api/chat-doctypes").json()["doctypes"]}
         assert rows["gadget"]["page"]["kind"] == "self"

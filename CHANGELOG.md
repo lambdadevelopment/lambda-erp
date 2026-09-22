@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-22
+
+- Return canonical `view_url` values from document and master chat/MCP tools,
+  including list/search and batch results. Encode record names and respect
+  plugin parent-page routing; return null when no destination is available.
+- Instruct web chat to copy the returned record URL exactly instead of building
+  links itself, preventing mistakes such as adding `#` before `/app/...`.
+  External API chat continues to refer to records by their identifiers.
+- Cover record links, parent pages, conversions, URL encoding, and unchanged
+  document/master REST data in regression tests.
+
 ## [1.1.0] - 2026-09-22
 
 - Add a Price List / Item Price layer for base prices. Resolution runs explicit
