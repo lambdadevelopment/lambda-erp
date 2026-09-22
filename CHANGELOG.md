@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-09-22
+
+- Add a customer website field to the master form, REST and chat interfaces,
+  with a migration for existing installations.
+- Use canonical master IDs consistently in chat guidance and expose registered
+  aliases through field discovery. Resolve aliases in result projections,
+  filters, search, sorting and navigation; reject contradictory identifiers
+  and remove misleading warnings for valid extension inputs.
+- Accept both explicit IN/NOT IN filters and existing literal value lists in
+  analytics datasets. Reject malformed nested filters and invalid date ranges
+  instead of silently producing empty or unfiltered results. Empty IN lists
+  match no records. Apply the same validation to custom report drafts and
+  document the filter contract in tool descriptions.
+- Cover the SimplyGo stock lookup across MCP and REST on SQLite and PostgreSQL;
+  make the migration regression independent of a fixed migration count.
+
 ## [1.1.1] - 2026-09-22
 
 - Return canonical `view_url` values from document and master chat/MCP tools,
@@ -1846,7 +1862,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.1...v1.1.2
 [1.0.0]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.34...v1.0.0
 [0.8.34]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.33...v0.8.34
 [0.8.28]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.27...v0.8.28
