@@ -33,6 +33,7 @@ class PriceList(Document):
     DOCTYPE = "Price List"
     CHILD_TABLES = {}
     PREFIX = "PL"
+    REQUIRED_FIELDS = ("price_list_name", "currency")
     CONDITIONAL_REQUIREMENTS = (
         'A Price List holds rates in exactly one currency. Resolution requires it to match the document currency; rates are never converted. Use one list per currency.',
         'At least one of Selling or Buying must be enabled.',
@@ -43,7 +44,7 @@ class PriceList(Document):
             raise ValidationError("Price List Name is required")
         if not self.currency:
             raise ValidationError("Currency is required")
-        if not self._data.get("selling") and not self._data.get("buying"):
+        if not flt(self._data.get("selling")) and not flt(self._data.get("buying")):
             raise ValidationError("At least one of Selling or Buying must be enabled")
 
 
@@ -51,6 +52,7 @@ class ItemPrice(Document):
     DOCTYPE = "Item Price"
     CHILD_TABLES = {}
     PREFIX = "IPRICE"
+    REQUIRED_FIELDS = ("item_code", "price_list", "rate")
     LINK_FIELDS = {
         'item_code': 'Item',
         'price_list': 'Price List',
@@ -68,6 +70,8 @@ class ItemPrice(Document):
             raise ValidationError("Item Code is required")
         if not self.price_list:
             raise ValidationError("Price List is required")
+        if flt(self.min_qty) < 0:
+            raise ValidationError("Min Qty cannot be negative")
         if flt(self.rate) < 0:
             raise ValidationError("Rate cannot be negative")
         if self.customer and self.supplier:

@@ -13,7 +13,10 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.controllers.defaults import set_default_currency, apply_external_source_defaults
+from lambda_erp.controllers.defaults import (
+    set_default_currency, apply_external_source_defaults,
+    derived_pricing_fields, derived_line_pricing_fields,
+)
 from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.exceptions import ValidationError
 from lambda_erp.stock.stock_ledger import (
@@ -216,16 +219,17 @@ class POSInvoice(Document):
             account = item.get("income_account")
             if not account:
                 continue
-            income_accounts[account] = income_accounts.get(account, 0) + flt(item.get("net_amount", 0))
+            key = (account, item.get("cost_center"))
+            income_accounts[key] = income_accounts.get(key, 0) + flt(item.get("net_amount", 0))
 
-        for account, amount in income_accounts.items():
+        for (account, cost_center), amount in income_accounts.items():
             gl_entries.append(_dict(
                 account=account,
                 credit=flt(amount, 2),
                 credit_in_account_currency=flt(amount, 2),
                 debit=0,
                 debit_in_account_currency=0,
-                cost_center=db.get_value("Company", self.company, "default_cost_center"),
+                cost_center=cost_center,
                 voucher_type=self.DOCTYPE,
                 voucher_no=self.name,
                 posting_date=self.posting_date,
@@ -307,6 +311,7 @@ def make_pos_return(posi_name):
         raise ValidationError("Cannot create a return against a return")
 
     return_pos = POSInvoice(
+        **derived_pricing_fields(original, is_return=True),
         customer=original.customer,
         company=original.company,
         currency=original.get("currency") or "USD",
@@ -321,6 +326,7 @@ def make_pos_return(posi_name):
     from lambda_erp.workflow import returnable_rows
     for item in returnable_rows(original):
         return_pos.append("items", _dict(
+            **derived_line_pricing_fields(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),

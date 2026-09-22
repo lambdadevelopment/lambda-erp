@@ -86,11 +86,11 @@ class PricingRule(Document):
             raise ValidationError(
                 f"{required_for[applicable_for]} is required when Applicable For is {applicable_for}")
 
-        if not self._data.get("selling") and not self._data.get("buying"):
+        if not flt(self._data.get("selling")) and not flt(self._data.get("buying")):
             raise ValidationError("At least one of Selling or Buying must be enabled")
-        if applicable_for in ("Customer", "Customer Group", "Territory") and not self._data.get("selling"):
+        if applicable_for in ("Customer", "Customer Group", "Territory") and not flt(self._data.get("selling")):
             raise ValidationError(f"Applicable For {applicable_for} requires Selling")
-        if applicable_for == "Supplier" and not self._data.get("buying"):
+        if applicable_for == "Supplier" and not flt(self._data.get("buying")):
             raise ValidationError("Applicable For Supplier requires Buying")
 
         rtype = self.rate_or_discount or "Discount Percentage"
@@ -252,10 +252,14 @@ def apply_pricing_rules(doc):
             item["discount_amount"] = 0
         elif rtype == "Discount Percentage":
             pct = flt(rule["discount_percentage"])
+            item["price_list_rate"] = base_rate
             item["discount_percentage"] = pct
+            item["discount_amount"] = 0
             item["rate"] = flt(base_rate * (1 - pct / 100), 2)
         elif rtype == "Discount Amount":
             amt = flt(rule["discount_amount"])
+            item["price_list_rate"] = base_rate
+            item["discount_percentage"] = 0
             item["discount_amount"] = amt
             item["rate"] = flt(base_rate - amt, 2)
 

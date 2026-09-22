@@ -37,6 +37,7 @@ export function linkRefHref(linkDoctype: string | undefined | null, value: strin
   if (LINKABLE_MASTERS.has(linkDoctype)) {
     return `/masters/${linkDoctype}/${encodeURIComponent(value)}`;
   }
+  if (linkDoctype === "price-list") return `/app/price-list/${encodeURIComponent(value)}`;
   if (linkDoctype === "account") {
     // No standalone Account page — deep-link into the GL report pre-filtered
     // to this account, which is what users actually want to see.
@@ -349,7 +350,7 @@ function FieldRenderer({
           const v = e.target.value;
           onChange(
             inputType === "number"
-              ? parseFloat(v) || 0
+              ? (v === "" && field.default === null ? null : parseFloat(v) || 0)
               : field.type === "datetime"
                 ? v.replace("T", " ") // -> "YYYY-MM-DD HH:MM"; backend adds seconds
                 : v,
@@ -388,7 +389,7 @@ function ChildTableEditor({
   const addRow = () => {
     const blank: any = {};
     tableDef.fields.forEach((f) => {
-      blank[f.name] = f.default ?? (f.type === "number" || f.type === "currency" ? 0 : "");
+      blank[f.name] = f.default !== undefined ? f.default : (f.type === "number" || f.type === "currency" ? 0 : "");
     });
     onChange([...rows, blank]);
   };
@@ -733,7 +734,7 @@ export default function DocumentFormPage() {
     if (isNew && config) {
       const defaults: any = {};
       config.fields.forEach((f) => {
-        if (f.type === "date") {
+        if (f.type === "date" && f.name !== "valid_from" && f.name !== "valid_upto") {
           defaults[f.name] = formatLocalDate();
         } else {
           defaults[f.name] = f.default ?? "";

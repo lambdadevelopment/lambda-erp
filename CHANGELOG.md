@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-22
+
 - Add a Price List / Item Price layer for base prices. Resolution runs explicit
   rate, then a party-specific Item Price, then the list price, then
   `Item.standard_rate`, so deployments with no price lists configured price
@@ -47,6 +49,24 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 - Replace the six near-identical `_set_item_defaults` implementations with one
   shared resolver. Rate resolution no longer depends on whether the caller
   supplied `item_name`.
+
+- Add Price List and Item Price screens, customer/company default-list selectors,
+  and the expanded Pricing Rule form. A blank transaction rate resolves on save;
+  an explicit zero remains a free line.
+- Preserve pricing protection through quotation/order/invoice conversions and
+  historical prices on sales, purchase and POS returns. Derived documents keep
+  source and line provenance but require a fresh external document reference.
+- Apply external-source defaults to quotations and orders as well as invoices;
+  persist bill-only stock policy even for POS's stock-updating database default.
+- Preserve income cost centres per line in Sales Invoice and POS Invoice GL
+  posting, returns and cancellation. Historical ledger entries are unchanged.
+- Reject malformed/changed external document identities and duplicate line
+  identities. Reconcile external unique indexes in migration 36 and fail startup
+  visibly on failed migrations from version 32 onwards.
+- Keep discount bases stable across repeated saves, and test pricing, provenance,
+  cost centres and legacy-schema upgrades against SQLite and PostgreSQL.
+- Document the ERP primitives and remaining connector responsibilities in
+  `docs/pricing-and-external-sources.md`.
 
 ## [1.0.2] - 2026-09-15
 

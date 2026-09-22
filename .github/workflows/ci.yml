@@ -79,6 +79,14 @@ jobs:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_erp_validation
 
+      - name: Pricing, external identity, cost centres and migrations — SQLite
+        run: python -m tests.test_pricing_integrity
+
+      - name: Pricing, external identity, cost centres and migrations — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_pricing_integrity
+
       - name: PDF content contracts — SQLite
         run: python -m tests.test_pdf_contract
 

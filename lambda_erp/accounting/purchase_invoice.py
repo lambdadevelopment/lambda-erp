@@ -14,7 +14,10 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate, add_days
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.controllers.defaults import set_default_currency, apply_external_source_defaults
+from lambda_erp.controllers.defaults import (
+    set_default_currency, apply_external_source_defaults,
+    derived_pricing_fields, derived_line_pricing_fields,
+)
 from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 from lambda_erp.stock.stock_ledger import (
@@ -419,6 +422,7 @@ def make_purchase_return(pinv_name):
         raise ValidationError("Cannot create a return against a return")
 
     return_inv = PurchaseInvoice(
+        **derived_pricing_fields(original, is_return=True),
         supplier=original.supplier,
         company=original.company,
         currency=original.get("currency") or "USD",
@@ -436,6 +440,7 @@ def make_purchase_return(pinv_name):
     from lambda_erp.workflow import returnable_rows
     for item in returnable_rows(original):
         return_inv.append("items", _dict(
+            **derived_line_pricing_fields(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),

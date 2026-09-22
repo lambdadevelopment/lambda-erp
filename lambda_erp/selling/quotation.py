@@ -15,7 +15,10 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, getdate, nowdate, new_name
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.controllers.defaults import set_default_currency
+from lambda_erp.controllers.defaults import (
+    set_default_currency, apply_external_source_defaults,
+    derived_pricing_fields, derived_line_pricing_fields,
+)
 from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.exceptions import ValidationError
 
@@ -60,6 +63,7 @@ class Quotation(Document):
             self.transaction_date = nowdate()
 
         self._validate_valid_till()
+        apply_external_source_defaults(self)
         self._set_customer_name()
         set_default_currency(self, "Customer", "customer")
         self._set_item_defaults()
@@ -164,6 +168,7 @@ def make_sales_order(quotation_name):
 
     # Map Quotation fields to Sales Order
     so = SalesOrder(
+        **derived_pricing_fields(quotation, is_return=False),
         customer=quotation.customer,
         customer_name=quotation.customer_name,
         company=quotation.company,
@@ -175,6 +180,7 @@ def make_sales_order(quotation_name):
     # Map items
     for item in quotation.get("items"):
         so.append("items", _dict(
+            **derived_line_pricing_fields(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),
@@ -183,6 +189,7 @@ def make_sales_order(quotation_name):
             rate=item.get("rate"),
             price_list_rate=item.get("price_list_rate"),
             discount_percentage=item.get("discount_percentage"),
+            discount_amount=item.get("discount_amount"),
             warehouse=item.get("warehouse"),
             quotation_item=item.get("name"),
         ))
@@ -217,6 +224,7 @@ def make_sales_invoice_from_quotation(quotation_name):
         raise ValidationError("Validity period of this quotation has ended")
 
     sinv = SalesInvoice(
+        **derived_pricing_fields(quotation, is_return=False),
         customer=quotation.customer,
         customer_name=quotation.customer_name,
         company=quotation.company,
@@ -227,6 +235,7 @@ def make_sales_invoice_from_quotation(quotation_name):
 
     for item in quotation.get("items"):
         sinv.append("items", _dict(
+            **derived_line_pricing_fields(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),
@@ -235,6 +244,7 @@ def make_sales_invoice_from_quotation(quotation_name):
             rate=item.get("rate"),
             price_list_rate=item.get("price_list_rate"),
             discount_percentage=item.get("discount_percentage"),
+            discount_amount=item.get("discount_amount"),
             warehouse=item.get("warehouse"),
         ))
 

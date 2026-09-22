@@ -1908,11 +1908,12 @@ class Database:
                 )
                 self.conn.commit()
             except Exception:
-                # Keep the DB usable even if one migration fails (e.g. the
-                # column already exists from a prior ad-hoc ALTER on a
-                # long-lived database). The CREATE TABLE at startup already
-                # covers the happy path; migrations are only needed for drift.
+                # Preserve the historical best-effort policy for migrations
+                # 1–31. New migrations must fail visibly: running without a
+                # required column or uniqueness constraint is not safe.
                 self.conn.rollback()
+                if version >= 32:
+                    raise RuntimeError(f"Required migration {version} ({name}) failed")
 
     def _all_user_tables(self) -> list:
         """Base tables in the active DB, minus internal bookkeeping."""
@@ -2775,16 +2776,13 @@ def _m033_external_source(db: "Database") -> None:
         db.ensure_column(item_table, "external_line_reference", "TEXT")
         # Partial index: rows without an external reference are the norm and
         # must not collide with each other on NULL.
-        try:
-            db.conn.execute(db._ddl(
-                f'CREATE UNIQUE INDEX IF NOT EXISTS '
-                f'"ux_{doc_table.replace(" ", "_").lower()}_external" '
-                f'ON "{doc_table}" (external_source, external_reference) '
-                f'WHERE external_source IS NOT NULL AND external_reference IS NOT NULL'
-            ))
-            db.conn.commit()
-        except Exception:
-            db.conn.rollback()
+        db.conn.execute(db._ddl(
+            f'CREATE UNIQUE INDEX IF NOT EXISTS '
+            f'"ux_{doc_table.replace(" ", "_").lower()}_external" '
+            f'ON "{doc_table}" (external_source, external_reference) '
+            f'WHERE external_source IS NOT NULL AND external_reference IS NOT NULL'
+        ))
+        db.conn.commit()
 
 
 def _m034_price_list(db: "Database") -> None:
@@ -2827,6 +2825,20 @@ def _m035_pricing_rule_dimensions(db: "Database") -> None:
     db.conn.commit()
 
 
+def _m036_external_identity_integrity(db: "Database") -> None:
+    # Reconcile pre-release databases where m033 swallowed an index failure.
+    # Existing duplicates must be resolved explicitly; never erase their history.
+    _m033_external_source(db)
+    for _, item_table in _PRICED_DOCUMENTS:
+        db.conn.execute(db._ddl(
+            f'CREATE UNIQUE INDEX IF NOT EXISTS '
+            f'"ux_{item_table.replace(" ", "_").lower()}_external_line" '
+            f'ON "{item_table}" (parent, external_line_reference) '
+            f'WHERE external_line_reference IS NOT NULL'
+        ))
+    db.conn.commit()
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2863,6 +2875,7 @@ Database.MIGRATIONS = [
     (33, "external_source", _m033_external_source),
     (34, "price_list", _m034_price_list),
     (35, "pricing_rule_dimensions", _m035_pricing_rule_dimensions),
+    (36, "external_identity_integrity", _m036_external_identity_integrity),
 ]
 
 

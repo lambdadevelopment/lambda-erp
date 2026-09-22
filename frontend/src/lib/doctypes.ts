@@ -79,7 +79,7 @@ const ITEM_FIELDS: FieldDef[] = [
   // type here to override it for this document only — like a Proposal position.
   { name: "description", label: "Description", type: "textarea" },
   { name: "qty", label: "Qty", type: "number", required: true },
-  { name: "rate", label: "Rate", type: "currency", required: true },
+  { name: "rate", label: "Rate", type: "currency", default: null, hint: "Leave blank to resolve the customer or company price on save. Enter 0 for a free line." },
   { name: "amount", label: "Amount", type: "currency", readOnly: true },
 ];
 
@@ -544,6 +544,38 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     conversions: [],
   },
 
+  "price-list": {
+    slug: "price-list", label: "Price List", dateField: "creation",
+    fields: [
+      { name: "price_list_name", label: "Price List Name", type: "text", required: true },
+      { name: "currency", label: "Currency", type: "select", optionsSource: "currency", required: true },
+      { name: "selling", label: "Selling", type: "select", options: [{ value: "1", label: "Yes" }, { value: "0", label: "No" }], default: "1" },
+      { name: "buying", label: "Buying", type: "select", options: [{ value: "1", label: "Yes" }, { value: "0", label: "No" }], default: "0" },
+      { name: "enabled", label: "Enabled", type: "select", options: [{ value: "1", label: "Yes" }, { value: "0", label: "No" }], default: "1" },
+    ],
+    childTables: [], listColumns: ["name", "price_list_name", "currency", "selling", "buying", "enabled"],
+    listFilters: ["enabled"], searchFields: ["name", "price_list_name"],
+    canSubmit: false, canCancel: false, conversions: [],
+  },
+  "item-price": {
+    slug: "item-price", label: "Item Price", dateField: "creation", amountField: "rate",
+    fields: [
+      { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
+      { name: "price_list", label: "Price List", type: "link", linkDoctype: "price-list", required: true },
+      { name: "rate", label: "Rate", type: "currency", required: true, hint: "Quoted in the price list currency." },
+      { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", hint: "Optional customer-specific price. Leave customer and supplier blank for a general list price." },
+      { name: "supplier", label: "Supplier", type: "link", linkDoctype: "supplier" },
+      { name: "uom", label: "UOM", type: "text" },
+      { name: "min_qty", label: "Min Qty", type: "number", default: 0 },
+      { name: "valid_from", label: "Valid From", type: "date" },
+      { name: "valid_upto", label: "Valid Upto", type: "date" },
+      { name: "enabled", label: "Enabled", type: "select", options: [{ value: "1", label: "Yes" }, { value: "0", label: "No" }], default: "1" },
+    ],
+    childTables: [], listColumns: ["name", "item_code", "price_list", "customer", "rate", "min_qty", "enabled"],
+    listFilters: ["enabled"], searchFields: ["name", "item_code", "price_list", "customer", "supplier"],
+    canSubmit: false, canCancel: false, conversions: [],
+  },
+
   "pricing-rule": {
     slug: "pricing-rule",
     label: "Pricing Rule",
@@ -551,7 +583,14 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     amountField: "discount_percentage",
     fields: [
       { name: "title", label: "Title", type: "text", required: true },
-      { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
+      { name: "apply_on", label: "Apply On", type: "select", options: ["Item Code", "Item Group"], default: "Item Code", required: true },
+      { name: "item_code", label: "Item", type: "link", linkDoctype: "item", hint: "Required when Apply On is Item Code." },
+      { name: "item_group", label: "Item Group", type: "text", hint: "Required when Apply On is Item Group." },
+      { name: "applicable_for", label: "Applicable For", type: "select", options: ["Customer", "Customer Group", "Territory", "Supplier"], hint: "Leave blank to apply to everyone. Otherwise fill the matching field below." },
+      { name: "customer", label: "Customer", type: "link", linkDoctype: "customer" },
+      { name: "customer_group", label: "Customer Group", type: "text" },
+      { name: "territory", label: "Territory", type: "text" },
+      { name: "supplier", label: "Supplier", type: "link", linkDoctype: "supplier" },
       { name: "selling", label: "Selling", type: "select", options: ["1", "0"], default: "1" },
       { name: "buying", label: "Buying", type: "select", options: ["1", "0"], default: "0" },
       { name: "rate_or_discount", label: "Type", type: "select", options: ["Discount Percentage", "Discount Amount", "Rate"], default: "Discount Percentage" },
@@ -559,6 +598,9 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "discount_amount", label: "Discount Amt", type: "currency" },
       { name: "rate", label: "Rate", type: "currency" },
       { name: "min_qty", label: "Min Qty", type: "number" },
+      { name: "max_qty", label: "Max Qty", type: "number", hint: "Zero means no upper limit." },
+      { name: "min_amt", label: "Min Amount", type: "currency" },
+      { name: "max_amt", label: "Max Amount", type: "currency", hint: "Zero means no upper limit." },
       { name: "valid_from", label: "Valid From", type: "date" },
       { name: "valid_upto", label: "Valid Upto", type: "date" },
       { name: "priority", label: "Priority", type: "number" },

@@ -98,6 +98,8 @@ const NAV_FLASH_MAP: Record<string, { group: string; item: string }> = {
   "stock-entry": { group: "Stock", item: "Stock Entry" },
   "delivery-note": { group: "Stock", item: "Delivery Note" },
   "purchase-receipt": { group: "Stock", item: "Purchase Receipt" },
+  "price-list": { group: "Settings", item: "Price List" },
+  "item-price": { group: "Settings", item: "Item Price" },
   "pricing-rule": { group: "Settings", item: "Pricing Rule" },
 };
 

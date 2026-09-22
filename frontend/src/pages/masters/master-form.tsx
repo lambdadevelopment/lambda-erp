@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import type { FieldDef } from "@/lib/doctypes";
 import { getMasterConfig } from "@/lib/masters";
 import { BUILTIN_MASTER_FIELDS } from "@/lib/master-fields";
+import { LinkField } from "@/components/document/link-field";
 import { CompanySalesTaxField } from "@/components/company-sales-tax-field";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -271,6 +272,12 @@ export default function MasterFormPage() {
                   </Link>
                 </div>
               );
+            }
+
+            if (field.type === "link" && field.linkDoctype) {
+              return <LinkField key={field.name} label={fieldLabel(field)} value={formData[field.name] ?? ""}
+                linkDoctype={field.linkDoctype} readOnly={!!isReadOnly}
+                onChange={(value) => setField(field.name, value)} />;
             }
 
             if (field.type === "select" && field.options) {
