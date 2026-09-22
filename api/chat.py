@@ -39,6 +39,7 @@ from api.demo_limits import (
 )
 from api.providers import cost_of_openai_call, cost_of_transcription
 from api.routers.masters import create_master_record, update_master_record, delete_master_record
+from api.routers.analytics import DATASET_FILTER_DESCRIPTION
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt, now, nowdate
 
@@ -1023,8 +1024,9 @@ TOOLS = [
                 "`measures` is an object of `{alias: [op, field]}` where `op` "
                 "is one of sum, count, avg, min, max (count may omit field). "
                 "`filters` is a dict keyed by field name — same shape as for "
-                "`create_custom_analytics_report` (equality, list for IN, "
-                "`{from, to}` for ranges). `order_by` is a list of "
+                "`create_custom_analytics_report` (equality, [\"in\", [values]] or a flat list for IN, "
+                "[\"not in\", [values]], `{from, to}` for ranges). Invalid filter shapes "
+                "are errors, not evidence of zero stock or activity. `order_by` is a list of "
                 "`{field, direction}` where `field` is a group_by field or a "
                 "measure alias and `direction` is asc/desc.\n\n"
                 "Example — top 5 customers by revenue:\n"
@@ -1070,7 +1072,7 @@ TOOLS = [
                         "type": "object",
                         "description": "Map of alias -> [op, field]. op ∈ sum|count|avg|min|max.",
                     },
-                    "filters": {"type": "object"},
+                    "filters": {"type": "object", "description": DATASET_FILTER_DESCRIPTION},
                     "order_by": {
                         "type": "array",
                         "items": {
@@ -1147,7 +1149,7 @@ TOOLS = [
                                     ],
                                 },
                                 "fields": {"type": "array", "items": {"type": "string"}},
-                                "filters": {"type": "object"},
+                                "filters": {"type": "object", "description": DATASET_FILTER_DESCRIPTION},
                                 "limit": {"type": "integer"},
                             },
                             "required": ["dataset"],
@@ -1233,7 +1235,7 @@ TOOLS = [
                                     ],
                                 },
                                 "fields": {"type": "array", "items": {"type": "string"}},
-                                "filters": {"type": "object"},
+                                "filters": {"type": "object", "description": DATASET_FILTER_DESCRIPTION},
                                 "limit": {"type": "integer"},
                             },
                             "required": ["dataset"],
@@ -2108,7 +2110,7 @@ def _handle_query_dataset(args):
             dataset=dataset,
             group_by=args.get("group_by") or [],
             measures=measures,
-            filters=args.get("filters") or {},
+            filters=args.get("filters"),
             order_by=args.get("order_by") or [],
             limit=args.get("limit"),
         )

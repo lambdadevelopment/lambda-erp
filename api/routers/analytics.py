@@ -9,7 +9,9 @@ This module now exposes two layers:
 """
 
 import json
+import math
 import uuid
+from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -308,11 +310,25 @@ def analytics(
 # ---------------------------------------------------------------------------
 
 
+DATASET_FILTER_DESCRIPTION = (
+    'Filters keyed by allowed dataset field. Scalar = equality. For membership prefer '
+    '{"item_code": ["in", ["ART-1", "ART-2"]]}; ["not in", [values]] is also supported. '
+    'Legacy flat lists remain literal IN lists (even values named "in"). '
+    'Lists contain at most 500 non-null scalar values; deeper nesting and other '
+    'operator forms are rejected. Empty IN lists match nothing; empty NOT IN lists '
+    'exclude nothing. Ranges use {"from": value, "to": value}, with either bound '
+    'optional; date fields require real YYYY-MM-DD dates and from <= to. '
+    'No other range keys are accepted. Omit unused filters; null/empty-string '
+    'filters and blank from/to bounds are ignored. Invalid filters return errors, '
+    'not zero counts; correct the request before making a factual claim.'
+)
+
+
 class RuntimeDataRequest(BaseModel):
     name: str | None = Field(default=None, pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
     dataset: str
     fields: list[str] | None = Field(default=None, max_length=64)
-    filters: dict[str, Any] = Field(default_factory=dict, max_length=32)
+    filters: dict[str, Any] = Field(default_factory=dict, max_length=32, description=DATASET_FILTER_DESCRIPTION)
     limit: int | None = None
 
 
@@ -438,6 +454,10 @@ class ReportDraftPayload(StrictReportModel):
                 raise ValueError(
                     f"Unknown fields for dataset '{request.dataset}': {', '.join(sorted(unknown))}"
                 )
+            try:
+                _build_dataset_filter_clauses(dataset, request.filters, [])
+            except HTTPException as exc:
+                raise ValueError(str(exc.detail)) from exc
             request_fields[source] = fields
 
         source_fields = dict(request_fields)
@@ -937,30 +957,80 @@ SEMANTIC_DATASETS: dict[str, dict[str, Any]] = {
 
 
 def _build_dataset_filter_clauses(spec: dict[str, Any], filters: dict[str, Any], params: list[Any]) -> list[str]:
+    if filters is None:
+        filters = {}
+    if not isinstance(filters, dict):
+        raise HTTPException(400, "Dataset filters must be an object keyed by field name")
     clauses = list(spec.get("default_where", []))
-    for field, value in (filters or {}).items():
+    for field, value in filters.items():
         if field not in spec["filter_fields"]:
             raise HTTPException(400, f"Dataset '{spec['label']}' does not allow filtering on '{field}'")
         column = spec["field_sql"][field]
+
+        def invalid(reason):
+            raise HTTPException(400, f"Invalid filter for '{field}': {reason}")
+
+        def scalar(value):
+            if not isinstance(value, (str, int, float, bool)) or (
+                isinstance(value, float) and not math.isfinite(value)
+            ):
+                invalid("expected a non-null scalar value, not an object or nested list")
+            if spec["fields"][field] == "date":
+                try:
+                    if not isinstance(value, str) or date.fromisoformat(value).isoformat() != value:
+                        raise ValueError()
+                except ValueError:
+                    invalid("expected a valid ISO date (YYYY-MM-DD)")
+            return value
+
         if value is None or value == "":
             continue
         if isinstance(value, dict):
-            if "from" in value and value["from"] not in (None, ""):
+            if not value or set(value) - {"from", "to"}:
+                invalid("range objects may contain only 'from' and 'to'")
+            lower = value.get("from")
+            upper = value.get("to")
+            has_lower, has_upper = lower not in (None, ""), upper not in (None, "")
+            if has_lower:
+                scalar(lower)
+            if has_upper:
+                scalar(upper)
+            if has_lower and has_upper:
+                try:
+                    if lower > upper:
+                        invalid("range 'from' must not be after 'to'")
+                except TypeError:
+                    invalid("range bounds must have comparable types")
+            if has_lower:
                 clauses.append(f"{column} >= ?")
-                params.append(value["from"])
-            if "to" in value and value["to"] not in (None, ""):
+                params.append(lower)
+            if has_upper:
                 clauses.append(f"{column} <= ?")
-                params.append(value["to"])
+                params.append(upper)
             continue
         if isinstance(value, list):
+            # Flat lists are the existing literal-IN contract, even if a code
+            # happens to be named 'in'. Only a nested list identifies the
+            # explicit [operator, values] form used by other ERP tools.
+            op = "IN"
+            if any(isinstance(part, (list, dict)) for part in value):
+                if (len(value) != 2 or not isinstance(value[0], str)
+                        or value[0].lower() not in {"in", "not in"}
+                        or not isinstance(value[1], list)):
+                    invalid('use a flat value list or ["in", [values]] / ["not in", [values]]')
+                op, value = value[0].upper(), value[1]
+            if len(value) > 500:
+                invalid("membership lists may contain at most 500 values")
+            values = [scalar(part) for part in value]
             if not value:
+                clauses.append("1=0" if op == "IN" else "1=1")
                 continue
-            placeholders = ", ".join("?" for _ in value)
-            clauses.append(f"{column} IN ({placeholders})")
-            params.extend(value)
+            placeholders = ", ".join("?" for _ in values)
+            clauses.append(f"{column} {op} ({placeholders})")
+            params.extend(values)
             continue
         clauses.append(f"{column} = ?")
-        params.append(value)
+        params.append(scalar(value))
     return clauses
 
 
@@ -1067,7 +1137,7 @@ def aggregate_semantic_dataset(
         select_parts.append(f'{op.upper()}({spec["field_sql"][field]}) AS "{sql_name}"')
 
     params: list[Any] = []
-    where = _build_dataset_filter_clauses(spec, filters or {}, params)
+    where = _build_dataset_filter_clauses(spec, filters, params)
 
     order_clauses: list[str] = []
     for entry in order_by or []:

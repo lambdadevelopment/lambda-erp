@@ -162,6 +162,8 @@ class PricingIntegrity(unittest.TestCase):
 
     def test_upgrade_from_pre_pricing_schema_preserves_existing_data(self):
         from lambda_erp.database import _PRICED_DOCUMENTS
+        expected_versions = {row['version'] for row in self.db.sql(
+            'SELECT version FROM "_SchemaMigrations" WHERE version >= 32')}
         legacy=self.invoice(external_source=None,external_reference=None,
                             items=[dict(item_code='M',qty=1,rate=120)]).save()
         for table, child in _PRICED_DOCUMENTS:
@@ -185,7 +187,8 @@ class PricingIntegrity(unittest.TestCase):
         self.assertIsNone(restored.external_reference)
         restored.save()
         self.assertEqual(restored.grand_total,120)
-        self.assertEqual(len(self.db.sql('SELECT version FROM "_SchemaMigrations" WHERE version >= 32')),6)
+        self.assertEqual({row['version'] for row in self.db.sql(
+            'SELECT version FROM "_SchemaMigrations" WHERE version >= 32')}, expected_versions)
         self.invoice().save()
         with self.assertRaises(Exception): self.invoice().save()
 

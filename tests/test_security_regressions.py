@@ -274,6 +274,14 @@ def check_security_regressions():
             },
         }
         analytics.ReportDraftPayload.model_validate(valid_report)
+        # Drafts must reject bad filters before they become saved reports.
+        invalid_report = copy.deepcopy(valid_report)
+        invalid_report["data_requests"][0]["filters"] = {"posting_date": {"until": "2026-09-22"}}
+        try:
+            analytics.ReportDraftPayload.model_validate(invalid_report)
+            raise AssertionError("Invalid report filter was accepted")
+        except analytics.ValidationError as exc:
+            assert "Invalid filter" in str(exc), exc
 
         # Accounting data is available to custom reports independently of the
         # invoice tables, with normal-balance income/expense fields suitable

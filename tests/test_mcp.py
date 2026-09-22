@@ -250,6 +250,91 @@ def check_mcp():
         assert "customer_name" in doc_meta["text_fields"], doc_meta
         assert "customer_name" in doc_meta["default_search_fields"], doc_meta
 
+        # Stock lookup regression: the operator-shaped IN used by the chat
+        # must return the same six SimplyGo units as the legacy flat list.
+        # Synthetic Bin positions isolate this read contract from stock posting.
+        codes = ["PHI-SGM-PORT-LARGE", "PHI-SGM-PORT-SMALL"]
+        for code, qty in [(codes[0], 3), (codes[1], 3), ("OTHER-DEVICE", 8), ("in", 1)]:
+            db.insert("Bin", {"name": code + "-WH-001", "item_code": code,
+                              "warehouse": "WH-001", "actual_qty": qty})
+        db.conn.commit()
+
+        def dataset_call(filters, dataset="stock_balances", error=False):
+            result = rpc(api, {"jsonrpc": "2.0", "id": 650, "method": "tools/call",
+                               "params": {"name": "query_dataset", "arguments": {
+                                   "dataset": dataset, "group_by": ["item_code", "warehouse"],
+                                   "measures": {"qty": ["sum", "actual_qty"]}, "filters": filters,
+                                   "order_by": [{"field": "item_code", "direction": "asc"}],
+                               }}}, mgr_h).json()["result"]
+            assert result["isError"] is error, result
+            return json.loads(result["content"][0]["text"])
+
+        def runtime_call(filters, dataset="stock_balances"):
+            return api.post("/api/reports/runtime/data", headers=mgr_h, json={"requests": [{
+                "dataset": dataset, "fields": ["item_code", "warehouse", "actual_qty"], "filters": filters,
+            }]})
+
+        expected = [{"item_code": code, "warehouse": "WH-001", "qty": 3} for code in codes]
+        for value in (codes, ["in", codes], ["IN", codes]):
+            filters = {"item_code": value, "warehouse": "WH-001"}
+            assert dataset_call(filters)["rows"] == expected
+            rest = runtime_call(filters)
+            assert rest.status_code == 200, rest.text
+            rows = rest.json()["datasets"][0]["rows"]
+            assert {r["item_code"] for r in rows} == set(codes) and sum(r["actual_qty"] for r in rows) == 6, rows
+        assert dataset_call({"item_code": codes[0]})["rows"] == expected[:1]
+        assert dataset_call({"item_code": "' OR 1=1 --"})["rows"] == []
+        assert dataset_call({"item_code": ["not in", ["OTHER-DEVICE", "in"]]})["rows"] == expected
+        # A flat list remains literal, even when a real code is named "in".
+        assert {r["item_code"] for r in dataset_call({"item_code": ["in", codes[0]]})["rows"]} == {"in", codes[0]}
+        for value in ([], ["in", []]):
+            assert dataset_call({"item_code": value})["rows"] == []
+            assert runtime_call({"item_code": value}).json()["datasets"][0]["rows"] == []
+        assert len(dataset_call({"item_code": ["not in", []]})["rows"]) == 4
+
+        invalid_filters = [
+            {"item_code": ["in", [codes]]}, {"item_code": ["in", codes, "extra"]},
+            {"item_code": ["unknown-op", codes]}, {"item_code": [codes[0], None]},
+            {"item_code": [{"code": codes[0]}]}, {"item_code": codes * 251},
+            {"item_code": {"operator": "in", "value": codes}}, {"item_code": {}},
+            {"item_code": {"from": codes}}, {"item_code": {"from": "Z", "to": "A"}},
+            {"item_code": {"from": 1, "to": "A"}}, {"invented_field": codes},
+        ]
+        for filters in invalid_filters:
+            failure = dataset_call(filters, error=True)
+            assert "error" in failure, failure
+            rest = runtime_call(filters)
+            assert rest.status_code == 400, (filters, rest.text)
+        dataset_call([], error=True)
+
+        for code, day in zip(codes, ("2026-09-22", "2026-09-23")):
+            db.insert("Stock Ledger Entry", {"name": code + "-MOVEMENT", "item_code": code,
+                      "warehouse": "WH-001", "posting_date": day, "actual_qty": 3, "is_cancelled": 0})
+        db.conn.commit()
+        assert dataset_call({"posting_date": {"from": "2026-09-22", "to": "2026-09-22"}},
+                            dataset="stock_movements")["rows"] == expected[:1]
+        for value in ({"from": "2026-09-23", "to": "2026-09-22"},
+                      {"from": "2026-02-30"}, {"from": "2026-09-22", "until": "2026-09-23"},
+                      {"from": {"date": "2026-09-22"}}, "2026-99-99", ["in", ["20260922"]]):
+            filters = {"posting_date": value}
+            dataset_call(filters, dataset="stock_movements", error=True)
+            rest = runtime_call(filters, dataset="stock_movements")
+            assert rest.status_code == 400, (filters, rest.text)
+        for value in ({"from": "2026-09-22", "to": "2026-09-22"},
+                      {"from": "2026-09-22"}, {"to": "2026-09-22"}, {"from": "", "to": None}):
+            dataset_call({"posting_date": value}, dataset="stock_movements")
+
+        # Chat and MCP use the same handler; advertised filters must also
+        # describe the accepted shape for custom report data requests.
+        from api import chat
+        chat_tools = {tool["function"]["name"]: tool["function"] for tool in chat.build_tools()}
+        assert '"in", [' in tools_by_name["query_dataset"]["inputSchema"]["properties"]["filters"]["description"]
+        for tool_name in ("query_dataset", "create_custom_analytics_report", "update_custom_analytics_report"):
+            schema = chat_tools[tool_name]["parameters"]["properties"]
+            if tool_name != "query_dataset":
+                schema = schema["data_requests"]["items"]["properties"]
+            assert '"in", [' in schema["filters"]["description"], schema
+
         # Viewer is denied writes at call time too (defence in depth).
         denied = rpc(api, {"jsonrpc": "2.0", "id": 6, "method": "tools/call",
                            "params": {"name": "create_master", "arguments": {"master_type": "customer", "data": {"customer_name": "x"}}}}, vwr_h).json()["result"]
