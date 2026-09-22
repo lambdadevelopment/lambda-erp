@@ -23,6 +23,7 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, getdate, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError
+from lambda_erp.controllers.item_price import normalize_pricing_number
 
 APPLY_ON = ("Item Code", "Item Group")
 APPLICABLE_FOR = ("Customer", "Customer Group", "Territory", "Supplier")
@@ -59,6 +60,12 @@ class PricingRule(Document):
     )
 
     def validate(self):
+        # Forms send blank optional numeric fields. Persist real zeroes so both
+        # SQL backends match unbounded rules consistently (Postgres rejects '').
+        for field in ("rate", "discount_percentage", "discount_amount", "min_qty", "max_qty", "min_amt", "max_amt"):
+            normalize_pricing_number(self, field)
+        for field in ("priority", "selling", "buying", "enabled"):
+            normalize_pricing_number(self, field, 1 if field == "enabled" else 0, integer=True)
         if not self.title:
             raise ValidationError("Title is required")
 

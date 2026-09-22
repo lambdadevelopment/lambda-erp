@@ -136,7 +136,15 @@ class PricingIntegrity(unittest.TestCase):
         with self.assertRaises(ValidationError): update_master_record('customer','C',{'default_price_list':'missing'})
         for bad in [dict(selling='0',buying='0'),dict(currency='')]:
             with self.assertRaises(ValidationError): PriceList(price_list_name='Invalid',**{'currency':'USD','selling':1,**bad}).save()
-        rule=PricingRule(title='Discount',item_code='M',selling=1,rate_or_discount='Discount Percentage',discount_percentage=10).save()
+        self.db.set_value('Item','M','item_group','Services')
+        # The browser submits blank optional thresholds, not omitted fields.
+        rule=services.create_document('pricing-rule',dict(title='Discount',apply_on='Item Group',
+            item_code='',item_group='Services',applicable_for='Customer',customer='C',
+            selling='1',buying='0',enabled='1',rate_or_discount='Discount Percentage',
+            discount_percentage=10,discount_amount='',rate='',min_qty='',max_qty=20,
+            min_amt='',max_amt='',priority='',valid_from='',valid_upto='',docstatus=0))
+        self.assertEqual(rule['min_qty'],0)
+        self.assertEqual(rule['priority'],0)
         doc=SalesInvoice(company='Test Co',customer='C',items=[dict(item_code='M',qty=1,rate=None)]).save()
         self.assertEqual(doc.items[0]['rate'],162)
         doc.save(); self.assertEqual(doc.items[0]['rate'],162)

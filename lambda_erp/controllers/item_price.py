@@ -23,10 +23,25 @@ be stable within one document. A customer trading in two currencies gets one
 Price List per currency.
 """
 
+import math
+
 from lambda_erp.model import Document
 from lambda_erp.utils import flt, getdate, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError
+
+
+def normalize_pricing_number(doc, field, default=0, *, integer=False):
+    value = doc.get(field)
+    if value is None or (isinstance(value, str) and not value.strip()):
+        value = default
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValidationError(f"{field} must be a finite number")
+    if not math.isfinite(number) or (integer and number != int(number)):
+        raise ValidationError(f"{field} must be a finite {'integer' if integer else 'number'}")
+    doc._data[field] = int(number) if integer else number
 
 
 class PriceList(Document):
@@ -40,6 +55,8 @@ class PriceList(Document):
     )
 
     def validate(self):
+        for field in ("selling", "buying", "enabled"):
+            normalize_pricing_number(self, field, 1 if field == "enabled" else 0, integer=True)
         if not self.price_list_name:
             raise ValidationError("Price List Name is required")
         if not self.currency:
@@ -66,6 +83,10 @@ class ItemPrice(Document):
     )
 
     def validate(self):
+        normalize_pricing_number(self, "min_qty")
+        normalize_pricing_number(self, "enabled", 1, integer=True)
+        if self.get("rate") is not None and self.get("rate") != "":
+            normalize_pricing_number(self, "rate")
         if not self.item_code:
             raise ValidationError("Item Code is required")
         if not self.price_list:
