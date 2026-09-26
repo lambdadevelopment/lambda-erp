@@ -17,6 +17,7 @@ from lambda_erp.database import setup
 from api.errors import register_exception_handlers
 from api.auth import router as auth_router, COOKIE_NAME, decode_token
 from api.oauth import router as oauth_router
+from api.mcp_oauth import router as mcp_oauth_router, OAuthError, oauth_error_handler
 from api.attachments import router as attachments_router
 from api.chat import chat_websocket, router as chat_router
 from api.routers import admin, documents, masters, reports, setup as setup_router, bank_reconciliation, bank_statements, analytics, accounting, proposals, chat_api, mcp, availability, actions
@@ -101,10 +102,12 @@ app.add_middleware(
 
 # Exception handlers
 register_exception_handlers(app)
+app.add_exception_handler(OAuthError, oauth_error_handler)
 
 # Routers
 app.include_router(auth_router, prefix="/api")
 app.include_router(oauth_router, prefix="/api")
+app.include_router(mcp_oauth_router)
 app.include_router(attachments_router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(proposals.router, prefix="/api")

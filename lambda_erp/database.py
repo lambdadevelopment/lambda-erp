@@ -1695,6 +1695,25 @@ class Database:
                 revoked INTEGER DEFAULT 0
             )""",
 
+            """CREATE TABLE IF NOT EXISTS "MCP OAuth Client" (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, redirect_uris TEXT NOT NULL,
+                auth_method TEXT NOT NULL, secret_hash TEXT, created_at INTEGER NOT NULL
+            )""",
+            """CREATE TABLE IF NOT EXISTS "MCP OAuth Request" (
+                id TEXT PRIMARY KEY, params TEXT NOT NULL, expires_at INTEGER NOT NULL,
+                consumed INTEGER DEFAULT 0
+            )""",
+            """CREATE TABLE IF NOT EXISTS "MCP OAuth Code" (
+                hash TEXT PRIMARY KEY, client_id TEXT NOT NULL, key_id TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL, challenge TEXT NOT NULL, resource TEXT NOT NULL,
+                scope TEXT NOT NULL, expires_at INTEGER NOT NULL, consumed INTEGER DEFAULT 0
+            )""",
+            """CREATE TABLE IF NOT EXISTS "MCP OAuth Token" (
+                hash TEXT PRIMARY KEY, kind TEXT NOT NULL, client_id TEXT NOT NULL,
+                key_id TEXT NOT NULL, resource TEXT NOT NULL, scope TEXT NOT NULL,
+                expires_at INTEGER NOT NULL, consumed INTEGER DEFAULT 0
+            )""",
+
             # Exchange rates for multi-currency. A lookup carries forward the
             # most recent rate on/before a transaction's date; the rate is then
             # snapshotted onto the document, so editing this table never changes
@@ -2855,6 +2874,10 @@ def _m038_customer_website(db: "Database") -> None:
     db.ensure_column("Customer", "website", "TEXT")
 
 
+def _m039_connection_app_type(db: "Database") -> None:
+    db.ensure_column("Api Key", "app_type", "TEXT DEFAULT 'other'")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2894,6 +2917,7 @@ Database.MIGRATIONS = [
     (36, "external_identity_integrity", _m036_external_identity_integrity),
     (37, "pricing_record_lifecycle", _m037_pricing_record_lifecycle),
     (38, "customer_website", _m038_customer_website),
+    (39, "connection_app_type", _m039_connection_app_type),
 ]
 
 

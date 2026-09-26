@@ -8,6 +8,8 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatDateTime } from "@/lib/utils";
+import { AppConnectionSetup } from "@/components/settings/app-connection-setup";
 import { LanguageSelect } from "@/components/ui/language-select";
 
 // Map window keys (as returned by /admin/demo-spend) to seconds so we can
@@ -479,8 +481,6 @@ function LinkedAccountsCard() {
   );
 }
 
-const ROLE_RANK: Record<string, number> = { viewer: 1, manager: 2, admin: 3 };
-
 // Self-service API keys: every key belongs to its creator and can never act
 // above the owner's live role (the picked role is only a CAP). Non-admins see
 // and manage their own keys; admins see everyone's.
@@ -488,39 +488,13 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
   const { t } = useTranslation();
   const { user: me } = useAuth();
   const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-  const [role, setRole] = useState(ownRole in ROLE_RANK ? ownRole : "viewer");
-  const [newToken, setNewToken] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<
     null | { id: string; action: "revoke" | "delete"; owner: string; keyName: string }
   >(null);
 
-  const roleOptions = ["viewer", "manager", "admin"].filter(
-    (r) => ROLE_RANK[r] <= (ROLE_RANK[ownRole] ?? 1),
-  );
-
-  // The same key doubles as MCP auth (POST <origin>/api/mcp). Show ready-to-paste
-  // config for the common agents right after the token, while it's still visible.
-  const mcpUrl = `${window.location.origin}/api/mcp`;
-  const claudeSnippet = newToken
-    ? `claude mcp add --transport http --scope user lambda-erp ${mcpUrl} \\\n  --header "Authorization: Bearer ${newToken}"`
-    : "";
-  const codexSnippet = newToken
-    ? `# ~/.codex/config.toml\n[mcp_servers.lambda-erp]\nurl = "${mcpUrl}"\nhttp_headers = { Authorization = "Bearer ${newToken}" }`
-    : "";
-
   const { data: keys } = useQuery({
     queryKey: ["api-keys"],
     queryFn: () => api.getApiKeys(),
-  });
-
-  const createMut = useMutation({
-    mutationFn: () => api.createApiKey(name.trim(), role),
-    onSuccess: (res) => {
-      setNewToken(res.token);
-      setName("");
-      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
-    },
   });
 
   const revokeMut = useMutation({
@@ -579,7 +553,12 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
   };
 
   return (
-    <div>
+    <div className="space-y-5">
+      <AppConnectionSetup ownRole={ownRole} />
+      <div className="flex items-center justify-between border-t border-line pt-5">
+        <h3 className="font-semibold text-fg">{t("connections.existing")}</h3>
+        <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["api-keys"] })}>{t("connections.refresh")}</Button>
+      </div>
       {ownRole === "admin" && (
         <p className="mb-3 text-xs text-fg-muted">{t("settings.chatApiAdminAllNote")}</p>
       )}
@@ -610,7 +589,8 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
                           <Badge variant="danger">{t("settings.chatApiRevoked")}</Badge>
                         )}
                       </div>
-                      <span className="font-mono text-xs text-fg-muted">{k.key_prefix}…</span>
+                      <span className="text-xs text-fg-muted">{k.app_type === "oauth" ? t("connections.signIn") : k.app_type === "claude_code" ? "Claude Code CLI" : k.app_type === "codex" ? "Codex CLI" : t("connections.apiKey")} · {k.app_type === "oauth" ? "OAuth" : `${k.key_prefix}…`}</span>
+                      <p className="mt-1 text-xs text-fg-muted">{t("connections.lastUsed")}: {k.last_used_at ? formatDateTime(k.last_used_at) : t("connections.notUsed")}</p>
                     </div>
                     <button
                       className="shrink-0 text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
@@ -628,69 +608,6 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
       ) : (
         <p className="mb-4 text-xs text-fg-muted">{t("settings.chatApiNoKeys")}</p>
       )}
-
-      {newToken && (
-        <div className="mb-3 rounded-lg bg-amber-50 p-3 ring-1 ring-inset ring-amber-200">
-          <p className="text-xs text-amber-800">{t("settings.chatApiTokenOnce")}</p>
-          <code className="mt-1 block break-all rounded bg-surface px-2 py-1 font-mono text-xs text-fg">
-            {newToken}
-          </code>
-          <button
-            className="mt-2 text-xs font-medium text-brand hover:underline"
-            onClick={() => navigator.clipboard?.writeText(newToken)}
-          >
-            {t("settings.chatApiCopy")}
-          </button>
-          <button
-            className="ml-3 mt-2 text-xs text-fg-muted hover:underline"
-            onClick={() => setNewToken(null)}
-          >
-            {t("settings.chatApiDismiss")}
-          </button>
-
-          {/* The same key is also an MCP endpoint — reuses this key's role. */}
-          <div className="mt-3 border-t border-amber-200 pt-3">
-            <p className="text-xs text-amber-800">
-              {t("settings.mcpNote", {
-                defaultValue:
-                  "This key is also an MCP endpoint — connect an AI agent (Claude, Codex) to it. It reuses this key's role (a viewer key = read-only).",
-              })}
-            </p>
-            <code className="mt-1 block break-all rounded bg-surface px-2 py-1 font-mono text-xs text-fg">
-              {mcpUrl}
-            </code>
-            <details className="mt-2 text-xs text-amber-900">
-              <summary className="cursor-pointer font-medium">Claude</summary>
-              <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 font-mono text-[11px] leading-relaxed text-fg">{claudeSnippet}</pre>
-            </details>
-            <details className="mt-1 text-xs text-amber-900">
-              <summary className="cursor-pointer font-medium">Codex</summary>
-              <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 font-mono text-[11px] leading-relaxed text-fg">{codexSnippet}</pre>
-            </details>
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-48">
-          <Input
-            label={t("settings.chatApiName")}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="lambda-web"
-          />
-        </div>
-        <Select
-          label={t("settings.chatApiRole")}
-          options={roleOptions}
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        />
-        <Button onClick={() => createMut.mutate()} disabled={!name.trim() || createMut.isPending}>
-          {t("settings.chatApiCreate")}
-        </Button>
-      </div>
-      <p className="mt-2 text-xs text-fg-muted">{t("settings.chatApiWarn")}</p>
 
       {confirm && (
         <div
@@ -772,7 +689,8 @@ function ApiToggleRow({
 
 // The Chat API (POST /api/v1/chat) and the REST API (/api/documents, /api/masters, …)
 // are two surfaces authenticated by the SAME per-user Bearer keys, toggled
-// independently. The shared keys section shows once EITHER surface is enabled.
+// independently. MCP shares the REST switch and also supports OAuth grants.
+// Keep setup visible when disabled so it can explain the required switch.
 function ApiAccessCard({
   chatEnabled,
   restEnabled,
@@ -812,12 +730,9 @@ function ApiAccessCard({
         />
       </div>
 
-      {(chatEnabled || restEnabled) && (
-        <div className="mt-4 border-t border-gray-100 pt-4">
-          <div className="mb-2 text-xs font-medium text-gray-500">{t("settings.chatApiKeysTitle")}</div>
-          <ApiKeysSection ownRole={ownRole} />
-        </div>
-      )}
+      <div className="mt-4 border-t border-line pt-4">
+        <ApiKeysSection ownRole={ownRole} />
+      </div>
 
       {confirmOff && (
         <div
@@ -876,7 +791,10 @@ export default function SettingsPage() {
 
   const settingsMut = useMutation({
     mutationFn: (data: Record<string, string>) => api.updateSettings(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["connection-status"] });
+    },
   });
 
   const { data: pubStatus } = useQuery({

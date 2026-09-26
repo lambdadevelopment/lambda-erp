@@ -20,6 +20,7 @@ import FleetCalendar from "@/pages/rentals/fleet-calendar";
 import Setup from "@/pages/setup";
 import Tutorial from "@/pages/tutorial";
 import Chat from "@/pages/chat";
+import ConnectAuthorize from "@/pages/connect-authorize";
 import Login from "@/pages/login";
 import Demo from "@/pages/demo";
 import OpeningBalances from "@/pages/opening-balances";
@@ -38,6 +39,7 @@ function DashboardRoute() {
 }
 
 const baseTopRoutes: RouteObject[] = [
+  { path: "/connect/authorize", element: <ConnectAuthorize /> },
   { path: "/login", element: <Login /> },
   { path: "/demo", element: <Demo /> },
 ];

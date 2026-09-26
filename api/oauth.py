@@ -29,6 +29,7 @@ import uuid
 import hmac
 import hashlib
 import secrets as _secrets
+import re
 
 import httpx
 from jose import jwt, JWTError
@@ -474,7 +475,10 @@ async def _read_callback_params(request: Request) -> dict:
 
 def _login_redirect(request: Request, user_name: str, flow_id: str | None = None) -> RedirectResponse:
     token = create_access_token(user_name)
-    resp = RedirectResponse(url="/", status_code=303)
+    mcp_request = request.cookies.get('lambda_erp_mcp_return', '')
+    target = '/connect/authorize?request=' + mcp_request if re.fullmatch(r'[a-f0-9]{64}', mcp_request) else '/'
+    resp = RedirectResponse(url=target, status_code=303)
+    resp.delete_cookie('lambda_erp_mcp_return', path='/api/auth')
     set_auth_cookie(request, resp, token)
     if flow_id:
         _clear_flow_cookie(resp, flow_id)

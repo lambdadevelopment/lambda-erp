@@ -306,6 +306,14 @@ jobs:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_adjacent
 
+      - name: MCP OAuth connectors — SQLite
+        run: python -m tests.test_mcp_oauth
+
+      - name: MCP OAuth connectors — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_mcp_oauth
+
       - name: MCP endpoint — SQLite (temp file)
         run: python -m tests.test_mcp
 

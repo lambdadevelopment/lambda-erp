@@ -57,7 +57,7 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
       throw new ApiError(401, "Session expired");
     }
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, formatErrorDetail(body.detail));
+    throw new ApiError(res.status, formatErrorDetail(body.detail || body.error_description));
   }
   return res.json();
 }
@@ -74,7 +74,7 @@ async function multipartRequest<T>(path: string, form: FormData): Promise<T> {
       throw new ApiError(401, "Session expired");
     }
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, formatErrorDetail(body.detail));
+    throw new ApiError(res.status, formatErrorDetail(body.detail || body.error_description));
   }
   return res.json() as Promise<T>;
 }
@@ -746,17 +746,21 @@ export const api = {
   getMySettings: () => request<Record<string, string>>("/auth/my-settings"),
   updateMySettings: (data: Record<string, string>) =>
     request<Record<string, string>>("/auth/my-settings", { method: "PUT", body: JSON.stringify(data) }),
+  getConnectionStatus: () => request<{ mcp_url: string; rest_enabled: boolean; chat_enabled: boolean }>("/mcp-oauth/status"),
+  getMcpConsent: (requestId: string) => request<{ client_name: string; redirect_uri: string; roles: string[]; csrf_token: string }>(`/mcp-oauth/consent?request_id=${encodeURIComponent(requestId)}`),
+  approveMcp: (request_id: string, csrf_token: string, allow: boolean, role: string) =>
+    request<{ redirect_uri: string }>("/mcp-oauth/consent", { method: "POST", body: JSON.stringify({ request_id, csrf_token, allow, role }) }),
   getApiKeys: () =>
     request<Array<{
       id: string; name: string; user?: string; role: string; key_prefix: string;
-      created_at?: string; last_used_at?: string | null; revoked: boolean;
+      created_at?: string; last_used_at?: string | null; revoked: boolean; app_type?: string;
       owner_full_name?: string | null; owner_email?: string | null; is_mine?: boolean;
     }>>("/auth/api-keys"),
-  createApiKey: (name: string, role: string) =>
+  createApiKey: (name: string, role: string, app_type: "claude_code" | "codex" | "other" = "other") =>
     request<{
       id: string; name: string; user?: string; role: string; key_prefix: string; token: string;
       owner_full_name?: string | null; owner_email?: string | null; is_mine?: boolean;
-    }>("/auth/api-keys", { method: "POST", body: JSON.stringify({ name, role }) }),
+    }>("/auth/api-keys", { method: "POST", body: JSON.stringify({ name, role, app_type }) }),
   revokeApiKey: (id: string) =>
     request<{ id: string; revoked: boolean }>(
       `/auth/api-keys/${encodeURIComponent(id)}/revoke`, { method: "POST" }),

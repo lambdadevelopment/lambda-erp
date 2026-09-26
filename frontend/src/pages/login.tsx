@@ -12,6 +12,9 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const { user, login, register } = useAuth();
   const { t } = useTranslation();
+  // Only resume the fixed, local consent route; never accept arbitrary redirects.
+  const next = searchParams.get("next") ?? "";
+  const returnTo = /^\/connect\/authorize\?request=[a-f0-9]{64}$/.test(next) ? next : "/";
   const inviteToken = searchParams.get("invite") || "";
 
   const [mode, setMode] = useState<"login" | "register">(inviteToken ? "register" : "login");
@@ -30,9 +33,9 @@ export default function LoginPage() {
   // Keep the login page accessible during demo mode so admins can still sign in.
   useEffect(() => {
     if (user && user.role !== "public_manager") {
-      navigate("/", { replace: true });
+      navigate(returnTo, { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, returnTo]);
 
   // Check if registration is open (first-run)
   useEffect(() => {
@@ -70,14 +73,14 @@ export default function LoginPage() {
       }
       try {
         await register(email, fullName, password, inviteToken || undefined);
-        navigate("/", { replace: true });
+        navigate(returnTo, { replace: true });
       } catch (err) {
         setError(err instanceof ApiError ? err.message : t("login.registrationFailed"));
       }
     } else {
       try {
         await login(email, password);
-        navigate("/", { replace: true });
+        navigate(returnTo, { replace: true });
       } catch (err) {
         setError(err instanceof ApiError ? err.message : t("login.loginFailed"));
       }

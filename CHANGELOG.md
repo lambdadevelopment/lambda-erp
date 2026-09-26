@@ -13,6 +13,19 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+Planned version: **1.1.3** (not released).
+
+- Add OAuth account linking for remote MCP connectors, including dynamic client
+  registration, explicit consent, S256 PKCE, hashed resource-bound tokens,
+  rotating refresh tokens, and shared connection revocation / role enforcement.
+- Replace the API key notice with app-specific setup cards for ChatGPT, Claude
+  Desktop, Claude Code CLI, Codex CLI, and custom integrations. Show permission
+  choices, copy feedback, last use, and the required API enablement state.
+- Preserve pending connector approval across password and social sign-in; provide
+  English, German and French setup and consent screens.
+- Keep existing API keys compatible, add OAuth discovery and MCP tool annotations,
+  and return the correct response when an MCP event stream is unavailable.
+
 ## [1.1.2] - 2026-09-22
 
 - Add a customer website field to the master form, REST and chat interfaces,

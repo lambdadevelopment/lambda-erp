@@ -9,6 +9,7 @@ import uuid
 import secrets
 import hashlib
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 import bcrypt
 from jose import jwt, JWTError
@@ -259,12 +260,18 @@ def refresh_auth_principal(principal: dict | None) -> dict | None:
             else owner["role"]
         )
         owner["role"] = effective_role
-        return make_auth_principal(
+        scope_role = principal.get("oauth_scope_role")
+        if scope_role:
+            owner["role"] = min((owner["role"], scope_role), key=_role_rank)
+        refreshed = make_auth_principal(
             owner,
             API_KEY_CREDENTIAL,
             name=principal.get("name") or key.get("session_owner") or owner["name"],
             api_key_id=key["id"],
         )
+        if scope_role:
+            refreshed["oauth_scope_role"] = scope_role
+        return refreshed
 
     user_id = principal.get("user_id") or principal.get("name")
     user = db.get_value(
@@ -981,6 +988,7 @@ class ApiKeyCreate(BaseModel):
     # Optional role CAP. Defaults to the creator's own role; may only be equal
     # or lower — a key can never out-rank its owner.
     role: str | None = None
+    app_type: Literal['claude_code', 'codex', 'other'] = 'other'
 
 
 def _serialize_api_key(row: dict) -> dict:
@@ -997,6 +1005,7 @@ def _serialize_api_key(row: dict) -> dict:
         "created_at": row.get("created_at"),
         "last_used_at": row.get("last_used_at"),
         "revoked": bool(row.get("revoked")),
+        "app_type": row.get("app_type") or "other",
     }
 
 
@@ -1024,7 +1033,7 @@ def list_api_keys(user: dict = Depends(require_interactive_user)):
     db = get_db()
     base = (
         'SELECT k.id, k.name, k.owner, k.role, k.key_prefix, k.created_at, '
-        'k.last_used_at, k.revoked, u.full_name AS owner_full_name, u.email AS owner_email '
+        'k.last_used_at, k.revoked, k.app_type, u.full_name AS owner_full_name, u.email AS owner_email '
         'FROM "Api Key" k LEFT JOIN "User" u ON u.name = k.owner '
     )
     if user["role"] == "admin":
@@ -1068,15 +1077,16 @@ def create_api_key(data: ApiKeyCreate, user: dict = Depends(require_interactive_
     created_at = now()
     db.sql(
         'INSERT INTO "Api Key" '
-        '(id, name, owner, key_hash, key_prefix, role, session_owner, created_at, last_used_at, revoked) '
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
-        [key_id, name, user["name"], key_hash, key_prefix, role, f"api:{user['name']}", created_at, None],
+        '(id, name, owner, key_hash, key_prefix, role, session_owner, created_at, last_used_at, revoked, app_type) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)',
+        [key_id, name, user["name"], key_hash, key_prefix, role, f"api:{user['name']}", created_at, None, data.app_type],
     )
     db.conn.commit()
     row = {
         "id": key_id, "name": name, "owner": user["name"], "role": role, "key_prefix": key_prefix,
         "created_at": created_at, "last_used_at": None, "revoked": 0,
         "owner_full_name": user.get("full_name"), "owner_email": user.get("email"),
+        "app_type": data.app_type,
     }
     result = _serialize_api_key(row)
     result["is_mine"] = True
