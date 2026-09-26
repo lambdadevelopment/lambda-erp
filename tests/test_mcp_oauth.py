@@ -121,6 +121,55 @@ class OAuthTests(unittest.TestCase):
         self.assertNotIn(tokens['access_token'], str(stored))
         self.assertNotIn(tokens['refresh_token'], str(stored))
 
+    def test_version_probe_still_discovers_sign_in(self):
+        # Remote connectors can send their preferred revision before sign-in.
+        # Session cookies must not suppress the OAuth discovery challenge.
+        for version in ('2025-03-26', '2025-06-18', '2025-11-25', '2099-01-01'):
+            for authorization in ('', 'Bearer invalid-key'):
+                with self.subTest(version=version, authorization=authorization):
+                    r = self.client.post('/api/mcp', headers={
+                        'MCP-Protocol-Version': version,
+                        'Authorization': authorization,
+                        'Accept': 'application/json, text/event-stream',
+                    }, json={'jsonrpc':'2.0', 'id':1, 'method':'initialize',
+                             'params':{'protocolVersion':version, 'capabilities':{},
+                                       'clientInfo':{'name':'connector-test', 'version':'1'}}})
+                    self.assertEqual(r.status_code, 401, r.text)
+                    self.assertIn('resource_metadata="http://testserver/.well-known/oauth-protected-resource/api/mcp"',
+                                  r.headers['www-authenticate'])
+
+    def test_initialize_negotiates_before_enforcing_version_header(self):
+        tokens = self.connect()
+        headers = {'Authorization': f"Bearer {tokens['access_token']}"}
+        for requested, expected in (('2025-03-26', '2025-03-26'),
+                                    ('2025-06-18', '2025-06-18'),
+                                    ('2025-11-25', '2025-06-18'),
+                                    ('2099-01-01', '2025-06-18')):
+            with self.subTest(requested=requested):
+                r = self.client.post('/api/mcp', headers={**headers, 'MCP-Protocol-Version':requested},
+                                     json={'jsonrpc':'2.0', 'id':1, 'method':'initialize',
+                                           'params':{'protocolVersion':requested, 'capabilities':{},
+                                                     'clientInfo':{'name':'connector-test', 'version':'1'}}})
+                self.assertEqual(r.status_code, 200, r.text)
+                self.assertEqual(r.json()['result']['protocolVersion'], expected)
+                r = self.client.post('/api/mcp', headers={**headers, 'MCP-Protocol-Version':expected},
+                                     json={'jsonrpc':'2.0', 'id':2, 'method':'tools/list'})
+                self.assertEqual(r.status_code, 200, r.text)
+                self.assertIn('tools', r.json()['result'])
+        # After initialization, unsupported revisions must still be rejected.
+        for body in ({'jsonrpc':'2.0', 'id':3, 'method':'tools/list'},
+                     [{'jsonrpc':'2.0', 'id':4, 'method':'initialize'},
+                      {'jsonrpc':'2.0', 'id':5, 'method':'tools/list'}]):
+            r = self.client.post('/api/mcp', headers={**headers, 'MCP-Protocol-Version':'2099-01-01'}, json=body)
+            self.assertEqual(r.status_code, 400, r.text)
+
+    def test_initialize_rejects_malformed_protocol_version(self):
+        tokens = self.connect()
+        for value in ([], {}, 123):
+            r = self.rpc(tokens['access_token'], 'initialize', {'protocolVersion':value})
+            self.assertEqual(r.status_code, 200, r.text)
+            self.assertEqual(r.json()['error']['code'], -32602)
+
     def test_code_single_use_and_pkce(self):
         code = self.approve()['code'][0]
         self.assertEqual(self.exchange(code, code_verifier='b' * 64).status_code, 400)

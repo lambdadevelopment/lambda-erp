@@ -33,6 +33,7 @@ from api.tool_permissions import tool_allowed
 router = APIRouter(tags=["mcp"])
 
 PROTOCOL_VERSION = "2025-06-18"
+SUPPORTED_PROTOCOL_VERSIONS = frozenset({'2025-03-26', PROTOCOL_VERSION})
 
 # Chat-session-only tools have no meaning without a chat session — keep them out
 # of the MCP surface (an MCP client owns its own context).
@@ -158,8 +159,12 @@ def _handle(msg: dict, user: dict):
         return None if is_notification else {"jsonrpc": "2.0", "id": mid, "result": payload}
 
     if method == "initialize":
+        requested_version = (msg.get('params') or {}).get('protocolVersion', PROTOCOL_VERSION)
+        if not isinstance(requested_version, str):
+            return _rpc_error(mid, -32602, 'Expected a string protocolVersion')
         return result({
-            "protocolVersion": PROTOCOL_VERSION,
+            "protocolVersion": (requested_version if requested_version in SUPPORTED_PROTOCOL_VERSIONS
+                                else PROTOCOL_VERSION),
             "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {"name": "lambda-erp", "version": get_app_version()},
         })
@@ -194,9 +199,9 @@ async def mcp_endpoint(request: Request):
     allowed_origins = {issuer(request), *os.environ.get('MCP_ALLOWED_ORIGINS', '').split(',')}
     if origin and origin not in allowed_origins:
         raise HTTPException(403, 'Invalid Origin')
-    version = request.headers.get('mcp-protocol-version')
-    if version and version not in {'2025-03-26', PROTOCOL_VERSION}:
-        raise HTTPException(400, 'Unsupported MCP protocol version')
+    # Authentication discovery must work before the client has negotiated an
+    # MCP version. Otherwise a newer connector gets 400 instead of the 401
+    # challenge that tells it how to sign in.
     user = _require_caller(request)
     try:
         body = await request.json()
@@ -206,6 +211,12 @@ async def mcp_endpoint(request: Request):
     # Keep legacy batch support, but reject malformed messages rather than 500.
     if not isinstance(body, (dict, list)) or (isinstance(body, list) and (not body or any(not isinstance(m, dict) for m in body))):
         return JSONResponse(_rpc_error(None, -32600, "Invalid Request"), status_code=400)
+    # initialize negotiates the revision in its JSON-RPC payload. The version
+    # header is enforced on subsequent calls, after the client has our answer.
+    initializing = isinstance(body, dict) and body.get('method') == 'initialize'
+    version = request.headers.get('mcp-protocol-version')
+    if not initializing and version and version not in SUPPORTED_PROTOCOL_VERSIONS:
+        raise HTTPException(400, 'Unsupported MCP protocol version')
     if isinstance(body, list):
         responses = [r for r in (_handle(m, user) for m in body) if r is not None]
         return JSONResponse(responses) if responses else Response(status_code=202)
