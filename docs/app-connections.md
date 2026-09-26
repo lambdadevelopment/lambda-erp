@@ -1,4 +1,4 @@
-# App connections (planned for 1.1.3)
+# App connections (1.1.3)
 
 Settings → API access now starts with **Connect an app**. Choose ChatGPT, Claude
 Desktop, Claude Code CLI, Codex CLI, or another integration. The setup only shows

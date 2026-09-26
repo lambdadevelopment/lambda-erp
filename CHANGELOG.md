@@ -13,7 +13,7 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
-Planned version: **1.1.3** (not released).
+## [1.1.3] - 2026-09-26
 
 - Add OAuth account linking for remote MCP connectors, including dynamic client
   registration, explicit consent, S256 PKCE, hashed resource-bound tokens,
@@ -25,6 +25,8 @@ Planned version: **1.1.3** (not released).
   English, German and French setup and consent screens.
 - Keep existing API keys compatible, add OAuth discovery and MCP tool annotations,
   and return the correct response when an MCP event stream is unavailable.
+- Show newly created API keys directly above the creation form, so they remain
+  visible even when many keys already exist.
 
 ## [1.1.2] - 2026-09-22
 
@@ -1875,7 +1877,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.3...HEAD
+[1.1.3]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.1...v1.1.2
 [1.0.0]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.34...v1.0.0
 [0.8.34]: https://github.com/lambdadevelopment/lambda-erp/compare/v0.8.33...v0.8.34
