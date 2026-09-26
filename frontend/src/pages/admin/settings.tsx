@@ -580,48 +580,6 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
 
   return (
     <div>
-      {newToken && (
-        <div className="mb-3 rounded-lg bg-amber-50 p-3 ring-1 ring-inset ring-amber-200">
-          <p className="text-xs text-amber-800">{t("settings.chatApiTokenOnce")}</p>
-          <code className="mt-1 block break-all rounded bg-surface px-2 py-1 font-mono text-xs text-fg">
-            {newToken}
-          </code>
-          <button
-            className="mt-2 text-xs font-medium text-brand hover:underline"
-            onClick={() => navigator.clipboard?.writeText(newToken)}
-          >
-            {t("settings.chatApiCopy")}
-          </button>
-          <button
-            className="ml-3 mt-2 text-xs text-fg-muted hover:underline"
-            onClick={() => setNewToken(null)}
-          >
-            {t("settings.chatApiDismiss")}
-          </button>
-
-          {/* The same key is also an MCP endpoint — reuses this key's role. */}
-          <div className="mt-3 border-t border-amber-200 pt-3">
-            <p className="text-xs text-amber-800">
-              {t("settings.mcpNote", {
-                defaultValue:
-                  "This key is also an MCP endpoint — connect an AI agent (Claude, Codex) to it. It reuses this key's role (a viewer key = read-only).",
-              })}
-            </p>
-            <code className="mt-1 block break-all rounded bg-surface px-2 py-1 font-mono text-xs text-fg">
-              {mcpUrl}
-            </code>
-            <details className="mt-2 text-xs text-amber-900">
-              <summary className="cursor-pointer font-medium">Claude</summary>
-              <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 font-mono text-[11px] leading-relaxed text-fg">{claudeSnippet}</pre>
-            </details>
-            <details className="mt-1 text-xs text-amber-900">
-              <summary className="cursor-pointer font-medium">Codex</summary>
-              <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 font-mono text-[11px] leading-relaxed text-fg">{codexSnippet}</pre>
-            </details>
-          </div>
-        </div>
-      )}
-
       {ownRole === "admin" && (
         <p className="mb-3 text-xs text-fg-muted">{t("settings.chatApiAdminAllNote")}</p>
       )}
@@ -669,6 +627,48 @@ function ApiKeysSection({ ownRole }: { ownRole: string }) {
         </div>
       ) : (
         <p className="mb-4 text-xs text-fg-muted">{t("settings.chatApiNoKeys")}</p>
+      )}
+
+      {newToken && (
+        <div className="mb-3 rounded-lg bg-amber-50 p-3 ring-1 ring-inset ring-amber-200">
+          <p className="text-xs text-amber-800">{t("settings.chatApiTokenOnce")}</p>
+          <code className="mt-1 block break-all rounded bg-surface px-2 py-1 font-mono text-xs text-fg">
+            {newToken}
+          </code>
+          <button
+            className="mt-2 text-xs font-medium text-brand hover:underline"
+            onClick={() => navigator.clipboard?.writeText(newToken)}
+          >
+            {t("settings.chatApiCopy")}
+          </button>
+          <button
+            className="ml-3 mt-2 text-xs text-fg-muted hover:underline"
+            onClick={() => setNewToken(null)}
+          >
+            {t("settings.chatApiDismiss")}
+          </button>
+
+          {/* The same key is also an MCP endpoint — reuses this key's role. */}
+          <div className="mt-3 border-t border-amber-200 pt-3">
+            <p className="text-xs text-amber-800">
+              {t("settings.mcpNote", {
+                defaultValue:
+                  "This key is also an MCP endpoint — connect an AI agent (Claude, Codex) to it. It reuses this key's role (a viewer key = read-only).",
+              })}
+            </p>
+            <code className="mt-1 block break-all rounded bg-surface px-2 py-1 font-mono text-xs text-fg">
+              {mcpUrl}
+            </code>
+            <details className="mt-2 text-xs text-amber-900">
+              <summary className="cursor-pointer font-medium">Claude</summary>
+              <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 font-mono text-[11px] leading-relaxed text-fg">{claudeSnippet}</pre>
+            </details>
+            <details className="mt-1 text-xs text-amber-900">
+              <summary className="cursor-pointer font-medium">Codex</summary>
+              <pre className="mt-1 overflow-x-auto rounded bg-surface p-2 font-mono text-[11px] leading-relaxed text-fg">{codexSnippet}</pre>
+            </details>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-wrap items-end gap-3">
