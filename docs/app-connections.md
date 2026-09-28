@@ -7,10 +7,19 @@ instructions for that client. Existing keys keep working.
 ## Claude Desktop and ChatGPT connectors
 
 Enable **REST API access** in the ERP first (this switch also controls MCP).
-Add a custom remote connector in the client using `https://<erp-host>/api/mcp`.
+
+- **Claude Desktop:** open **Settings → Connectors → Add custom connector**.
+- **ChatGPT:** open **chatgpt.com** in a browser, select **Plugins** in the main
+  left sidebar, click **Add (+)** at the top right, then **Create MCP App**.
+  Enter a name that identifies the ERP instance (for example, **Lambda ERP DEV**)
+  and a short description. If **Create MCP App** is unavailable, check
+  **Settings → Security and login → Developer mode**. If developer mode is
+  already enabled, go straight to **Plugins**. Workspace permissions may also
+  apply.
+
+Paste the server URL shown in the ERP setup, `https://<erp-host>/api/mcp`.
 Choose OAuth if asked, and leave optional client ID / secret fields empty: the
 client registers automatically. Sign in to the ERP and approve an access level.
-ChatGPT custom app availability depends on developer mode and workspace policy.
 
 There is no API key to copy into these connectors. A consent screen identifies
 the app and callback origin and defaults to read access. The granted role cannot

@@ -91,6 +91,7 @@ export function AppConnectionSetup({ ownRole }: { ownRole: string }) {
         {url && <CopyValue value={url} label={t("connections.copyUrl")} />}
         <p className="text-sm text-fg"><span className="mr-2 font-semibold text-brand">3.</span>{t("connections.approveStep")}</p>
         <p className="text-xs text-fg-muted">{t("connections.noKeyNeeded")}</p>
+        {selected === "chatgpt" && <p className="text-xs text-fg-muted">{t("connections.chatgptDeveloperMode")}</p>}
         <a className="text-sm text-brand hover:underline" target="_blank" rel="noreferrer"
           href={selected === "chatgpt" ? "https://developers.openai.com/plugins/deploy/connect-chatgpt" : "https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp"}>{t("connections.officialGuide")}</a>
       </> : <>

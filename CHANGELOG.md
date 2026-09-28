@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-09-28
+
+- Clarify ChatGPT setup: open Plugins in the main sidebar, then Add (+) and
+  Create MCP App. Explain when to check developer mode and skip that step
+  when it is already enabled.
+- Include Settings before Connectors in the Claude Desktop setup instructions.
+- Update English, German and French instructions and the app connection guide.
+
 ## [1.1.4] - 2026-09-26
 
 - Fix MCP sign-in discovery for connectors that send a newer protocol version
@@ -1883,7 +1891,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.4...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.5...HEAD
+[1.1.5]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.1...v1.1.2
