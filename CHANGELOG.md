@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-09-28
+
+- Add read-only `get_erp_context` discovery for direct ERP clients, including
+  live document/master registries, custom extension links and PDF requirements.
+- Share workflow guidance between native chat and direct clients: inspect fields,
+  resolve ambiguous records, distinguish draft creation from submission, verify
+  generated PDF artifacts, and check write outcomes before retrying.
+- Expose discovery through the permission-filtered MCP catalogue without
+  requiring the Chat API or invoking an ERP model.
+
 ## [1.1.5] - 2026-09-28
 
 - Clarify ChatGPT setup: open Plugins in the main sidebar, then Add (+) and
@@ -1891,7 +1901,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.5...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.6...HEAD
+[1.1.6]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.2...v1.1.3
