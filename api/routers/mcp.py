@@ -49,6 +49,7 @@ _EXCLUDE = {
 }
 
 _READ_ONLY = {
+    'get_erp_context',
     'list_documents', 'get_document_fields', 'get_document', 'get_master_fields',
     'search_masters', 'get_report', 'get_current_time', 'query_dataset',
     'preview_bank_statement_attachments', 'list_bank_reconciliation_queue',
@@ -167,6 +168,7 @@ def _handle(msg: dict, user: dict):
                                 else PROTOCOL_VERSION),
             "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {"name": "lambda-erp", "version": get_app_version()},
+            "instructions": "Call get_erp_context for live record types and workflow guidance, then inspect field schemas before writes. tools/list reflects your permissions. No ERP chat is invoked by the standard business tools.",
         })
     if method in ("notifications/initialized", "notifications/cancelled"):
         return None

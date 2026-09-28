@@ -28,6 +28,7 @@ from openai import OpenAI
 
 from api.time_filters import TIME_FILTER_SCHEMA, time_filter_fields
 from api import services
+from api.erp_context import WORKFLOW_GUIDANCE, get_erp_context
 from api.chat_links import with_record_view_urls
 from api.tool_permissions import tool_allowed, tool_permission_error
 from api.demo_limits import (
@@ -473,6 +474,11 @@ DOCUMENT_SLUGS = [
 MASTER_TYPES = ["customer", "supplier", "item", "warehouse", "account", "company", "cost-center"]
 
 TOOLS = [
+    {"type": "function", "function": {
+        "name": "get_erp_context",
+        "description": "Discover this ERP's live document/master types, relationships, PDF capabilities and workflow guidance. Read this before using an unfamiliar ERP. No LLM is invoked. Use field tools for detailed schemas and tools/list for permitted operations.",
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    }},
     {
         "type": "function",
         "function": {
@@ -2244,6 +2250,7 @@ def _handle_apply_company_setup(args):
 
 
 TOOL_HANDLERS = {
+    "get_erp_context": get_erp_context,
     "list_documents": _handle_list_documents,
     "get_document_fields": _handle_get_document_fields,
     "generate_document_pdf": _handle_generate_document_pdf,
@@ -2477,6 +2484,8 @@ If `jurisdiction.is_fallback` is true, tell the user their country isn't localiz
         company_setup_section = ""
 
     return f"""You are an ERP assistant for Lambda ERP. Today's date is {date.today().isoformat()}.
+
+{WORKFLOW_GUIDANCE}
 
 You help users manage their business by creating documents, looking up data, and running reports — all through natural conversation.
 

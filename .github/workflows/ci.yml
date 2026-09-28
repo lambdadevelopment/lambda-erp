@@ -60,6 +60,9 @@ jobs:
       - name: Install (with the postgres extra)
         run: pip install -e ".[postgres]"
 
+      - name: Direct ERP discovery and extension metadata
+        run: python -m tests.test_erp_context
+
       - name: Utils — now() timezone-aware UTC (backend-agnostic)
         run: python -m tests.test_utils_now
 

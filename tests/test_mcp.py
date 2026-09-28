@@ -67,6 +67,16 @@ def check_mcp():
         assert init["protocolVersion"] and init["serverInfo"]["name"] == "lambda-erp", init
         assert init["capabilities"].get("tools") is not None, init
 
+        # A direct client discovers workflow context without enabling chat or invoking an LLM.
+        assert "get_erp_context" in init["instructions"]
+        context_response = rpc(api, {"jsonrpc": "2.0", "id": 12, "method": "tools/call",
+            "params": {"name": "get_erp_context", "arguments": {}}}, vwr_h).json()["result"]
+        assert not context_response["isError"], context_response
+        context = json.loads(context_response["content"][0]["text"])
+        assert context["contract_version"] == 1
+        assert any(d["type"] == "quotation" for d in context["documents"])
+        assert any(m["type"] == "customer" for m in context["masters"])
+
         # notification (no id) -> 202, no body
         assert rpc(api, {"jsonrpc": "2.0", "method": "notifications/initialized"}, mgr_h).status_code == 202
 
