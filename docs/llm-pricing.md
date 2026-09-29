@@ -47,5 +47,5 @@ calling through Chat Completions or reasoning effort `none`.
 
 ## Develop trial
 
-Deploy this core commit to `lambda-erp-internal` Develop via an immutable source
-archive pin. No release or production promotion is needed for the trial.
+Released in core **1.1.7**. Upgrade `lambda-erp-internal` Develop to the published
+1.1.7 backend and frontend packages for this trial; production remains on 1.1.6.

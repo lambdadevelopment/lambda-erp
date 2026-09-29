@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.7] - 2026-09-29
+
+- Default the ERP chat orchestrator to GPT-6 Luna using the Responses API with
+  reasoning effort `low`; preserve the separate GPT-5.6 Terra report specialist.
+- Register verified Standard short- and long-context pricing for GPT-6 Astra,
+  Sol, Luna and GPT-6.1 Sol, and correct the existing GPT-5.6 Terra rates.
+  Existing stored costs are not recalculated.
+- Document pricing sources and accounting limits, and test cached-token billing,
+  the 272K context threshold, and both orchestrator API request paths.
+
 ## [1.1.6] - 2026-09-28
 
 - Add read-only `get_erp_context` discovery for direct ERP clients, including
@@ -1901,7 +1911,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.6...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.7...HEAD
+[1.1.7]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.6...v1.1.7
 [1.1.6]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.3...v1.1.4
