@@ -1,8 +1,8 @@
 """Pricing data for external LLM APIs the chat orchestrator uses.
 
-Mirrors the shape of `lambda-web/backend/providers.py`. Only the models
-this app actually calls are listed — refresh this dict when model
-choices change. Prices are USD per 1M tokens.
+Mirrors the shape of `lambda-web/backend/providers.py`. Includes active models
+and GPT-6 alternatives for comparison. Prices are Standard USD per 1M tokens;
+see docs/llm-pricing.md for sources and billing scope.
 
 Consumers import `cost_of_openai_call` to turn an SDK `response.usage` object
 into a USD amount. Both Chat Completions and Responses usage shapes are
@@ -19,6 +19,36 @@ from typing import Any, Optional
 # ---------------------------------------------------------------------------
 
 OPENAI_PRICING: dict[str, dict[str, Any]] = {
+    # Official model pages, verified 2026-09-29. Above 272K input tokens,
+    # the higher rates apply to the entire request (including cache hits).
+    "gpt-6-astra": {
+        "tiered": True,
+        "tiers": [
+            {"max_input_tokens": 272_000, "input": 10.00, "cached_input": 1.00, "cache_write": 12.50, "output": 50.00},
+            {"max_input_tokens": None,    "input": 20.00, "cached_input": 2.00, "cache_write": 25.00, "output": 75.00},
+        ],
+    },
+    "gpt-6-sol": {
+        "tiered": True,
+        "tiers": [
+            {"max_input_tokens": 272_000, "input": 2.00, "cached_input": 0.20, "cache_write": 2.50, "output": 10.00},
+            {"max_input_tokens": None,    "input": 4.00, "cached_input": 0.40, "cache_write": 5.00, "output": 15.00},
+        ],
+    },
+    "gpt-6-luna": {
+        "tiered": True,
+        "tiers": [
+            {"max_input_tokens": 272_000, "input": 0.10, "cached_input": 0.01, "cache_write": 0.125, "output": 0.50},
+            {"max_input_tokens": None,    "input": 0.20, "cached_input": 0.02, "cache_write": 0.25, "output": 0.75},
+        ],
+    },
+    "gpt-6.1-sol": {
+        "tiered": True,
+        "tiers": [
+            {"max_input_tokens": 272_000, "input": 2.00, "cached_input": 0.10, "cache_write": 2.50, "output": 10.00},
+            {"max_input_tokens": None,    "input": 4.00, "cached_input": 0.20, "cache_write": 5.00, "output": 15.00},
+        ],
+    },
     "gpt-5.4": {
         "tiered": True,
         "tiers": [
@@ -31,8 +61,8 @@ OPENAI_PRICING: dict[str, dict[str, Any]] = {
     "gpt-5.6-terra": {
         "tiered": True,
         "tiers": [
-            {"max_input_tokens": 272_000, "input": 2.50, "cached_input": 0.25, "cache_write": 3.125, "output": 15.00},
-            {"max_input_tokens": None,    "input": 5.00, "cached_input": 0.50, "cache_write": 6.25,  "output": 22.50},
+            {"max_input_tokens": 272_000, "input": 2.00, "cached_input": 0.20, "cache_write": 2.50, "output": 12.00},
+            {"max_input_tokens": None,    "input": 4.00, "cached_input": 0.40, "cache_write": 5.00, "output": 18.00},
         ],
     },
     "gpt-4.1-nano": {"input": 0.10, "cached_input": 0.025, "output": 0.40},
@@ -54,8 +84,8 @@ TRANSCRIBE_PRICING: dict[str, dict[str, float]] = {
 
 
 # ---------------------------------------------------------------------------
-# Rate lookup — unknown models fall back to the most expensive model in each
-# family so we never under-count a call we forgot to register.
+# Rate lookup — preserve the legacy gpt-5.4 estimate for unknown model IDs.
+# Register a model explicitly before using it; this fallback is not a price cap.
 # ---------------------------------------------------------------------------
 
 def get_openai_rates(model: str, input_tokens: int = 0) -> dict[str, float]:

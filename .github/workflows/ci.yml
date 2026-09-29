@@ -63,6 +63,9 @@ jobs:
       - name: Direct ERP discovery and extension metadata
         run: python -m tests.test_erp_context
 
+      - name: LLM pricing and orchestrator request contract
+        run: python -m tests.test_llm_pricing
+
       - name: Utils — now() timezone-aware UTC (backend-agnostic)
         run: python -m tests.test_utils_now
 

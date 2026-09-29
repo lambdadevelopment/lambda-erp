@@ -3276,17 +3276,17 @@ async def generate_title(
 # ---------------------------------------------------------------------------
 
 # The agentic orchestrator model. Function tools on /v1/chat/completions
-# require reasoning_effort="none" for the gpt-5.6 family (400 otherwise).
-ORCHESTRATOR_MODEL = "gpt-5.6-terra"
+# require reasoning_effort="none" for GPT-6 Luna (400 otherwise).
+ORCHESTRATOR_MODEL = "gpt-6-luna"
 
 
 # ---------------------------------------------------------------------------
-# LLM API selector: Chat Completions (default) vs Responses API
+# LLM API selector: Responses API (default) vs Chat Completions
 #
 # The Responses API (/v1/responses) is what accepts non-PDF file inputs
 # (Office documents via input_file), and it does reasoning natively (no
 # reasoning_effort="none" hack). Migrating the whole loop is risky, so it's
-# behind a flag and OFF by default. To keep the blast radius tiny, ALL
+# controlled by ERP_CHAT_API. To keep the blast radius tiny, ALL
 # conversation state stays Chat-Completions-shaped; we translate to/from the
 # Responses shape only at the single orchestrator call boundary
 # (_orchestrator_turn), and shim the Responses output back into the
@@ -3473,7 +3473,7 @@ def _orchestrator_turn(client, messages, tools, max_tokens):
         tools=tools,
         tool_choice="auto",
         max_completion_tokens=max_tokens,
-        # gpt-5.6-terra rejects function tools on /v1/chat/completions unless
+        # gpt-6-luna rejects function tools on /v1/chat/completions unless
         # reasoning_effort is "none" (400 otherwise).
         reasoning_effort="none",
     )
@@ -3490,7 +3490,8 @@ async def run_thinking_loop(
 ):
     """Run the agentic reasoning loop.
 
-    The orchestrator and report specialist both use OpenAI gpt-5.6-terra. When GPT decides to call
+    The orchestrator uses GPT-6 Luna; the report specialist uses GPT-5.6 Terra.
+    When GPT decides to call
     `create_custom_analytics_report` or `update_custom_analytics_report`
     with an intent/feedback hint, the tool handler itself delegates the
     declarative-spec step to a separate narrowly prompted Terra call. We emit an
