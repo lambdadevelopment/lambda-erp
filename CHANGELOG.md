@@ -16,7 +16,7 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 ## [1.1.7] - 2026-09-29
 
 - Default the ERP chat orchestrator to GPT-6 Luna using the Responses API with
-  reasoning effort `low`; preserve the separate GPT-5.6 Terra report specialist.
+  reasoning effort `low`; use GPT-6.1 Sol for the separate report specialist.
 - Register verified Standard short- and long-context pricing for GPT-6 Astra,
   Sol, Luna and GPT-6.1 Sol, and correct the existing GPT-5.6 Terra rates.
   Existing stored costs are not recalculated.

@@ -2,7 +2,7 @@
 
 Verified against the official OpenAI model pages on **2026-09-29**.
 The ERP chat defaults to `gpt-6-luna` using the Responses API and reasoning
-effort `low`. The report specialist remains `gpt-5.6-terra` (`low`); title
+effort `low`. The report specialist uses `gpt-6.1-sol` (`low`); title
 generation and transcription keep their existing models.
 
 ## Standard text pricing
@@ -41,9 +41,9 @@ The previous Terra entry used 2.50/0.25/15.00; the corrected Standard rates appl
 to new calculations only. Previously stored costs are not rewritten.
 
 GPT-6.1 Sol has the same input price as Terra, half the cached-input price, and
-16.7% cheaper output. Registering its prices does not select it for chat.
-If selected later, keep the Responses API: GPT-6.1 Sol does not support tool
-calling through Chat Completions or reasoning effort `none`.
+16.7% cheaper output. It is selected for report generation, while Luna handles the main chat.
+Keep the Responses API for GPT-6.1 Sol: it does not support tool calling
+through Chat Completions or reasoning effort `none`.
 
 ## Develop trial
 

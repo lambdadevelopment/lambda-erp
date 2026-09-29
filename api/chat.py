@@ -2860,14 +2860,14 @@ Users can attach PDFs and images (receipts, bills, contracts, screenshots) to th
 # ---------------------------------------------------------------------------
 # OpenAI report-spec specialist
 #
-# GPT-5.6 Terra stays as the planner/orchestrator. When it decides a report needs
+# GPT-6 Luna acts as the planner/orchestrator. When it decides a report needs
 # a custom analytics view it calls the create/update custom analytics tools.
-# Those handlers make a separate, narrowly prompted Terra call for the bounded
+# Those handlers make a separate, narrowly prompted GPT-6.1 Sol call for the bounded
 # declarative report spec. Both roles use the existing OPENAI_API_KEY.
 # ---------------------------------------------------------------------------
 
 
-REPORT_SPECIALIST_MODEL = "gpt-5.6-terra"
+REPORT_SPECIALIST_MODEL = "gpt-6.1-sol"
 
 
 def _report_specialist_model() -> str:
@@ -3490,11 +3490,11 @@ async def run_thinking_loop(
 ):
     """Run the agentic reasoning loop.
 
-    The orchestrator uses GPT-6 Luna; the report specialist uses GPT-5.6 Terra.
+    The orchestrator uses GPT-6 Luna; the report specialist uses GPT-6.1 Sol.
     When GPT decides to call
     `create_custom_analytics_report` or `update_custom_analytics_report`
     with an intent/feedback hint, the tool handler itself delegates the
-    declarative-spec step to a separate narrowly prompted Terra call. We emit an
+    declarative-spec step to a separate narrowly prompted GPT-6.1 Sol call. We emit an
     `llm_provider` event around that delegation so the UI can surface it.
     """
     openai_api_key = os.environ.get("OPENAI_API_KEY", "")
@@ -3703,7 +3703,7 @@ async def run_thinking_loop(
             principal_ref[0] = refresh_auth_principal(principal_ref[0])
             live_role = principal_ref[0].get("role") if principal_ref[0] else None
 
-            # If the orchestrator is delegating report-spec generation to Terra,
+            # If the orchestrator is delegating report-spec generation to GPT-6.1 Sol,
             # surface the handoff in the UI.
             will_delegate_to_report_specialist = (
                 tool_allowed(fn_name, live_role)
