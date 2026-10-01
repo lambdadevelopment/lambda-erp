@@ -15,8 +15,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [1.1.8] - 2026-10-01
 
-- Switch the main ERP chat to GPT-6.1 Sol, retaining reasoning effort `low`
-  for both chat and the report specialist. Production use of GPT-6 Luna
+- Switch the main ERP chat to GPT-6.1 Sol, retaining reasoning effort `low`.
+  Increase the Sol report specialist to `medium`. Production use of GPT-6 Luna
   exposed an unsupported transfer of a person's identity between unrelated
   CRM leads. We consider this insufficiently reliable for our current
   write-capable CRM workflows and are replacing Luna for that workload;

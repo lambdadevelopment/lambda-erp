@@ -3148,7 +3148,7 @@ def _generate_report_spec_via_openai(
                 instructions=_REPORT_CODE_SYSTEM_PROMPT,
                 input=attempt_input,
                 max_output_tokens=4096,
-                reasoning={"effort": "low"},
+                reasoning={"effort": "medium"},
             )
             # Log every call for the admin dashboard. Only public_manager rows
             # count against the demo cap — other roles are logged for

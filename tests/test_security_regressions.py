@@ -361,6 +361,7 @@ def check_security_regressions():
         assert "color" not in generated["report"]["charts"][0]["series"][0]
         assert generated["data_requests"][0]["filters"]["posting_date"]["from"] == "2025-01-01"
         assert specialist_call["model"] == "gpt-6.1-sol"
+        assert specialist_call["reasoning"] == {"effort": "medium"}
 
         # The documented intent-only chat path must persist the validated
         # specialist result. ``intent`` controls the handoff and must not leak
@@ -427,6 +428,7 @@ def check_security_regressions():
             )
         assert retried["report"]["charts"][0]["series"][1]["key"] == "expenses"
         assert len(retry_calls) == 2
+        assert all(call["reasoning"] == {"effort": "medium"} for call in retry_calls)
         assert "## Validation errors from the previous attempt" in retry_calls[1]["input"]
         assert "report [value_error]" in retry_calls[1]["input"]
         try:

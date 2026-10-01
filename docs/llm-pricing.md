@@ -2,7 +2,8 @@
 
 Verified against the official OpenAI model pages on **2026-09-29**.
 Since core 1.1.8, the ERP chat and report specialist both use `gpt-6.1-sol`
-with the Responses API and reasoning effort `low`. Title generation and
+with the Responses API. Chat uses reasoning effort `low`; the report specialist
+uses `medium`. Title generation and
 transcription keep their existing models.
 
 ## Standard text pricing
@@ -50,7 +51,8 @@ through Chat Completions or reasoning effort `none`.
 Core 1.1.7 introduced Luna for the main chat. A production CRM interaction
 showed an unsupported attribution of a person from a previous lead to another
 company. Core **1.1.8** switches the chat to Sol 6.1 and adds explicit fact-grounding
-rules; the effort remains `low`, matching the earlier Terra default. This is a
+rules; chat effort remains `low`, matching the earlier Terra default. The report
+specialist increases from `low` to `medium`. This is a
 workload-specific reliability decision, not a general comparison of model quality.
 See the [release notes](../CHANGELOG.md#118---2026-10-01).
 
