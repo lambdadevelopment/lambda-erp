@@ -233,7 +233,7 @@ Open `http://localhost:5173`. Vite proxies `/api/*` to the backend.
 
 ```
 OPENAI_API_KEY=sk-...
-LAMBDA_ERP_REPORT_MODEL=gpt-5.6-terra  # optional specialist override; default shown
+LAMBDA_ERP_REPORT_MODEL=gpt-6.1-sol  # optional specialist override; default shown
 LAMBDA_ERP_ADMIN_EMAIL=admin@example.com   # optional, seeds the admin at boot
 LAMBDA_ERP_ADMIN_PASSWORD=...              # optional, required with the line above
 LAMBDA_ERP_ADMIN_NAME=Administrator        # optional, display name for the seeded admin
