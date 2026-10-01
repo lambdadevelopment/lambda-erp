@@ -13,6 +13,25 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-10-01
+
+- Switch the main ERP chat to GPT-6.1 Sol, retaining reasoning effort `low`
+  for both chat and the report specialist. Production use of GPT-6 Luna
+  exposed an unsupported transfer of a person's identity between unrelated
+  CRM leads. We consider this insufficiently reliable for our current
+  write-capable CRM workflows and are replacing Luna for that workload;
+  this is an operational decision, not a general benchmark of the model.
+- Require evidence for every written fact, including free-text notes. On a
+  company or lead change, re-establish relationships instead of carrying over
+  people from the previous topic. An unsigned team message must not be
+  attributed to a known contact without evidence. Share these rules with
+  direct clients through ERP discovery, and keep dates and time zones
+  consistent between structured fields and text.
+- Keep Sol 6.1 requests on the supported Responses API, including step-limit
+  summaries, and account for the cost of those summaries.
+- Add request/cost regression tests and an opt-in, synthetic model evaluation
+  covering unsigned team replies, unrelated contacts and explicit senders.
+
 ## [1.1.7] - 2026-09-29
 
 - Default the ERP chat orchestrator to GPT-6 Luna using the Responses API with
@@ -1911,7 +1930,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.7...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.8...HEAD
+[1.1.8]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.7...v1.1.8
 [1.1.7]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.6...v1.1.7
 [1.1.6]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.4...v1.1.5

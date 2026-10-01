@@ -1,9 +1,9 @@
 # LLM models and pricing
 
 Verified against the official OpenAI model pages on **2026-09-29**.
-The ERP chat defaults to `gpt-6-luna` using the Responses API and reasoning
-effort `low`. The report specialist uses `gpt-6.1-sol` (`low`); title
-generation and transcription keep their existing models.
+Since core 1.1.8, the ERP chat and report specialist both use `gpt-6.1-sol`
+with the Responses API and reasoning effort `low`. Title generation and
+transcription keep their existing models.
 
 ## Standard text pricing
 
@@ -41,11 +41,19 @@ The previous Terra entry used 2.50/0.25/15.00; the corrected Standard rates appl
 to new calculations only. Previously stored costs are not rewritten.
 
 GPT-6.1 Sol has the same input price as Terra, half the cached-input price, and
-16.7% cheaper output. It is selected for report generation, while Luna handles the main chat.
+16.7% cheaper output. It is selected for both the main chat and report generation.
 Keep the Responses API for GPT-6.1 Sol: it does not support tool calling
 through Chat Completions or reasoning effort `none`.
 
-## Develop trial
+## Model selection
 
-Released in core **1.1.7**. Upgrade `lambda-erp-internal` Develop to the published
-1.1.7 backend and frontend packages for this trial; production remains on 1.1.6.
+Core 1.1.7 introduced Luna for the main chat. A production CRM interaction
+showed an unsupported attribution of a person from a previous lead to another
+company. Core **1.1.8** switches the chat to Sol 6.1 and adds explicit fact-grounding
+rules; the effort remains `low`, matching the earlier Terra default. This is a
+workload-specific reliability decision, not a general comparison of model quality.
+See the [release notes](../CHANGELOG.md#118---2026-10-01).
+
+At equal token counts, Sol 6.1 costs more than Luna (20× uncached input/output,
+10× cached input), but less than the previous Terra default for cached input
+and output. Actual run costs also depend on reasoning/output tokens and tool turns.

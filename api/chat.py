@@ -2860,7 +2860,7 @@ Users can attach PDFs and images (receipts, bills, contracts, screenshots) to th
 # ---------------------------------------------------------------------------
 # OpenAI report-spec specialist
 #
-# GPT-6 Luna acts as the planner/orchestrator. When it decides a report needs
+# GPT-6.1 Sol acts as the planner/orchestrator. When it decides a report needs
 # a custom analytics view it calls the create/update custom analytics tools.
 # Those handlers make a separate, narrowly prompted GPT-6.1 Sol call for the bounded
 # declarative report spec. Both roles use the existing OPENAI_API_KEY.
@@ -3275,9 +3275,9 @@ async def generate_title(
 # Reasoning loop
 # ---------------------------------------------------------------------------
 
-# The agentic orchestrator model. Function tools on /v1/chat/completions
-# require reasoning_effort="none" for GPT-6 Luna (400 otherwise).
-ORCHESTRATOR_MODEL = "gpt-6-luna"
+# GPT-6.1 Sol requires Responses for function tools and does not support
+# reasoning effort "none", including tool-free wrap-ups after the step limit.
+ORCHESTRATOR_MODEL = "gpt-6.1-sol"
 
 
 # ---------------------------------------------------------------------------
@@ -3294,6 +3294,9 @@ ORCHESTRATOR_MODEL = "gpt-6-luna"
 # ---------------------------------------------------------------------------
 
 def _use_responses_api() -> bool:
+    # A legacy deployment flag must not route Sol 6.1 into an unsupported API.
+    if ORCHESTRATOR_MODEL == "gpt-6.1-sol":
+        return True
     # Default: the Responses API (needed for Office attachments + native
     # reasoning). Set ERP_CHAT_API=chat to fall back to Chat Completions.
     return os.environ.get("ERP_CHAT_API", "responses").strip().lower() != "chat"
@@ -3451,9 +3454,9 @@ def _shim_usage_from_responses(usage):
     return _ShimUsage(inp, out, cached)
 
 
-def _orchestrator_turn(client, messages, tools, max_tokens):
+def _orchestrator_turn(client, messages, tools, max_tokens, *, tool_choice="auto"):
     """One orchestrator LLM turn. Returns (message, usage) shaped like Chat
-    Completions, using either the Chat or Responses API per ERP_CHAT_API.
+    Completions. Sol 6.1 always uses Responses; compatible models honor ERP_CHAT_API.
     Blocking — call via asyncio.to_thread."""
     if _use_responses_api():
         instructions, input_items = _responses_request_from_chat(messages)
@@ -3462,7 +3465,7 @@ def _orchestrator_turn(client, messages, tools, max_tokens):
             instructions=instructions,
             input=input_items,
             tools=_responses_tools_from_chat(tools),
-            tool_choice="auto",
+            tool_choice=tool_choice,
             max_output_tokens=max_tokens,
             reasoning={"effort": _RESPONSES_REASONING_EFFORT},
         )
@@ -3471,7 +3474,7 @@ def _orchestrator_turn(client, messages, tools, max_tokens):
         model=ORCHESTRATOR_MODEL,
         messages=messages,
         tools=tools,
-        tool_choice="auto",
+        tool_choice=tool_choice,
         max_completion_tokens=max_tokens,
         # gpt-6-luna rejects function tools on /v1/chat/completions unless
         # reasoning_effort is "none" (400 otherwise).
@@ -3490,7 +3493,7 @@ async def run_thinking_loop(
 ):
     """Run the agentic reasoning loop.
 
-    The orchestrator uses GPT-6 Luna; the report specialist uses GPT-6.1 Sol.
+    The orchestrator and the report specialist use GPT-6.1 Sol.
     When GPT decides to call
     `create_custom_analytics_report` or `update_custom_analytics_report`
     with an intent/feedback hint, the tool handler itself delegates the
@@ -3638,8 +3641,8 @@ async def run_thinking_loop(
             print(f"[chat_llm] provider=openai model={model_name} session_id={session_id or '-'} iter={iteration + 1}", flush=True)
             await on_event({"type": "llm_provider", "provider": "openai", "model": model_name})
             try:
-                # One orchestrator turn via Chat Completions (default) or the
-                # Responses API (ERP_CHAT_API=responses). Returns Chat-shaped
+                # One orchestrator turn via Responses (required for Sol 6.1)
+                # or the legacy API for compatible models. Returns Chat-shaped
                 # (message, usage) either way, so everything below is unchanged.
                 message, usage = await asyncio.to_thread(
                     _orchestrator_turn, openai_client, messages, build_tools(user_info), max_completion,
@@ -3801,10 +3804,10 @@ async def run_thinking_loop(
     content = "I've reached the maximum number of reasoning steps. Here's what I've done so far — please check the results above."
     if not demo_mode:
         try:
-            wrap = await asyncio.to_thread(
-                openai_client.chat.completions.create,
-                model=ORCHESTRATOR_MODEL,
-                messages=messages + [{
+            wrap, usage = await asyncio.to_thread(
+                _orchestrator_turn,
+                openai_client,
+                messages + [{
                     "role": "user",
                     "content": (
                         "You hit the step limit before finishing. In the user's language, state "
@@ -3814,10 +3817,19 @@ async def run_thinking_loop(
                         "stands alone: do NOT refer to 'the results above' or to earlier messages."
                     ),
                 }],
-                max_completion_tokens=600,
-                reasoning_effort="none",
+                build_tools(user_info),
+                2048,
+                tool_choice="none",
             )
-            wrap_text = (wrap.choices[0].message.content or "").strip()
+            demo_limiter.settle(
+                None, actual_cost_usd=cost_of_openai_call(ORCHESTRATOR_MODEL, usage),
+                ip=client_ip or "unknown", role=user_role, provider="openai",
+                model=ORCHESTRATOR_MODEL,
+                prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0) if usage else 0,
+                completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0) if usage else 0,
+                session_id=session_id,
+            )
+            wrap_text = (wrap.content or "").strip()
             if wrap_text:
                 content = wrap_text
         except Exception:

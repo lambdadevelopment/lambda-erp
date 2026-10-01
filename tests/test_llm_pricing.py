@@ -1,8 +1,9 @@
-"""Regression checks for model billing and the Luna tool-call request contract.
+"""Regression checks for model billing and the Sol tool-call request contract.
 
 Run with python -m tests.test_llm_pricing; no external API calls are made.
 """
 from types import SimpleNamespace as NS
+import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
@@ -48,7 +49,35 @@ class PricingTests(unittest.TestCase):
 
 
 class OrchestratorTests(unittest.TestCase):
-    def test_luna_responses_tool_roundtrip_and_usage(self):
+    def test_step_limit_wrapup_uses_responses_without_tools_and_records_cost(self):
+        from api import chat
+        create = Mock(return_value=NS(output=[], output_text="No records changed.",
+            usage=NS(input_tokens=10_000, output_tokens=2_000,
+                     input_tokens_details=NS(cached_tokens=4_000))))
+        client = NS(responses=NS(create=create))  # No Chat Completions client.
+        messages = [{"role": "system", "content": "Use ERP tools."},
+                    {"role": "user", "content": "Find my lead."},
+                    {"role": "assistant", "content": "", "tool_calls": [{
+                        "id": "lookup", "type": "function", "function": {
+                            "name": "list_documents", "arguments": '{"doctype":"lead"}'}}]},
+                    {"role": "tool", "tool_call_id": "lookup", "content": "[]"}]
+        events = []
+        async def event(value):
+            events.append(value)
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-not-used", "ERP_CHAT_API": "chat"}), \
+             patch.object(chat, "OpenAI", return_value=client), \
+             patch.object(chat.demo_limiter, "settle") as settle:
+            asyncio.run(chat.run_thinking_loop(messages, event, max_iterations=0,
+                                               user_info={"role": "admin"}))
+        request = create.call_args.kwargs
+        self.assertEqual(request["model"], "gpt-6.1-sol")
+        self.assertEqual(request["tool_choice"], "none")
+        self.assertEqual(request["reasoning"], {"effort": "low"})
+        self.assertTrue(any(i.get("type") == "function_call_output" for i in request["input"]))
+        self.assertEqual(events[-1], {"type": "complete", "content": "No records changed."})
+        self.assertAlmostEqual(settle.call_args.kwargs["actual_cost_usd"], .0324)
+
+    def test_sol_responses_tool_roundtrip_and_usage(self):
         from api import chat
         messages = [{"role": "system", "content": "Use ERP tools."},
                     {"role": "user", "content": "List quotations."}]
@@ -62,21 +91,21 @@ class OrchestratorTests(unittest.TestCase):
                                input_tokens_details=NS(cached_tokens=4_000)))
         create = Mock(return_value=response)
         client = NS(responses=NS(create=create))
-        with patch.dict("os.environ", {"ERP_CHAT_API": "responses"}):
+        with patch.dict("os.environ", {"ERP_CHAT_API": "chat"}):
             message, usage = chat._orchestrator_turn(client, messages, [tool], 1024)
         request = create.call_args.kwargs
-        self.assertEqual(request["model"], "gpt-6-luna")
+        self.assertEqual(request["model"], "gpt-6.1-sol")
         self.assertEqual(request["reasoning"], {"effort": "low"})
         self.assertEqual(request["tools"][0]["name"], "list_documents")
         self.assertEqual(message.tool_calls[0].function.name, "list_documents")
         self.assertEqual(message.tool_calls[0].id, "call_test")
-        self.assertAlmostEqual(cost_of_openai_call(request["model"], usage), .00164)
+        self.assertAlmostEqual(cost_of_openai_call(request["model"], usage), .0324)
 
     def test_chat_completions_compatibility_uses_none(self):
         from api import chat
         create = Mock(return_value=NS(choices=[NS(message=NS(content="ok"))], usage=None))
         client = NS(chat=NS(completions=NS(create=create)))
-        with patch.dict("os.environ", {"ERP_CHAT_API": "chat"}):
+        with patch.dict("os.environ", {"ERP_CHAT_API": "chat"}), patch.object(chat, "ORCHESTRATOR_MODEL", "gpt-6-luna"):
             chat._orchestrator_turn(client, [{"role": "user", "content": "Hi"}], [], 1024)
         self.assertEqual(create.call_args.kwargs["model"], "gpt-6-luna")
         self.assertEqual(create.call_args.kwargs["reasoning_effort"], "none")

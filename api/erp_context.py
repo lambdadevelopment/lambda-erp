@@ -8,6 +8,17 @@ WORKFLOW_GUIDANCE = """Discover record types and inspect get_document_fields/get
 writes; use their canonical field names, required fields, link targets and PDF requirements.
 Resolve existing records by their returned name; never invent identifiers or silently choose
 between ambiguous matches. Custom document records use document tools, not master tools.
+Ground every written fact in the user's message or a retrieved record for the specific
+target entity. This applies to free-text notes, descriptions and activity bodies as well
+as structured fields. When the user switches company, lead or document, re-establish the
+target and its relationships; do not carry a person's name, employer, sender identity,
+contact details or other attributes over from the previous topic without explicit evidence.
+A known contact at a company is not proof that they sent an unsigned message. If the source
+only identifies a team/company, attribute it to that team/company, leave the person/contact
+unset and preserve the source wording. Ask only if identifying the person is necessary to
+perform the requested operation; never invent a sender to fill the gap.
+Keep dates, times and time zones consistent between structured fields, notes and the final
+answer. Convert the source time once; if the source zone is ambiguous, ask before writing.
 Create/update, submit, cancel and convert are separate business operations. A successful
 draft creation does not imply submission, stock movement or ledger posting. Check returned
 status and warnings. Correct validation errors using the field metadata and user information.
