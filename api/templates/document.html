@@ -58,10 +58,11 @@
   .remarks .rm-hr { border-top: 1px solid #d1d5db; margin: 6px 0; }
   .remarks em { font-style: italic; }
   .remarks strong { font-weight: 700; }
+  .state-notice { display: inline-block; margin-bottom: 8pt; padding: 3px 10px; border: 1.5px solid #b91c1c; border-radius: 4px; color: #b91c1c; font-size: 10pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 </style>
 </head>
 <body>
-<div style="font-size:9pt; margin-bottom:8pt">{{ pdf_status }}</div>
+{% if pdf_state_notice %}<div class="state-notice">{{ pdf_state_notice }}</div>{% endif %}
 
 {# ---- Header ---- #}
 <div class="header">

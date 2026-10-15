@@ -61,6 +61,31 @@ def resolve(table, name):
     return (db.get_value(table, name, display) if display in fields else None) or name
 
 
+# States a reader must not mistake for a final, issued document. Only these are
+# printed as a notice and required in the rendered text; a submitted invoice or
+# an ordinary record status carries no notice.
+NOTICE_STATES = ('Draft', 'Cancelled', 'Discarded')
+_state_labels = {}
+
+
+def register_pdf_state_labels(labels) -> None:
+    """Override the printed notice for non-final states, e.g. {'Draft': 'Entwurf'}.
+
+    Keys must be in NOTICE_STATES. The label is what templates print as
+    `pdf_state_notice` and what the rendered-text check then requires.
+    """
+    unknown = set(labels) - set(NOTICE_STATES)
+    if unknown:
+        raise ValueError(f'Unknown PDF notice states: {sorted(unknown)}')
+    if any(not str(label).strip() for label in labels.values()):
+        raise ValueError('PDF notice labels must not be empty')
+    _state_labels.update(labels)
+
+
+def notice_for(state):
+    return _state_labels.get(state, state) if state in NOTICE_STATES else ''
+
+
 def state_for(doctype, doc):
     from api.services import DOCUMENT_CLASSES
     if doc.get('discarded'):
@@ -87,9 +112,10 @@ def prepare(doctype, doc):
         if not any(not missing(doc.get(key)) for key in group):
             raise PDFError('PDF requires at least one of: ' + ', '.join(group), fields=group)
     state = state_for(doctype, doc)
-    tokens = [str(doc['name']), state]
+    notice = notice_for(state)
+    tokens = [str(doc['name'])] + ([notice] if notice else [])
     warnings = []
-    if state in {'Draft', 'Cancelled', 'Discarded'}:
+    if notice:
         warnings.append({'code': 'pdf_document_state', 'message': f'{doctype} {doc["name"]}: {state}'})
     company = {}
     if doc.get('company'):
@@ -213,7 +239,7 @@ def prepare(doctype, doc):
     if doctype == 'Subscription':
         party_currency = get_db().get_value(party_type, party_id, 'default_currency') if party_id else None
         fields.append({'key': 'currency', 'value': party_currency or company_currency})
-    return {'profile': profile, 'status': state, 'warnings': warnings, 'tokens': tokens,
+    return {'profile': profile, 'status': state, 'notice': notice, 'warnings': warnings, 'tokens': tokens,
             'fields': fields, 'tables': tables, 'party_name': party_name,
             'company': company, 'company_currency': company_currency}
 

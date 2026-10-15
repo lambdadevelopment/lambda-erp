@@ -34,10 +34,11 @@
   table.lines td.desc { color: #333; }
 
   .footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 7.5pt; color: #999; text-align: center; }
+  .state-notice { display: inline-block; margin-bottom: 8pt; padding: 3px 10px; border: 1.5px solid #b91c1c; border-radius: 4px; color: #b91c1c; font-size: 10pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 </style>
 </head>
 <body>
-<div style="font-size:9pt; margin-bottom:8pt">{{ pdf_status }}</div>
+{% if pdf_state_notice %}<div class="state-notice">{{ pdf_state_notice }}</div>{% endif %}
 
 <div class="header">
   <div><div class="company">{{ company_name or proposal.company or "" }}</div></div>
@@ -69,7 +70,7 @@
 {% if proposal.cover_letter %}<div class="cover">{{ proposal.cover_letter }}</div>{% endif %}
 
 {% for p in positions %}
-<div style="font-size:8pt">{{ p.quotation }} · {{ p.pdf_status }}</div>
+{% if p.pdf_state_notice %}<div style="font-size:8pt">{{ p.quotation }} · <span class="state-notice" style="font-size:8pt; padding:1px 6px; margin:0">{{ p.pdf_state_notice }}</span></div>{% endif %}
 <div class="position">
   <div class="pos-head">
     <span class="letter">{{ p.letter }}</span>

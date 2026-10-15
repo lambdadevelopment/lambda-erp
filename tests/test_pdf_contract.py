@@ -10,7 +10,8 @@ from pypdf import PdfReader
 from fastapi import HTTPException
 from lambda_erp.database import setup
 from api import pdf, services, chat
-from api.pdf_contract import PDFError
+from api.pdf_contract import PDFError, notice_for
+from api import pdf_contract
 from api.pdf_profiles import PROFILES, PDFProfile, DisabledPDF, validate_pdf_registry
 from api.pdf_exports import create_pdf_export, get_pdf_export
 from tests.pdf_fixtures import seed_pdf_documents
@@ -92,7 +93,7 @@ class PDFTests(unittest.TestCase):
         self.db.sql('UPDATE "Sales Invoice Item" SET rate=0,amount=0 WHERE parent=?',[name]);self.db.conn.commit()
         self.db.set_value('Customer','C-PDF','disabled',1)
         output=text(pdf.generate_pdf('sales-invoice',name))
-        self.assertIn('Cancelled',output);self.assertIn('0.00',output)
+        self.assertIn(notice_for('Cancelled').casefold(),output.casefold());self.assertIn('0.00',output)
         self.db.set_value('Sales Invoice',name,{'is_return':1,'net_total':-20,'grand_total':-20})
         self.db.sql('UPDATE "Sales Invoice Item" SET qty=-2,rate=10,amount=-20 WHERE parent=?',[name]);self.db.conn.commit()
         self.assertIn('-20.00',text(pdf.generate_pdf('sales-invoice',name)))
@@ -109,6 +110,42 @@ class PDFTests(unittest.TestCase):
                 pdf._plugin_template_dirs[:]=old;pdf._jinja_env.loader=pdf._build_loader()
         with patch.object(pdf,'_pdf_context_providers',[lambda *a: (_ for _ in ()).throw(RuntimeError('Broken required context'))]):
             with self.assertRaises(PDFError):pdf.generate_pdf('quotation',self.docs['Quotation'])
+
+    def test_state_notice_only_for_non_final_documents(self):
+        # A submitted invoice is the issued document: no status text is printed
+        # or required, so a layout without any status line still renders.
+        name=self.docs['Sales Invoice']
+        self.db.set_value('Sales Invoice',name,'docstatus',1)
+        self.assertNotIn('Submitted',text(pdf.generate_pdf('sales-invoice',name)))
+        with tempfile.TemporaryDirectory() as d:
+            # A minimal layout that prints every required value except a state.
+            Path(d,'document.html').write_text(
+                '<html><body>{{ doc.name }} {{ party_name }} {{ company_name }}'
+                '{% for i in items %} {{ i.item_name }} {{ "%.2f"|format(i.qty) }} {{ "%.2f"|format(i.rate) }} {{ "%.2f"|format(i.amount) }}{% endfor %}'
+                ' {{ currency }} {{ "%.2f"|format(doc.net_total) }} {{ "%.2f"|format(doc.grand_total) }}</body></html>')
+            old=list(pdf._plugin_template_dirs)
+            try:
+                pdf.register_pdf_template_dir(d)
+                pdf.generate_pdf('sales-invoice',name)
+                # A draft must announce itself; omitting the notice fails.
+                self.db.set_value('Sales Invoice',name,'docstatus',0)
+                with self.assertRaises(PDFError) as err:pdf.generate_pdf('sales-invoice',name)
+                self.assertEqual(err.exception.code,'pdf_render_incomplete')
+            finally:
+                pdf._plugin_template_dirs[:]=old;pdf._jinja_env.loader=pdf._build_loader()
+        self.assertIn(notice_for('Draft').casefold(),text(pdf.generate_pdf('sales-invoice',name)).casefold())
+
+    def test_state_labels_are_registered_explicitly(self):
+        saved=dict(pdf_contract._state_labels)
+        try:
+            pdf.register_pdf_state_labels({'Draft':'Probeausdruck'})
+            name=self.docs['Sales Invoice']
+            self.db.set_value('Sales Invoice',name,'docstatus',0)
+            self.assertIn('probeausdruck',text(pdf.generate_pdf('sales-invoice',name)).casefold())
+            with self.assertRaises(ValueError):pdf.register_pdf_state_labels({'Submitted':'Gebucht'})
+            with self.assertRaises(ValueError):pdf.register_pdf_state_labels({'Draft':' '})
+        finally:
+            pdf_contract._state_labels.clear();pdf_contract._state_labels.update(saved)
 
     def test_bad_proposal_appendix_is_not_silently_omitted(self):
         self.db.insert('Proposal Appendix',{'parent':self.docs['Proposal'],'data':b'not a pdf','filename':'broken.pdf'})

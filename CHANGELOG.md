@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.9] - 2026-10-15
+
+- Print and require the document state in PDFs only when it is not final:
+  Draft, Cancelled or Discarded. An issued (submitted) invoice, order or
+  quotation no longer carries a "Submitted" line, and custom `document.html`
+  and `proposal.html` layouts no longer fail with `pdf_render_incomplete` when
+  they omit it. Layouts receive `pdf_state_notice` (empty for final
+  documents); `pdf_status` stays available.
+- Add `register_pdf_state_labels()` (`api.pdf`) so a deployment can print its
+  own notice, e.g. `{"Draft": "Entwurf"}`. The rendered-text check then
+  requires that label.
+
 ## [1.1.8] - 2026-10-01
 
 - Switch the main ERP chat to GPT-6.1 Sol, retaining reasoning effort `low`.

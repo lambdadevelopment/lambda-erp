@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemLoader, ChoiceLoader
 from weasyprint import HTML
 from lambda_erp.database import get_db
 from api.services import load_document, get_document_class
-from api.pdf_contract import prepare, validate_rendered_pdf, PDFError
+from api.pdf_contract import prepare, validate_rendered_pdf, PDFError, register_pdf_state_labels  # noqa: F401
 from api.remarks_md import render_remarks
 from lambda_erp.controllers.taxes_and_totals import split_by_frequency
 
@@ -229,6 +229,7 @@ def _render_commercial_pdf(doctype_slug, name, doc, contract):
     context = dict(
         doc=doc,
         pdf_status=contract["status"],
+        pdf_state_notice=contract["notice"],
         pdf_warnings=contract["warnings"],
         title=title,
         company_name=company_name,
@@ -334,8 +335,8 @@ def _render_proposal_pdf(name, proposal, contract):
         if quote.get('company') != proposal.get('company') or quote.get('customer') != proposal.get('customer'):
             raise PDFError('Proposal PDF: quotation company and customer must match')
         quote_contract = prepare('Quotation', quote)
-        # Each included offer must be rendered completely. Its state is printed
-        # alongside its number, including historical cancelled/voided offers.
+        # Each included offer must be rendered completely. A non-final state
+        # (draft, cancelled, discarded) is printed beside its number.
         contract['tokens'].extend(quote_contract['tokens'])
         contract['warnings'].extend(quote_contract['warnings'])
         items = quote.get("items", []) or []
@@ -352,6 +353,7 @@ def _render_proposal_pdf(name, proposal, contract):
             "letter": chr(ord("A") + i),
             "quotation": qname,
             "pdf_status": quote_contract["status"],
+            "pdf_state_notice": quote_contract["notice"],
             "title": row.get("position_title") or default_title or qname,
             "blurb": row.get("position_blurb") or quote.get("remarks") or "",
             "is_recommended": bool(row.get("is_recommended")),
@@ -373,6 +375,7 @@ def _render_proposal_pdf(name, proposal, contract):
     context = dict(
         proposal=proposal,
         pdf_status=contract["status"],
+        pdf_state_notice=contract["notice"],
         pdf_warnings=contract["warnings"],
         title=proposal.get("title") or "Offerte",
         company_name=company_name,
@@ -416,6 +419,7 @@ def _render_record_pdf(doctype, name, doc, contract):
     page_size_row = get_db().sql('SELECT value FROM "Settings" WHERE key = ?', ['pdf_page_size'])
     context = dict(
         title=contract['profile'].title, name=name, pdf_status=contract['status'],
+        pdf_state_notice=contract['notice'],
         pdf_warnings=contract['warnings'], print_fields=contract['fields'],
         print_tables=contract['tables'], print_labels={}, print_title=contract['profile'].title,
         company_info=company, company_name=company.get('company_name') or doc.get('company') or '',

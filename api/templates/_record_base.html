@@ -16,7 +16,7 @@ tr { break-inside: avoid; } .brand { font-weight: bold; letter-spacing: .8pt; } 
 {% macro label(key) %}{{ print_labels.get(key, key.replace('_',' ').capitalize()) }}{% endmacro %}
 {% block letterhead %}<div class="header"><div class="brand">{{ company_name }}</div>{% if company_info.get('address') %}<div class="muted">{{ company_info.get('address') }}</div>{% endif %}</div>{% endblock %}
 <h1>{{ print_title }}</h1>
-<div class="state">{{ name }} · {{ pdf_status }}</div>
+<div class="state">{{ name }} · {{ pdf_state_notice or pdf_status }}</div>
 {% for warning in pdf_warnings %}<div class="warning">{{ warning.message }}</div>{% endfor %}
 {% if party_name %}<p><strong>{{ party_name }}</strong></p>{% endif %}
 {% if company_currency %}<div class="muted">{{ label('company_currency') }}: {{ company_currency }}</div>{% endif %}

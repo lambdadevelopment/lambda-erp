@@ -3,7 +3,8 @@
 All print entry points use `api.pdf.render_document_pdf`. A successful response
 requires a registered profile, complete output data, successful rendering and
 an extracted-text check of required content. The checks do not save, submit,
-post or revalidate live availability. Draft/cancelled/discarded state is printed.
+post or revalidate live availability. Draft, cancelled and discarded state is
+printed; issued documents carry no state line.
 No fallback commercial template or invented currency/amount is allowed.
 
 ## Profiles and extensions
@@ -35,7 +36,9 @@ CRM output excludes qualification tasks, contact notes and raw activity metadata
 
 `record.html` may extend `_record_base.html` and override branding blocks. Existing
 `document.html` and `proposal.html` overrides must print the required content,
-including `pdf_status` and all relevant amounts. Context providers return `None`
+including `pdf_state_notice` (set only for Draft, Cancelled and Discarded; empty
+for issued documents) and all relevant amounts. A deployment can localise the
+notice with `register_pdf_state_labels({"Draft": "Entwurf"})`. Context providers return `None`
 when inapplicable and raise when required content cannot be produced; exceptions
 now fail the export. The content check detects omitted text, but does not prove
 visual correctness: add actual rendered-PDF tests for each custom layout.
