@@ -37,10 +37,15 @@ class ContextTests(unittest.TestCase):
             self.assertIn('inspection-visit', manager['create_document']['inputSchema']['properties']['doctype']['enum'])
             self.assertIn('probe-brand', manager['search_masters']['inputSchema']['properties']['master_type']['enum'])
 
-    def test_context_is_read_only_and_shared_with_chat(self):
+    def test_context_is_read_only_and_offered_to_direct_clients_only(self):
         tool = next(t for t in _tools('viewer') if t['name'] == 'get_erp_context')
         self.assertTrue(tool['annotations']['readOnlyHint'])
         self.assertIn('get_erp_context', {t['function']['name'] for t in build_tools({'role': 'viewer'})})
+        # The native chat prompt already embeds WORKFLOW_GUIDANCE; offering the
+        # tool there only re-fetched the same ~4k tokens on most turns.
+        chat_tools = {t['function']['name'] for t in build_tools({'role': 'viewer'}, native_chat=True)}
+        self.assertNotIn('get_erp_context', chat_tools)
+        self.assertIn('list_documents', chat_tools)
         result = _handle({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
                           'params': {'name': 'get_erp_context', 'arguments': {}}}, {'role': 'viewer'})
         self.assertFalse(result['result']['isError'])

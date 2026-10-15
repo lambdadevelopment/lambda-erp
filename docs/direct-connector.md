@@ -7,8 +7,8 @@ implementation, which can include external services or models.
 
 Start with `initialize`, `tools/list`, then `get_erp_context`. The latter returns
 contract version 1, live registered document/master types, relationships, compact
-PDF capabilities and shared workflow guidance. The native chat uses the same
-workflow guidance. Tool availability is determined by the caller's effective role,
+PDF capabilities and shared workflow guidance. The native chat embeds the same
+workflow guidance in its system prompt and is not offered this tool. Tool availability is determined by the caller's effective role,
 not by the type catalogue. Use `get_document_fields`/`get_master_fields` to retrieve
 current field schemas and validation requirements before writes.
 

@@ -473,6 +473,11 @@ DOCUMENT_SLUGS = [
 
 MASTER_TYPES = ["customer", "supplier", "item", "warehouse", "account", "company", "cost-center"]
 
+# Discovery for direct (MCP) clients, which don't get the chat system prompt.
+# The native chat already carries WORKFLOW_GUIDANCE in its prompt; offering the
+# tool there made the model re-fetch ~4k tokens of the same context most turns.
+DIRECT_CLIENT_ONLY_TOOLS = frozenset({"get_erp_context"})
+
 TOOLS = [
     {"type": "function", "function": {
         "name": "get_erp_context",
@@ -1400,7 +1405,7 @@ def _chat_doctype_section() -> str:
     )
 
 
-def build_tools(user_info: dict | None = None):
+def build_tools(user_info: dict | None = None, *, native_chat: bool = False):
     """TOOLS widened with live plugin types and registered business actions.
 
     Plugins register doctypes and masters at startup — after this module is
@@ -1410,19 +1415,20 @@ def build_tools(user_info: dict | None = None):
     per request (cheap next to the LLM call), which also makes plugin load
     order irrelevant. Only enums that exactly match the core lists are
     widened, so any differently-constrained doctype/master param (e.g. a
-    curated subset) is left alone.
+    curated subset) is left alone. `native_chat` drops the direct-client-only
+    discovery tools the chat prompt already covers.
     """
     extra_docs = _extra_document_slugs()
     extra_masters = _extra_master_types()
     action_tools = services.registered_action_tools()
-    hidden_tools: set[str] = set()
+    hidden_tools: set[str] = set(DIRECT_CLIENT_ONLY_TOOLS) if native_chat else set()
     if user_info is not None:
         role = user_info.get("role")
         action_tools = [
             tool for tool in action_tools
             if tool_allowed(tool["function"]["name"], role)
         ]
-        hidden_tools = {
+        hidden_tools |= {
             tool["function"]["name"] for tool in TOOLS
             if not tool_allowed(tool["function"]["name"], role)
         }
@@ -3645,7 +3651,7 @@ async def run_thinking_loop(
                 # or the legacy API for compatible models. Returns Chat-shaped
                 # (message, usage) either way, so everything below is unchanged.
                 message, usage = await asyncio.to_thread(
-                    _orchestrator_turn, openai_client, messages, build_tools(user_info), max_completion,
+                    _orchestrator_turn, openai_client, messages, build_tools(user_info, native_chat=True), max_completion,
                 )
             except Exception as e:
                 await on_event({"type": "error", "content": f"Error calling LLM: {e}"})
@@ -3817,7 +3823,7 @@ async def run_thinking_loop(
                         "stands alone: do NOT refer to 'the results above' or to earlier messages."
                     ),
                 }],
-                build_tools(user_info),
+                build_tools(user_info, native_chat=True),
                 2048,
                 tool_choice="none",
             )

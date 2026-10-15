@@ -13,6 +13,11 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- Stop offering `get_erp_context` to the native ERP chat. Its system prompt
+  already contains the same workflow guidance, and the model was re-fetching
+  about 4k tokens of duplicate context on most turns. MCP and other direct
+  clients keep the tool unchanged.
+
 ## [1.1.9] - 2026-10-15
 
 - Print and require the document state in PDFs only when it is not final:
