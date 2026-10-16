@@ -193,17 +193,17 @@ def _render_commercial_pdf(doctype_slug, name, doc, contract):
     if doc.get("status"):
         meta_fields.append({"label": "Status", "value": doc["status"]})
 
-    # Items — refresh each line's item_name from the Item master so a later
-    # correction to an item's name appears on the PDF, consistent with the
-    # party/company names. Quantities, rates, and amounts stay as transacted.
-    # Falls back to the name stored on the line if the master is gone.
+    # Items — print the name written on each line. A line may carry its own
+    # wording under a generic article (e.g. one project service with a
+    # "Phase 1: …" line per step), so the Item master's name is only a
+    # fallback for a line that has none.
     items = doc.get("items", [])
     for item in items:
         code = item.get("item_code")
-        if code:
-            live_item_name = db.get_value("Item", code, "item_name")
-            if live_item_name:
-                item["item_name"] = live_item_name
+        if code and not item.get("item_name"):
+            master_item_name = db.get_value("Item", code, "item_name")
+            if master_item_name:
+                item["item_name"] = master_item_name
 
     taxes = doc.get("taxes", [])
 
@@ -340,11 +340,11 @@ def _render_proposal_pdf(name, proposal, contract):
         contract['tokens'].extend(quote_contract['tokens'])
         contract['warnings'].extend(quote_contract['warnings'])
         items = quote.get("items", []) or []
-        # Refresh each line's item_name from the master, consistent with the
-        # single-document path.
+        # The line's own name wins; the master's only fills an empty one,
+        # consistent with the single-document path.
         for item in items:
             code = item.get("item_code")
-            if code:
+            if code and not item.get("item_name"):
                 live = db.get_value("Item", code, "item_name")
                 if live:
                     item["item_name"] = live

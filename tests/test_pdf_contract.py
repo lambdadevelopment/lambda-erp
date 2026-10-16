@@ -181,6 +181,22 @@ class PDFTests(unittest.TestCase):
         self.assertIn('-20.00','\n'.join(page.extract_text() or '' for page in credit.pages))
         self.assertEqual(sum(len(page.images) for page in credit.pages),1)
 
+    def test_line_item_name_wins_over_item_master(self):
+        # One generic article can carry a different wording per line, e.g. a
+        # project service split into phases. The PDF prints the line's name.
+        q=self.docs['Quotation']
+        self.db.sql('UPDATE "Quotation Item" SET item_name=? WHERE parent=?',['Phase 1: Prozessaufnahme',q])
+        self.db.insert('Quotation Item',{'name':'PHASE-2','parent':q,'idx':2,'item_code':'M-PDF','item_name':'Phase 2: Umsetzung','qty':1,'rate':5,'amount':5})
+        for slug,doctype in [('quotation','Quotation'),('proposal','Proposal')]:
+            with self.subTest(doctype=doctype):
+                output=text(pdf.generate_pdf(slug,self.docs[doctype]))
+                self.assertIn('Phase 1: Prozessaufnahme',output)
+                self.assertIn('Phase 2: Umsetzung',output)
+                self.assertNotIn('Excavator Example',output)
+        # A line without a name still falls back to the Item master.
+        self.db.sql('UPDATE "Quotation Item" SET item_name=NULL WHERE name=?',['PHASE-2'])
+        self.assertIn('Excavator Example',text(pdf.generate_pdf('quotation',q)))
+
     def test_multpage_item_content_is_not_truncated(self):
         for i in range(45):
             self.db.insert('Quotation Item',{'name':f'LONG-{i}','parent':self.docs['Quotation'],'idx':i+2,'description':f'Service marker {i:03d} '+('Long description. '*8),'qty':1,'rate':1,'amount':1})

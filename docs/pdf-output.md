@@ -5,6 +5,8 @@ requires a registered profile, complete output data, successful rendering and
 an extracted-text check of required content. The checks do not save, submit,
 post or revalidate live availability. Draft, cancelled and discarded state is
 printed; issued documents carry no state line.
+Each line prints the item name written on it; the Item master's name only
+fills a line that has none.
 No fallback commercial template or invented currency/amount is allowed.
 
 ## Profiles and extensions

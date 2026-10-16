@@ -254,8 +254,9 @@ def _item(row, tokens, index):
     if not any(not missing(row.get(k)) for k in ('item_code', 'item_name', 'description')):
         raise PDFError(f'PDF requires item identity: items[{index}]')
     if row.get('item_code'):
-        live = resolve('Item', row['item_code'])
-        row['item_name'] = live  # only the isolated output snapshot is changed
+        master_name = resolve('Item', row['item_code'])  # the article must still exist
+        if missing(row.get('item_name')):
+            row['item_name'] = master_name  # only the isolated output snapshot is changed
     tokens.append(str(row.get('item_name') or row.get('item_code') or row['description']))
 
 

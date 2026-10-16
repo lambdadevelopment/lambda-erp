@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.1.10] - 2026-10-16
+
+- PDFs print the item name written on each line instead of replacing it with
+  the Item master's name. One generic article can now carry its own wording
+  per line (e.g. "Phase 1: Prozessaufnahme" under a project service) in
+  quotations, invoices and combined proposals. The master name only fills a
+  line without a name. Renaming an item no longer rewrites the lines of
+  existing documents' PDFs.
 - Stop offering `get_erp_context` to the native ERP chat. Its system prompt
   already contains the same workflow guidance, and the model was re-fetching
   about 4k tokens of duplicate context on most turns. MCP and other direct
