@@ -987,5 +987,28 @@
     "explain_viewer": "L’application peut lire les données et rapports ERP et générer des PDF. Elle ne peut pas modifier les données métier.",
     "explain_manager": "L’application peut aussi créer, modifier, valider et annuler des documents et mettre à jour les données de base.",
     "explain_admin": "L’application peut utiliser tous les outils ERP disponibles, y compris les actions administratives et la suppression de données de base."
+  },
+  "mentions": {
+    "title": "Mentions",
+    "note": "Note interne",
+    "placeholder": "Écrire une note… utiliser @ pour mentionner un collègue",
+    "colleagues": "Collègues",
+    "loading": "Chargement…",
+    "noUsers": "Aucun collègue correspondant",
+    "hint": "Saisissez @ et sélectionnez une personne. Elle sera avertie à l’enregistrement.",
+    "remove": "Retirer la mention de {{name}}",
+    "close": "Fermer",
+    "open": "À traiter",
+    "unread": "Non lues",
+    "done": "Terminées",
+    "retry": "Réessayer",
+    "empty": "Aucune mention ici.",
+    "mentionedYou": "vous a mentionné",
+    "reopen": "Rouvrir",
+    "markDone": "Terminer",
+    "markUnread": "Marquer comme non lue",
+    "markRead": "Marquer comme lue",
+    "previous": "Précédent",
+    "next": "Suivant"
   }
 }

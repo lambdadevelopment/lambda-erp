@@ -987,5 +987,28 @@
     "explain_viewer": "The app can read ERP records and reports and generate document PDFs. It cannot edit business records.",
     "explain_manager": "The app can also create, edit, submit and cancel business documents and update master data.",
     "explain_admin": "The app can use all available ERP tools, including administrative actions and deleting master data."
+  },
+  "mentions": {
+    "title": "Mentions",
+    "note": "Internal note",
+    "placeholder": "Write a note… use @ to mention a colleague",
+    "colleagues": "Colleagues",
+    "loading": "Loading…",
+    "noUsers": "No matching colleagues",
+    "hint": "Type @ and select a colleague to notify them when you save.",
+    "remove": "Remove mention of {{name}}",
+    "close": "Close",
+    "open": "Open",
+    "unread": "Unread",
+    "done": "Done",
+    "retry": "Retry",
+    "empty": "No mentions here.",
+    "mentionedYou": "mentioned you",
+    "reopen": "Reopen",
+    "markDone": "Done",
+    "markUnread": "Mark unread",
+    "markRead": "Mark read",
+    "previous": "Previous",
+    "next": "Next"
   }
 }

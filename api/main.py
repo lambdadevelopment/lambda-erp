@@ -53,6 +53,9 @@ async def lifespan(app: FastAPI):
     db_path = os.environ.get("LAMBDA_ERP_DB", "lambda_erp.db")
     setup(db_path)
 
+    from api.mentions import initialize_mentions
+    initialize_mentions()
+
     # Load customer extension plugins before anything creates documents.
     load_plugins()
 

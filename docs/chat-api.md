@@ -104,6 +104,51 @@ Each `pdf_url` is absolute and points at the **Bearer-gated** document endpoint
 orchestrator turns these into native chat attachments. The array is empty when the
 reply references no documents.
 
+### Personal mentions (REST actions, native chat and MCP)
+
+For a browser-only UI preview, open `/demo/mentions`. It uses the same editor
+and inbox components with fictional colleagues and a sample record; switch
+between Alex and Sam to try delivery and inbox states. Preview data resets on
+reload and never calls the mention APIs. The ordinary `/demo` route still
+starts the chat demo. Anonymous demo users cannot access real personal inboxes.
+End-to-end CRM and chat verification requires a deployment with a registered
+note source and individual ERP accounts; the public core has no CRM adapter.
+
+The direct tools `search_mention_users`, `add_record_note`, `list_my_mentions`
+and `set_mention_state` use the authenticated ERP identity. No tool accepts an
+inbox owner or author supplied by the model. `search_mention_users` returns
+canonical user IDs, the acting account, and the installed record types that
+support notes. Resolve ambiguous colleague names before sending a mention.
+
+`add_record_note` takes `doctype`, `record_id`, `body`, `mention_user_ids`, and
+a new `request_id` (UUID) for each intended note. Reuse the same ID and arguments
+after an interrupted response: note creation and in-app delivery are atomic,
+and concurrent retries do not create duplicate notes or notifications. A
+changed payload with the same ID is rejected. A plain pasted `@name` is text;
+only explicitly selected recipient IDs create notifications. Self-mentions
+do not notify, and there is no email or push delivery.
+
+`list_my_mentions` supports `view=open|unread|done|all`, `limit`, and `offset`.
+Opening a mention marks it read. `set_mention_state` accepts `read`, `unread`,
+`done`, or `reopen`; completing a notification does not modify the business
+record. Responses contain canonical `view_url` links to the source note.
+Live visibility is rechecked before returning excerpts, counts, or updates.
+
+REST clients call `POST /api/actions/<tool-name>` with the same JSON arguments.
+Readers can inspect their own inbox and change its state; creating notes
+requires manager access. Public demo identities cannot use these tools.
+API keys identify their ERP owner, not an arbitrary downstream chat user.
+External shared-key integrations must establish trusted per-user delegation or
+require a personal connection for these actions. Lambda-web requires a personal
+ERP connection for mention tools rather than showing a shared key owner's inbox.
+
+Plugins register supported note sources with `api.mentions.register_mention_source`.
+Their callbacks own record visibility and note storage; the core owns the
+inbox. Notes must be created inside the core's transaction without committing
+independently. `resolve_note` must return None for hidden/deleted notes and
+return `{record_id,title,body,view_url}` otherwise. An optional `resolve_notes`
+callback batches the same checks to avoid per-notification queries.
+
 ### Sessions & history
 
 The Lambda ERP is meant to be **one backend among several** that the caller's

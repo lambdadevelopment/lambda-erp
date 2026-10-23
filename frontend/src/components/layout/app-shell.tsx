@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useMySettings } from "@/hooks/use-my-settings";
 import { cn } from "@/lib/utils";
 import { getListContext } from "@/lib/doc-list-context";
+import { MentionInbox } from "@/components/mentions";
 
 const titleCase = (slug: string) =>
   slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -167,6 +168,7 @@ function AppShellContent() {
                 {user?.role}
               </span>
             </span>
+            <MentionInbox />
             <button
               onClick={logout}
               className="text-sm text-gray-500 hover:text-gray-700"

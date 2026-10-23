@@ -987,5 +987,28 @@
     "explain_viewer": "Die App kann ERP-Datensätze und Berichte lesen sowie Beleg-PDFs erstellen. Sie kann keine Geschäftsdaten bearbeiten.",
     "explain_manager": "Die App kann zusätzlich Belege erstellen, bearbeiten, buchen und stornieren sowie Stammdaten aktualisieren.",
     "explain_admin": "Die App kann alle verfügbaren ERP-Werkzeuge nutzen, einschliesslich administrativer Aktionen und dem Löschen von Stammdaten."
+  },
+  "mentions": {
+    "title": "Erwähnungen",
+    "note": "Interne Notiz",
+    "placeholder": "Notiz schreiben… mit @ jemanden erwähnen",
+    "colleagues": "Kolleginnen und Kollegen",
+    "loading": "Laden…",
+    "noUsers": "Keine passenden Personen",
+    "hint": "Mit @ eine Person auswählen. Sie wird beim Speichern benachrichtigt.",
+    "remove": "Erwähnung von {{name}} entfernen",
+    "close": "Schliessen",
+    "open": "Offen",
+    "unread": "Ungelesen",
+    "done": "Erledigt",
+    "retry": "Erneut versuchen",
+    "empty": "Hier gibt es keine Erwähnungen.",
+    "mentionedYou": "hat dich erwähnt",
+    "reopen": "Wieder öffnen",
+    "markDone": "Erledigt",
+    "markUnread": "Als ungelesen markieren",
+    "markRead": "Als gelesen markieren",
+    "previous": "Zurück",
+    "next": "Weiter"
   }
 }

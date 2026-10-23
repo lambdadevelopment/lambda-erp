@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- Add an isolated `/demo/mentions` preview using fictional colleagues and the
+  shared mention editor/inbox, without sending real notifications.
+
+- Add a personal mentions inbox in the ERP header with unread/open/done views,
+  exact note links, and English, German and French labels. Expose the same
+  operations through authenticated REST actions, native chat and MCP.
+- Add a mention-source registry for plugin-owned internal notes, atomic note
+  and notification creation, idempotent retries, and live visibility checks.
+  Registered actions may opt in to receiving the authenticated principal.
+
 ## [1.1.10] - 2026-10-16
 
 - PDFs print the item name written on each line instead of replacing it with

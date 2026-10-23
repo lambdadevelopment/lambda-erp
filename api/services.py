@@ -300,13 +300,16 @@ _ROLE_LEVEL = {"viewer": 1, "manager": 2, "public_manager": 2, "admin": 3}
 def register_action(name: str, handler, *, description: str,
                     parameters: dict | None = None,
                     minimum_role: str = "manager",
-                    allow_public_manager: bool = False) -> None:
+                    allow_public_manager: bool = False,
+                    pass_user: bool = False) -> None:
     """Register a deployment action across REST, chat, and MCP.
 
     ``handler`` receives one JSON-compatible argument dict and returns a
     JSON-compatible result. ``parameters`` is a JSON Schema object for that
     dict. Mutating actions should keep the default manager requirement; demo
     ``public_manager`` users are excluded unless explicitly opted in.
+    With ``pass_user=True``, the authenticated principal is a second argument;
+    never accept caller identity from model-supplied arguments instead.
     """
     if not _ACTION_NAME_RE.fullmatch(name):
         raise ValueError(f"Invalid action name: {name!r}")
@@ -318,6 +321,7 @@ def register_action(name: str, handler, *, description: str,
         "parameters": parameters or {"type": "object", "properties": {}},
         "minimum_role": minimum_role,
         "allow_public_manager": allow_public_manager,
+        "pass_user": pass_user,
     }
 
 
@@ -354,6 +358,8 @@ def run_registered_action(name: str, args: dict | None, user_info: dict | None =
         raise PermissionError(
             f"Action '{name}' requires {meta['minimum_role']} access."
         )
+    if meta.get("pass_user"):
+        return meta["handler"](args or {}, user_info)
     return meta["handler"](args or {})
 
 

@@ -49,6 +49,7 @@ _EXCLUDE = {
 }
 
 _READ_ONLY = {
+    'search_mention_users', 'list_my_mentions',
     'get_erp_context',
     'list_documents', 'get_document_fields', 'get_document', 'get_master_fields',
     'search_masters', 'get_report', 'get_current_time', 'query_dataset',

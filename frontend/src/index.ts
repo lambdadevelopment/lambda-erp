@@ -20,6 +20,8 @@ export type { BootstrapOptions } from "./bootstrap";
 
 // App shell (layout: sidebar + header)
 export { AppShell } from "./components/layout/app-shell";
+export { MentionEditor, mentionAction } from "./components/mentions";
+export type { MentionUser } from "./components/mentions";
 
 // Route registry
 export { buildRoutes, registerRoute } from "./routes";
