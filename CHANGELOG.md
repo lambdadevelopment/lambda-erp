@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-23
+
 - Add an isolated `/demo/mentions` preview using fictional colleagues and the
   shared mention editor/inbox, without sending real notifications.
 
