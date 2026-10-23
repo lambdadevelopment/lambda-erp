@@ -149,7 +149,7 @@ export function MentionInbox({ identity, action = mentionAction, onOpenRecord }:
       className="relative rounded p-1.5 text-gray-600 hover:bg-gray-100"
       aria-label={`${t("mentions.title")} (${inbox.data?.unread_count || 0})`}>
       <Bell size={19} />
-      {!!inbox.data?.unread_count && <span className="absolute -right-1 -top-1 rounded-full bg-blue-600 px-1 text-[10px] text-white">
+      {!!inbox.data?.unread_count && <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center whitespace-nowrap rounded-full bg-blue-600 px-1 text-[10px] leading-none tabular-nums text-white">
         {inbox.data.unread_count > 99 ? "99+" : inbox.data.unread_count}
       </span>}
     </button>

@@ -13,6 +13,11 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-23
+
+- Make the mention count badge circular for one or two digits, widening for
+  `99+` while keeping the text centered and inside the badge.
+
 ## [1.2.0] - 2026-10-23
 
 - Add an isolated `/demo/mentions` preview using fictional colleagues and the
