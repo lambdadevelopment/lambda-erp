@@ -60,9 +60,10 @@ class MentionTests(unittest.TestCase):
         for table in ('Mention Notification','Mention Request','Mention Test Note','Mention Test Record'):
             self.db.sql(f'DELETE FROM "{table}"')
         self.db.sql('UPDATE "User" SET enabled = 1')
+        self.db.sql("DELETE FROM \"User\" WHERE name LIKE 'mention-extra-%'")
         self.db.insert('Mention Test Record', {'name':'R-1'})
         self.body = dict(doctype='test', record_id='R-1', body='Please check @Recipient',
-                         mention_user_ids=['recipient'], request_id=str(uuid4()))
+                         request_id=str(uuid4()))
 
     def action(self, action, args, user='author'):
         self.client.cookies.clear()
@@ -128,11 +129,75 @@ class MentionTests(unittest.TestCase):
         item = self.inbox()['rows'][0]
         self.assertEqual(self.action('set_mention_state', {'notification_id':item['id'],'state':'done'}, 'other').status_code, 404)
 
-    def test_self_and_duplicate_recipients_do_not_spam(self):
-        self.body['mention_user_ids'] = ['recipient','recipient','author']
-        self.assertEqual(self.create()['notified_count'], 1)
+    def test_explicit_self_and_other_recipients_are_deduplicated(self):
+        self.body['body'] = '@Recipient @Author @Recipient please check'
+        self.assertEqual(self.create()['notified_count'], 2)
         self.assertEqual(self.inbox()['total'], 1)
-        self.assertEqual(self.inbox('author')['total'], 0)
+        self.assertEqual(self.inbox('author')['total'], 1)
+
+    def test_self_mention_is_a_retry_safe_personal_reminder(self):
+        self.body.update(body='@Author follow up tomorrow')
+        saved = self.create()
+        self.assertEqual(saved['notified_count'], 1)
+        inbox = self.inbox('author')
+        self.assertEqual(inbox['unread_count'], 1)
+        item = inbox['rows'][0]
+        self.assertEqual(item['note_id'], saved['note_id'])
+        self.assertEqual(item['view_url'], saved['view_url'])
+        self.assertEqual(self.inbox()['total'], 0)
+        done = self.action('set_mention_state', {'notification_id':item['id'], 'state':'done'})
+        self.assertEqual(done.status_code, 200)
+        self.assertTrue(self.create()['replayed'])
+        self.assertEqual(self.inbox('author')['unread_count'], 0)
+        self.assertEqual(self.inbox('author', view='done')['total'], 1)
+        self.assertEqual(len(self.db.get_all('Mention Test Note')), 1)
+
+    def test_typed_self_mention_text_is_the_recipient_source(self):
+        self.body.update(body='@Author follow up tomorrow')
+        self.assertEqual(self.create()['notified_count'], 1)
+        self.assertEqual(self.inbox('author')['total'], 1)
+
+    def test_hidden_recipient_is_rejected_without_saving(self):
+        self.body.update(body='salü vom johnny', mention_user_ids=['recipient'])
+        response = self.action('add_record_note', self.body)
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertIn('mention_user_ids', response.text)
+        self.assertEqual(len(self.db.get_all('Mention Test Note')), 0)
+        self.assertEqual(len(self.db.get_all('Mention Notification')), 0)
+        self.assertEqual(self.db.sql('SELECT COUNT(*) AS n FROM "Mention Request"')[0]['n'], 0)
+
+    def test_text_only_mentions_and_email_boundaries(self):
+        self.body['body'] = 'Mail recipient@example.com; hello (@recipient@example.com), @Author.'
+        self.assertEqual(self.create()['notified_count'], 2)
+        self.assertEqual(self.inbox()['total'], 1)
+        self.body.update(body='Mail recipient@example.com', request_id=str(uuid4()))
+        self.assertEqual(self.create()['notified_count'], 0)
+        for invalid in ('@RecipientExtra', '@Unknown User'):
+            response = self.action('add_record_note', {**self.body, 'body':invalid, 'request_id':str(uuid4())})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()['notified_count'], 0)
+        self.assertEqual(len(self.db.get_all('Mention Test Note')), 4)
+
+    def test_ambiguous_names_require_visible_email_and_longest_name_wins(self):
+        for suffix, full_name in [('short','Jon'), ('one','Jon Torus'), ('two','Jon Torus'), ('unicode','Jörg Groß')]:
+            self.db.insert('User', dict(name='mention-extra-'+suffix, email=suffix+'@example.com',
+                                       full_name=full_name, hashed_password='test-only', role='viewer', enabled=1))
+        self.body.update(body='@Jon Torus please check')
+        response = self.action('add_record_note', self.body)
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertIn('multiple colleagues', response.text)
+        rows = self.action('search_mention_users', {'query':'Jon Torus'}).json()['users']
+        self.assertEqual({row['mention_text'] for row in rows}, {'@one@example.com','@two@example.com'})
+        self.body['body'] = '@one@example.com @Jörg Groß please check'
+        self.assertEqual(self.create()['notified_count'], 2)
+        targets = {r['recipient_id'] for r in self.db.sql('SELECT recipient_id FROM "Mention Notification"')}
+        self.assertEqual(targets, {'mention-extra-one', 'mention-extra-unicode'})
+        self.db.sql('DELETE FROM "User" WHERE name = ?', ['mention-extra-two'])
+        self.db.conn.commit()
+        self.body.update(body='@Jon Torus please check', request_id=str(uuid4()))
+        self.assertEqual(self.create()['notified_count'], 1)
+        targets = {r['recipient_id'] for r in self.db.sql('SELECT recipient_id FROM "Mention Notification"')}
+        self.assertNotIn('mention-extra-short', targets)
 
     def test_retry_reports_saved_note_even_if_recipient_was_later_disabled(self):
         original = self.create()
@@ -145,13 +210,15 @@ class MentionTests(unittest.TestCase):
     def test_recipient_and_record_visibility_rechecked(self):
         self.db.sql('UPDATE "User" SET enabled = 0 WHERE name = ?', ['recipient'])
         self.db.conn.commit()
-        self.assertEqual(self.action('add_record_note', self.body).status_code, 422)
-        self.assertEqual(len(self.db.get_all('Mention Test Note')), 0)
+        self.assertEqual(self.create()['notified_count'], 0)
+        self.assertEqual(len(self.db.get_all('Mention Test Note')), 1)
         search = self.action('search_mention_users', {'query':'recipient'}).json()
         self.assertEqual(search['users'], [])
         self.db.sql('UPDATE "User" SET enabled = 1 WHERE name = ?', ['recipient'])
         self.db.conn.commit()
-        self.create()
+        self.body['request_id'] = str(uuid4())
+        self.assertEqual(self.create()['notified_count'], 1)
+        self.assertEqual(self.inbox()['total'], 1)
         self.db.sql('UPDATE "Mention Test Record" SET blocked = 1')
         self.db.conn.commit()
         self.assertEqual(self.inbox()['total'], 0)
@@ -173,6 +240,7 @@ class MentionTests(unittest.TestCase):
         self.assertEqual(self.inbox(view='all')['total'], 3)
 
     def test_mcp_uses_authenticated_identity_and_same_actions(self):
+        self.body['body'] = '@Recipient @Author please check'
         self.client.cookies.clear()
         headers = {'Authorization':'Bearer '+self.key}
         def rpc(method, params):
@@ -181,11 +249,13 @@ class MentionTests(unittest.TestCase):
             return response.json()['result']
         tools = {t['name']:t for t in rpc('tools/list', {})['tools']}
         self.assertTrue(tools['list_my_mentions']['annotations']['readOnlyHint'])
+        self.assertNotIn('mention_user_ids', tools['add_record_note']['inputSchema']['properties'])
         saved = rpc('tools/call', {'name':'add_record_note','arguments':self.body})
         self.assertFalse(saved.get('isError'), saved)
         data = json.loads(saved['content'][0]['text'])
         self.assertEqual(data['acting_user']['user_id'], 'author')
         self.assertEqual(self.inbox()['total'], 1)
+        self.assertEqual(self.inbox('author')['total'], 1)
 
 
 if __name__ == '__main__':

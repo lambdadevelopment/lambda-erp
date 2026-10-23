@@ -6,8 +6,9 @@ import { Bell, Check, RotateCcw, X } from "lucide-react";
 import { request } from "@/api/client";
 import { useAuth } from "@/contexts/auth-context";
 
-export interface MentionUser { name: string; full_name: string; email: string }
+export interface MentionUser { name: string; full_name: string; email: string; mention_text?: string }
 const label = (user: MentionUser) => user.full_name || user.email;
+const mentionText = (user: MentionUser) => user.mention_text || `@${label(user)}`;
 export type MentionAction = <T>(action: string, args: Record<string, unknown>) => Promise<T>;
 export const mentionAction = <T,>(action: string, args: unknown) =>
   request<T>(`/actions/${action}`, { method: "POST", body: JSON.stringify(args) });
@@ -16,7 +17,7 @@ const searchColleagues = (query: string, signal: AbortSignal) =>
     method: "POST", body: JSON.stringify({ query }), signal,
   });
 
-/** Explicit user selection; ordinary text and pasted @names never send notifications. */
+/** Autocomplete inserts the visible token; the server resolves recipients from the note text. */
 export function MentionEditor({ value, recipients, onChange, placeholder, className, disabled = false, searchUsers = searchColleagues }: {
   value: string; recipients: MentionUser[];
   onChange: (value: string, recipients: MentionUser[]) => void;
@@ -50,7 +51,7 @@ export function MentionEditor({ value, recipients, onChange, placeholder, classN
   }, []);
   const choose = (user: MentionUser) => {
     if (!trigger) return;
-    const inserted = `@${label(user)} `;
+    const inserted = `${mentionText(user)} `;
     onChange(value.slice(0, trigger.start) + inserted + value.slice(trigger.end),
       recipients.some(u => u.name === user.name) ? recipients : [...recipients, user]);
     const cursor = trigger.start + inserted.length;
@@ -65,7 +66,7 @@ export function MentionEditor({ value, recipients, onChange, placeholder, classN
       aria-activedescendant={trigger && users[selected] ? `${listId}-${selected}` : undefined}
       onChange={e => {
         const next = e.target.value, end = e.target.selectionStart;
-        onChange(next, recipients.filter(u => next.includes(`@${label(u)}`)));
+        onChange(next, recipients.filter(u => next.includes(mentionText(u))));
         const match = next.slice(0, end).match(/(?:^|\s)@([^\s@]{0,50})$/);
         setTrigger(match ? { start: end - match[1].length - 1, end, query: match[1] } : null);
       }}
@@ -92,7 +93,7 @@ export function MentionEditor({ value, recipients, onChange, placeholder, classN
     <div className="mt-1 flex flex-wrap gap-1">
       {recipients.map(u => <button key={u.name} type="button" disabled={disabled}
         title={u.email} aria-label={t("mentions.remove", { name: label(u) })}
-        onClick={() => onChange(value.replace(`@${label(u)}`, ""), recipients.filter(item => item.name !== u.name))}
+        onClick={() => onChange(value.split(mentionText(u)).join(""), recipients.filter(item => item.name !== u.name))}
         className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-1 text-xs text-blue-800">
         {label(u)}<X size={12} />
       </button>)}

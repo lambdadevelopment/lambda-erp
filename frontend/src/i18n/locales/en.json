@@ -995,7 +995,7 @@
     "colleagues": "Colleagues",
     "loading": "Loading…",
     "noUsers": "No matching colleagues",
-    "hint": "Type @ and select a colleague to notify them when you save.",
+    "hint": "Write @Name or choose a colleague. People mentioned in the text are notified when you save.",
     "remove": "Remove mention of {{name}}",
     "close": "Close",
     "open": "Open",

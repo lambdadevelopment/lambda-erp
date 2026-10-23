@@ -995,7 +995,7 @@
     "colleagues": "Collègues",
     "loading": "Chargement…",
     "noUsers": "Aucun collègue correspondant",
-    "hint": "Saisissez @ et sélectionnez une personne. Elle sera avertie à l’enregistrement.",
+    "hint": "Écrivez @Nom ou choisissez une personne. Les personnes mentionnées dans le texte seront averties à l’enregistrement.",
     "remove": "Retirer la mention de {{name}}",
     "close": "Fermer",
     "open": "À traiter",

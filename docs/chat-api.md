@@ -120,13 +120,40 @@ inbox owner or author supplied by the model. `search_mention_users` returns
 canonical user IDs, the acting account, and the installed record types that
 support notes. Resolve ambiguous colleague names before sending a mention.
 
-`add_record_note` takes `doctype`, `record_id`, `body`, `mention_user_ids`, and
-a new `request_id` (UUID) for each intended note. Reuse the same ID and arguments
-after an interrupted response: note creation and in-app delivery are atomic,
-and concurrent retries do not create duplicate notes or notifications. A
-changed payload with the same ID is rejected. A plain pasted `@name` is text;
-only explicitly selected recipient IDs create notifications. Self-mentions
-do not notify, and there is no email or push delivery.
+`add_record_note` takes `doctype`, `record_id`, `body`, and a new `request_id`
+(UUID) for each intended note. **Visible @mentions in body are the only source
+of recipients**, whether typed, pasted, selected in autocomplete, or written
+through chat. `search_mention_users` returns the exact `mention_text` to insert:
+`@Full Name`, or `@email` when a display name is ambiguous. For example, write
+`salü vom johnny @Jon Torus` to notify Jon. A normal email address without a
+leading mention marker and unknown `@handles` are ordinary text. Recognized
+unique names notify those users. An ambiguous recognized name requires an
+explicit `@email`; the write fails without saving until it is disambiguated.
+A note supports at most 20 distinct recipients.
+
+There is no `mention_user_ids` input. Callers upgrading from 1.2.1 must remove
+that field and put visible mentions in the body. Upgrade the CRM frontend and
+backend together. Generic Activity notes, lead `_note` writes, master updates
+and batch updates use the same delivery logic, including REST, native chat
+and external MCP calls. Authenticated identity is passed from server dispatch
+to document hooks; model-supplied author fields cannot choose the sender.
+
+Adapters call `sync_note_mentions` inside the note save transaction. The
+`writing_mention_note()` scope defers delivery to the dedicated action when
+that action creates the source note. Edits retain read/done state for existing
+recipients, notify newly mentioned users, and remove notifications for deleted
+mentions. Unknown handles and ordinary emails do not trigger delivery.
+
+Lambda-web marks organization connections with `X-ERP-Connection-Scope: shared`.
+The ERP denies personal mention operations for these calls, including recognized
+mentions inside generic writes; ordinary notes remain allowed. This header
+only restricts the API key's authority. It does not delegate another identity.
+
+Reuse the same request ID and arguments after an interrupted response. Note
+creation and in-app delivery are atomic; duplicates and concurrent retries
+create only one notification per note and recipient. Mentioning yourself also
+creates a personal reminder. This applies to new notes; historical notes and
+notifications are not rewritten or backfilled. There is no email/push delivery.
 
 `list_my_mentions` supports `view=open|unread|done|all`, `limit`, and `offset`.
 Opening a mention marks it read. `set_mention_state` accepts `read`, `unread`,

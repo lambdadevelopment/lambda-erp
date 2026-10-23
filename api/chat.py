@@ -3739,7 +3739,8 @@ async def run_thinking_loop(
                 success = False
             else:
                 try:
-                    result = await asyncio.to_thread(handler, fn_args)
+                    from api.write_context import run_as_actor
+                    result = await asyncio.to_thread(run_as_actor, principal_ref[0], handler, fn_args)
                     success = not (isinstance(result, dict) and ("error" in result or result.get("ok") is False or result.get("failed", 0)))
                 except Exception as e:
                     result = {"error": str(e)}

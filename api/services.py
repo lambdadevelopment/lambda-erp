@@ -358,9 +358,11 @@ def run_registered_action(name: str, args: dict | None, user_info: dict | None =
         raise PermissionError(
             f"Action '{name}' requires {meta['minimum_role']} access."
         )
-    if meta.get("pass_user"):
-        return meta["handler"](args or {}, user_info)
-    return meta["handler"](args or {})
+    from api.write_context import write_actor
+    with write_actor(user_info):
+        if meta.get("pass_user"):
+            return meta["handler"](args or {}, user_info)
+        return meta["handler"](args or {})
 
 
 def registered_action_handlers(user_info: dict | None = None) -> dict:

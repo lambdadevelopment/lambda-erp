@@ -139,7 +139,8 @@ def _call(name: str, args: dict, user: dict):
     handler = handlers.get(name)
     if handler is None:
         raise KeyError(name)
-    return handler(args or {})
+    from api.write_context import run_as_actor
+    return run_as_actor(user, handler, args or {})
 
 
 def _rpc_error(mid, code: int, message: str) -> dict:
@@ -206,6 +207,10 @@ async def mcp_endpoint(request: Request):
     # MCP version. Otherwise a newer connector gets 400 instead of the 401
     # challenge that tells it how to sign in.
     user = _require_caller(request)
+    if request.headers.get('x-erp-connection-scope') == 'shared':
+        # A gateway can restrict its shared credential; this never grants
+        # permissions or changes who the credential belongs to.
+        user = {**user, '_shared_connection': True}
     try:
         body = await request.json()
     except Exception:

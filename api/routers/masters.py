@@ -720,12 +720,14 @@ def get_master(master_type: str, name: str, _user: dict = _viewer):
 
 @router.post("/{master_type}")
 def create_master(master_type: str, data: dict, _user: dict = _manager):
-    return create_master_record(master_type, data)
+    from api.write_context import run_as_actor
+    return run_as_actor(_user, create_master_record, master_type, data)
 
 
 @router.put("/{master_type}/{name}")
 def update_master(master_type: str, name: str, data: dict, _user: dict = _manager):
-    return update_master_record(master_type, name, data)
+    from api.write_context import run_as_actor
+    return run_as_actor(_user, update_master_record, master_type, name, data)
 
 
 def delete_master_record(master_type: str, name: str) -> dict:

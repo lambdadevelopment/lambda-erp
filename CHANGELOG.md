@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-23
+
+- Use visible @mentions in note text as the sole recipient source. Reject
+  hidden recipient arguments and disambiguate duplicate names with @email; keep
+  unknown handles and ordinary emails as text. Return exact mention text from
+  colleague search. Apply the same delivery to generic note writes with
+  authenticated authorship and shared-connection restrictions.
+- Notify explicitly selected recipients even when they are the note author,
+  so self-mentions can serve as personal reminders. Keep recipient and retry
+  deduplication, and align the demo and chat tool descriptions. Existing notes
+  are unchanged; this applies to new mentions.
+
 ## [1.2.1] - 2026-10-23
 
 - Make the mention count badge circular for one or two digits, widening for

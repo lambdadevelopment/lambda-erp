@@ -60,9 +60,23 @@ export default function MentionsDemo() {
   };
   const save = () => {
     if (!body.trim()) return;
+    const targets = new Map<string, MentionUser>();
+    const aliases = colleagues.flatMap(u => [u.full_name, u.email].map(name => ({ user: u, name })))
+      .sort((a, b) => b.name.length - a.name.length);
+    let end = 0;
+    for (const marker of body.matchAll(/(?<![\w@./+\-])@(?=\S)/g)) {
+      if (marker.index < end) continue;
+      const alias = aliases.find(a => {
+        const text = body.slice(marker.index + 1);
+        return text.toLowerCase().startsWith(a.name.toLowerCase()) && !/[\w@-]/.test(text[a.name.length] || " ");
+      });
+      if (!alias) continue;
+      targets.set(alias.user.name, alias.user);
+      end = marker.index + 1 + alias.name.length;
+    }
     const id = crypto.randomUUID();
     setNotes(rows => [{ id, body: body.trim(), author: person.full_name }, ...rows]);
-    for (const recipient of recipients.filter(u => u.name !== person.name)) {
+    for (const recipient of targets.values()) {
       notifications.current.unshift({
         id: crypto.randomUUID(), recipient: recipient.name, note_id: id, actor_name: person.full_name,
         title: "Alpine Office AG", excerpt: body.trim().slice(0, 240), view_url: `#activity-${id}`,
@@ -94,7 +108,7 @@ export default function MentionsDemo() {
         <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
           <li>Open the bell to see Alex's example mention.</li>
           <li>Write a note below, type @Sam, select Sam Keller and save.</li>
-          <li>Switch “Preview as” to Sam Keller and open the bell.</li>
+          <li>Switch “Preview as” to Sam Keller and open the bell. You can also select yourself in a note to leave a personal reminder.</li>
           <li>Open the mention, mark it unread or done, then reopen it from Done.</li>
         </ol>
         <p className="mt-3 text-xs text-fg-muted">This previews the shared editor and inbox. Real account permissions, CRM storage and chat tools are tested separately in the CRM staging environment.</p>
@@ -106,7 +120,7 @@ export default function MentionsDemo() {
           onChange={(value, users) => { setBody(value); setRecipients(users); setSaved(false); }}
           className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm" />
         <div className="mt-3 flex items-center justify-end gap-3">
-          {saved && <p role="status" className="text-sm text-fg-muted">Note saved. Switch colleague to check their inbox.</p>}
+          {saved && <p role="status" className="text-sm text-fg-muted">Note saved. People @mentioned in the text, including yourself, can check their inbox.</p>}
           <button type="button" disabled={!body.trim()} onClick={save}
             className="rounded-md bg-brand px-4 py-2 text-sm text-white disabled:opacity-40">Save note</button>
         </div>

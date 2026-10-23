@@ -264,12 +264,14 @@ def get_doc(doctype_slug: str, name: str, _user: dict = _viewer):
 
 @router.post("/{doctype_slug}")
 def create_doc(doctype_slug: str, data: dict, _user: dict = _manager):
-    return create_document(doctype_slug, data)
+    from api.write_context import run_as_actor
+    return run_as_actor(_user, create_document, doctype_slug, data)
 
 
 @router.put("/{doctype_slug}/{name}")
 def update_doc(doctype_slug: str, name: str, data: dict, _user: dict = _manager):
-    return update_document(doctype_slug, name, data)
+    from api.write_context import run_as_actor
+    return run_as_actor(_user, update_document, doctype_slug, name, data)
 
 
 @router.post("/{doctype_slug}/{name}/submit")

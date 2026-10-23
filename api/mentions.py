@@ -1,11 +1,13 @@
-"""Personal mentions with explicit recipients, atomic delivery and plugin sources.
+"""Personal mentions resolved from visible note text, with atomic delivery.
 
-No email/push delivery, inferred recipients, or caller-selectable inbox owner.
+No email/push delivery, hidden recipients, or caller-selectable inbox owner.
 Plugins own record access and note storage; this module owns notifications.
 """
 import hashlib
 import json
+import re
 import uuid
+from contextvars import ContextVar
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,6 +19,50 @@ from lambda_erp.utils import now
 
 SOURCES = {}
 REAL_ROLES = {"viewer", "manager", "admin"}
+_WRITING_MENTION_NOTE = ContextVar("writing_mention_note", default=False)
+_MENTION_START = re.compile(r"(?<![\w@./+\-])@(?=\S)")
+
+
+def writing_mention_note():
+    """Dedicated note action will deliver after its source has saved the note."""
+    return _WRITING_MENTION_NOTE.get()
+
+
+def _mention_users():
+    return get_db().sql('SELECT name, full_name, email, role, enabled FROM "User" '
+                        "WHERE enabled = 1 AND role IN ('viewer','manager','admin')")
+
+
+def _aliases(users):
+    aliases = {}
+    for user in users:
+        for value in (user.get("full_name"), user.get("email")):
+            if value and value.strip():
+                aliases.setdefault(value.strip().lower(), {})[user["name"]] = user
+    return aliases
+
+
+def resolve_note_mentions(body):
+    """Resolve visible @Full Name / @email tokens, never hidden recipient IDs."""
+    aliases = _aliases(_mention_users())
+    patterns = [(re.compile(re.escape(alias) + r"(?![\w@\-])", re.IGNORECASE), users)
+                for alias, users in sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True)]
+    recipients, end = {}, 0
+    for marker in _MENTION_START.finditer(body):
+        if marker.start() < end:
+            continue  # The second @ inside an explicit @email address.
+        for pattern, users in patterns:
+            match = pattern.match(body, marker.end())
+            if match:
+                if len(users) != 1:
+                    raise ValueError("An @mention matches multiple colleagues. Use the person's @email or select them from the suggestions. No note was saved.")
+                recipients.update(users)
+                end = match.end()
+                break
+        # Unknown handles are ordinary text, just like unmarked emails.
+    if len(recipients) > 20:
+        raise ValueError("A note can mention at most 20 colleagues. No note was saved.")
+    return recipients
 
 
 def register_mention_source(doctype, *, label, can_access, create_note, resolve_note, resolve_notes=None):
@@ -45,7 +91,6 @@ class Note(Input):
     doctype: str = Field(min_length=1, max_length=100)
     record_id: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=8000)
-    mention_user_ids: list[str] = Field(default_factory=list, max_length=20)
     request_id: str = Field(min_length=8, max_length=100)
 
 
@@ -61,6 +106,8 @@ class State(Input):
 
 
 def _actor(user):
+    if (user or {}).get('_shared_connection'):
+        raise PermissionError("Mentions require a personal ERP connection. The shared team key identifies its owner, not the current user.")
     from api.auth import refresh_auth_principal
     actor = refresh_auth_principal(user)
     if not actor or actor.get("role") not in REAL_ROLES:
@@ -88,6 +135,11 @@ def search_mention_users(args, user):
         "AND role IN ('viewer','manager','admin') "
         "AND (LOWER(COALESCE(full_name,'')) LIKE ? ESCAPE '!' OR LOWER(email) LIKE ? ESCAPE '!') "
         'ORDER BY full_name, name LIMIT 20', [f"%{q}%", f"%{q}%"])
+    aliases = _aliases(_mention_users())
+    for row in rows:
+        full_name = (row.get("full_name") or "").strip()
+        token = full_name if full_name and len(aliases.get(full_name.lower(), {})) == 1 else row["email"]
+        row["mention_text"] = "@" + token
     return {"users": rows, "acting_user": _identity(actor),
             "sources": [{"doctype": key, "label": value["label"]} for key, value in SOURCES.items()]}
 
@@ -100,8 +152,7 @@ def add_record_note(args, user):
         raise ValueError("Note body must not be blank.")
     source, db = _source(data.doctype), get_db()
     actor_id = _identity(actor)["user_id"]
-    recipients = sorted(set(data.mention_user_ids))
-    payload = {**data.model_dump(exclude={"request_id"}), "mention_user_ids": recipients}
+    payload = data.model_dump(exclude={"request_id"})
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     request_pk = uuid.uuid4().hex
     with db.atomic():
@@ -121,27 +172,52 @@ def add_record_note(args, user):
             notified_count = db.sql('SELECT COUNT(*) AS n FROM "Mention Notification" WHERE doctype = ? AND note_id = ?',
                                     [data.doctype, note_id])[0]["n"]
         else:
-            targets = []
-            for recipient_id in recipients:
-                recipient = db.get_value("User", recipient_id, ["name", "full_name", "email", "role", "enabled"])
-                if (not recipient or not recipient.get("enabled") or recipient.get("role") not in REAL_ROLES
-                        or not source["can_access"](data.record_id, dict(recipient))):
-                    raise ValueError("A mentioned colleague cannot access this record. No note was saved.")
-                if recipient_id != actor_id:
-                    targets.append(recipient_id)
-            note_id = source["create_note"](data.record_id, data.body.strip(), actor)
+            token = _WRITING_MENTION_NOTE.set(True)
+            try:
+                note_id = source["create_note"](data.record_id, data.body.strip(), actor)
+            finally:
+                _WRITING_MENTION_NOTE.reset(token)
             db.sql('UPDATE "Mention Request" SET note_id = ? WHERE id = ?', [note_id, request_pk])
-            for recipient_id in targets:
-                db.insert("Mention Notification", {
-                    "id": uuid.uuid4().hex, "recipient_id": recipient_id, "actor_id": actor_id,
-                    "doctype": data.doctype, "note_id": note_id, "created_at": now(),
-                })
-            notified_count = len(targets)
+            notified_count = sync_note_mentions(data.doctype, data.record_id, note_id, data.body, actor)
         note = source["resolve_note"](note_id, actor)
         if not note:
             raise HTTPException(404, "Note is no longer available")
     return {"note_id": note_id, "record_id": data.record_id, "view_url": note["view_url"],
             "notified_count": notified_count, "replayed": repeated, "acting_user": _identity(actor)}
+
+
+def sync_note_mentions(doctype, record_id, note_id, body, user):
+    """Shared delivery for dedicated actions and generic document save hooks.
+
+    Call inside the note's save transaction. Existing recipients keep their
+    read/done state; new recipients receive one notification; removing a
+    visible mention removes its notification. No caller-selected recipient IDs.
+    """
+    db, source = get_db(), _source(doctype)
+    recipients = resolve_note_mentions(body)
+    with db.atomic():
+        existing = db.sql('SELECT recipient_id FROM "Mention Notification" WHERE doctype = ? AND note_id = ?',
+                          [doctype, note_id])
+        if not recipients and not existing:
+            return 0  # Ordinary text needs no personal notification identity.
+        actor = _actor(user)
+        if actor['role'] not in {'manager', 'admin'}:
+            raise PermissionError('Manager access is required to write mention notes.')
+        if not source['can_access'](record_id, actor):
+            raise HTTPException(404, 'Record is unavailable')
+        for recipient in recipients.values():
+            if not source['can_access'](record_id, recipient):
+                raise ValueError('A mentioned colleague cannot access this record. No note was saved.')
+        previous = {row['recipient_id'] for row in existing}
+        for recipient_id in previous - recipients.keys():
+            db.sql('DELETE FROM "Mention Notification" WHERE doctype = ? AND note_id = ? AND recipient_id = ?',
+                   [doctype, note_id, recipient_id])
+        for recipient_id in recipients.keys() - previous:
+            db.insert('Mention Notification', {
+                'id': uuid.uuid4().hex, 'recipient_id': recipient_id, 'actor_id': _identity(actor)['user_id'],
+                'doctype': doctype, 'note_id': note_id, 'created_at': now(),
+            })
+    return len(recipients)
 
 
 def _visible(row, actor, notes=None, authors=None):
@@ -223,9 +299,9 @@ def initialize_mentions():
         db.sql('CREATE INDEX IF NOT EXISTS mention_inbox ON "Mention Notification" (recipient_id, created_at)')
     for name, handler, schema, role, description in (
         ("search_mention_users", search_mention_users, Search, "viewer",
-         "Find enabled ERP colleagues for explicit @mentions by name/email. Returns canonical user IDs, acting_user and supported record types. Do not guess a person when ambiguous."),
+         "Find enabled ERP colleagues for visible @mentions by name/email. Returns mention_text: insert that exact text in the note body to tag the person. Also returns canonical user IDs, acting_user and supported record types. Do not guess a person when ambiguous."),
         ("add_record_note", add_record_note, Note, "manager",
-         "Save an internal note on a supported record and notify explicitly selected colleagues. Resolve mention_user_ids using search_mention_users. Use a new request_id (UUID) per intended note; reuse it unchanged on retries. No email is sent. Authorship is the authenticated ERP account. Self-mentions do not notify."),
+         "Save an internal note and notify people visibly @mentioned in its body, including yourself. First use search_mention_users, then include each recipient's exact mention_text in body, e.g. 'salü vom johnny @Jon Torus'. Recipients are determined only from body; there is no recipient-ID argument. Unknown @handles and ordinary emails remain text. Ambiguous names require @email. Generic CRM note writes use the same mention processing. Use a new request_id (UUID) per intended note; reuse it unchanged on retries. No email is sent. Authorship is the authenticated ERP account."),
         ("list_my_mentions", list_my_mentions, Inbox, "viewer",
          "List the authenticated ERP user's mentions, with record/note links. open means not done; unread is separate. Use this for 'my mentions', never guess or pass another user. Returns acting_user, unread_count and pagination."),
         ("set_mention_state", set_mention_state, State, "viewer",

@@ -995,7 +995,7 @@
     "colleagues": "Kolleginnen und Kollegen",
     "loading": "Laden…",
     "noUsers": "Keine passenden Personen",
-    "hint": "Mit @ eine Person auswählen. Sie wird beim Speichern benachrichtigt.",
+    "hint": "Schreibe @Name oder wähle eine Person. Im Text erwähnte Personen werden beim Speichern benachrichtigt.",
     "remove": "Erwähnung von {{name}} entfernen",
     "close": "Schliessen",
     "open": "Offen",
