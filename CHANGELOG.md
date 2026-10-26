@@ -13,6 +13,13 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-10-26
+
+- Render links, bold and inline code inside chat headings. A record link the
+  model put on a heading line (e.g. `### [QTN-0027 – …](/app/quotation/QTN-0027)`)
+  printed as raw Markdown and was not clickable. `#` through `######` lines are
+  now all treated as headings.
+
 ## [1.2.2] - 2026-10-23
 
 - Use visible @mentions in note text as the sole recipient source. Reject

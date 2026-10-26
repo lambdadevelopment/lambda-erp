@@ -1184,16 +1184,19 @@ function MarkdownContent({ content }: { content: string }) {
       continue;
     }
 
-    if (line.startsWith("### ")) {
+    // Headings get the same inline formatting as paragraphs, so a record
+    // link or bold text inside one stays clickable instead of printing raw.
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading && heading[1].length >= 3) {
       elements.push(
         <h4 key={i} className="mt-3 mb-1 font-semibold">
-          {line.slice(4)}
+          {formatInline(heading[2])}
         </h4>,
       );
-    } else if (line.startsWith("## ")) {
+    } else if (heading) {
       elements.push(
         <h3 key={i} className="mt-3 mb-1 text-base font-semibold">
-          {line.slice(3)}
+          {formatInline(heading[2])}
         </h3>,
       );
     } else if (/^\s*[-*•]\s+/.test(line)) {
