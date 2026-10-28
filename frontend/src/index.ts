@@ -58,6 +58,10 @@ export { registerComponent, getComponent } from "./lib/component-registry";
 // ConfirmButton is the inline arm-to-confirm variant for in-row actions.
 export { DialogProvider, useConfirm, usePrompt } from "./components/ui/dialog";
 export { ConfirmButton } from "./components/ui/confirm-button";
+// SaveButton shows Save / Saving… / ✓ Saved from a form's state; pair it with
+// useUnsavedChanges(), which tracks edits and guards leaving with unsaved ones.
+export { SaveButton } from "./components/ui/save-button";
+export { useUnsavedChanges } from "./lib/use-unsaved-changes";
 
 export { DocPager } from "./components/document/doc-pager";
 export { setListContext, getListContext } from "./lib/doc-list-context";

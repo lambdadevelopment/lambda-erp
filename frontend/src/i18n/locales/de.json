@@ -5,6 +5,11 @@
   "common": {
     "save": "Speichern",
     "saving": "Speichern...",
+    "saved": "Gespeichert",
+    "unsavedTitle": "Ohne Speichern verlassen?",
+    "unsavedBody": "Ihre Änderungen auf dieser Seite sind nicht gespeichert und gehen verloren.",
+    "unsavedLeave": "Änderungen verwerfen",
+    "unsavedStay": "Weiter bearbeiten",
     "submit": "Buchen",
     "cancel": "Abbrechen",
     "cancelDoc": "Stornieren",

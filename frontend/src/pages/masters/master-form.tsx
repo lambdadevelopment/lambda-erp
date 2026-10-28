@@ -8,6 +8,8 @@ import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/dialog";
 import { DocPager } from "@/components/document/doc-pager";
+import { SaveButton } from "@/components/ui/save-button";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -44,6 +46,7 @@ export default function MasterFormPage() {
   const fieldLabel = (f: FieldDef) => t(`fields.${f.label}`, { defaultValue: f.label });
 
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const { dirty, markDirty, markClean } = useUnsavedChanges();
 
   // Fetch existing record
   const { data: existing, isLoading } = useQuery({
@@ -66,10 +69,12 @@ export default function MasterFormPage() {
         defaults[f.name] = f.default ?? "";
       });
       setFormData(defaults);
+      markClean();
     } else if (existing) {
       setFormData(existing);
+      markClean();
     }
-  }, [isNew, existing, fields]);
+  }, [isNew, existing, fields, markClean]);
 
   // New masters with a default_currency field are pre-filled with the COMPANY
   // base currency (a hardcoded "USD" default gave new customers USD in a CHF
@@ -91,6 +96,7 @@ export default function MasterFormPage() {
   const createMut = useMutation({
     mutationFn: (data: any) => api.createMaster(type!, data),
     onSuccess: (result) => {
+      markClean();
       queryClient.invalidateQueries({ queryKey: ["masters", type] });
       navigate(`/masters/${type}/${result.name}`, { replace: true });
     },
@@ -99,6 +105,7 @@ export default function MasterFormPage() {
   const updateMut = useMutation({
     mutationFn: (data: any) => api.updateMaster(type!, name!, data),
     onSuccess: () => {
+      markClean();
       queryClient.invalidateQueries({ queryKey: ["master", type, name] });
       queryClient.invalidateQueries({ queryKey: ["masters", type] });
     },
@@ -107,6 +114,7 @@ export default function MasterFormPage() {
   const deleteMut = useMutation({
     mutationFn: () => api.deleteMaster(type!, name!),
     onSuccess: (result) => {
+      markClean();
       queryClient.invalidateQueries({ queryKey: ["masters", type] });
       if (result?.status === "disabled") {
         navigate(`/masters/${type}`, {
@@ -166,6 +174,7 @@ export default function MasterFormPage() {
   };
 
   const setField = (fieldName: string, value: any) => {
+    markDirty();
     setFormData((prev) => ({ ...prev, [fieldName]: value }));
   };
 
@@ -191,9 +200,13 @@ export default function MasterFormPage() {
           <div />
         )}
         <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={saving || missingRequiredFields.length > 0}>
-            {saving ? t("common.saving") : t("common.save")}
-          </Button>
+          <SaveButton
+            dirty={dirty}
+            saving={saving}
+            isNew={isNew}
+            disabled={missingRequiredFields.length > 0}
+            onClick={handleSave}
+          />
           {!isNew && config?.actions
             ?.filter((action) => !action.visibleWhen || action.visibleWhen(formData))
             .map((action) => (

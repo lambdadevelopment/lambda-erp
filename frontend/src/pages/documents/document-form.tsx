@@ -8,6 +8,8 @@ import { usePageTitle } from "@/lib/use-page-title";
 import { PdfButton } from "@/components/document/pdf-button";
 import { StatusBadge } from "@/components/document/status-badge";
 import { DocPager } from "@/components/document/doc-pager";
+import { SaveButton } from "@/components/ui/save-button";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -475,6 +477,7 @@ function DocumentActions({
   docstatus,
   discarded,
   saving,
+  dirty,
   config,
   onSave,
   onSubmit,
@@ -491,6 +494,8 @@ function DocumentActions({
   docstatus: number;
   discarded?: boolean;
   saving: boolean;
+  /** Edits not saved yet; drives the Save / Saved state. */
+  dirty: boolean;
   config: ReturnType<typeof getDoctypeConfig>;
   onSave: () => void;
   onSubmit: () => void;
@@ -520,9 +525,7 @@ function DocumentActions({
     <div className="flex flex-wrap items-center gap-2">
       {!isNew && doctype && name && <PdfButton doctype={doctype} name={name} />}
       {docstatus < 1 && !discarded && !draftReadOnly && (
-        <Button onClick={onSave} disabled={saving}>
-          {saving ? t("common.saving") : t("common.save")}
-        </Button>
+        <SaveButton dirty={dirty} saving={saving} isNew={isNew} onClick={onSave} />
       )}
       {!isNew && config.canSubmit && docstatus === 0 && !discarded && (
         <Button variant="secondary" onClick={onSubmit}>
@@ -683,6 +686,9 @@ export default function DocumentFormPage() {
   usePageTitle(isNew ? (config?.label ?? null) : (name ?? config?.label ?? null));
 
   const [formData, setFormData] = useState<any>({});
+  // Only user edits mark the form dirty; loads, saves and programmatic
+  // defaults (e.g. currency) leave it clean.
+  const { dirty, markDirty, markClean } = useUnsavedChanges();
   // True once the user picks a currency by hand, so auto-defaulting backs off.
   const [currencyTouched, setCurrencyTouched] = useState(false);
 
@@ -745,15 +751,18 @@ export default function DocumentFormPage() {
       });
       defaults.docstatus = 0;
       setFormData(defaults);
+      markClean();
     } else if (existingDoc) {
       setFormData(existingDoc);
+      markClean();
     }
-  }, [isNew, existingDoc, config]);
+  }, [isNew, existingDoc, config, markClean]);
 
   // Mutations
   const createMut = useMutation({
     mutationFn: (data: any) => api.createDocument(doctype!, data),
     onSuccess: (result) => {
+      markClean();
       queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
       if (doctype === "reservation" || doctype === "asset") {
         queryClient.invalidateQueries({ queryKey: ["fleet-calendar"] });
@@ -773,6 +782,7 @@ export default function DocumentFormPage() {
         queryClient.invalidateQueries({ queryKey: ["availability"] });
       }
       setFormData(result);
+      markClean();
     },
   });
 
@@ -780,6 +790,7 @@ export default function DocumentFormPage() {
     mutationFn: () => api.submitDocument(doctype!, name!),
     onSuccess: (result) => {
       setFormData(result);
+      markClean();
       queryClient.invalidateQueries({ queryKey: ["document", doctype, name] });
       queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
       if (doctype === "reservation" || doctype === "asset") {
@@ -793,6 +804,7 @@ export default function DocumentFormPage() {
     mutationFn: () => api.cancelDocument(doctype!, name!),
     onSuccess: (result) => {
       setFormData(result);
+      markClean();
       queryClient.invalidateQueries({ queryKey: ["document", doctype, name] });
       queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
       if (doctype === "reservation" || doctype === "asset") {
@@ -806,6 +818,7 @@ export default function DocumentFormPage() {
     mutationFn: () => api.discardDocument(doctype!, name!),
     onSuccess: () => {
       // The draft is now hidden from the default list; leave the editor.
+      markClean();
       queryClient.invalidateQueries({ queryKey: ["documents", doctype] });
       if (doctype === "reservation" || doctype === "asset") {
         queryClient.invalidateQueries({ queryKey: ["fleet-calendar"] });
@@ -828,6 +841,7 @@ export default function DocumentFormPage() {
   const setField = useCallback(
     (fieldName: string, value: any) => {
       if (fieldName === "currency") setCurrencyTouched(true);
+      markDirty();
       setFormData((prev: any) => {
         const next = { ...prev, [fieldName]: value };
         // A new currency invalidates any prior rate; clear it so the backend
@@ -837,17 +851,18 @@ export default function DocumentFormPage() {
         return recalculate(next, config);
       });
     },
-    [config, doctype],
+    [config, doctype, markDirty],
   );
 
   const setChildTable = useCallback(
     (key: string, rows: any[]) => {
+      markDirty();
       setFormData((prev: any) => {
         const next = { ...prev, [key]: rows };
         return recalculate(next, config);
       });
     },
-    [config],
+    [config, markDirty],
   );
 
   const handleSave = () => {
@@ -949,6 +964,7 @@ export default function DocumentFormPage() {
           name={name}
           docstatus={docstatus}
           saving={createMut.isPending || updateMut.isPending}
+          dirty={dirty}
           config={config}
           discarded={discarded}
           onSave={handleSave}

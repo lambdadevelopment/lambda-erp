@@ -5,6 +5,11 @@
   "common": {
     "save": "Save",
     "saving": "Saving...",
+    "saved": "Saved",
+    "unsavedTitle": "Leave without saving?",
+    "unsavedBody": "Your changes on this page have not been saved and will be lost.",
+    "unsavedLeave": "Discard changes",
+    "unsavedStay": "Keep editing",
     "submit": "Submit",
     "cancel": "Cancel",
     "cancelDoc": "Cancel",

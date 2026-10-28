@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SaveButton } from "@/components/ui/save-button";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 
 // A Proposal (Sammelofferte) bundles several independent quotations into one
 // branded PDF. It is print-only: nothing here touches the quotations' own
@@ -56,8 +58,13 @@ export default function ProposalForm() {
   const [appendixBusy, setAppendixBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // The appendix uploads on its own, so only form fields and rows count here.
+  const { dirty, markDirty, markClean } = useUnsavedChanges();
 
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: string, v: string) => {
+    markDirty();
+    setForm((f) => ({ ...f, [k]: v }));
+  };
 
   // Load an existing proposal.
   const { data: existing } = useQuery({
@@ -80,7 +87,8 @@ export default function ProposalForm() {
     const qs = (existing.quotations ?? []) as PositionRow[];
     setRows(qs.length ? qs.map((r) => ({ ...blankRow(), ...r })) : [blankRow()]);
     setAppendix(existing.appendix_filename ?? null);
-  }, [existing]);
+    markClean();
+  }, [existing, markClean]);
 
   // Pre-fill the cover letter from the company template once a customer is
   // chosen on a NEW proposal and the letter is still empty — so the salutation
@@ -111,6 +119,7 @@ export default function ProposalForm() {
       return api.updateDocument("proposal", name!, payload());
     },
     onSuccess: (res) => {
+      markClean();
       setError(null);
       qc.invalidateQueries({ queryKey: ["documents", "proposal"] });
       qc.invalidateQueries({ queryKey: ["document", "proposal", res.name] });
@@ -122,6 +131,7 @@ export default function ProposalForm() {
   const discardMut = useMutation({
     mutationFn: () => api.discardDocument("proposal", name!),
     onSuccess: () => {
+      markClean();
       qc.invalidateQueries({ queryKey: ["documents", "proposal"] });
       navigate("/app/proposal");
     },
@@ -129,12 +139,16 @@ export default function ProposalForm() {
   });
 
   // --- Position rows ---
+  const editRows = (update: (rs: PositionRow[]) => PositionRow[]) => {
+    markDirty();
+    setRows(update);
+  };
   const updateRow = (i: number, patch: Partial<PositionRow>) =>
-    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const addRow = () => setRows((rs) => [...rs, blankRow()]);
-  const removeRow = (i: number) => setRows((rs) => (rs.length > 1 ? rs.filter((_, j) => j !== i) : rs));
+    editRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const addRow = () => editRows((rs) => [...rs, blankRow()]);
+  const removeRow = (i: number) => editRows((rs) => (rs.length > 1 ? rs.filter((_, j) => j !== i) : rs));
   const moveRow = (i: number, dir: -1 | 1) =>
-    setRows((rs) => {
+    editRows((rs) => {
       const j = i + dir;
       if (j < 0 || j >= rs.length) return rs;
       const next = [...rs];
@@ -202,9 +216,7 @@ export default function ProposalForm() {
           {!isNew && (
             <PdfButton doctype="proposal" name={name!} />
           )}
-          <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
-            {saveMut.isPending ? tr("common.saving", "Saving…") : tr("common.save", "Save")}
-          </Button>
+          <SaveButton dirty={dirty} saving={saveMut.isPending} isNew={isNew} onClick={() => saveMut.mutate()} />
         </div>
       </div>
 

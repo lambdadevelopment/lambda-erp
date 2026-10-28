@@ -5,6 +5,11 @@
   "common": {
     "save": "Enregistrer",
     "saving": "Enregistrement...",
+    "saved": "Enregistré",
+    "unsavedTitle": "Quitter sans enregistrer ?",
+    "unsavedBody": "Vos modifications sur cette page ne sont pas enregistrées et seront perdues.",
+    "unsavedLeave": "Abandonner les modifications",
+    "unsavedStay": "Continuer la modification",
     "submit": "Valider",
     "cancel": "Annuler",
     "cancelDoc": "Annuler",
