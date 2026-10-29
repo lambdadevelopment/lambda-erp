@@ -258,6 +258,10 @@ class Database:
         self._local = threading.local()
         self._col_cache = {}  # doctype -> set(columns); invalidated on ALTER
         self._text_col_cache = {}  # doctype -> set(text columns); invalidated on ALTER
+        # Postgres naming series run on their own autocommit connection (see
+        # next_in_series); one per process, serialized by this lock.
+        self._series_conn = None
+        self._series_lock = threading.Lock()
         if self._is_memory:
             self._lock = threading.RLock()
             self._shared_conn = self._open_conn()
@@ -268,7 +272,35 @@ class Database:
             # Open the init-thread connection now so _setup_schema can use it
             # via the self.conn property.
             self._open_conn()
-        self._setup_schema()
+        with self.startup_lock():
+            self._setup_schema()
+
+    # Arbitrary constant naming the "schema setup / migrations" advisory lock.
+    _STARTUP_LOCK_KEY = 715624180032
+
+    @contextmanager
+    def startup_lock(self):
+        """Run schema setup and migrations in one process at a time.
+
+        Every process applies pending migrations when it boots. Two replicas,
+        or a new revision starting next to a restarting old one, would otherwise
+        run the same migration concurrently: the slower one fails on the
+        migration marker (a crash loop for required migrations) and a data
+        backfill can run twice. A Postgres session advisory lock, held on its
+        own connection, makes the others wait and then find the work done.
+        Not reentrant: don't nest two startup_lock() blocks in one process.
+        SQLite is single-process, so it needs no lock."""
+        if self.dialect != "postgres":
+            yield
+            return
+        import psycopg
+
+        with psycopg.connect(self.db_path, autocommit=True) as conn:
+            conn.execute("SELECT pg_advisory_lock(%s)", [self._STARTUP_LOCK_KEY])
+            try:
+                yield
+            finally:
+                conn.execute("SELECT pg_advisory_unlock(%s)", [self._STARTUP_LOCK_KEY])
 
     def _open_conn(self):
         """Open a new connection (per-backend) with the same per-conn settings.
@@ -315,6 +347,13 @@ class Database:
             return self._shared_conn
         conn = getattr(self._local, "conn", None)
         if conn is None:
+            conn = self._open_conn()
+        elif (self.dialect == "postgres" and conn._raw.closed
+              and not getattr(self._local, "in_transaction", False)):
+            # A dropped connection (server restart, failover, idle kill) would
+            # otherwise fail every later request this pooled thread serves.
+            # Mid-transaction the error must surface; reconnecting there would
+            # silently continue in a new transaction.
             conn = self._open_conn()
         return conn
 
@@ -1961,7 +2000,15 @@ class Database:
         evaluates the parser at query time: persisting an index that calls a
         connection-local UDF would break ordinary sqlite3 writers and imports.
         Apply after core/plugin schema setup; failures retry on subsequent boots.
+        Indexes that already exist are skipped up front: on PostgreSQL even
+        CREATE INDEX IF NOT EXISTS takes the table lock before checking, so
+        every boot would otherwise queue behind live writes.
         """
+        if self.dialect == "postgres":
+            existing = {r[0] for r in self.conn.execute(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = 'public'").fetchall()}
+        else:
+            existing = set()
         for table in self._all_user_tables():
             try:
                 columns = self._get_table_columns(table)
@@ -1986,7 +2033,14 @@ class Database:
                             self.conn.execute(f'DROP INDEX IF EXISTS "{idx}"')
                             self.conn.commit()
             for idx, expression in indexes:
+                if idx in existing:
+                    continue
                 try:
+                    if self.dialect == "postgres":
+                        # CREATE INDEX waits for a SHARE lock, and every new
+                        # write to the table queues behind that wait. Give up
+                        # quickly instead; the next boot retries.
+                        self.conn.execute("SET LOCAL lock_timeout = '3s'")
                     self.conn.execute(f'CREATE INDEX IF NOT EXISTS "{idx}" ON "{table}" ({expression})')
                     self.conn.commit()
                 except Exception:
@@ -2272,6 +2326,115 @@ class Database:
             finally:
                 self._in_transaction = outer
 
+    # --- Naming series ---
+
+    def next_in_series(self, prefix: str) -> int:
+        """Allocate the next number of the naming series `prefix`.
+
+        The counter lives in "_NamingSeries", so every process, replica and
+        revision on this database draws from the same sequence. A process-local
+        counter handed out numbers another writer had already used.
+
+        On Postgres the increment runs on a separate autocommit connection:
+        the number is taken at once and never handed out again, even if the
+        caller's transaction rolls back (a gap, never a duplicate), and the
+        series row is not locked for the length of a document submit. SQLite has
+        a single writer anyway, so there the increment joins the caller's
+        transaction.
+
+        A prefix seen for the first time is seeded from the highest
+        "PREFIX-<digits>" already stored, so existing data keeps its numbers.
+        """
+        if self.dialect == "postgres":
+            return self._next_in_series_pg(prefix)
+        with self._lock:
+            conn = self.conn
+            update = 'UPDATE "_NamingSeries" SET current = current + 1 WHERE prefix = ?'
+            if conn.execute(update, [prefix]).rowcount == 0:
+                floor = self._series_floor(
+                    prefix, lambda sql, params: conn.execute(sql, params).fetchall())
+                conn.execute(
+                    'INSERT INTO "_NamingSeries" (prefix, current) VALUES (?, ?)',
+                    [prefix, floor + 1])
+            current = conn.execute(
+                'SELECT current FROM "_NamingSeries" WHERE prefix = ?', [prefix]
+            ).fetchone()[0]
+            if not self._in_transaction:
+                conn.commit()
+            return int(current)
+
+    def _next_in_series_pg(self, prefix: str) -> int:
+        import psycopg
+
+        update = ('UPDATE "_NamingSeries" SET current = current + 1 '
+                  'WHERE prefix = %s RETURNING current')
+        with self._series_lock:
+            for attempt in (1, 2):
+                try:
+                    conn = self._series_conn
+                    if conn is None or conn.closed:
+                        conn = self._series_conn = psycopg.connect(self.db_path, autocommit=True)
+                    row = conn.execute(update, [prefix]).fetchone()
+                    if row is None:
+                        floor = self._series_floor(
+                            prefix,
+                            lambda sql, params: conn.execute(sql.replace("?", "%s"), params).fetchall())
+                        # Two processes may seed the same new prefix at once;
+                        # both floors are valid, so keep the higher one.
+                        conn.execute(
+                            'INSERT INTO "_NamingSeries" (prefix, current) VALUES (%s, %s) '
+                            'ON CONFLICT (prefix) DO UPDATE SET current = '
+                            'GREATEST("_NamingSeries".current, EXCLUDED.current)',
+                            [prefix, floor])
+                        row = conn.execute(update, [prefix]).fetchone()
+                    return int(row[0])
+                except psycopg.OperationalError:
+                    # A dropped connection (failover, idle kill): reconnect once.
+                    if self._series_conn is not None:
+                        try:
+                            self._series_conn.close()
+                        except Exception:
+                            pass
+                    self._series_conn = None
+                    if attempt == 2:
+                        raise
+
+    def _series_floor(self, prefix: str, fetch) -> int:
+        """Highest number already used as "PREFIX-<digits>" in any table.
+
+        Only exact "PREFIX-<digits>" names count, so "ACT-IMP-LEAD-90951" or a
+        child row "LEAD-ITEM-0005" don't inflate ACT or LEAD. REVAL vouchers
+        have no row of their own and are found through GL Entry.voucher_no.
+        A failing probe raises: seeding a series too low would hand out
+        numbers that are already taken, one collision after another.
+        """
+        import re
+
+        if self.dialect == "postgres":
+            tables = [r[0] for r in fetch(
+                "SELECT c.table_name FROM information_schema.columns c "
+                "JOIN information_schema.tables t "
+                "ON t.table_schema = c.table_schema AND t.table_name = c.table_name "
+                "WHERE c.table_schema = 'public' AND c.column_name = 'name' "
+                "AND t.table_type = 'BASE TABLE'", [])]
+        else:
+            tables = [r[0] for r in fetch(
+                "SELECT name FROM sqlite_master WHERE type = 'table'", [])
+                if "name" in self._get_table_columns(r[0])]
+        probes = [(table, "name") for table in tables]
+        if "GL Entry" in tables:
+            probes.append(("GL Entry", "voucher_no"))
+
+        pattern = re.compile(rf"^{re.escape(prefix)}-(\d+)$")
+        floor = 0
+        for table, column in probes:
+            for row in fetch(f'SELECT "{column}" FROM "{table}" WHERE "{column}" LIKE ?',
+                             [f"{prefix}-%"]):
+                match = pattern.match(row[0] or "")
+                if match:
+                    floor = max(floor, int(match.group(1)))
+        return floor
+
     def commit(self):
         with self._lock:
             self.conn.commit()
@@ -2281,6 +2444,9 @@ class Database:
 
     def close(self):
         self.conn.close()
+        if self._series_conn is not None:
+            self._series_conn.close()
+            self._series_conn = None
 
 
 # Module-level singleton, initialized by setup()
@@ -2878,6 +3044,25 @@ def _m039_connection_app_type(db: "Database") -> None:
     db.ensure_column("Api Key", "app_type", "TEXT DEFAULT 'other'")
 
 
+def _m040_naming_series(db: "Database") -> None:
+    """Shared document numbering (see Database.next_in_series). Rows are
+    seeded lazily from existing names, so this only creates the table."""
+    db.conn.execute(
+        """CREATE TABLE IF NOT EXISTS "_NamingSeries" (
+            prefix TEXT PRIMARY KEY,
+            current INTEGER NOT NULL
+        )"""
+    )
+    db.conn.commit()
+
+
+def _m041_chat_turn_lease(db: "Database") -> None:
+    """One running agent turn per chat session, across connections and
+    processes (see api.chat.claim_session_turn)."""
+    db.ensure_column("Chat Session", "active_turn", "TEXT")
+    db.ensure_column("Chat Session", "active_turn_until", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -2918,6 +3103,8 @@ Database.MIGRATIONS = [
     (37, "pricing_record_lifecycle", _m037_pricing_record_lifecycle),
     (38, "customer_website", _m038_customer_website),
     (39, "connection_app_type", _m039_connection_app_type),
+    (40, "naming_series", _m040_naming_series),
+    (41, "chat_turn_lease", _m041_chat_turn_lease),
 ]
 
 

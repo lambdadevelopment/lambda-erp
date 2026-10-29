@@ -68,8 +68,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -fsS "http://localhost:${PORT}/api/health" || exit 1
 
-# --workers 1 is a hard constraint, not a default. SQLite + the in-memory
-# chat session state (session_tasks, demo_typing_waiters) cannot be shared
-# across worker processes. Scaling up means moving to Postgres and shared
-# Redis state, not bumping this number.
+# --workers 1 is a hard constraint for this SQLite image: SQLite allows one
+# writer. With LAMBDA_ERP_DB pointing at Postgres, several workers or replicas
+# can share the database (see docs/agents/gotchas.md, "Backend / deploy").
 CMD ["sh", "-c", "exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT} --workers 1"]

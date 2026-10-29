@@ -134,51 +134,13 @@ class _dict(dict):
         super().update(*args, **kwargs)
         return self
 
-def new_name(prefix, sequence_store={}):
+def new_name(prefix):
     """Generate a sequential name like 'ACC-SINV-0001'.
 
-    Simple replacement for the framework's naming system.
-    On first use of a prefix, checks the database for the highest existing
-    sequence number so we don't collide after a server restart.
+    Simple replacement for the framework's naming system. The number comes
+    from the database's shared naming series (Database.next_in_series), so
+    every process on the same database draws from one sequence.
     """
-    if prefix not in sequence_store:
-        # Bootstrap from database
-        from lambda_erp.database import get_db
-        try:
-            db = get_db()
-            # Search all tables for names matching this prefix pattern
-            if getattr(db, "dialect", "sqlite") == "postgres":
-                # Only probe tables that HAVE a `name` column. On Postgres a
-                # failing statement (e.g. SELECT name FROM a table without one)
-                # aborts the whole transaction, unlike SQLite which shrugs it
-                # off — so we must not issue a query that can error here.
-                tables = db.sql(
-                    "SELECT table_name AS name FROM information_schema.columns "
-                    "WHERE column_name = 'name' AND table_schema = 'public'"
-                )
-            else:
-                tables = db.sql("SELECT name FROM sqlite_master WHERE type='table'")
-            max_num = 0
-            for t in tables:
-                table_name = t["name"] if isinstance(t, dict) else t[0]
-                try:
-                    rows = db.sql(
-                        f'SELECT name FROM "{table_name}" WHERE name LIKE ?',
-                        [f"{prefix}-%"],
-                    )
-                    for row in rows:
-                        n = row["name"] if isinstance(row, dict) else row[0]
-                        try:
-                            num = int(n.rsplit("-", 1)[-1])
-                            max_num = max(max_num, num)
-                        except (ValueError, IndexError):
-                            pass
-                except Exception:
-                    pass
-            sequence_store[prefix] = max_num
-        except Exception:
-            sequence_store[prefix] = 0
+    from lambda_erp.database import get_db
 
-    count = sequence_store[prefix] + 1
-    sequence_store[prefix] = count
-    return f"{prefix}-{count:04d}"
+    return f"{prefix}-{get_db().next_in_series(prefix):04d}"

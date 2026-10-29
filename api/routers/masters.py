@@ -1,6 +1,5 @@
 """Master data CRUD: Customer, Supplier, Item, Warehouse, Account, Company."""
 
-import re
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -171,26 +170,15 @@ def _find_reference(master_type: str, name: str) -> str | None:
 
 
 def _generate_master_name(db, doctype: str, prefix: str, digits: int = 3) -> str:
-    # Take the highest numeric suffix among strict "PREFIX-<digits>" names.
-    # Names with a non-numeric tail (e.g. a custom "ITEM-COST-TEST") are ignored
-    # rather than parsed — string-sorting them to the top used to reset the
-    # counter to 001 and collide with an existing record.
-    rows = db.sql(
-        f'SELECT name FROM "{doctype}" WHERE name LIKE ?',
-        [f"{prefix}-%"],
-    )
-    pattern = re.compile(rf"^{re.escape(prefix)}-(\d+)$")
-    max_number = 0
-    for row in rows:
-        match = pattern.match(row["name"] or "")
-        if match:
-            max_number = max(max_number, int(match.group(1)))
-
-    # Skip any number already taken by a non-standard name so we never collide.
-    number = max_number + 1
-    while db.exists(doctype, f"{prefix}-{number:0{digits}d}"):
-        number += 1
-    return f"{prefix}-{number:0{digits}d}"
+    # The shared naming series (the same one documents use), so concurrent
+    # creates, other processes and a doctype that is both a master and a
+    # document (Lead) never pick the same number. Seeding counts only strict
+    # "PREFIX-<digits>" names, so a custom "ITEM-COST-TEST" doesn't move it.
+    # Skip any number already taken by a record created with an explicit name.
+    while True:
+        name = f"{prefix}-{db.next_in_series(prefix):0{digits}d}"
+        if not db.exists(doctype, name):
+            return name
 
 
 def _generate_random_master_name(db, doctype: str, prefix: str) -> str:

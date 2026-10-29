@@ -161,11 +161,31 @@ def run_period_revaluation(company, date=None, *, post=True):
                 "No Unrealized Exchange Gain/Loss account is configured on the company; "
                 "cannot post the period revaluation."
             )
-        reval_no = new_name("REVAL")
-        reversal_no = new_name("REVAL")
         next_date = add_days(on_date, 1).isoformat()
-        make_gl_entries(_build_entries(postable, fx_account, company, on_date, reval_no, swap=False))
-        make_gl_entries(_build_entries(postable, fx_account, company, next_date, reversal_no, swap=True))
+        # One transaction: the voucher and its reversal post together or not
+        # at all. Serialized per company, and refused when this date is already
+        # revalued: party balances are measured from invoice rates, so a
+        # second run on the same date would book the same delta again.
+        with db.atomic():
+            if db.dialect == "postgres":
+                db.sql("SELECT pg_advisory_xact_lock(hashtext(?))",
+                       [f"period-revaluation:{company}"])
+            existing = db.sql(
+                'SELECT voucher_no FROM "GL Entry" WHERE voucher_type = ? '
+                'AND company = ? AND posting_date = ? AND COALESCE(is_cancelled, 0) = 0 '
+                "AND remarks NOT LIKE 'Reversal of %' LIMIT 1",
+                ["Period Revaluation", company, str(on_date)],
+            )
+            if existing:
+                raise ValidationError(
+                    f"{company} is already revalued on {on_date} "
+                    f"({existing[0]['voucher_no']}); posting again would double the "
+                    "unrealized FX."
+                )
+            reval_no = new_name("REVAL")
+            reversal_no = new_name("REVAL")
+            make_gl_entries(_build_entries(postable, fx_account, company, on_date, reval_no, swap=False))
+            make_gl_entries(_build_entries(postable, fx_account, company, next_date, reversal_no, swap=True))
         result.update(posted=True, voucher_no=reval_no,
                       reversal_voucher_no=reversal_no, reversal_date=next_date)
 

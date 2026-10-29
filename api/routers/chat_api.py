@@ -23,12 +23,15 @@ from pydantic import BaseModel
 
 from api.auth import get_api_caller
 from api.chat import (
+    claim_session_turn,
     create_session,
     delete_session,
     get_session,
     list_sessions,
+    release_session_turn,
     run_session_turn,
     save_chat_message,
+    session_turn_running,
 )
 from api.pdf import generate_pdf
 from api.pdf_exports import create_pdf_export, get_pdf_export, pdf_content_disposition
@@ -81,8 +84,23 @@ async def chat(payload: ChatApiRequest, request: Request, caller: dict = Depends
         target_session_id = existing[0]["id"] if existing else create_session(user_id=owner)["id"]
         replay_history = False
 
-    save_chat_message(target_session_id, "user", message)
+    # A continued session replays its history, so a second message must wait
+    # for the running turn (same rule as the web chat). The rolling audit
+    # session is stateless; parallel calls on it stay allowed.
+    turn_token = None
+    if replay_history:
+        turn_token = claim_session_turn(target_session_id)
+        if not turn_token:
+            raise HTTPException(status_code=409, detail="A reply is still running in this session; retry when it finishes")
+    try:
+        save_chat_message(target_session_id, "user", message)
+        return await _run_chat_turn(
+            target_session_id, message, caller, request, replay_history)
+    finally:
+        release_session_turn(target_session_id, turn_token)
 
+
+async def _run_chat_turn(target_session_id, message, caller, request, replay_history):
     tool_results = []
     generated = []
     pdf_attempts = {}
@@ -168,5 +186,7 @@ def delete(session_id: str, caller: dict = Depends(get_api_caller)):
     session = get_session(session_id)
     if not session or session.get("user_id") != caller["name"]:
         raise HTTPException(status_code=404, detail="Session not found")
+    if session_turn_running(session_id):
+        raise HTTPException(status_code=409, detail="A reply is still running in this session")
     delete_session(session_id)
     return {"id": session_id, "deleted": True}

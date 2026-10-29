@@ -18,6 +18,44 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   spinner with "Saving…". Leaving a form with unsaved changes asks first, both
   for in-app navigation (links, prev/next) and for closing or reloading the
   tab. `SaveButton` and `useUnsavedChanges()` are exported for custom pages.
+- Several app processes can share one Postgres database (workers, replicas,
+  and an old and a new revision during a deploy).
+  - Document, line, ledger and master numbers come from a shared naming
+    series (`_NamingSeries`, migration 40) instead of a counter in each
+    process's memory. That counter could hand out a number another writer had
+    already used ("Lead LEAD-90951 already exists"); a Lead created as a
+    master and one created as a document could collide even in one process.
+    Each series is seeded once from the existing `PREFIX-<digits>` names, and
+    creation skips a number that a record with an explicit name already holds.
+  - Startup schema setup, migrations and seeding run under a Postgres
+    advisory lock, so processes booting together no longer run the same
+    migration twice. Existing list indexes are no longer re-requested on every
+    boot, and missing ones give up after 3 s instead of blocking writes.
+  - A chat turn holds a lease on its session (migration 41): a second message
+    from another tab, process or the REST API waits instead of running a
+    parallel turn on the same history (`409` on the REST API). A turn is no
+    longer cancelled when its websocket closes; it finishes and saves its
+    result, and shutdown waits up to `LAMBDA_ERP_SHUTDOWN_DRAIN_SECONDS` (20)
+    for running turns.
+  - Saving a document with the `modified` value it was loaded with (the
+    document form does) is refused if someone saved in between, instead of the
+    stale copy replacing their changes and lines. Callers that omit `modified`
+    keep last-write-wins.
+  - A dropped database connection is reopened on the next request instead of
+    failing every request on that worker thread.
+  - Requires `JWT_SECRET_KEY` with a Postgres database; a key generated per
+    container would differ between replicas and restarts.
+- Period revaluation posts its voucher and reversal in one transaction, one
+  run at a time per company, and refuses a second posting on the same date,
+  which would have doubled the unrealized FX. REVAL numbers no longer restart
+  at REVAL-0001 after a restart.
+- A budget set to "Stop" can no longer be exceeded by two postings that each
+  checked the old total.
+- Bank reconciliation undo can no longer leave its worker thread stuck inside
+  an uncommitted transaction after a failed statement.
+- An invite can be used for only one sign-up, also when two arrive at once.
+- MCP tool calls and bank statement preview/import no longer run on the event
+  loop, where they stalled every other request and websocket of the process.
 
 ## [1.2.3] - 2026-10-26
 

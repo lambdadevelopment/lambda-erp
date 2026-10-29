@@ -2439,6 +2439,18 @@ def main():
     assert abs(after_reversal) < 0.01, f"unrealized FX should net to zero after the next-day reversal, got {after_reversal}"
     print(f"  Unrealized FX at period end = {at_period_end:.2f}; nets to 0.00 after next-day reversal")
 
+    # A second posting on the same date would book the receivable delta twice.
+    gl_rows_before = len(db.sql('SELECT name FROM "GL Entry"'))
+    try:
+        run_period_revaluation("Lambda Corp", period_end)
+        raise AssertionError("a second revaluation on the same date must be refused")
+    except ValidationError as e:
+        assert "already revalued" in str(e), str(e)
+    assert len(db.sql('SELECT name FROM "GL Entry"')) == gl_rows_before, \
+        "a refused revaluation must not leave GL entries behind"
+    assert result["voucher_no"] != result["reversal_voucher_no"]
+    print("  Second revaluation on the same date refused; no GL written")
+
     # ---------------------------------------------------------------------
     # Presentation currency (read-only translation) + the revaluation wrapper
     # the endpoint / chat tool call.

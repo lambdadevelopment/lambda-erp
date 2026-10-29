@@ -34,9 +34,25 @@ fail with `database is locked`. Rather than hack around the share (NFS, etc.),
 the cloud deployment uses Postgres; SQLite stays for dev/test/demo. Doing the
 port while the prod DB was still empty avoided a live SQLite→Postgres migration.
 
-**Still single-replica regardless of backend:** in-memory chat state pins the
-app to one replica until that moves to a shared store — Postgres lifts the
-SQLite single-writer limit but not this one.
+**Multi-process on Postgres:** chat history was always in the database; the
+remaining per-process state (document numbering, the "turn running" guard,
+unlocked startup migrations) moved into Postgres in Oct 2026, so several
+workers or replicas can share one database. SQLite stays single-process.
+
+## Shared naming series, not a process counter
+
+**What:** `new_name()` and master auto-names draw from `_NamingSeries`
+(`Database.next_in_series`). On Postgres the increment runs on a separate
+autocommit connection.
+
+**Why:** a counter seeded once per process collided with numbers written by
+anything else: another process, a master created through the MAX+1 path, an
+explicit name. Allocating outside the caller's transaction means a series row
+is never locked for the length of a submit (GLE is shared by every posting).
+
+**Rejected:** allocating inside the document's transaction for gap-free
+numbers. It would serialize every posting on the GLE series row and risk lock
+ordering deadlocks; a failed save leaves a gap, as it always did.
 
 ## Opening Balance Equity (not Stock Adjustment) for seed stock
 

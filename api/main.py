@@ -51,41 +51,48 @@ def load_plugins() -> None:
 async def lifespan(app: FastAPI):
     # Startup: initialize database
     db_path = os.environ.get("LAMBDA_ERP_DB", "lambda_erp.db")
-    setup(db_path)
+    db = setup(db_path)
 
-    from api.mentions import initialize_mentions
-    initialize_mentions()
+    # Plugin schema, migrations and seeding run one process at a time, like
+    # the core migrations inside setup(): replicas booting together must not
+    # race each other through them.
+    with db.startup_lock():
+        from api.mentions import initialize_mentions
+        initialize_mentions()
 
-    # Load customer extension plugins before anything creates documents.
-    load_plugins()
+        # Load customer extension plugins before anything creates documents.
+        load_plugins()
 
-    # Create plugin-registered tables and run their pending migrations. Must be
-    # after load_plugins() (registrations happen in register()) and before any
-    # document is created.
-    from api.services import apply_plugin_schema
-    apply_plugin_schema()
+        # Create plugin-registered tables and run their pending migrations. Must be
+        # after load_plugins() (registrations happen in register()) and before any
+        # document is created.
+        from api.services import apply_plugin_schema
+        apply_plugin_schema()
 
-    from api.pdf_profiles import validate_pdf_registry
-    validate_pdf_registry()
+        from api.pdf_profiles import validate_pdf_registry
+        validate_pdf_registry()
 
-    # Ensure the demo spend log table exists before any LLM call happens.
-    from api.demo_limits import init_schema as init_demo_spend_schema
-    init_demo_spend_schema()
+        # Ensure the demo spend log table exists before any LLM call happens.
+        from api.demo_limits import init_schema as init_demo_spend_schema
+        init_demo_spend_schema()
 
-    # Seed a deterministic admin from the environment (if configured) before
-    # anyone can register. On deployments whose DB is recreated each rollout
-    # this stops the first visitor after a redeploy from grabbing admin.
-    from api.auth import ensure_seed_admin
-    ensure_seed_admin()
+        # Seed a deterministic admin from the environment (if configured) before
+        # anyone can register. On deployments whose DB is recreated each rollout
+        # this stops the first visitor after a redeploy from grabbing admin.
+        from api.auth import ensure_seed_admin
+        ensure_seed_admin()
 
-    # When packaged as a demo container, land visitors straight in demo mode.
-    if os.environ.get("LAMBDA_ERP_AUTO_DEMO") == "1":
-        from api.bootstrap import bootstrap_demo
+        # When packaged as a demo container, land visitors straight in demo mode.
+        if os.environ.get("LAMBDA_ERP_AUTO_DEMO") == "1":
+            from api.bootstrap import bootstrap_demo
 
-        bootstrap_demo()
+            bootstrap_demo()
 
     yield
-    # Shutdown: nothing to clean up (SQLite handles it)
+    # Shutdown: let chat turns whose sockets already closed finish and save
+    # their results. Stay inside the container's termination grace period.
+    from api.chat import drain_turns
+    await drain_turns(timeout=float(os.environ.get("LAMBDA_ERP_SHUTDOWN_DRAIN_SECONDS", "20")))
 
 
 app = FastAPI(

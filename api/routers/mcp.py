@@ -15,6 +15,7 @@ automatically — the MCP surface is modular by construction.
 Transport: a single POST /api/mcp speaking JSON-RPC 2.0 (request → JSON result;
 notifications → 202, no body). That's the minimum a tool-only server needs.
 """
+import asyncio
 import json
 import os
 
@@ -225,10 +226,12 @@ async def mcp_endpoint(request: Request):
     version = request.headers.get('mcp-protocol-version')
     if not initializing and version and version not in SUPPORTED_PROTOCOL_VERSIONS:
         raise HTTPException(400, 'Unsupported MCP protocol version')
+    # Tool calls do synchronous database and PDF work; running them on the
+    # event loop would stall every other request and websocket on this process.
     if isinstance(body, list):
-        responses = [r for r in (_handle(m, user) for m in body) if r is not None]
+        responses = [r for r in [await asyncio.to_thread(_handle, m, user) for m in body] if r is not None]
         return JSONResponse(responses) if responses else Response(status_code=202)
-    resp = _handle(body, user)
+    resp = await asyncio.to_thread(_handle, body, user)
     if resp is None:
         return Response(status_code=202)
     return JSONResponse(resp)

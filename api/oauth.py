@@ -47,6 +47,7 @@ from api.auth import (
     require_interactive_user,
     _is_https_request,
     validate_assignable_role,
+    claim_invite,
     _setting_enabled,
 )
 
@@ -362,8 +363,7 @@ def _consume_invite(db, invite_token: str, email: str) -> str:
     if invite["email"].lower() != email.lower():
         raise HTTPException(status_code=403, detail="This invite was issued for a different email")
     role = validate_assignable_role(invite["role"])
-    db.sql('UPDATE "Invite" SET used = 1 WHERE token = ?', [invite_token])
-    db.conn.commit()
+    claim_invite(db, invite_token)
     return role
 
 

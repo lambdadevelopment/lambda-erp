@@ -611,20 +611,13 @@ def reconcile_with_payment(bank_transaction: str, allocations: list[dict], *,
         "references": references,
     })
     db = get_db()
-    db._in_transaction = True
-    try:
+    with db.atomic():
         reconciliation = _new_audit(
             tx, mode="Created Payment Entry", voucher_type="Payment Entry",
             voucher_no=payment.name, user=user,
         )
         payment._data["bank_reconciliation"] = reconciliation
         payment.submit()
-        db.commit()
-        db._in_transaction = False
-    except Exception:
-        db.conn.rollback()
-        db._in_transaction = False
-        raise
     return {
         "bank_transaction": bank_transaction,
         "reconciliation": reconciliation,
@@ -693,20 +686,13 @@ def reconcile_with_journal(bank_transaction: str, counterparty_account: str, *,
         "remark": remarks or tx.get("remittance_information") or tx.get("description") or f"Bank reconciliation {tx['name']}",
         "accounts": accounts,
     })
-    db._in_transaction = True
-    try:
+    with db.atomic():
         reconciliation = _new_audit(
             tx, mode="Created Journal Entry", voucher_type="Journal Entry",
             voucher_no=journal.name, user=user,
         )
         journal._data["bank_reconciliation"] = reconciliation
         journal.submit()
-        db.commit()
-        db._in_transaction = False
-    except Exception:
-        db.conn.rollback()
-        db._in_transaction = False
-        raise
     return {
         "bank_transaction": bank_transaction,
         "reconciliation": reconciliation,
@@ -770,12 +756,10 @@ def _validate_existing_voucher_group(transactions: list[dict], voucher_type: str
         )
 
 
-def _begin_existing_voucher_transaction(db, voucher_type: str, voucher_no: str) -> None:
-    """Serialize consumers of one voucher while the group is validated."""
-    db._in_transaction = True
-    if db.dialect == "sqlite":
-        db.conn.execute("BEGIN IMMEDIATE")
-    else:
+def _lock_existing_voucher(db, voucher_type: str, voucher_no: str) -> None:
+    """Serialize consumers of one voucher while the group is validated. Runs
+    inside db.atomic(), which already holds SQLite's write reservation."""
+    if db.dialect == "postgres":
         # ``voucher_type`` is checked against the fixed allowlist before this
         # helper is called, so quoting the table name is safe.
         db.conn.execute(
@@ -804,8 +788,8 @@ def reconcile_with_existing_voucher_group(bank_transactions: list[str], voucher_
         names.append(name)
 
     db = get_db()
-    try:
-        _begin_existing_voucher_transaction(db, voucher_type, voucher_no)
+    with db.atomic():
+        _lock_existing_voucher(db, voucher_type, voucher_no)
         transactions = [_transaction(name) for name in names]
         for tx in transactions:
             _ensure_available(tx)
@@ -826,12 +810,6 @@ def reconcile_with_existing_voucher_group(bank_transactions: list[str], voucher_
             activate_generated_reconciliation(
                 reconciliation, voucher_type=voucher_type, voucher_no=voucher_no,
             )
-        db.commit()
-    except Exception:
-        db.conn.rollback()
-        raise
-    finally:
-        db._in_transaction = False
     return {
         "bank_transaction": names[0],
         "bank_transactions": names,
@@ -866,19 +844,11 @@ def undo_reconciliation(bank_transaction: str, *, user: str | None = None,
     if audit["mode"] in {"Created Payment Entry", "Created Journal Entry"}:
         document_cls = PaymentEntry if audit["voucher_type"] == "Payment Entry" else JournalEntry
         document = document_cls.load(audit["voucher_no"])
-        db._in_transaction = True
-        db.set_value("Bank Reconciliation", audit["name"], "reversed_by", user)
-        try:
+        with db.atomic():
+            db.set_value("Bank Reconciliation", audit["name"], "reversed_by", user)
             document.cancel()
-            db.commit()
-            db._in_transaction = False
-        except Exception:
-            db.conn.rollback()
-            db._in_transaction = False
-            raise
     else:
-        db._in_transaction = True
-        try:
+        with db.atomic():
             group = _group_rows(audit.get("group_id")) or [audit]
             for member in group:
                 member_tx = _transaction(member["bank_transaction"])
@@ -891,12 +861,6 @@ def undo_reconciliation(bank_transaction: str, *, user: str | None = None,
                     "status": "Unreconciled", "reconciled_by": None,
                     "reconciled_at": None, "modified": now(),
                 })
-            db.commit()
-        except Exception:
-            db.conn.rollback()
-            raise
-        finally:
-            db._in_transaction = False
     return {
         "bank_transaction": bank_transaction,
         "bank_transactions": [

@@ -572,6 +572,12 @@ def update_document(doctype_slug: str, name: str, data: dict) -> dict:
         raise ValueError(f"Unknown document type: {doctype_slug}")
     data = _validate_document_input(doctype, cls, data)
     doc = cls.load(name)
+    # A client that sends back the `modified` it loaded (the document form
+    # does) edits that version: if someone saved in between, the write-state
+    # check refuses instead of the stale copy silently replacing their changes
+    # (including whole child tables). Callers that omit it keep last-write-wins.
+    if data.get("modified"):
+        doc._loaded_modified = data["modified"]
     # Update parent fields
     for key, value in data.items():
         if key not in ("name", "docstatus", "creation") and key not in doc.CHILD_TABLES:

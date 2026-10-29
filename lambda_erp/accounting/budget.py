@@ -87,6 +87,16 @@ def validate_expense_against_budget(gl_entry):
 
     budgets = db.get_all("Budget", filters=filters, fields=["*"])
 
+    # Two postings against one "Stop" budget must not both pass on the same
+    # old total. Lock the budget rows (in name order, so concurrent postings
+    # can't deadlock) before summing: the lock waits for the other posting to
+    # commit, and the SUM below then sees its GL entries.
+    stop_budgets = sorted(b["name"] for b in budgets if b.get("action_if_exceeded") == "Stop")
+    if stop_budgets and db.dialect == "postgres" and db._in_transaction:
+        placeholders = ", ".join("?" * len(stop_budgets))
+        db.sql(f'SELECT name FROM "Budget" WHERE name IN ({placeholders}) '
+               'ORDER BY name FOR UPDATE', stop_budgets)
+
     for budget in budgets:
         fiscal_year = budget.get("fiscal_year", "")
         if fiscal_year and str(year) not in fiscal_year:

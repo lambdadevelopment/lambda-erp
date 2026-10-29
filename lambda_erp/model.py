@@ -73,7 +73,7 @@ class Document:
         self._loaded_modified = None
 
         if not self._data.get("name"):
-            self._data["name"] = new_name(self.PREFIX)
+            self._data["name"] = self._unused_name()
         if not self._data.get("docstatus"):
             self._data["docstatus"] = DRAFT
         if not self._data.get("creation"):
@@ -91,6 +91,16 @@ class Document:
                 if not child.get("name"):
                     child["name"] = new_name(f"{self.PREFIX}-ITEM")
                 self._children[field_name].append(child)
+
+    def _unused_name(self):
+        """Next series name not already taken. A record created with an
+        explicit name (import, API caller, migration) may sit ahead of the
+        series; skip past it rather than fail the save with "already exists"."""
+        db = get_db()
+        while True:
+            name = new_name(self.PREFIX)
+            if not db.exists(self.DOCTYPE, name):
+                return name
 
     # --- Attribute access (mirrors the framework's Document) ---
 

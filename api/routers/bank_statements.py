@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from urllib.parse import quote
 
@@ -44,7 +45,8 @@ async def preview_bank_statements(
     _user: dict = Depends(require_non_public_manager),
 ):
     """Parse uploads without writing any statement or transaction data."""
-    return preview_documents(await _parse_uploads(files))
+    # Parsing and matching are synchronous DB work: keep them off the event loop.
+    return await asyncio.to_thread(preview_documents, await _parse_uploads(files))
 
 
 @router.post("/import")
@@ -64,8 +66,9 @@ async def import_bank_statements(
     ):
         raise HTTPException(status_code=422, detail="mappings must map statement keys to Bank Accounts")
     try:
-        return import_documents(
-            await _parse_uploads(files), parsed_mappings, imported_by=user.get("name")
+        return await asyncio.to_thread(
+            import_documents, await _parse_uploads(files), parsed_mappings,
+            imported_by=user.get("name"),
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

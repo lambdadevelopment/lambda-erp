@@ -32,7 +32,8 @@ these, stop and read the note.
   `strftime`, and `?` placeholders (the layer translates to `%s` for PG). Two
   Postgres differences that bite: (1) a single failed statement **aborts the
   whole transaction** — never run a query that may error mid-transaction and
-  swallow it (this is why `new_name()` only probes name-bearing tables); (2) the
+  swallow it (this is why naming-series seeding runs on its own autocommit
+  connection and only probes name-bearing tables); (2) the
   quoted-identifier quirk above does **not** apply on PG — it errors on an
   unknown column, so `get_value`/`get_all` now select only existing columns and
   pad the rest as `NULL` (prefer them over hand-written `SELECT "maybe_missing"`).
@@ -63,10 +64,20 @@ these, stop and read the note.
 
 ## Backend / deploy
 
-- **Single uvicorn worker only.** SQLite + in-memory chat session state
-  (`session_tasks`, `demo_typing_waiters`) are per-process. The Dockerfile
-  CMD pins `--workers 1` explicitly. To scale horizontally, move to
-  Postgres + external task storage first.
+- **Several processes need Postgres.** SQLite is single-writer, so the
+  SQLite image pins `--workers 1`. On Postgres, processes (workers, replicas,
+  an old and a new revision during a deploy) share everything that must be
+  shared: document numbers come from `_NamingSeries`, startup migrations run
+  under an advisory lock, and a chat turn holds a lease on its session row.
+  Still per-process, and acceptable: the 60 s list-count cache, demo spend
+  reservations (public demo only), and one DB connection per worker thread
+  (size Postgres `max_connections` for threads × processes).
+- **Never number records in process memory.** Use `new_name(prefix)` (or
+  `db.next_in_series(prefix)` with your own padding); both draw from the shared
+  series, which is seeded once from existing `PREFIX-<digits>` names. A
+  process-local counter collided with numbers another process had used
+  (LEAD-90951, 28 Oct 2026). Names given explicitly are fine: document and
+  master creation skip a number that is already taken.
 - **`bootstrap_demo()` runs on every container start when
   `LAMBDA_ERP_AUTO_DEMO=1`.** It's idempotent (checks existence before
   writing), but the historical simulator is deterministic — adding new

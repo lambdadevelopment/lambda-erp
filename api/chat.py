@@ -146,6 +146,74 @@ def can_access_session(session: dict | None, user: dict | None) -> bool:
     return session.get("user_id") == user.get("name")
 
 
+# A session runs one agent turn at a time. The claim lives on the session row,
+# so it holds across browser tabs, the REST chat API and app processes; a
+# per-connection check let two turns build on the same history and both write.
+# The deadline frees the session if the process running the turn died.
+TURN_LEASE_SECONDS = 30 * 60
+
+
+def _utc_iso(offset_seconds: int = 0) -> str:
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) + timedelta(seconds=offset_seconds)).isoformat(timespec="seconds")
+
+
+def claim_session_turn(session_id: str) -> str | None:
+    """Claim the session for one turn; return the claim token, or None while
+    another turn is still running on it."""
+    db = get_db()
+    token = uuid.uuid4().hex
+    with db._lock:
+        cursor = db.conn.execute(
+            'UPDATE "Chat Session" SET active_turn = ?, active_turn_until = ? '
+            "WHERE id = ? AND (active_turn IS NULL OR active_turn_until IS NULL "
+            "OR active_turn_until < ?)",
+            [token, _utc_iso(TURN_LEASE_SECONDS), session_id, _utc_iso()],
+        )
+        claimed = cursor.rowcount == 1
+        db.conn.commit()
+    return token if claimed else None
+
+
+def release_session_turn(session_id: str, token: str | None) -> None:
+    if not token:
+        return
+    db = get_db()
+    with db._lock:
+        db.conn.execute(
+            'UPDATE "Chat Session" SET active_turn = NULL, active_turn_until = NULL '
+            "WHERE id = ? AND active_turn = ?",
+            [session_id, token],
+        )
+        db.conn.commit()
+
+
+def session_turn_running(session_id: str) -> bool:
+    rows = get_db().sql(
+        'SELECT active_turn_until FROM "Chat Session" WHERE id = ? AND active_turn IS NOT NULL',
+        [session_id],
+    )
+    return bool(rows and rows[0]["active_turn_until"] and rows[0]["active_turn_until"] >= _utc_iso())
+
+
+# Turns whose socket closed keep running to completion (see chat_websocket);
+# hold references so they aren't garbage-collected, and so shutdown can wait.
+_DETACHED_TURNS: set[asyncio.Task] = set()
+
+
+def detach_turn(task: asyncio.Task) -> None:
+    _DETACHED_TURNS.add(task)
+    task.add_done_callback(_DETACHED_TURNS.discard)
+
+
+async def drain_turns(timeout: float) -> None:
+    """On shutdown, give turns that are still running time to finish and
+    persist their results instead of dying between a tool call and its reply."""
+    pending = [task for task in _DETACHED_TURNS if not task.done()]
+    if pending:
+        await asyncio.wait(pending, timeout=timeout)
+
+
 def delete_session(session_id: str):
     """Delete a chat session, its messages, and its attachments."""
     try:
@@ -440,6 +508,8 @@ def api_delete_session(session_id: str, user: dict = _Depends(get_current_user))
     session = get_session(session_id)
     if not can_access_session(session, user):
         return {"detail": "Session not found"}
+    if session_turn_running(session_id):
+        raise HTTPException(status_code=409, detail="Wait for the current response to finish before deleting this chat.")
     delete_session(session_id)
     return {"ok": True}
 
@@ -4142,7 +4212,9 @@ async def chat_websocket(
         finally:
             session_tasks.pop(target_session_id, None)
 
-    async def process_session_message(target_session_id: str, user_content: str, attachment_ids: list | None = None):
+    async def process_session_message(target_session_id: str, user_content: str,
+                                      attachment_ids: list | None = None,
+                                      turn_token: str | None = None):
         try:
             async def on_event(event: dict):
                 await send_event(event["type"], session_id=target_session_id, **{
@@ -4169,7 +4241,9 @@ async def chat_websocket(
         except Exception as e:
             await send_error(str(e), session_id=target_session_id)
         finally:
-            session_tasks.pop(target_session_id, None)
+            release_session_turn(target_session_id, turn_token)
+            if session_tasks.get(target_session_id) is asyncio.current_task():
+                session_tasks.pop(target_session_id, None)
 
     try:
         await send_event("sessions_list", sessions=list_sessions(user_id=ws_user_id, role=ws_user_role))
@@ -4240,7 +4314,7 @@ async def chat_websocket(
                     continue
 
                 active_task = session_tasks.get(session_id)
-                if active_task and not active_task.done():
+                if (active_task and not active_task.done()) or session_turn_running(session_id):
                     await send_error(
                         "Wait for the current response to finish before deleting this chat.",
                         request_id=request_id,
@@ -4263,7 +4337,7 @@ async def chat_websocket(
                     continue
 
                 active_task = session_tasks.get(session_id)
-                if active_task and not active_task.done():
+                if (active_task and not active_task.done()) or session_turn_running(session_id):
                     await send_error(
                         "Wait for the current response to finish before clearing this chat.",
                         request_id=request_id,
@@ -4347,7 +4421,8 @@ async def chat_websocket(
 
                 session = get_session(session_id)
                 await send_event("demo_started", request_id=request_id, session_id=session_id, title=session["title"] if session else "New Chat")
-                session_tasks[session_id] = asyncio.create_task(replay_demo_session(session_id))
+                session_tasks[session_id] = asyncio.create_task(
+                    replay_demo_session(session_id), name=f"demo:{session_id}")
                 continue
 
             if msg_type == "transcribe":
@@ -4503,10 +4578,24 @@ async def chat_websocket(
                 if aid in session_attachments
             ]
 
-            save_chat_message(
-                session_id, "user", user_content or "",
-                metadata={"attachments": attached_meta} if attached_meta else None,
-            )
+            # Claimed before the user message is stored, so a second tab (or
+            # another app process) can't add a message to a running turn.
+            turn_token = claim_session_turn(session_id)
+            if not turn_token:
+                await send_error(
+                    "Wait for the current response to finish before sending another message.",
+                    request_id=request_id,
+                    session_id=session_id,
+                )
+                continue
+            try:
+                save_chat_message(
+                    session_id, "user", user_content or "",
+                    metadata={"attachments": attached_meta} if attached_meta else None,
+                )
+            except BaseException:
+                release_session_turn(session_id, turn_token)
+                raise
             await send_message_added(
                 session_id, "user", user_content or "",
                 attachments=attached_meta if attached_meta else None,
@@ -4520,11 +4609,21 @@ async def chat_websocket(
             await send_event("thinking", session_id=session_id, iteration=1)
 
             session_tasks[session_id] = asyncio.create_task(
-                process_session_message(session_id, user_content, attachment_ids)
+                process_session_message(session_id, user_content, attachment_ids, turn_token),
+                name=f"turn:{session_id}",
             )
 
     except WebSocketDisconnect:
-        for task in session_tasks.values():
-            task.cancel()
+        pass
     except Exception as e:
         await send_error(str(e))
+    finally:
+        # A demo replay is only presentation: stop it. An agent turn may be
+        # between a tool's write and its result: cancelling it would commit the
+        # write but lose the result and the reply, so the user retries and the
+        # write happens twice. Let it finish; history shows it on reconnect.
+        for task in list(session_tasks.values()):
+            if task.get_name().startswith("demo:"):
+                task.cancel()
+            elif not task.done():
+                detach_turn(task)

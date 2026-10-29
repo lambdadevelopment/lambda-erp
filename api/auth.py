@@ -35,12 +35,19 @@ def _resolve_jwt_secret() -> str:
       3. Newly-generated random secret (only used if the filesystem is
          read-only or inaccessible — cookies will be invalidated on
          restart in that degenerate case).
+
+    A Postgres deployment must set JWT_SECRET_KEY: there is no DB file to
+    sit next to, so the file would land on the container's own disk and
+    every replica and restart would sign with a different key, logging
+    users out at random.
     """
     env_secret = os.environ.get("JWT_SECRET_KEY")
     if env_secret:
         return env_secret
 
     db_path = os.environ.get("LAMBDA_ERP_DB", "lambda_erp.db")
+    if db_path.startswith(("postgresql://", "postgres://")):
+        raise RuntimeError("JWT_SECRET_KEY must be set when LAMBDA_ERP_DB is a Postgres URL")
     data_dir = os.path.dirname(os.path.abspath(db_path)) or "."
     secret_file = os.path.join(data_dir, ".jwt_secret")
 
@@ -338,6 +345,19 @@ def validate_assignable_role(role: str) -> str:
     return role
 
 
+def claim_invite(db, token: str) -> None:
+    """Mark an invite used, exactly once. The conditional UPDATE is the check:
+    two sign-ups racing on one invite both pass the earlier read, but only one
+    row update succeeds."""
+    with db._lock:
+        cursor = db.conn.execute(
+            'UPDATE "Invite" SET used = 1 WHERE token = ? AND COALESCE(used, 0) = 0', [token])
+        claimed = cursor.rowcount == 1
+        db.conn.commit()
+    if not claimed:
+        raise HTTPException(status_code=410, detail="Invite already used")
+
+
 def require_role(minimum_role: str):
     """Returns a dependency that checks the user has at least the specified role."""
     min_level = ROLE_HIERARCHY[minimum_role]
@@ -450,8 +470,7 @@ def register(data: RegisterRequest, request: Request, response: Response):
             raise HTTPException(status_code=403, detail="This invite was issued for a different email")
 
         role = validate_assignable_role(invite["role"])
-        db.sql('UPDATE "Invite" SET used = 1 WHERE token = ?', [data.invite_token])
-        db.conn.commit()
+        claim_invite(db, data.invite_token)
     elif _setting_enabled(db, "allow_public_signup"):
         # Open signup is enabled: anyone may self-register, but only as a viewer.
         role = "viewer"
