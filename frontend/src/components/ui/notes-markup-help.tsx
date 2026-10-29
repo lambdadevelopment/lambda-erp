@@ -40,7 +40,7 @@ export function NotesMarkupHelp() {
         <div className="absolute bottom-full left-0 z-50 mb-2 w-80 rounded-md bg-gray-900 px-3 py-2.5 text-xs leading-relaxed text-white shadow-lg">
           <p className="mb-2 text-gray-200">
             {t("notesMarkup.intro", {
-              defaultValue: "The Notes / Terms text supports light formatting on the PDF:",
+              defaultValue: "The printed notes / terms text supports light formatting on the PDF:",
             })}
           </p>
           <table className="w-full border-separate border-spacing-y-1">

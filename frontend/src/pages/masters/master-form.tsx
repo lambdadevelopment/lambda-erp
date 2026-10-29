@@ -18,6 +18,7 @@ import { getMasterConfig } from "@/lib/masters";
 import { BUILTIN_MASTER_FIELDS } from "@/lib/master-fields";
 import { LinkField } from "@/components/document/link-field";
 import { CompanySalesTaxField } from "@/components/company-sales-tax-field";
+import { RecordNotes, RecordNotesLink } from "@/components/record-notes";
 
 const TYPE_LABELS: Record<string, string> = {
   customer: "Customer",
@@ -195,7 +196,10 @@ export default function MasterFormPage() {
       {/* Header: prev/next through the master list on the left, actions right */}
       <div className="flex items-center justify-between">
         {!isNew ? (
-          <DocPager kind="master" slug={type!} name={name!} onSave={handleSave} />
+          <div className="flex items-center gap-3">
+            <DocPager kind="master" slug={type!} name={name!} onSave={handleSave} />
+            <RecordNotesLink recordType={type!} recordId={name} />
+          </div>
         ) : (
           <div />
         )}
@@ -367,6 +371,8 @@ export default function MasterFormPage() {
           })}
         </div>
       </Card>
+
+      {!isNew && name && <RecordNotes recordType={type!} recordId={name} />}
     </div>
   );
 }

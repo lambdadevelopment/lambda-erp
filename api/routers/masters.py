@@ -748,7 +748,10 @@ def delete_master_record(master_type: str, name: str) -> dict:
             return {"ok": True, "status": "disabled", "reason": f"Referenced by {reference}"}
         raise HTTPException(status_code=409, detail=f"Cannot delete {doctype} {name}: referenced by {reference}")
 
-    db.delete(doctype, name=name)
+    from api.record_notes import delete_record_notes_for
+    with db.atomic():
+        delete_record_notes_for(master_type, name)
+        db.delete(doctype, name=name)
     return {"ok": True, "status": "deleted"}
 
 

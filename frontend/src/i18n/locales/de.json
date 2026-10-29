@@ -653,7 +653,8 @@
     "To": "Bis",
     "Purpose": "Zweck",
     "Purchase Date": "Kaufdatum",
-    "Notes": "Notizen"
+    "Notes": "Notizen",
+    "Printed notes / terms": "Gedruckte Notizen / Konditionen"
   },
   "tables": {
     "items": "Positionen",
@@ -868,7 +869,7 @@
   },
   "notesMarkup": {
     "title": "Formatierungshilfe",
-    "intro": "Der Text unter Notizen / Konditionen unterstützt eine einfache Formatierung im PDF:",
+    "intro": "Der Text unter Gedruckte Notizen / Konditionen unterstützt eine einfache Formatierung im PDF:",
     "heading": "fette Überschrift",
     "emphasis": "kursiv / fett",
     "rule": "horizontale Trennlinie",
@@ -1015,5 +1016,18 @@
     "markRead": "Als gelesen markieren",
     "previous": "Zurück",
     "next": "Weiter"
+  },
+  "recordNotes": {
+    "title": "Interne Notizen",
+    "private": "Nur für Ihr Team · wird nie gedruckt",
+    "add": "Notiz hinzufügen",
+    "placeholder": "Interne Notiz schreiben … mit @ jemanden aus dem Team benachrichtigen",
+    "save": "Notiz speichern",
+    "empty": "Noch keine internen Notizen.",
+    "edited": "bearbeitet",
+    "older": "Ältere Notizen anzeigen",
+    "printedBadge": "Erscheint auf dem PDF",
+    "count_one": "{{count}} interne Notiz",
+    "count_other": "{{count}} interne Notizen"
   }
 }

@@ -13,6 +13,29 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-29
+
+- Internal notes on every document and master record. An "Internal notes"
+  card at the end of each document and master page (and a "N internal notes"
+  link in the header) holds team-only notes: never printed, and saving one
+  does not change the record, so other people's open forms are not marked
+  stale. @mentions in a note land in the colleague's inbox and link straight
+  to that note. Authors edit their own notes (mentions are re-read);
+  authors and admins delete them. Deleting a master deletes its notes.
+  - Stored in `Record Note` (migration 42). Every document and master type
+    is a mention source through a new fallback
+    (`register_mention_source_fallback`); types with an explicit source,
+    such as a plugin's CRM leads, keep their own notes, and a plugin can opt
+    a type out with `api.record_notes.disable_record_notes(slug)`.
+  - New actions `list_record_notes`, `update_record_note` and
+    `delete_record_note` (REST `/api/actions/…`, the native chat and MCP);
+    `add_record_note` now accepts any document or master type. The tool
+    descriptions, the chat prompt and `get_erp_context` explain the
+    difference from the printed field.
+  - `RecordNotes` and `RecordNotesLink` are exported for custom pages.
+- The printed `remarks` field is now labelled "Printed notes / terms" with a
+  "Printed on the PDF" badge, so it is not mistaken for internal notes.
+
 ## [1.3.0] - 2026-10-29
 
 - Show whether a form has unsaved changes. Document, master and proposal forms

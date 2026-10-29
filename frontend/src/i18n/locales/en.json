@@ -695,7 +695,8 @@
     "To": "To",
     "Purpose": "Purpose",
     "Purchase Date": "Purchase Date",
-    "Notes": "Notes"
+    "Notes": "Notes",
+    "Printed notes / terms": "Printed notes / terms"
   },
   "tables": {
     "accounts": "accounts",
@@ -868,7 +869,7 @@
   },
   "notesMarkup": {
     "title": "Formatting help",
-    "intro": "The Notes / Terms text supports light formatting on the PDF:",
+    "intro": "The printed notes / terms text supports light formatting on the PDF:",
     "heading": "bold heading",
     "emphasis": "italic / bold",
     "rule": "horizontal divider line",
@@ -1015,5 +1016,18 @@
     "markRead": "Mark read",
     "previous": "Previous",
     "next": "Next"
+  },
+  "recordNotes": {
+    "title": "Internal notes",
+    "private": "Private to your team · never printed",
+    "add": "Add note",
+    "placeholder": "Write an internal note… type @ to notify a colleague",
+    "save": "Save note",
+    "empty": "No internal notes yet.",
+    "edited": "edited",
+    "older": "Show older notes",
+    "printedBadge": "Printed on the PDF",
+    "count_one": "{{count}} internal note",
+    "count_other": "{{count}} internal notes"
   }
 }

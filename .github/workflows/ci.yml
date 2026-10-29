@@ -331,6 +331,14 @@ jobs:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_mentions
 
+      - name: Internal record notes — SQLite
+        run: python -m tests.test_record_notes
+
+      - name: Internal record notes — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_record_notes
+
       - name: MCP endpoint — PostgreSQL
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test

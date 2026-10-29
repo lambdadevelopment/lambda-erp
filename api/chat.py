@@ -2720,6 +2720,9 @@ The `remarks` (Notes / Terms) field on quotations, sales orders, and invoices re
 - Separate blocks with a blank line; a single newline is just a line break.
 Plain text (no special characters) still renders fine, so only reach for the markup when it improves a customer-facing note.
 
+### Internal notes (never printed)
+`remarks` is PRINTED and goes to the customer or supplier. Internal team remarks ("customer disputes line 2", "@Anna please check the price") belong in an internal note on the record instead: `add_record_note` (doctype = the record type slug, e.g. `sales-invoice` or `customer`; record_id = its name), read with `list_record_notes`, change with `update_record_note` / `delete_record_note`. Every document and master type supports them; they appear in the record's "Internal notes" card and never change the record. To notify a colleague, first `search_mention_users` and put their exact `mention_text` in the body. Never put internal remarks into `remarks`, and never copy internal notes into customer-facing text.
+
 ### Purchase Cycle
 Purchase Order → Purchase Receipt (receiving) / Purchase Invoice (billing) → Payment Entry
 

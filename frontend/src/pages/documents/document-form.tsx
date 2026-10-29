@@ -17,9 +17,11 @@ import { Select } from "@/components/ui/select";
 import { formatCurrency, formatLocalDate, flt } from "@/lib/utils";
 import { HintTooltip } from "@/components/ui/hint-tooltip";
 import { NotesMarkupHelp } from "@/components/ui/notes-markup-help";
+import { RecordNotes, RecordNotesLink } from "@/components/record-notes";
 import { useCurrencies } from "@/hooks/use-currencies";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useTranslation } from "react-i18next";
+import { Printer } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Link resolution — where does clicking "customer" / "account" / etc. lead?
@@ -52,6 +54,18 @@ export function linkRefHref(linkDoctype: string | undefined | null, value: strin
 // ---------------------------------------------------------------------------
 // FieldLabel -- label with optional hint tooltip
 // ---------------------------------------------------------------------------
+
+// The `remarks` field prints on the customer/supplier PDF; say so right at the
+// label so nobody mistakes it for the internal notes card further down.
+function PrintedBadge() {
+  const { t } = useTranslation();
+  return (
+    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 align-middle text-xs font-normal text-amber-800 ring-1 ring-amber-200">
+      <Printer size={11} />
+      {t("recordNotes.printedBadge")}
+    </span>
+  );
+}
 
 function FieldLabel({ label, hint, extra }: { label: string; hint?: string; extra?: React.ReactNode }) {
   return (
@@ -199,6 +213,7 @@ function FieldRenderer({
       <FieldLabel
         label={t(`fields.${field.label}`, { defaultValue: field.label })}
         hint={field.hint ? t(`hints.${doctype ?? "_"}.${field.name}`, { defaultValue: field.hint }) : undefined}
+        extra={field.name === "remarks" && field.type === "textarea" ? <PrintedBadge /> : undefined}
       />
     );
 
@@ -312,7 +327,7 @@ function FieldRenderer({
           <FieldLabel
             label={t(`fields.${field.label}`, { defaultValue: field.label })}
             hint={field.hint}
-            extra={showMarkupHelp ? <NotesMarkupHelp /> : undefined}
+            extra={showMarkupHelp ? <><NotesMarkupHelp /><PrintedBadge /></> : undefined}
           />
         )}
         <textarea
@@ -957,6 +972,7 @@ export default function DocumentFormPage() {
               {docRate !== 1 && <span className="text-fg-muted/70">@ {docRate}</span>}
             </span>
           )}
+          {!isNew && <RecordNotesLink recordType={config.slug} recordId={name} />}
         </div>
         <DocumentActions
           isNew={isNew}
@@ -1059,6 +1075,8 @@ export default function DocumentFormPage() {
           </div>
         </Card>
       )}
+
+      {!isNew && name && <RecordNotes recordType={config.slug} recordId={name} />}
     </div>
   );
 }

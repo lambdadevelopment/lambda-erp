@@ -653,7 +653,8 @@
     "To": "Au",
     "Purpose": "Objet",
     "Purchase Date": "Date d'achat",
-    "Notes": "Notes"
+    "Notes": "Notes",
+    "Printed notes / terms": "Notes / conditions imprimées"
   },
   "tables": {
     "items": "Lignes",
@@ -868,7 +869,7 @@
   },
   "notesMarkup": {
     "title": "Aide au formatage",
-    "intro": "Le texte des Notes / Conditions prend en charge une mise en forme légère sur le PDF :",
+    "intro": "Le texte des notes / conditions imprimées prend en charge une mise en forme légère sur le PDF :",
     "heading": "titre en gras",
     "emphasis": "italique / gras",
     "rule": "ligne de séparation horizontale",
@@ -1015,5 +1016,18 @@
     "markRead": "Marquer comme lue",
     "previous": "Précédent",
     "next": "Suivant"
+  },
+  "recordNotes": {
+    "title": "Notes internes",
+    "private": "Réservées à votre équipe · jamais imprimées",
+    "add": "Ajouter une note",
+    "placeholder": "Écrire une note interne… tapez @ pour prévenir un collègue",
+    "save": "Enregistrer la note",
+    "empty": "Aucune note interne pour l’instant.",
+    "edited": "modifiée",
+    "older": "Afficher les notes plus anciennes",
+    "printedBadge": "Imprimé sur le PDF",
+    "count_one": "{{count}} note interne",
+    "count_other": "{{count}} notes internes"
   }
 }

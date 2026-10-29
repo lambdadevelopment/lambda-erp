@@ -3063,6 +3063,25 @@ def _m041_chat_turn_lease(db: "Database") -> None:
     db.ensure_column("Chat Session", "active_turn_until", "TEXT")
 
 
+def _m042_record_notes(db: "Database") -> None:
+    """Internal team notes on any document or master (see api.record_notes)."""
+    db.conn.execute(
+        """CREATE TABLE IF NOT EXISTS "Record Note" (
+            name TEXT PRIMARY KEY,
+            record_type TEXT NOT NULL,
+            record_id TEXT NOT NULL,
+            body TEXT NOT NULL,
+            author_id TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )"""
+    )
+    db.conn.execute(
+        'CREATE INDEX IF NOT EXISTS record_note_record ON "Record Note" (record_type, record_id, created_at)'
+    )
+    db.conn.commit()
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -3105,6 +3124,7 @@ Database.MIGRATIONS = [
     (39, "connection_app_type", _m039_connection_app_type),
     (40, "naming_series", _m040_naming_series),
     (41, "chat_turn_lease", _m041_chat_turn_lease),
+    (42, "record_notes", _m042_record_notes),
 ]
 
 

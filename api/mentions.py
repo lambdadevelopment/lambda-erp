@@ -18,6 +18,7 @@ from lambda_erp.database import get_db
 from lambda_erp.utils import now
 
 SOURCES = {}
+_FALLBACKS = []  # (resolve(doctype) -> source | None, list_types() -> [doctype]) for unregistered types
 REAL_ROLES = {"viewer", "manager", "admin"}
 _WRITING_MENTION_NOTE = ContextVar("writing_mention_note", default=False)
 _MENTION_START = re.compile(r"(?<![\w@./+\-])@(?=\S)")
@@ -79,6 +80,31 @@ def register_mention_source(doctype, *, label, can_access, create_note, resolve_
                            create_note=create_note, resolve_note=resolve_note, resolve_notes=resolve_notes)
 
 
+def register_mention_source_fallback(resolve, list_types):
+    """Resolve sources for record types without an explicit registration
+    (api.record_notes uses this for every document and master type)."""
+    if all(entry[0] is not resolve for entry in _FALLBACKS):
+        _FALLBACKS.append((resolve, list_types))
+
+
+def find_source(doctype):
+    source = SOURCES.get(doctype)
+    for resolve, _ in _FALLBACKS:
+        if source:
+            break
+        source = resolve(doctype)
+    return source
+
+
+def supported_sources():
+    sources = {key: value["label"] for key, value in SOURCES.items()}
+    for resolve, list_types in _FALLBACKS:
+        for doctype in list_types():
+            if doctype not in sources and (source := resolve(doctype)):
+                sources[doctype] = source["label"]
+    return [{"doctype": key, "label": label} for key, label in sources.items()]
+
+
 class Input(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -121,7 +147,7 @@ def _identity(actor):
 
 
 def _source(doctype):
-    source = SOURCES.get(doctype)
+    source = find_source(doctype)
     if not source:
         raise ValueError("This record type does not support mention notes.")
     return source
@@ -141,7 +167,7 @@ def search_mention_users(args, user):
         token = full_name if full_name and len(aliases.get(full_name.lower(), {})) == 1 else row["email"]
         row["mention_text"] = "@" + token
     return {"users": rows, "acting_user": _identity(actor),
-            "sources": [{"doctype": key, "label": value["label"]} for key, value in SOURCES.items()]}
+            "sources": supported_sources()}
 
 
 def add_record_note(args, user):
@@ -221,7 +247,7 @@ def sync_note_mentions(doctype, record_id, note_id, body, user):
 
 
 def _visible(row, actor, notes=None, authors=None):
-    source = SOURCES.get(row["doctype"])
+    source = find_source(row["doctype"])
     note = (notes.get((row["doctype"], row["note_id"])) if notes is not None else
             source["resolve_note"](row["note_id"], actor) if source else None)
     if not note:
@@ -242,7 +268,7 @@ def list_my_mentions(args, user):
     # source and author lookups so polling a populated inbox avoids N+1 queries.
     notes, authors = {}, {}
     for doctype in {row["doctype"] for row in rows}:
-        source = SOURCES.get(doctype)
+        source = find_source(doctype)
         if not source:
             continue
         ids = list({row["note_id"] for row in rows if row["doctype"] == doctype})
@@ -301,7 +327,7 @@ def initialize_mentions():
         ("search_mention_users", search_mention_users, Search, "viewer",
          "Find enabled ERP colleagues for visible @mentions by name/email. Returns mention_text: insert that exact text in the note body to tag the person. Also returns canonical user IDs, acting_user and supported record types. Do not guess a person when ambiguous."),
         ("add_record_note", add_record_note, Note, "manager",
-         "Save an internal note and notify people visibly @mentioned in its body, including yourself. First use search_mention_users, then include each recipient's exact mention_text in body, e.g. 'salü vom johnny @Jon Torus'. Recipients are determined only from body; there is no recipient-ID argument. Unknown @handles and ordinary emails remain text. Ambiguous names require @email. Generic CRM note writes use the same mention processing. Use a new request_id (UUID) per intended note; reuse it unchanged on retries. No email is sent. Authorship is the authenticated ERP account."),
+         "Save an internal team note on a record and notify people visibly @mentioned in its body, including yourself. doctype is the record type slug: any document or master type (e.g. sales-invoice, purchase-order, customer, supplier, item) or a plugin type listed in search_mention_users sources; record_id is the record's name. Internal notes are never printed and do not change the record; customer-facing text belongs in the document's printed `remarks` (Notes / Terms) field instead. A note needs no mention. To tag someone, first use search_mention_users, then include each recipient's exact mention_text in body, e.g. 'salü vom johnny @Jon Torus'. Recipients are determined only from body; there is no recipient-ID argument. Unknown @handles and ordinary emails remain text. Ambiguous names require @email. CRM lead notes written through the generic document tools use the same mention processing. Use a new request_id (UUID) per intended note; reuse it unchanged on retries. No email is sent. Authorship is the authenticated ERP account."),
         ("list_my_mentions", list_my_mentions, Inbox, "viewer",
          "List the authenticated ERP user's mentions, with record/note links. open means not done; unread is separate. Use this for 'my mentions', never guess or pass another user. Returns acting_user, unread_count and pagination."),
         ("set_mention_state", set_mention_state, State, "viewer",

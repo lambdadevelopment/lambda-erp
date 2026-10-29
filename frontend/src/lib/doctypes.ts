@@ -140,7 +140,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "total_taxes_and_charges", label: "Tax", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
-      { name: "remarks", label: "Notes / Terms", type: "textarea" },
+      { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
       { key: "items", label: "Items", fields: QUOTATION_ITEM_FIELDS },
@@ -190,7 +190,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "per_billed", label: "% Billed", type: "number", readOnly: true },
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
-      { name: "remarks", label: "Notes / Terms", type: "textarea" },
+      { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
       { key: "items", label: "Items", fields: ITEM_FIELDS },
@@ -222,7 +222,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "total_taxes_and_charges", label: "Tax", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
       { name: "outstanding_amount", label: "Outstanding", type: "currency", readOnly: true },
-      { name: "remarks", label: "Notes / Terms", type: "textarea" },
+      { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
       { key: "items", label: "Items", fields: [...ITEM_FIELDS, { name: "income_account", label: "Income Account", type: "link", linkDoctype: "account" }] },
@@ -250,7 +250,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       CURRENCY_FIELD,
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
-      { name: "remarks", label: "Notes / Terms", type: "textarea" },
+      { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
       { key: "items", label: "Items", fields: [...ITEM_FIELDS, { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse" }] },
@@ -285,7 +285,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
       { name: "outstanding_amount", label: "Outstanding", type: "currency", readOnly: true },
-      { name: "remarks", label: "Notes / Terms", type: "textarea" },
+      { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
       {
@@ -447,7 +447,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "total_taxes_and_charges", label: "Tax", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
-      { name: "remarks", label: "Notes / Terms", type: "textarea" },
+      { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
       {
@@ -481,7 +481,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "total_taxes_and_charges", label: "Tax", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
-      { name: "remarks", label: "Notes / Terms", type: "textarea" },
+      { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
       {

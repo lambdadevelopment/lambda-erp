@@ -59,6 +59,8 @@ async def lifespan(app: FastAPI):
     with db.startup_lock():
         from api.mentions import initialize_mentions
         initialize_mentions()
+        from api.record_notes import initialize_record_notes
+        initialize_record_notes()
 
         # Load customer extension plugins before anything creates documents.
         load_plugins()

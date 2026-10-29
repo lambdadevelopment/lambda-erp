@@ -24,6 +24,11 @@ draft creation does not imply submission, stock movement or ledger posting. Chec
 status and warnings. Correct validation errors using the field metadata and user information.
 Use list/search filters and pagination; an empty or partial search is not proof of zero
 stock. Use query_dataset/get_report for totals and stock, with the requested scope and dates.
+Text for the customer or supplier goes in a document's printed `remarks` (Notes / Terms)
+field. Internal team remarks ("customer disputes line 2", "@Anna please check") go in an
+internal note instead (add_record_note / list_record_notes): never printed, visible to
+signed-in colleagues only, and @mentions there notify colleagues. Never put internal
+remarks into `remarks`, and never copy internal notes into a document the customer sees.
 Generate a fresh PDF after edits. Only a successful artifact descriptor proves generation;
 download that artifact, check its SHA-256 and deliver it through the calling application's
 attachment mechanism. Do not invent download URLs or reuse a stale document attachment.
