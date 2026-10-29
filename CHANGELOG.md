@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-29
+
 - Show whether a form has unsaved changes. Document, master and proposal forms
   show a quiet "✓ Saved" until the first edit, then "Save"; while saving, a
   spinner with "Saving…". Leaving a form with unsaved changes asks first, both
