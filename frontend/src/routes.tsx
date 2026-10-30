@@ -30,6 +30,7 @@ import BankReconciliation from "@/pages/bank-reconciliation";
 import { AdminRoute } from "@/components/auth/protected-route";
 import Users from "@/pages/admin/users";
 import GeneralSettings from "@/pages/admin/settings";
+import MenuLayout from "@/pages/settings/menu-layout";
 import { getComponent } from "@/lib/component-registry";
 
 // The dashboard (the index route) is resolved through the component registry
@@ -89,6 +90,7 @@ const baseChildRoutes: RouteObject[] = [
   // Admin
   { path: "admin/users", element: <Users /> },
   { path: "admin/settings", element: <GeneralSettings /> },
+  { path: "settings/menu", element: <MenuLayout /> },
 ];
 
 const extraTopRoutes: RouteObject[] = [];

@@ -353,7 +353,8 @@
       "Chart of Accounts": "Chart of Accounts",
       "Fleet Calendar": "Fleet Calendar",
       "Fleet (Assets)": "Fleet (Assets)",
-      "Reservations": "Reservations"
+      "Reservations": "Reservations",
+      "Menu": "Menu"
     }
   },
   "login": {
@@ -1029,5 +1030,16 @@
     "printedBadge": "Printed on the PDF",
     "count_one": "{{count}} internal note",
     "count_other": "{{count}} internal notes"
+  },
+  "menuLayout": {
+    "title": "Your menu",
+    "intro": "Hide the parts of the menu you don't use and put the ones you need first. This only changes your own menu: other people keep theirs, and hidden pages stay reachable by link.",
+    "chatHint": "You can also ask the chat, e.g. \"hide the rentals section\" or \"move CRM to the top\".",
+    "reset": "Reset to default",
+    "hide": "Hide {{name}}",
+    "show": "Show {{name}}",
+    "moveUp": "Move {{name}} up",
+    "moveDown": "Move {{name}} down",
+    "locked": "Always shown: this page edits the menu"
   }
 }

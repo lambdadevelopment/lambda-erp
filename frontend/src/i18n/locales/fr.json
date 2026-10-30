@@ -353,7 +353,8 @@
       "Chart of Accounts": "Plan comptable",
       "Fleet Calendar": "Calendrier de flotte",
       "Fleet (Assets)": "Flotte (matériel)",
-      "Reservations": "Réservations"
+      "Reservations": "Réservations",
+      "Menu": "Menu"
     }
   },
   "login": {
@@ -1029,5 +1030,16 @@
     "printedBadge": "Imprimé sur le PDF",
     "count_one": "{{count}} note interne",
     "count_other": "{{count}} notes internes"
+  },
+  "menuLayout": {
+    "title": "Votre menu",
+    "intro": "Masquez les parties du menu dont vous ne vous servez pas et placez en haut celles dont vous avez besoin. Seul votre menu change : les autres gardent le leur, et les pages masquées restent accessibles par lien.",
+    "chatHint": "Vous pouvez aussi le demander au chat, p. ex. « masque les Locations » ou « mets le CRM en haut ».",
+    "reset": "Rétablir par défaut",
+    "hide": "Masquer {{name}}",
+    "show": "Afficher {{name}}",
+    "moveUp": "Monter {{name}}",
+    "moveDown": "Descendre {{name}}",
+    "locked": "Toujours affiché : cette page modifie le menu"
   }
 }

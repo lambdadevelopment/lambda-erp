@@ -696,6 +696,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 const reportId = backendReportId || argReportId || "";
                 triggerNavigationFlash("Custom Analytics", reportId);
                 queryClient.invalidateQueries({ queryKey: ["runtime-drafts"] });
+              } else if (pendingToolCall.tool === "update_menu_layout") {
+                // The chat changed this user's menu: redraw the sidebar now.
+                queryClient.invalidateQueries({ queryKey: ["my-settings"] });
               } else {
                 const flashTarget = getNavigationFlashFromTool(pendingToolCall.tool, pendingToolCall.args);
                 if (flashTarget) {

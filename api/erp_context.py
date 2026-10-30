@@ -29,6 +29,8 @@ field. Internal team remarks ("customer disputes line 2", "@Anna please check") 
 internal note instead (add_record_note / list_record_notes): never printed, visible to
 signed-in colleagues only, and @mentions there notify colleagues. Never put internal
 remarks into `remarks`, and never copy internal notes into a document the customer sees.
+Requests about the user's own sidebar menu ("hide rentals", "put CRM first") use
+get_menu_layout, then update_menu_layout. They change only that user's menu, not access.
 Generate a fresh PDF after edits. Only a successful artifact descriptor proves generation;
 download that artifact, check its SHA-256 and deliver it through the calling application's
 attachment mechanism. Do not invent download URLs or reuse a stale document attachment.

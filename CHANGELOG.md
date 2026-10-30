@@ -13,6 +13,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- Personal menu: every user can hide and reorder the sidebar's groups and
+  items (e.g. hide all of Rentals, or only Fleet) under Settings → Menu, by
+  asking the chat, or through the `get_menu_layout` / `update_menu_layout`
+  actions (REST `/api/actions/…` and MCP). Only the user's own menu changes;
+  hidden pages stay reachable and permissions are unchanged. Plugin menus
+  (e.g. CRM) are included automatically: the web app publishes the menu each
+  user sees as the `nav_catalog` preference, which the actions validate
+  against; the layout is stored as `nav_layout`. The Menu entry itself (and
+  its group) can't be hidden.
+
 - Chat titles work again. Every new chat stayed "New Chat" because title
   generation used `gpt-4.1-nano`, which OpenAI retired; the error was
   swallowed without a log line. Titles now use `gpt-6-luna` through the

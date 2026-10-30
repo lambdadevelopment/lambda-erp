@@ -61,6 +61,8 @@ async def lifespan(app: FastAPI):
         initialize_mentions()
         from api.record_notes import initialize_record_notes
         initialize_record_notes()
+        from api.menu_layout import initialize_menu_layout
+        initialize_menu_layout()
 
         # Load customer extension plugins before anything creates documents.
         load_plugins()

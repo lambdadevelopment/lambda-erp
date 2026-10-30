@@ -56,6 +56,8 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { useChat } from "@/components/chat/chat-provider";
 import { getNavGroups, type NavGroup } from "@/lib/nav";
+import { MENU_SETTINGS_PATH, buildCatalog, ordered, parseLayout } from "@/lib/nav-layout";
+import { useMySettings } from "@/hooks/use-my-settings";
 import { useAuth } from "@/contexts/auth-context";
 import { getBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
@@ -394,18 +396,41 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
   });
 
   const { user } = useAuth();
+  const { t } = useTranslation();
+  const { settings: mySettings, setSetting, isLoaded } = useMySettings();
+  const personal = !!user && user.role !== "public_manager";
   const firstCompany = setupStatus?.companies?.[0];
   const companyName: string =
     firstCompany?.company_name || firstCompany?.name || getBranding().appName;
 
+  // Everything this user's role may see: the catalog the menu settings and
+  // the chat / REST menu tools work from.
+  const roleGroups = useMemo(() => getNavGroups().map((group) => ({
+    ...group,
+    items: group.items.filter((item) => {
+      // Admin-only items are hidden from non-admins (the route is gated too).
+      if (item.adminOnly && user?.role !== "admin") return false;
+      if (item.managerOnly && user?.role !== "manager" && user?.role !== "admin") return false;
+      if (item.path === MENU_SETTINGS_PATH && !personal) return false;
+      return true;
+    }),
+  })), [user?.role, personal]);
+
+  // Publish the catalog when it changed (new plugin menu, role or language).
+  const catalog = useMemo(() => JSON.stringify(buildCatalog(roleGroups, t)), [roleGroups, t]);
+  useEffect(() => {
+    if (personal && isLoaded && mySettings.nav_catalog !== catalog) setSetting("nav_catalog", catalog);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personal, isLoaded, catalog, mySettings.nav_catalog]);
+
+  const layout = useMemo(() => parseLayout(mySettings.nav_layout), [mySettings.nav_layout]);
+
   const groups = useMemo(() => {
-    const base = getNavGroups();
-    return base.map((group) => ({
+    const hidden = new Set(layout.hidden);
+    const visible = roleGroups.map((group) => ({
       ...group,
-      items: group.items.filter((item) => {
-        // Admin-only items are hidden from non-admins (the route is gated too).
-        if (item.adminOnly && user?.role !== "admin") return false;
-        if (item.managerOnly && user?.role !== "manager" && user?.role !== "admin") return false;
+      items: ordered(group.items, (item) => item.path, layout.items[group.label]).filter((item) => {
+        if (hidden.has(item.path)) return false;
         // Company Setup is a one-time step — hide it once a company exists.
         if (item.path === "/setup" && setupStatus?.setup_complete) return false;
         // Settings-gated items (default to shown until settings load).
@@ -415,7 +440,11 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
         return settings[settingKey] !== "0";
       }),
     }));
-  }, [settings, setupStatus, user?.role]);
+    const entries: (NavGroup | "Chats" | "Custom Analytics")[] = ["Chats", "Custom Analytics", ...visible];
+    return ordered(entries, (e) => (typeof e === "string" ? e : e.label), layout.order)
+      .filter((e) => !hidden.has(typeof e === "string" ? e : e.label))
+      .filter((e) => typeof e === "string" || e.items.length > 0);
+  }, [roleGroups, layout, settings, setupStatus]);
 
   return (
     <aside
@@ -456,11 +485,11 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
         </button>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
-        <ChatGroup />
-        <CustomAnalyticsGroup />
-        {groups.map((group) => (
-          <SidebarGroup key={group.label} group={group} />
-        ))}
+        {groups.map((group) =>
+          group === "Chats" ? <ChatGroup key={group} />
+            : group === "Custom Analytics" ? <CustomAnalyticsGroup key={group} />
+              : <SidebarGroup key={group.label} group={group} />,
+        )}
       </nav>
     </aside>
   );

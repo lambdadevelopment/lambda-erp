@@ -131,6 +131,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Item Price", path: "/app/item-price" },
       { label: "Pricing Rule", path: "/app/pricing-rule" },
       { label: "Users & Team", path: "/admin/users" },
+      // Personal menu layout (hide / reorder); every signed-in user has one.
+      { label: "Menu", path: "/settings/menu" },
     ],
   },
 ];
