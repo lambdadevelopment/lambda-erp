@@ -1033,13 +1033,14 @@
   },
   "menuLayout": {
     "title": "Ihr Menü",
-    "intro": "Blenden Sie Bereiche aus, die Sie nicht brauchen, und stellen Sie die wichtigsten nach oben. Das ändert nur Ihr eigenes Menü: andere behalten ihres, und ausgeblendete Seiten bleiben per Link erreichbar.",
+    "intro": "Ziehen Sie Gruppen und Einträge in die gewünschte Reihenfolge, blenden Sie aus, was Sie nicht brauchen, und speichern Sie. Das ändert nur Ihr eigenes Menü: andere behalten ihres, und ausgeblendete Seiten bleiben per Link erreichbar.",
     "chatHint": "Das geht auch im Chat, z. B. „Blende die Vermietung aus“ oder „Schiebe CRM nach oben“.",
     "reset": "Auf Standard zurücksetzen",
     "hide": "{{name}} ausblenden",
     "show": "{{name}} einblenden",
-    "moveUp": "{{name}} nach oben",
-    "moveDown": "{{name}} nach unten",
-    "locked": "Immer sichtbar: Hier wird das Menü bearbeitet"
+    "locked": "Immer sichtbar: Hier wird das Menü bearbeitet",
+    "drag": "{{name}} ziehen, um die Reihenfolge zu ändern (oder auswählen und Pfeiltasten nutzen)",
+    "discard": "Änderungen verwerfen",
+    "unsaved": "Nicht gespeicherte Änderungen"
   }
 }

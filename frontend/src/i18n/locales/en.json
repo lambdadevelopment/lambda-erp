@@ -1033,13 +1033,14 @@
   },
   "menuLayout": {
     "title": "Your menu",
-    "intro": "Hide the parts of the menu you don't use and put the ones you need first. This only changes your own menu: other people keep theirs, and hidden pages stay reachable by link.",
+    "intro": "Drag groups and items into the order you want and hide the ones you don't use, then save. This only changes your own menu: other people keep theirs, and hidden pages stay reachable by link.",
     "chatHint": "You can also ask the chat, e.g. \"hide the rentals section\" or \"move CRM to the top\".",
     "reset": "Reset to default",
     "hide": "Hide {{name}}",
     "show": "Show {{name}}",
-    "moveUp": "Move {{name}} up",
-    "moveDown": "Move {{name}} down",
-    "locked": "Always shown: this page edits the menu"
+    "locked": "Always shown: this page edits the menu",
+    "drag": "Drag to reorder {{name}} (or focus it and use the arrow keys)",
+    "discard": "Discard changes",
+    "unsaved": "Unsaved changes"
   }
 }

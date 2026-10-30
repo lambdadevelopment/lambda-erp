@@ -13,6 +13,13 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- Settings → Menu: drag groups and items into order (mouse, touch, or the
+  arrow keys on the drag handle) and toggle visibility, then save once.
+  Unsaved changes are kept as a draft, with Discard and a leave-page warning;
+  Reset to default fills the draft with the default menu. Saving stores only
+  what differs from the default, so menu entries added later still appear
+  in their default place. Reusable `Sortable` list in `components/ui`.
+
 ## [1.3.2] - 2026-10-30
 
 - Personal menu: every user can hide and reorder the sidebar's groups and

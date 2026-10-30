@@ -1033,13 +1033,14 @@
   },
   "menuLayout": {
     "title": "Votre menu",
-    "intro": "Masquez les parties du menu dont vous ne vous servez pas et placez en haut celles dont vous avez besoin. Seul votre menu change : les autres gardent le leur, et les pages masquées restent accessibles par lien.",
+    "intro": "Glissez les groupes et les entrées dans l'ordre voulu et masquez ceux dont vous ne vous servez pas, puis enregistrez. Seul votre menu change : les autres gardent le leur, et les pages masquées restent accessibles par lien.",
     "chatHint": "Vous pouvez aussi le demander au chat, p. ex. « masque les Locations » ou « mets le CRM en haut ».",
     "reset": "Rétablir par défaut",
     "hide": "Masquer {{name}}",
     "show": "Afficher {{name}}",
-    "moveUp": "Monter {{name}}",
-    "moveDown": "Descendre {{name}}",
-    "locked": "Toujours affiché : cette page modifie le menu"
+    "locked": "Toujours affiché : cette page modifie le menu",
+    "drag": "Glisser pour déplacer {{name}} (ou le sélectionner et utiliser les flèches)",
+    "discard": "Annuler les modifications",
+    "unsaved": "Modifications non enregistrées"
   }
 }

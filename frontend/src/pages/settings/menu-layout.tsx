@@ -1,24 +1,19 @@
-// Personal menu layout: hide and reorder sidebar groups and items
-// (api/menu_layout.py). The same changes are available to the chat, the REST
-// API (update_menu_layout) and MCP clients.
-import { useMemo } from "react";
+// Personal menu layout: drag sidebar groups and items into order and hide the
+// ones you don't use, then save (api/menu_layout.py). The same changes are
+// available to the chat, the REST API (update_menu_layout) and MCP clients.
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Lock } from "lucide-react";
+import { Eye, EyeOff, GripVertical, Lock } from "lucide-react";
 import { api } from "@/api/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SaveButton } from "@/components/ui/save-button";
+import { Sortable, type SortableHandleProps } from "@/components/ui/sortable";
 import { useMySettings } from "@/hooks/use-my-settings";
-import {
-  MENU_SETTINGS_PATH, isLocked, ordered, parseLayout,
-  type CatalogGroup, type NavLayout,
-} from "@/lib/nav-layout";
+import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
+import { MENU_SETTINGS_PATH, isLocked, ordered, parseLayout, type CatalogGroup, type NavLayout } from "@/lib/nav-layout";
 import { cn } from "@/lib/utils";
-
-interface UpdateArgs {
-  hide?: string[]; show?: string[]; group_order?: string[];
-  item_order?: Record<string, string[]>; reset?: boolean;
-}
 
 function parseCatalog(raw: string | undefined): CatalogGroup[] {
   try {
@@ -29,38 +24,44 @@ function parseCatalog(raw: string | undefined): CatalogGroup[] {
   }
 }
 
-function swap<T>(list: T[], index: number, offset: number): T[] {
-  const next = [...list];
-  [next[index], next[index + offset]] = [next[index + offset], next[index]];
-  return next;
+/** The whole menu in display order, as edited on this page before saving. */
+type Draft = { groups: CatalogGroup[]; hidden: Set<string> };
+
+function draftFrom(catalog: CatalogGroup[], layout: NavLayout): Draft {
+  return {
+    groups: ordered(catalog, (g) => g.key, layout.order)
+      .map((g) => ({ ...g, items: ordered(g.items, (i) => i.key, layout.items[g.key]) })),
+    hidden: new Set(layout.hidden.filter((key) => catalog.some((g) => g.key === key || g.items.some((i) => i.key === key)))),
+  };
 }
 
-function Controls({ label, hidden, locked, first, last, disabled, onToggle, onMove }: {
-  label: string; hidden: boolean; locked: boolean; first: boolean; last: boolean; disabled: boolean;
-  onToggle: () => void; onMove: (offset: number) => void;
+const sameOrder = (a: { key: string }[], b: { key: string }[]) =>
+  a.length === b.length && a.every((x, i) => x.key === b[i].key);
+
+function Handle({ label, handle }: { label: string; handle: SortableHandleProps }) {
+  const { t } = useTranslation();
+  return (
+    <button type="button" {...handle} aria-label={t("menuLayout.drag", { name: label })}
+      title={t("menuLayout.drag", { name: label })}
+      className="-ml-1 rounded p-1 text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40">
+      <GripVertical className="h-4 w-4" />
+    </button>
+  );
+}
+
+function Visibility({ label, hidden, locked, onToggle }: {
+  label: string; hidden: boolean; locked: boolean; onToggle: () => void;
 }) {
   const { t } = useTranslation();
-  const iconButton = "rounded p-1.5 text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent";
+  if (locked) {
+    return <span className="p-1.5 text-fg-muted" title={t("menuLayout.locked")}><Lock className="h-4 w-4" /></span>;
+  }
+  const text = t(hidden ? "menuLayout.show" : "menuLayout.hide", { name: label });
   return (
-    <span className="flex shrink-0 items-center gap-0.5">
-      <button type="button" className={iconButton} disabled={disabled || first} onClick={() => onMove(-1)}
-        aria-label={t("menuLayout.moveUp", { name: label })} title={t("menuLayout.moveUp", { name: label })}>
-        <ArrowUp className="h-4 w-4" />
-      </button>
-      <button type="button" className={iconButton} disabled={disabled || last} onClick={() => onMove(1)}
-        aria-label={t("menuLayout.moveDown", { name: label })} title={t("menuLayout.moveDown", { name: label })}>
-        <ArrowDown className="h-4 w-4" />
-      </button>
-      {locked ? (
-        <span className="p-1.5 text-fg-muted" title={t("menuLayout.locked")}><Lock className="h-4 w-4" /></span>
-      ) : (
-        <button type="button" className={iconButton} disabled={disabled} onClick={onToggle} aria-pressed={!hidden}
-          aria-label={t(hidden ? "menuLayout.show" : "menuLayout.hide", { name: label })}
-          title={t(hidden ? "menuLayout.show" : "menuLayout.hide", { name: label })}>
-          {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      )}
-    </span>
+    <button type="button" onClick={onToggle} aria-pressed={!hidden} aria-label={text} title={text}
+      className="rounded p-1.5 text-fg-muted transition-colors hover:bg-surface-subtle hover:text-fg">
+      {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+    </button>
   );
 }
 
@@ -69,87 +70,120 @@ export default function MenuLayoutPage() {
   const qc = useQueryClient();
   const { settings, isLoaded } = useMySettings();
   const catalog = useMemo(() => parseCatalog(settings.nav_catalog), [settings.nav_catalog]);
-  const layout = useMemo(() => parseLayout(settings.nav_layout), [settings.nav_layout]);
-  const hidden = new Set(layout.hidden);
+  const saved = useMemo(() => draftFrom(catalog, parseLayout(settings.nav_layout)), [catalog, settings.nav_layout]);
+  const defaults = useMemo(() => draftFrom(catalog, parseLayout(undefined)), [catalog]);
+  const [draft, setDraft] = useState<Draft>(saved);
+  const { dirty, markDirty, markClean } = useUnsavedChanges();
 
-  const groups = ordered(catalog, (g) => g.key, layout.order).map((group) => ({
-    ...group, items: ordered(group.items, (i) => i.key, layout.items[group.key]),
-  }));
+  // Follow the saved menu (first load, the chat changing it) unless the user
+  // is in the middle of editing.
+  useEffect(() => { if (!dirty) setDraft(saved); }, [saved, dirty]);
 
-  const update = useMutation({
-    mutationFn: (args: UpdateArgs) => api.runAction("update_menu_layout", args) as Promise<{ layout: NavLayout }>,
-    onSuccess: ({ layout: fresh }) => qc.setQueryData<Record<string, string>>(["my-settings"],
-      (prev) => ({ ...(prev ?? {}), nav_layout: JSON.stringify(fresh) })),
+  const edit = (next: Draft) => { setDraft(next); markDirty(); };
+  const toggle = (key: string) => {
+    const hidden = new Set(draft.hidden);
+    if (!hidden.delete(key)) hidden.add(key);
+    edit({ ...draft, hidden });
+  };
+  const reorderItems = (groupKey: string, items: CatalogGroup["items"]) =>
+    edit({ ...draft, groups: draft.groups.map((g) => (g.key === groupKey ? { ...g, items } : g)) });
+
+  // Save the draft as a fresh layout that records only what differs from the
+  // default, so menu entries added later still appear in their default place.
+  const save = useMutation({
+    mutationFn: () => {
+      const item_order: Record<string, string[]> = {};
+      for (const group of draft.groups) {
+        const base = defaults.groups.find((g) => g.key === group.key);
+        if (base && !sameOrder(group.items, base.items)) item_order[group.key] = group.items.map((i) => i.key);
+      }
+      return api.runAction("update_menu_layout", {
+        reset: true,
+        hide: [...draft.hidden],
+        ...(sameOrder(draft.groups, defaults.groups) ? {} : { group_order: draft.groups.map((g) => g.key) }),
+        item_order,
+      }) as Promise<{ layout: NavLayout }>;
+    },
+    onSuccess: ({ layout }) => {
+      markClean();
+      qc.setQueryData<Record<string, string>>(["my-settings"],
+        (prev) => ({ ...(prev ?? {}), nav_layout: JSON.stringify(layout) }));
+    },
   });
-  const busy = update.isPending;
-  const toggle = (key: string) => update.mutate(hidden.has(key) ? { show: [key] } : { hide: [key] });
-  const customised = layout.order.length > 0 || layout.hidden.length > 0 || Object.keys(layout.items).length > 0;
+
+  const isDefault = sameOrder(draft.groups, defaults.groups) && draft.hidden.size === 0
+    && draft.groups.every((g, i) => sameOrder(g.items, defaults.groups[i].items));
 
   if (!isLoaded) return <p className="text-fg-muted">{t("common.loading")}</p>;
 
   return (
     <div className="space-y-6">
       <Card>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 max-w-xl">
-            <h3 className="text-base font-semibold tracking-tight text-fg">{t("menuLayout.title")}</h3>
-            <p className="mt-1 text-sm text-fg-muted">{t("menuLayout.intro")}</p>
-            <p className="mt-2 text-xs text-fg-muted">{t("menuLayout.chatHint")}</p>
-          </div>
-          <Button variant="secondary" size="sm" disabled={busy || !customised}
-            onClick={() => update.mutate({ reset: true })}>
-            {t("menuLayout.reset")}
-          </Button>
-        </div>
-        {update.error && (
-          <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700 ring-1 ring-rose-200">
-            {update.error.message}
-          </p>
-        )}
+        <h3 className="text-base font-semibold tracking-tight text-fg">{t("menuLayout.title")}</h3>
+        <p className="mt-1 max-w-2xl text-sm text-fg-muted">{t("menuLayout.intro")}</p>
+        <p className="mt-2 max-w-2xl text-xs text-fg-muted">{t("menuLayout.chatHint")}</p>
       </Card>
 
-      <ol className="space-y-3">
-        {groups.map((group, gi) => {
-          const groupHidden = hidden.has(group.key);
+      {/* Actions stay in reach while dragging down a long menu. */}
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-end gap-2 rounded-xl bg-surface px-4 py-2 ring-1 ring-line shadow-card">
+        {save.error ? (
+          <p role="alert" className="mr-auto text-sm text-rose-700">{save.error.message}</p>
+        ) : dirty && <p className="mr-auto text-sm text-fg-muted">{t("menuLayout.unsaved")}</p>}
+        <Button variant="ghost" size="sm" disabled={isDefault || save.isPending} onClick={() => edit(defaults)}>
+          {t("menuLayout.reset")}
+        </Button>
+        {dirty && (
+          <Button variant="secondary" size="sm" disabled={save.isPending}
+            onClick={() => { setDraft(saved); markClean(); save.reset(); }}>
+            {t("menuLayout.discard")}
+          </Button>
+        )}
+        <SaveButton dirty={dirty} saving={save.isPending} onClick={() => save.mutate()} />
+      </div>
+
+      <Sortable items={draft.groups} keyOf={(g) => g.key} className="space-y-3"
+        onReorder={(groups) => edit({ ...draft, groups })}>
+        {(group, { handle, dragging }) => {
           const title = group.title || group.label;
+          const groupHidden = draft.hidden.has(group.key);
           return (
-            <li key={group.key} className="rounded-xl bg-surface ring-1 ring-line shadow-card">
-              <div className="flex items-center gap-3 px-4 py-3">
+            <div className={cn("rounded-xl bg-surface ring-1 ring-line shadow-card transition-shadow",
+              dragging && "relative z-10 shadow-card-hover ring-2 ring-brand/40")}>
+              <div className="flex items-center gap-2 px-4 py-3">
+                <Handle label={title} handle={handle} />
                 <span className={cn("min-w-0 flex-1 truncate text-sm font-semibold uppercase tracking-wider",
                   groupHidden ? "text-fg-muted line-through" : "text-fg")}>
                   {title}
                 </span>
-                <Controls label={title} hidden={groupHidden} locked={isLocked(group.items)}
-                  first={gi === 0} last={gi === groups.length - 1} disabled={busy}
-                  onToggle={() => toggle(group.key)}
-                  onMove={(offset) => update.mutate({ group_order: swap(groups.map((g) => g.key), gi, offset) })} />
+                <Visibility label={title} hidden={groupHidden} locked={isLocked(group.items)}
+                  onToggle={() => toggle(group.key)} />
               </div>
               {group.items.length > 0 && (
-                <ul className={cn("border-t border-line py-1", groupHidden && "opacity-50")}>
-                  {group.items.map((item, ii) => {
+                <Sortable items={group.items} keyOf={(i) => i.key}
+                  className={cn("border-t border-line py-1", groupHidden && "opacity-50")}
+                  onReorder={(items) => reorderItems(group.key, items)}>
+                  {(item, { handle: itemHandle, dragging: itemDragging }) => {
                     const itemTitle = item.title || item.label;
+                    const itemHidden = draft.hidden.has(item.key);
                     return (
-                      <li key={item.key} className="flex items-center gap-3 py-1 pl-8 pr-4">
+                      <div className={cn("flex items-center gap-2 py-1 pl-8 pr-4",
+                        itemDragging && "relative z-10 rounded-lg bg-surface shadow-card-hover ring-2 ring-brand/40")}>
+                        <Handle label={itemTitle} handle={itemHandle} />
                         <span className={cn("min-w-0 flex-1 truncate text-sm",
-                          hidden.has(item.key) ? "text-fg-muted line-through" : "text-fg")}>
+                          itemHidden ? "text-fg-muted line-through" : "text-fg")}>
                           {itemTitle}
                         </span>
-                        <Controls label={itemTitle} hidden={hidden.has(item.key)}
-                          locked={item.key === MENU_SETTINGS_PATH}
-                          first={ii === 0} last={ii === group.items.length - 1} disabled={busy || groupHidden}
-                          onToggle={() => toggle(item.key)}
-                          onMove={(offset) => update.mutate({
-                            item_order: { [group.key]: swap(group.items.map((i) => i.key), ii, offset) },
-                          })} />
-                      </li>
+                        <Visibility label={itemTitle} hidden={itemHidden}
+                          locked={item.key === MENU_SETTINGS_PATH} onToggle={() => toggle(item.key)} />
+                      </div>
                     );
-                  })}
-                </ul>
+                  }}
+                </Sortable>
               )}
-            </li>
+            </div>
           );
-        })}
-      </ol>
+        }}
+      </Sortable>
     </div>
   );
 }
