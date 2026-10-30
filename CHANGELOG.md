@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-30
+
 - Settings → Menu: drag groups and items into order (mouse, touch, or the
   arrow keys on the drag handle) and toggle visibility, then save once.
   Unsaved changes are kept as a draft, with Discard and a leave-page warning;
