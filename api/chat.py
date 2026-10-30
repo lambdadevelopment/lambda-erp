@@ -3283,6 +3283,15 @@ def _generate_report_spec_via_openai(
 # ---------------------------------------------------------------------------
 
 
+# Small and cheap: a 3-6 word label. gpt-4.1-nano was retired by OpenAI and
+# every call failed silently, leaving all chats as "New Chat".
+TITLE_MODEL = "gpt-6-luna"
+
+
+def _title_model() -> str:
+    return os.environ.get("LAMBDA_ERP_TITLE_MODEL") or TITLE_MODEL
+
+
 async def generate_title(
     session_id: str,
     user_message: str,
@@ -3299,12 +3308,12 @@ async def generate_title(
     if not api_key or api_key == "sk-your-key-here":
         return
 
+    title_model = _title_model()
     try:
         client = OpenAI(
             api_key=api_key,
             timeout=httpx.Timeout(30.0, connect=5.0),
         )
-        title_model = "gpt-4.1-nano"
         reservation_id = None
         if is_demo_role(user_role):
             _blocked, reservation_id = demo_limiter.reserve(
@@ -3317,14 +3326,15 @@ async def generate_title(
 
         settled = False
         try:
+            # Responses API with low effort: GPT-6 models reason, and the
+            # output budget must leave room for that before the title itself.
             response = await asyncio.to_thread(
-                client.chat.completions.create,
+                client.responses.create,
                 model=title_model,
-                messages=[
-                    {"role": "system", "content": "Generate a very short title (3-6 words, no quotes) for this chat based on the first exchange. Just the title, nothing else."},
-                    {"role": "user", "content": f"User: {user_message[:200]}\nAssistant: {assistant_message[:200]}"},
-                ],
-                max_completion_tokens=30,
+                instructions="Generate a very short title (3-6 words, no quotes) for this chat based on the first exchange. Just the title, nothing else.",
+                input=f"User: {user_message[:200]}\nAssistant: {assistant_message[:200]}",
+                max_output_tokens=400,
+                reasoning={"effort": "low"},
             )
             usage = getattr(response, "usage", None)
             demo_limiter.settle(
@@ -3334,20 +3344,25 @@ async def generate_title(
                 role=user_role,
                 provider="openai",
                 model=title_model,
-                prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0) if usage else 0,
-                completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0) if usage else 0,
+                prompt_tokens=int(getattr(usage, "input_tokens", 0) or 0) if usage else 0,
+                completion_tokens=int(getattr(usage, "output_tokens", 0) or 0) if usage else 0,
                 session_id=session_id,
             )
             settled = True
 
-            title = response.choices[0].message.content.strip().strip('"\'')
+            title = (response.output_text or "").strip().strip('"\'')[:120]
             if title:
                 update_session_title(session_id, title)
+            else:
+                logger.warning("[chat_title] model=%s returned no title (status=%s)",
+                               title_model, getattr(response, "status", None))
         finally:
             if not settled:
                 demo_limiter.release(reservation_id)
-    except Exception:
-        pass  # Title generation is best-effort
+    except Exception as exc:
+        # Best-effort, but never silent: a retired model once left every chat
+        # untitled without a single log line.
+        logger.warning("[chat_title] model=%s failed: %s", title_model, exc)
 
 
 # ---------------------------------------------------------------------------

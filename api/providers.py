@@ -1,7 +1,7 @@
 """Pricing data for external LLM APIs the chat orchestrator uses.
 
-Mirrors the shape of `lambda-web/backend/providers.py`. Includes active models
-and GPT-6 alternatives for comparison. Prices are Standard USD per 1M tokens;
+Mirrors the shape of `lambda-web/backend/providers.py`. Lists the OpenAI models
+available to us. Prices are Standard USD per 1M tokens;
 see docs/llm-pricing.md for sources and billing scope.
 
 Consumers import `cost_of_openai_call` to turn an SDK `response.usage` object
@@ -19,60 +19,38 @@ from typing import Any, Optional
 # ---------------------------------------------------------------------------
 
 OPENAI_PRICING: dict[str, dict[str, Any]] = {
-    # Official model pages, verified 2026-09-29. Above 272K input tokens,
-    # the higher rates apply to the entire request (including cache hits).
+    # The models available to us, Standard tier, verified 2026-10-30. Above
+    # 272K input tokens the higher rates apply to the entire request
+    # (including cache hits). cache_write is the 30-minute retention rate,
+    # cache_write_12h the 12-hour one.
     "gpt-6-astra": {
         "tiered": True,
         "tiers": [
-            {"max_input_tokens": 272_000, "input": 10.00, "cached_input": 1.00, "cache_write": 12.50, "output": 50.00},
-            {"max_input_tokens": None,    "input": 20.00, "cached_input": 2.00, "cache_write": 25.00, "output": 75.00},
-        ],
-    },
-    "gpt-6-sol": {
-        "tiered": True,
-        "tiers": [
-            {"max_input_tokens": 272_000, "input": 2.00, "cached_input": 0.20, "cache_write": 2.50, "output": 10.00},
-            {"max_input_tokens": None,    "input": 4.00, "cached_input": 0.40, "cache_write": 5.00, "output": 15.00},
-        ],
-    },
-    "gpt-6-luna": {
-        "tiered": True,
-        "tiers": [
-            {"max_input_tokens": 272_000, "input": 0.10, "cached_input": 0.01, "cache_write": 0.125, "output": 0.50},
-            {"max_input_tokens": None,    "input": 0.20, "cached_input": 0.02, "cache_write": 0.25, "output": 0.75},
+            {"max_input_tokens": 272_000, "input": 10.00, "cached_input": 1.00, "cache_write": 12.50, "cache_write_12h": 25.00, "output": 50.00},
+            {"max_input_tokens": None,    "input": 20.00, "cached_input": 2.00, "cache_write": 25.00, "cache_write_12h": 50.00, "output": 75.00},
         ],
     },
     "gpt-6.1-sol": {
         "tiered": True,
         "tiers": [
-            {"max_input_tokens": 272_000, "input": 2.00, "cached_input": 0.10, "cache_write": 2.50, "output": 10.00},
-            {"max_input_tokens": None,    "input": 4.00, "cached_input": 0.20, "cache_write": 5.00, "output": 15.00},
+            {"max_input_tokens": 272_000, "input": 2.00, "cached_input": 0.10, "cache_write": 2.50, "cache_write_12h": 5.00, "output": 10.00},
+            {"max_input_tokens": None,    "input": 4.00, "cached_input": 0.20, "cache_write": 5.00, "cache_write_12h": 10.00, "output": 15.00},
         ],
     },
-    "gpt-5.4": {
+    "gpt-6.1-terra": {
         "tiered": True,
         "tiers": [
-            {"max_input_tokens": 272_000, "input": 2.50, "cached_input": 0.25, "output": 15.00},
-            {"max_input_tokens": None,    "input": 5.00, "cached_input": 0.50, "output": 22.50},
+            {"max_input_tokens": 272_000, "input": 1.00, "cached_input": 0.05, "cache_write": 1.25, "cache_write_12h": 2.50, "output": 5.00},
+            {"max_input_tokens": None,    "input": 2.00, "cached_input": 0.10, "cache_write": 2.50, "cache_write_12h": 5.00, "output": 7.50},
         ],
     },
-    # GPT-5.6 Terra — tiered like gpt-5.4 (official pricing: 2x input, 1.5x
-    # output above 272K input; the 5.6 family also prices cache writes).
-    "gpt-5.6-terra": {
+    "gpt-6-luna": {
         "tiered": True,
         "tiers": [
-            {"max_input_tokens": 272_000, "input": 2.00, "cached_input": 0.20, "cache_write": 2.50, "output": 12.00},
-            {"max_input_tokens": None,    "input": 4.00, "cached_input": 0.40, "cache_write": 5.00, "output": 18.00},
+            {"max_input_tokens": 272_000, "input": 0.10, "cached_input": 0.01, "cache_write": 0.125, "cache_write_12h": 0.25, "output": 0.50},
+            {"max_input_tokens": None,    "input": 0.20, "cached_input": 0.02, "cache_write": 0.25, "cache_write_12h": 0.50, "output": 0.75},
         ],
     },
-    "gpt-4.1-nano": {"input": 0.10, "cached_input": 0.025, "output": 0.40},
-    "gpt-4.1-mini": {"input": 0.40, "cached_input": 0.10,  "output": 1.60},
-    "gpt-4.1":      {"input": 2.00, "cached_input": 0.50,  "output": 8.00},
-    "gpt-5":        {"input": 1.25, "cached_input": 0.125, "output": 10.00},
-    "gpt-5-mini":   {"input": 0.25, "cached_input": 0.025, "output": 2.00},
-    "gpt-5-nano":   {"input": 0.05, "cached_input": 0.005, "output": 0.40},
-    "gpt-4o":       {"input": 2.50, "cached_input": 1.25,  "output": 10.00},
-    "gpt-4o-mini":  {"input": 0.15, "cached_input": 0.075, "output": 0.60},
 }
 
 # Speech-to-text, priced per minute of audio (not per token).
@@ -84,14 +62,14 @@ TRANSCRIBE_PRICING: dict[str, dict[str, float]] = {
 
 
 # ---------------------------------------------------------------------------
-# Rate lookup — preserve the legacy gpt-5.4 estimate for unknown model IDs.
+# Rate lookup — unknown model IDs are estimated at the gpt-6.1-sol rates.
 # Register a model explicitly before using it; this fallback is not a price cap.
 # ---------------------------------------------------------------------------
 
 def get_openai_rates(model: str, input_tokens: int = 0) -> dict[str, float]:
     entry = OPENAI_PRICING.get(model)
     if entry is None:
-        entry = OPENAI_PRICING["gpt-5.4"]
+        entry = OPENAI_PRICING["gpt-6.1-sol"]
     if entry.get("tiered"):
         for tier in entry["tiers"]:
             cap = tier.get("max_input_tokens")

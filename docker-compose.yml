@@ -8,7 +8,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # The orchestrator and report specialist both default to GPT-5.6 Terra
       # and share OPENAI_API_KEY. Override only the specialist if needed.
-      LAMBDA_ERP_REPORT_MODEL: ${LAMBDA_ERP_REPORT_MODEL:-gpt-5.6-terra}
+      LAMBDA_ERP_REPORT_MODEL: ${LAMBDA_ERP_REPORT_MODEL:-gpt-6.1-sol}
       LAMBDA_ERP_AUTO_DEMO: "1"
       # Default container flow: seed company + 3-year simulator, then hand
       # off to the login page where the first user registers as admin.

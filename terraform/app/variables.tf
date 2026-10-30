@@ -76,7 +76,7 @@ variable "openai_api_key" {
 variable "report_specialist_model" {
   description = "OpenAI model used by the custom-report specialist"
   type        = string
-  default     = "gpt-5.6-terra"
+  default     = "gpt-6.1-sol"
 }
 
 variable "jwt_secret_key" {

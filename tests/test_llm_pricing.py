@@ -4,6 +4,7 @@ Run with python -m tests.test_llm_pricing; no external API calls are made.
 """
 from types import SimpleNamespace as NS
 import asyncio
+from contextlib import nullcontext
 import unittest
 from unittest.mock import Mock, patch
 
@@ -13,9 +14,8 @@ from api.providers import cost_of_openai_call, get_openai_rates
 class PricingTests(unittest.TestCase):
     def test_standard_usage_both_api_shapes(self):
         # 10K input: 6K normal + 4K cached; 2K output, including reasoning.
-        expected = {"gpt-6-astra": .164, "gpt-6-sol": .0328,
-                    "gpt-6-luna": .00164, "gpt-6.1-sol": .0324,
-                    "gpt-5.6-terra": .0368}
+        expected = {"gpt-6-astra": .164, "gpt-6.1-sol": .0324,
+                    "gpt-6.1-terra": .0162, "gpt-6-luna": .00164}
         for model, dollars in expected.items():
             for usage in (
                 NS(prompt_tokens=10_000, completion_tokens=2_000,
@@ -30,15 +30,14 @@ class PricingTests(unittest.TestCase):
         # Most input is cached, but the TOTAL input still crosses the boundary.
         usage = NS(input_tokens=300_000, output_tokens=1_000,
                    input_tokens_details=NS(cached_tokens=290_000))
-        expected = {"gpt-6-astra": .855, "gpt-6-sol": .171,
-                    "gpt-6-luna": .00855, "gpt-6.1-sol": .113,
-                    "gpt-5.6-terra": .174}
+        expected = {"gpt-6-astra": .855, "gpt-6.1-sol": .113,
+                    "gpt-6.1-terra": .0565, "gpt-6-luna": .00855}
         for model, dollars in expected.items():
             with self.subTest(model=model):
                 self.assertAlmostEqual(cost_of_openai_call(model, usage), dollars)
                 short = get_openai_rates(model, 272_000)
                 long = get_openai_rates(model, 272_001)
-                for key in ("input", "cached_input", "cache_write"):
+                for key in ("input", "cached_input", "cache_write", "cache_write_12h"):
                     self.assertEqual(long[key], short[key] * 2)
                 self.assertEqual(long["output"], short["output"] * 1.5)
 
@@ -109,6 +108,36 @@ class OrchestratorTests(unittest.TestCase):
             chat._orchestrator_turn(client, [{"role": "user", "content": "Hi"}], [], 1024)
         self.assertEqual(create.call_args.kwargs["model"], "gpt-6-luna")
         self.assertEqual(create.call_args.kwargs["reasoning_effort"], "none")
+
+
+class TitleTests(unittest.TestCase):
+    def _run(self, create, env=None):
+        from api import chat
+        client = NS(responses=NS(create=create))
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-not-used", **(env or {})}), \
+             patch.object(chat, "OpenAI", return_value=client), \
+             patch.object(chat, "update_session_title") as update, \
+             self.assertLogs("chat", "WARNING") if create.side_effect else nullcontext():
+            asyncio.run(chat.generate_title("s1", "Show open invoices", "Here are 3 open invoices."))
+        return update
+
+    def test_title_uses_luna_through_responses(self):
+        create = Mock(return_value=NS(output_text=' "Open invoices overview" ',
+            usage=NS(input_tokens=80, output_tokens=40)))
+        update = self._run(create)
+        update.assert_called_once_with("s1", "Open invoices overview")
+        self.assertEqual(create.call_args.kwargs["model"], "gpt-6-luna")
+        self.assertEqual(create.call_args.kwargs["reasoning"], {"effort": "low"})
+
+    def test_title_model_is_configurable(self):
+        create = Mock(return_value=NS(output_text="Invoices", usage=None))
+        self._run(create, {"LAMBDA_ERP_TITLE_MODEL": "gpt-6.1-terra"})
+        self.assertEqual(create.call_args.kwargs["model"], "gpt-6.1-terra")
+
+    def test_failed_title_call_is_logged_not_silent(self):
+        # A retired model (gpt-4.1-nano) failed every call without a trace.
+        update = self._run(Mock(side_effect=RuntimeError("model_not_found")))
+        update.assert_not_called()
 
 
 if __name__ == "__main__":

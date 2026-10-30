@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- Chat titles work again. Every new chat stayed "New Chat" because title
+  generation used `gpt-4.1-nano`, which OpenAI retired; the error was
+  swallowed without a log line. Titles now use `gpt-6-luna` through the
+  Responses API (override with `LAMBDA_ERP_TITLE_MODEL`), and a failed title
+  call logs a `[chat_title]` warning.
+- The pricing table lists the models available to us: GPT-6 Astra,
+  GPT-6.1 Sol, GPT-6.1 Terra (new) and GPT-6 Luna, with 12-hour cache-write
+  rates. Retired models are removed; unregistered models are estimated at
+  GPT-6.1 Sol rates (previously GPT-5.4). The demo's Terraform default report
+  model is `gpt-6.1-sol`, as in the core.
+
 ## [1.3.1] - 2026-10-29
 
 - Internal notes on every document and master record. An "Internal notes"
