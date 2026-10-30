@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-30
+
 - Personal menu: every user can hide and reorder the sidebar's groups and
   items (e.g. hide all of Rentals, or only Fleet) under Settings → Menu, by
   asking the chat, or through the `get_menu_layout` / `update_menu_layout`
