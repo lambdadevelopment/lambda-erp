@@ -18,6 +18,9 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   swallowed without a log line. Titles now use `gpt-6-luna` through the
   Responses API (override with `LAMBDA_ERP_TITLE_MODEL`), and a failed title
   call logs a `[chat_title]` warning.
+- `LAMBDA_ERP_CHAT_MODEL` overrides the chat model per deployment (default
+  stays `gpt-6.1-sol`), e.g. to trial `gpt-6.1-terra` on a dev instance.
+  GPT-6.1 models always use the Responses API.
 - The pricing table lists the models available to us: GPT-6 Astra,
   GPT-6.1 Sol, GPT-6.1 Terra (new) and GPT-6 Luna, with 12-hour cache-write
   rates. Retired models are removed; unregistered models are estimated at

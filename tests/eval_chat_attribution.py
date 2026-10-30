@@ -52,7 +52,7 @@ def run():
         assert note.strip() and not any(n.casefold() in note.casefold() for n in forbidden), (case, note)
         if required:
             assert required.casefold() in note.casefold(), (case, note)
-        print(json.dumps({"case": case, "model": chat.ORCHESTRATOR_MODEL, "passed": True}), flush=True)
+        print(json.dumps({"case": case, "model": chat._chat_model(), "passed": True}), flush=True)
 
 
 if __name__ == "__main__":

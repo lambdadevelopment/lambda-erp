@@ -2,8 +2,9 @@
 
 Verified on **2026-10-30**. The table lists the OpenAI models available to us.
 Since core 1.1.8, the ERP chat and report specialist both use `gpt-6.1-sol`
-with the Responses API. Chat uses reasoning effort `low`; the report specialist
-uses `medium`. Since core 1.3.2, chat titles use `gpt-6-luna` (effort `low`,
+with the Responses API (override with `LAMBDA_ERP_CHAT_MODEL` and
+`LAMBDA_ERP_REPORT_MODEL`; GPT-6.1 models always use Responses). Chat uses
+reasoning effort `low`; the report specialist uses `medium`. Since core 1.3.2, chat titles use `gpt-6-luna` (effort `low`,
 override with `LAMBDA_ERP_TITLE_MODEL`); the previous `gpt-4.1-nano` was retired
 by OpenAI. Transcription uses `gpt-4o-transcribe`.
 

@@ -3371,7 +3371,13 @@ async def generate_title(
 
 # GPT-6.1 Sol requires Responses for function tools and does not support
 # reasoning effort "none", including tool-free wrap-ups after the step limit.
+# LAMBDA_ERP_CHAT_MODEL overrides it per deployment (e.g. to trial a cheaper
+# model on dev); see docs/llm-pricing.md.
 ORCHESTRATOR_MODEL = "gpt-6.1-sol"
+
+
+def _chat_model() -> str:
+    return os.environ.get("LAMBDA_ERP_CHAT_MODEL") or ORCHESTRATOR_MODEL
 
 
 # ---------------------------------------------------------------------------
@@ -3388,8 +3394,9 @@ ORCHESTRATOR_MODEL = "gpt-6.1-sol"
 # ---------------------------------------------------------------------------
 
 def _use_responses_api() -> bool:
-    # A legacy deployment flag must not route Sol 6.1 into an unsupported API.
-    if ORCHESTRATOR_MODEL == "gpt-6.1-sol":
+    # A legacy deployment flag must not route a GPT-6.1 model into an
+    # unsupported API.
+    if _chat_model().startswith("gpt-6.1-"):
         return True
     # Default: the Responses API (needed for Office attachments + native
     # reasoning). Set ERP_CHAT_API=chat to fall back to Chat Completions.
@@ -3550,12 +3557,12 @@ def _shim_usage_from_responses(usage):
 
 def _orchestrator_turn(client, messages, tools, max_tokens, *, tool_choice="auto"):
     """One orchestrator LLM turn. Returns (message, usage) shaped like Chat
-    Completions. Sol 6.1 always uses Responses; compatible models honor ERP_CHAT_API.
+    Completions. GPT-6.1 models always use Responses; others honor ERP_CHAT_API.
     Blocking — call via asyncio.to_thread."""
     if _use_responses_api():
         instructions, input_items = _responses_request_from_chat(messages)
         resp = client.responses.create(
-            model=ORCHESTRATOR_MODEL,
+            model=_chat_model(),
             instructions=instructions,
             input=input_items,
             tools=_responses_tools_from_chat(tools),
@@ -3565,7 +3572,7 @@ def _orchestrator_turn(client, messages, tools, max_tokens, *, tool_choice="auto
         )
         return _shim_message_from_responses(resp), _shim_usage_from_responses(getattr(resp, "usage", None))
     resp = client.chat.completions.create(
-        model=ORCHESTRATOR_MODEL,
+        model=_chat_model(),
         messages=messages,
         tools=tools,
         tool_choice=tool_choice,
@@ -3730,7 +3737,7 @@ async def run_thinking_loop(
         # on ANY exit path — including asyncio.CancelledError raised after
         # the SDK call has already returned but before settle() ran.
         settled = False
-        model_name = ORCHESTRATOR_MODEL
+        model_name = _chat_model()
         try:
             print(f"[chat_llm] provider=openai model={model_name} session_id={session_id or '-'} iter={iteration + 1}", flush=True)
             await on_event({"type": "llm_provider", "provider": "openai", "model": model_name})
@@ -3917,9 +3924,9 @@ async def run_thinking_loop(
                 tool_choice="none",
             )
             demo_limiter.settle(
-                None, actual_cost_usd=cost_of_openai_call(ORCHESTRATOR_MODEL, usage),
+                None, actual_cost_usd=cost_of_openai_call(_chat_model(), usage),
                 ip=client_ip or "unknown", role=user_role, provider="openai",
-                model=ORCHESTRATOR_MODEL,
+                model=_chat_model(),
                 prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0) if usage else 0,
                 completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0) if usage else 0,
                 session_id=session_id,

@@ -233,15 +233,17 @@ Open `http://localhost:5173`. Vite proxies `/api/*` to the backend.
 
 ```
 OPENAI_API_KEY=sk-...
+LAMBDA_ERP_CHAT_MODEL=gpt-6.1-sol    # optional chat override; default shown
 LAMBDA_ERP_REPORT_MODEL=gpt-6.1-sol  # optional specialist override; default shown
+LAMBDA_ERP_TITLE_MODEL=gpt-6-luna    # optional chat-title override; default shown
 LAMBDA_ERP_ADMIN_EMAIL=admin@example.com   # optional, seeds the admin at boot
 LAMBDA_ERP_ADMIN_PASSWORD=...              # optional, required with the line above
 LAMBDA_ERP_ADMIN_NAME=Administrator        # optional, display name for the seeded admin
 ```
 
-Chat and custom-report specification generation share `OPENAI_API_KEY`. Both
-the orchestrator and report specialist default to GPT-5.6 Terra; the specialist
-can be overridden with `LAMBDA_ERP_REPORT_MODEL`.
+Chat, chat titles and custom-report specification generation share
+`OPENAI_API_KEY`. The chat and the report specialist default to GPT-6.1 Sol,
+titles to GPT-6 Luna; see [docs/llm-pricing.md](docs/llm-pricing.md) for prices.
 
 **Seeded admin.** By default the first person to register becomes the admin. Set `LAMBDA_ERP_ADMIN_EMAIL` + `LAMBDA_ERP_ADMIN_PASSWORD` to instead provision that admin automatically at startup — useful when the database is recreated on every deploy, so a redeployed instance can't be claimed by whoever visits first. It's create-if-missing and idempotent (an existing account with that email is promoted to an enabled admin; its password is left untouched), and the password is only ever read from the environment.
 

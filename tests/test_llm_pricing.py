@@ -109,6 +109,15 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(create.call_args.kwargs["model"], "gpt-6-luna")
         self.assertEqual(create.call_args.kwargs["reasoning_effort"], "none")
 
+    def test_chat_model_setting_keeps_6_1_models_on_responses(self):
+        from api import chat
+        create = Mock(return_value=NS(output=[], output_text="ok", usage=None))
+        client = NS(responses=NS(create=create))
+        with patch.dict("os.environ", {"ERP_CHAT_API": "chat", "LAMBDA_ERP_CHAT_MODEL": "gpt-6.1-terra"}):
+            chat._orchestrator_turn(client, [{"role": "user", "content": "Hi"}], [], 1024)
+        self.assertEqual(create.call_args.kwargs["model"], "gpt-6.1-terra")
+        self.assertEqual(create.call_args.kwargs["reasoning"], {"effort": "low"})
+
 
 class TitleTests(unittest.TestCase):
     def _run(self, create, env=None):
