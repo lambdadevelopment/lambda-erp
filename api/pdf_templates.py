@@ -30,6 +30,8 @@ import logging
 import mimetypes
 import os
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from urllib.parse import unquote, urlsplit
 
@@ -265,6 +267,23 @@ _LAYOUT_FAILURES = {"pdf_template_error", "pdf_render_incomplete", "pdf_render_f
 _SUBMITTED_STATUS = {"Quotation": "Open"}
 
 
+_ARCHIVE_ON_SUBMIT = ContextVar("pdf_archive_on_submit", default=True)
+
+
+@contextmanager
+def pin_only():
+    """Pin layouts at submit but don't render or archive the PDF.
+
+    For bulk seeding (the demo's historical simulation submits thousands of
+    offers at boot): those offers print on demand from their pinned version.
+    """
+    token = _ARCHIVE_ON_SUBMIT.set(False)
+    try:
+        yield
+    finally:
+        _ARCHIVE_ON_SUBMIT.reset(token)
+
+
 def _before_submit(doc):
     """Pin the layout and archive the PDF, inside the submit transaction.
 
@@ -280,6 +299,8 @@ def _before_submit(doc):
     doc._data["pdf_template"] = template
     doc._data["pdf_template_version"] = version
     layout.version = version
+    if not _ARCHIVE_ON_SUBMIT.get():
+        return
     data = doc.as_dict()
     data["status"] = _SUBMITTED_STATUS.get(doctype, data.get("status"))
     from api.pdf import render_pdf_for
@@ -790,7 +811,10 @@ def _wrap(handler):
 def initialize_pdf_templates():
     for name, (handler, model, role, description) in _ACTIONS.items():
         services.register_action(name, _wrap(handler), description=description,
-                                 parameters=model.model_json_schema(), minimum_role=role, pass_user=True)
+                                 parameters=model.model_json_schema(), minimum_role=role, pass_user=True,
+                                 # The shared demo account edits layouts like a manager;
+                                 # uploads (and removing them) stay with real accounts.
+                                 allow_public_manager=name != "delete_pdf_template_asset")
     from lambda_erp.hooks import _HOOKS, register_hook
     for doctype in DOCTYPES:
         for event, fn in ((f"{doctype}:before_save", _validate_selection),

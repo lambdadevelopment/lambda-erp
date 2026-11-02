@@ -112,6 +112,7 @@ def bootstrap_demo() -> None:
             f"({DEMO_SIM_START} -> {DEMO_SIM_END}, seed={DEMO_SIM_SEED})",
             flush=True,
         )
+        from api.pdf_templates import pin_only
         from lambda_erp.simulation import HistoricalSimulator
 
         sim = HistoricalSimulator(
@@ -120,7 +121,10 @@ def bootstrap_demo() -> None:
             end=DEMO_SIM_END,
             seed=DEMO_SIM_SEED,
         )
-        sim.run(simulate_activity=True)
+        # Rendering an archive PDF per seeded offer would turn a ~3-minute
+        # boot into far longer than the host's startup window allows.
+        with pin_only():
+            sim.run(simulate_activity=True)
     else:
         print(f"[bootstrap] simulation data present ({qtn_count} quotations), skipping", flush=True)
 

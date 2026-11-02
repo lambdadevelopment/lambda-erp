@@ -202,6 +202,16 @@ class PdfTemplateTests(unittest.TestCase):
         r = self.client.post('/api/actions/set_default_pdf_template', json={'template': draft})
         self.assertEqual(r.status_code, 422, r.text)
 
+    def test_bulk_seeding_pins_without_archiving(self):
+        from api import services
+        from api.pdf_templates import pin_only
+        name = self.quotation()
+        with pin_only():
+            services.submit_document('quotation', name)
+        self.assertTrue(self.stored(name)['pdf_template_version'].startswith('standard@'))
+        self.assertFalse(get_db().sql('SELECT 1 FROM "PDF Archive" WHERE document_name = ?', [name]))
+        self.assertIn('Excavator Example', pdf_text(self.pdf(name)))
+
     def test_offers_issued_before_templates_still_print(self):
         name = self.docs['Quotation']
         get_db().set_value('Quotation', name, 'docstatus', 1)
@@ -291,6 +301,11 @@ class PdfTemplateTests(unittest.TestCase):
         self.assertIn('list_pdf_templates', names)
         self.assertIn('preview_pdf_template', names)
         self.assertNotIn('update_pdf_template', names)
+        # The shared demo account edits layouts but can't remove uploaded files.
+        from api.services import registered_action_allowed
+        self.assertTrue(registered_action_allowed('update_pdf_template', 'public_manager'))
+        self.assertTrue(registered_action_allowed('list_pdf_templates', 'public_manager'))
+        self.assertFalse(registered_action_allowed('delete_pdf_template_asset', 'public_manager'))
 
 
 if __name__ == '__main__':

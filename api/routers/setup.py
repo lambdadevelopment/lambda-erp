@@ -194,7 +194,9 @@ def seed_demo(_user: dict = Depends(require_role("admin"))):
         start=nowdate(),
         end=nowdate(),
     )
-    sim.run(simulate_activity=False)
+    from api.pdf_templates import pin_only
+    with pin_only():
+        sim.run(simulate_activity=False)
 
     return {"ok": True, "company": company}
 
@@ -244,7 +246,9 @@ def seed_history(data: dict, _user: dict = Depends(require_role("admin"))):
             seed=int(data.get("seed", 42)),
             intensity=float(data.get("intensity", 1.0)),
         )
-        stats = sim.run()
+        from api.pdf_templates import pin_only
+        with pin_only():  # no archive PDF per seeded offer (see bootstrap)
+            stats = sim.run()
     else:
         stats = {"skipped": "quotations already exist"}
 

@@ -412,7 +412,6 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
       if (item.adminOnly && user?.role !== "admin") return false;
       if (item.managerOnly && user?.role !== "manager" && user?.role !== "admin") return false;
       if (item.path === MENU_SETTINGS_PATH && !personal) return false;
-      if (item.path === "/settings/pdf-templates" && !personal) return false;
       return true;
     }),
   })), [user?.role, personal]);

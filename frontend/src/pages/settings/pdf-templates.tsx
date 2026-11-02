@@ -15,6 +15,11 @@ import { useAuth } from "@/contexts/auth-context";
 import { PDF_TEMPLATES_KEY, usePdfTemplates, type PdfTemplateSummary } from "@/hooks/use-pdf-templates";
 
 export function canEditPdfTemplates(role: string | undefined) {
+  return role === "admin" || role === "manager" || role === "public_manager";
+}
+
+/** The shared demo account edits layouts but can't upload or remove files. */
+export function canManagePdfAssets(role: string | undefined) {
   return role === "admin" || role === "manager";
 }
 

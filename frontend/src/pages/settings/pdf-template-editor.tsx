@@ -16,7 +16,7 @@ import { useConfirm } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { PDF_TEMPLATES_KEY, usePdfTemplate } from "@/hooks/use-pdf-templates";
-import { TemplateBadges, canEditPdfTemplates } from "@/pages/settings/pdf-templates";
+import { TemplateBadges, canEditPdfTemplates, canManagePdfAssets } from "@/pages/settings/pdf-templates";
 
 function Section({ title, children, open: initiallyOpen = false }: {
   title: string; children: React.ReactNode; open?: boolean;
@@ -95,6 +95,7 @@ export default function PdfTemplateEditor() {
   const { user } = useAuth();
   const { data: tpl, error: loadError } = usePdfTemplate(id);
   const editable = canEditPdfTemplates(user?.role) && !!tpl && !tpl.standard && !tpl.archived;
+  const assetsEditable = editable && canManagePdfAssets(user?.role);
   const { dirty, markDirty, markClean } = useUnsavedChanges();
   const [html, setHtml] = useState("");
   const [title, setTitle] = useState("");
@@ -278,7 +279,7 @@ export default function PdfTemplateEditor() {
                 ) : <span className="h-8 w-12 rounded bg-surface-subtle ring-1 ring-line" />}
                 <code className="min-w-0 flex-1 truncate text-xs">{asset.filename}</code>
                 <span className="text-xs text-fg-muted">{Math.ceil(asset.size_bytes / 1024)} kB</span>
-                {editable && (
+                {assetsEditable && (
                   <button type="button" title={t("common.delete")} aria-label={t("common.delete")}
                     className="rounded p-1 text-fg-muted hover:text-rose-700"
                     onClick={async () => refresh(await action.mutateAsync({
@@ -289,7 +290,7 @@ export default function PdfTemplateEditor() {
               </li>
             ))}
           </ul>
-          {editable && (
+          {assetsEditable && (
             <>
               <input ref={fileInput} type="file" className="hidden"
                 accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.woff,.woff2,.ttf,.otf"

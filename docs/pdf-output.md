@@ -64,6 +64,9 @@ rendered as trusted code. Other templates live in the database:
   custom layout that can't print the offer blocks the submit; the built-in one
   logs and submits without an archive, as before. A submitted offer returns the
   archived file; a cancelled one renders its pinned version with the notice.
+- Bulk seeding (the demo simulation, `/api/setup/seed-history`) runs inside
+  `pdf_templates.pin_only()`: offers are pinned but not rendered or archived,
+  and print on demand from their pinned version.
 - Versions are never deleted. A template is deletable only while no version and
   no draft offer references it; otherwise it can be archived.
 - Assets (images, fonts) are content-addressed in `PDF Template Asset`, so a
@@ -73,7 +76,8 @@ User templates render in Jinja's `ImmutableSandboxedEnvironment`. WeasyPrint
 gets a URL fetcher that serves `data:` URLs, the template's assets and non-HTML
 files beside the built-in templates (a plugin logo); everything else (http,
 file, internal hosts) is blocked and reported. Rendered HTML is capped at 5 MB.
-There is no render timeout: editing is limited to managers and admins.
+There is no render timeout: editing is limited to managers, admins and the
+shared demo account (`public_manager`), which can't upload or remove assets.
 
 ## Generation and downloads
 
