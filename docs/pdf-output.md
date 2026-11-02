@@ -89,6 +89,16 @@ of the turn and drops them before saving the tool trace; MCP returns them as
 image content; REST returns base64 PNG. Template `context_reference` carries
 the renderer notes the chat needs (fonts, page backgrounds, margin boxes).
 
+Printed texts: an offer has `intro_text` and `remarks` (closing text /
+terms). Both render through the notes markup (api/remarks_md.py) into
+`intro_html` / `remarks_html`, after the placeholders in
+`api.pdf.TEXT_PLACEHOLDERS` are substituted (plain substitution, not Jinja).
+Templates choose where each prints. The defaults new offers start with are
+Settings rows `pdf_text_default:Quotation:<field>`, copied in by a
+`Quotation:before_save` hook on first save when the field wasn't sent. A
+document warning (`pdf_<field>_not_printed`) flags an offer whose layout never
+uses a text it has; publishing reports the same as `missing_texts`.
+
 Fonts (api/pdf_fonts.py): WeasyPrint finds fonts through fontconfig, so what a
 template can print with is what is installed (the Docker image adds the
 `fonts-*` packages) plus fonts uploaded as template assets. The field

@@ -19,7 +19,7 @@ import { HintTooltip } from "@/components/ui/hint-tooltip";
 import { NotesMarkupHelp } from "@/components/ui/notes-markup-help";
 import { RecordNotes, RecordNotesLink } from "@/components/record-notes";
 import { useCurrencies } from "@/hooks/use-currencies";
-import { usePdfTemplates } from "@/hooks/use-pdf-templates";
+import { usePdfTemplates, usePdfTextDefaults } from "@/hooks/use-pdf-templates";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useTranslation } from "react-i18next";
 import { Printer } from "lucide-react";
@@ -348,16 +348,17 @@ function FieldRenderer({
   }
 
   if (field.type === "textarea") {
-    // The `remarks` field is rendered from a light markup on the PDF, so it
-    // gets the formatting-help icon. Parent textareas (not child-table cells)
-    // are roomier since they sit on their own full-width row.
-    const showMarkupHelp = field.name === "remarks";
+    // The printed texts (`remarks`, an offer's `intro_text`) are rendered from a
+    // light markup on the PDF, so they get the formatting-help icon. Parent
+    // textareas (not child-table cells) are roomier since they sit on their own
+    // full-width row.
+    const showMarkupHelp = field.name === "remarks" || field.name === "intro_text";
     return (
       <div>
         {!hideLabel && (
           <FieldLabel
             label={t(`fields.${field.label}`, { defaultValue: field.label })}
-            hint={field.hint}
+            hint={field.hint ? t(`hints.${doctype ?? "_"}.${field.name}`, { defaultValue: field.hint }) : undefined}
             extra={showMarkupHelp ? <><NotesMarkupHelp /><PrintedBadge /></> : undefined}
           />
         )}
@@ -804,6 +805,21 @@ export default function DocumentFormPage() {
     }
   }, [isNew, existingDoc, config, markClean]);
 
+  // A new offer starts with the default intro and closing texts (Settings →
+  // PDF Templates); the server applies the same defaults to API-created offers.
+  const textDefaults = usePdfTextDefaults(isNew && config?.slug === "quotation");
+  const prefilledTexts = useRef(false);
+  useEffect(() => {
+    if (!isNew || prefilledTexts.current || !textDefaults.data || formData.docstatus !== 0) return;
+    prefilledTexts.current = true;
+    const { intro_text, remarks } = textDefaults.data;
+    setFormData((prev: any) => ({
+      ...prev,
+      intro_text: prev.intro_text || intro_text,
+      remarks: prev.remarks || remarks,
+    }));
+  }, [isNew, textDefaults.data, formData.docstatus]);
+
   // Mutations
   const createMut = useMutation({
     mutationFn: (data: any) => api.createDocument(doctype!, data),
@@ -1038,7 +1054,9 @@ export default function DocumentFormPage() {
 
       {(formData._validation?.warnings ?? []).map((warning: any) => (
         <div key={warning.code} className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900" role="status">
-          {warning.code === "asset_unassigned" ? t("rentals.poolWarning") : warning.message}
+          {warning.code === "asset_unassigned"
+            ? t("rentals.poolWarning")
+            : t(`documentWarnings.${warning.code}`, { defaultValue: warning.message, template: warning.template })}
         </div>
       ))}
 

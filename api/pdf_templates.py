@@ -325,6 +325,56 @@ def _store_archive(doctype, name, layout, data):
 
 
 # ---------------------------------------------------------------------------
+# Printed texts: the intro and the closing notes/terms
+# ---------------------------------------------------------------------------
+
+# (document field, template variable, what a user calls it)
+_TEXTS = (("intro_text", "intro_html", "intro text"), ("remarks", "remarks_html", "closing text / terms"))
+TEXT_DEFAULT_KEY = "pdf_text_default:{doctype}:{field}"
+
+
+def text_defaults(doctype: str) -> dict:
+    keys = {TEXT_DEFAULT_KEY.format(doctype=doctype, field=field): field for field, _var, _label in _TEXTS}
+    rows = get_db().sql('SELECT key, value FROM "Settings" WHERE key IN (' + ",".join("?" for _ in keys) + ")",
+                        list(keys))
+    found = {keys[row["key"]]: row["value"] for row in rows}
+    return {field: found.get(field) or "" for field, _var, _label in _TEXTS}
+
+
+def _apply_text_defaults(doc):
+    """A new offer starts with the default texts, unless the caller sent the field
+    (an empty string means "no text"). Copied, so later default edits don't
+    change existing offers."""
+    if doc._persisted:
+        return
+    for field, value in text_defaults(doc.DOCTYPE).items():
+        if value and doc._data.get(field) is None:
+            doc._data[field] = value
+
+
+def _prints(html: str | None, field: str, var: str) -> bool:
+    return bool(html) and (var in html or f"doc.{field}" in html)
+
+
+def _text_warnings(doc) -> list[dict]:
+    """Warn when an offer has a text its PDF layout never prints."""
+    if doc.DOCTYPE not in DOCTYPES:
+        return []
+    texts = [(f, v, label) for f, v, label in _TEXTS if (doc.get(f) or "").strip()]
+    if not texts:
+        return []
+    try:
+        layout = layout_for(doc.DOCTYPE, doc.as_dict())
+    except (PDFError, ValueError):
+        return []
+    if layout is None:
+        return []
+    return [{"code": f"pdf_{field}_not_printed", "field": field, "template": layout.title,
+             "message": f"The PDF layout {layout.title!r} doesn't print the {label}; the PDF shows it without."}
+            for field, var, label in texts if not _prints(layout.html, field, var)]
+
+
+# ---------------------------------------------------------------------------
 # Checks and previews
 # ---------------------------------------------------------------------------
 
@@ -432,6 +482,16 @@ class SetDefault(mentions.Input):
     template: str = ID
 
 
+class TextDefaults(mentions.Input):
+    doctype: str = Field(default="Quotation", max_length=100)
+
+
+class SetTextDefaults(mentions.Input):
+    doctype: str = Field(default="Quotation", max_length=100)
+    intro_text: str | None = Field(default=None, max_length=10_000)
+    remarks: str | None = Field(default=None, max_length=10_000)
+
+
 class Preview(mentions.Input):
     template: str = ID
     source: str = Field(default="draft", pattern="^(draft|live)$")
@@ -514,7 +574,10 @@ Variables:
 - currency, page_size ("A4"/"Letter"), meta_fields (list of {label, value})
 - items: list of {idx, item_code, item_name, description, qty, uom, rate, amount, discount_percentage, frequency}
 - taxes: list of {description, rate, tax_amount, total}
-- remarks_html: the notes/terms as safe HTML (render with {{ remarks_html|safe }})
+- intro_html: the offer's intro text as safe HTML ({{ intro_html|safe }}); print it near the top, usually under the title
+- remarks_html: the closing text / notes / terms as safe HTML ({{ remarks_html|safe }}); usually after the totals
+  Both are optional per offer; print each wherever the layout wants, but print both (a published layout that omits one gets a warning).
+  The texts may contain the placeholders {{ name }}, {{ customer_name }}, {{ company }}, {{ transaction_date }}, {{ valid_till }}, {{ currency }}; they are filled in before the template sees them.
 - recurring_summary: per billing period [{frequency, label, net_total, grand_total, ...}]; show_frequency: whether any line recurs
 - plus whatever deployment plugins add (e.g. qr_bill_img on invoices)
 Numbers: format with "%.2f"|format(value) or "{:,.2f}".format(value).
@@ -633,6 +696,10 @@ def publish_pdf_template(args, user=None):
                'published_by = ? WHERE name = ?', [stamp, _actor(user), row["name"]])
     result = get_pdf_template({"template": row["name"], "include_html": False})
     result["checked_against"] = sample
+    missing = [(field, var, label) for field, var, label in _TEXTS if not _prints(row["draft_html"], field, var)]
+    result["missing_texts"] = [field for field, _var, _label in missing]
+    result["warnings"] = [f"The layout never prints the {label} ({var}); offers that have one will print without it."
+                          for _field, var, label in missing]
     if sample is None:
         result["note"] = "Published without a test render: there is no document to print yet."
     return result
@@ -693,6 +760,30 @@ def set_default_pdf_template(args, user=None):
         db.sql('DELETE FROM "Settings" WHERE key = ?', [key])
         db.sql('INSERT INTO "Settings" (key, value) VALUES (?, ?)', [key, data.template])
     return list_pdf_templates({"doctype": doctype})
+
+
+def get_pdf_text_defaults(args, user=None):
+    data = TextDefaults.model_validate(args)
+    doctype = _doctype(data.doctype)
+    from api.pdf import TEXT_PLACEHOLDERS
+    return {"doctype": doctype, **text_defaults(doctype),
+            "placeholders": ["{{ %s }}" % name for name in TEXT_PLACEHOLDERS]}
+
+
+def set_pdf_text_defaults(args, user=None):
+    data = SetTextDefaults.model_validate(args)
+    doctype = _doctype(data.doctype)
+    db = get_db()
+    with db.atomic():
+        for field in ("intro_text", "remarks"):
+            value = getattr(data, field)
+            if value is None:
+                continue  # not sent: unchanged
+            key = TEXT_DEFAULT_KEY.format(doctype=doctype, field=field)
+            db.sql('DELETE FROM "Settings" WHERE key = ?', [key])
+            if value.strip():
+                db.sql('INSERT INTO "Settings" (key, value) VALUES (?, ?)', [key, value])
+    return get_pdf_text_defaults({"doctype": doctype})
 
 
 def preview_pdf_template(args, user=None):
@@ -817,6 +908,14 @@ _ACTIONS = {
     "delete_pdf_template": (delete_pdf_template, TemplateRef, "manager",
         "Delete a PDF template that no issued document has used. Templates used for issued documents are "
         "kept as their record and can only be archived."),
+    "get_pdf_text_defaults": (get_pdf_text_defaults, TextDefaults, "viewer",
+        "Show the default intro text and closing text / terms new offers start with, and the placeholders "
+        "they may use."),
+    "set_pdf_text_defaults": (set_pdf_text_defaults, SetTextDefaults, "manager",
+        "Set the default intro text (intro_text) and/or closing text / terms (remarks) new offers start "
+        "with; an empty string clears one, an omitted field stays unchanged. Existing offers keep their "
+        "texts. Same light markup as the notes; placeholders like {{ customer_name }} or {{ valid_till }} "
+        "are filled in when the PDF prints."),
     "delete_pdf_template_asset": (delete_pdf_template_asset, DeleteAsset, "manager",
         "Remove an image or font from a PDF template's working copy. Assets are uploaded in the web app or "
         "via POST /api/pdf-templates/{template}/assets."),
@@ -842,6 +941,9 @@ def initialize_pdf_templates():
     from lambda_erp.hooks import _HOOKS, register_hook
     for doctype in DOCTYPES:
         for event, fn in ((f"{doctype}:before_save", _validate_selection),
+                          (f"{doctype}:before_save", _apply_text_defaults),
                           (f"{doctype}:before_submit", _before_submit)):
             if fn not in _HOOKS.get(event, ()):
                 register_hook(event, fn)
+    if _text_warnings not in services.DOCUMENT_WARNING_PROVIDERS:
+        services.DOCUMENT_WARNING_PROVIDERS.append(_text_warnings)

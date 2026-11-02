@@ -125,6 +125,15 @@ export default function PdfTemplateEditor() {
       api.runAction(name, { template: id, ...args }),
   });
 
+  // "Published. Checked against …", plus a note for each printed text the layout never shows.
+  const publishedNotice = useCallback((result: { checked_against?: string | null; missing_texts?: string[]; title?: string }) => {
+    const parts = result.checked_against ? [t("pdfTemplates.publishedNotice", { document: result.checked_against })] : [];
+    const missing = (result.missing_texts ?? []).map((field) =>
+      t(`documentWarnings.pdf_${field}_not_printed`, { template: result.title ?? "", interpolation: { escapeValue: false } }));
+    if (missing.length) parts.push(t("pdfTemplates.publishWarnings", { warnings: missing.join(" "), interpolation: { escapeValue: false } }));
+    return parts.join(" ");
+  }, [t]);
+
   const save = useCallback(async (publish = false) => {
     if (!tpl) return;
     setNotice("");
@@ -135,15 +144,15 @@ export default function PdfTemplateEditor() {
     });
     markClean();
     refresh({ ...result, draft_html: html });
-    if (publish && result.checked_against) setNotice(t("pdfTemplates.publishedNotice", { document: result.checked_against }));
-  }, [tpl, html, title, action, markClean, t]);
+    if (publish) setNotice(publishedNotice(result));
+  }, [tpl, html, title, action, markClean, publishedNotice]);
 
   const publish = async () => {
     try {
       if (dirty) await save(true);
       else {
         const result = await action.mutateAsync({ name: "publish_pdf_template", args: {} });
-        if (result.checked_against) setNotice(t("pdfTemplates.publishedNotice", { document: result.checked_against }));
+        setNotice(publishedNotice(result));
         refresh();
       }
     } catch { /* shown below */ }

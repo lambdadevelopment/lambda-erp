@@ -531,8 +531,14 @@ def _validate_document_input(doctype, cls, data):
     return data
 
 
+# Extensions add document warnings here: fn(doc) -> list of {code, message}.
+DOCUMENT_WARNING_PROVIDERS: list = []
+
+
 def _document_validation(doc):
     warnings = []
+    for provider in DOCUMENT_WARNING_PROVIDERS:
+        warnings.extend(provider(doc) or ())
     if doc.DOCTYPE == 'Proposal' and (not doc.get('customer') or not doc.get('company') or not doc.get('quotations')):
         warnings.append({'code': 'proposal_incomplete', 'message': 'Draft saved; PDF output requires Customer, Company and at least one Quotation.'})
     if doc.DOCTYPE == "Reservation" and not doc.get("asset") and doc.get("status") in {"Reserved", "Out"}:

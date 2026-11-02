@@ -699,7 +699,9 @@
     "Purchase Date": "Purchase Date",
     "Notes": "Notes",
     "Printed notes / terms": "Printed notes / terms",
-    "PDF Layout": "PDF Layout"
+    "PDF Layout": "PDF Layout",
+    "Intro text": "Intro text",
+    "Closing text / terms": "Closing text / terms"
   },
   "tables": {
     "accounts": "accounts",
@@ -939,7 +941,9 @@
       "to_datetime": "Exact end. Windows are half-open [from, to): a hire ending 09:00 and the next starting 09:00 do NOT clash."
     },
     "quotation": {
-      "pdf_template": "How the offer's PDF looks. Fixed when the offer is submitted."
+      "pdf_template": "How the offer's PDF looks. Fixed when the offer is submitted.",
+      "intro_text": "Printed above the line items (where exactly is up to the PDF layout). New offers start with the default from Settings → PDF Templates.",
+      "remarks": "Printed after the totals (where exactly is up to the PDF layout). New offers start with the default from Settings → PDF Templates."
     }
   },
   "companyTax": {
@@ -1101,6 +1105,16 @@
     "firstUsed": "first used {{date}}",
     "reference": "Available fields",
     "standardEditHint": "To change this layout, duplicate it on the",
-    "defaultOption": "Default ({{name}})"
+    "defaultOption": "Default ({{name}})",
+    "textDefaults": "Default texts for offers",
+    "textDefaultsIntro": "New offers start with these texts; they can be changed on each offer. Changing a default doesn’t change existing offers.",
+    "textDefaultsPlaceholders": "Placeholders, filled in when the PDF prints: {{placeholders}}",
+    "saveTexts": "Save texts",
+    "textsSaved": "Saved.",
+    "publishWarnings": "Note: {{warnings}}"
+  },
+  "documentWarnings": {
+    "pdf_intro_text_not_printed": "The PDF layout “{{template}}” doesn’t print the intro text; the PDF shows it without.",
+    "pdf_remarks_not_printed": "The PDF layout “{{template}}” doesn’t print the closing text / terms; the PDF shows it without."
   }
 }

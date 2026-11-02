@@ -1,6 +1,7 @@
 """PDF generation for ERP documents."""
 
 import io
+import re
 import os
 from dataclasses import dataclass
 from jinja2 import Environment, FileSystemLoader, ChoiceLoader
@@ -88,6 +89,22 @@ class RenderedPDF:
     modified: str | None
     status: str
     warnings: list
+
+
+# Placeholders the printed texts (intro and notes/terms) may use, e.g. a default
+# closing text "Gültig bis {{ valid_till }}". Plain substitution, not Jinja:
+# unknown names stay as written.
+TEXT_PLACEHOLDERS = ("name", "customer_name", "company", "transaction_date", "valid_till", "currency")
+_PLACEHOLDER = re.compile(r"\{\{\s*(" + "|".join(TEXT_PLACEHOLDERS) + r")\s*\}\}")
+
+
+def fill_text_placeholders(text, doc, party_name=None, company_name=None) -> str:
+    if not text:
+        return ""
+    values = {"name": doc.get("name"), "customer_name": party_name or doc.get("customer_name"),
+              "company": company_name or doc.get("company"), "transaction_date": doc.get("transaction_date"),
+              "valid_till": doc.get("valid_till"), "currency": doc.get("currency")}
+    return _PLACEHOLDER.sub(lambda m: str(values.get(m.group(1)) or ""), text)
 
 
 def generate_pdf(doctype_slug: str, name: str) -> bytes:
@@ -223,7 +240,7 @@ def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=No
     # and whether to show the frequency column at all (any recurring line, or a
     # `>>` price line in the notes — which renders in that same column).
     _one_time, recurring_summary = split_by_frequency(doc)
-    _remarks = doc.get("remarks") or ""
+    _remarks = fill_text_placeholders(doc.get("remarks"), doc, party_name, company_name)
     show_frequency = bool(recurring_summary) or any(
         line.lstrip().startswith(">>") for line in _remarks.splitlines()
     )
@@ -249,7 +266,10 @@ def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=No
         # italic, right-aligned price lines) into safe HTML; templates style the
         # emitted classes. Falls back to plain `doc.remarks` if a template
         # doesn't use it. See api/remarks_md.py.
-        remarks_html=render_remarks(doc.get("remarks")),
+        remarks_html=render_remarks(_remarks),
+        # The offer's intro text (above the lines), same markup. Templates
+        # decide where either text prints.
+        intro_html=render_remarks(fill_text_placeholders(doc.get("intro_text"), doc, party_name, company_name)),
         # Billing-frequency split (offers with recurring lines). `recurring_summary`
         # is the per-period totals (one entry per Monatlich/Quartalsweise/… group);
         # the doc's own net_total/grand_total already reflect the one-time part only.

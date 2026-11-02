@@ -657,7 +657,9 @@
     "Purchase Date": "Date d'achat",
     "Notes": "Notes",
     "Printed notes / terms": "Notes / conditions imprimées",
-    "PDF Layout": "Mise en page PDF"
+    "PDF Layout": "Mise en page PDF",
+    "Intro text": "Texte d'introduction",
+    "Closing text / terms": "Texte final / conditions"
   },
   "tables": {
     "items": "Lignes",
@@ -939,7 +941,9 @@
       "to_datetime": "Fin exacte. Les fenêtres sont semi-ouvertes [de, à) : une location finissant à 09:00 et la suivante commençant à 09:00 ne se chevauchent PAS."
     },
     "quotation": {
-      "pdf_template": "L'apparence du PDF de l'offre. Figée lorsque l'offre est validée."
+      "pdf_template": "L'apparence du PDF de l'offre. Figée lorsque l'offre est validée.",
+      "intro_text": "Imprimé au-dessus des positions (l'emplacement exact dépend de la mise en page PDF). Les nouvelles offres reprennent le texte par défaut de Paramètres → Modèles PDF.",
+      "remarks": "Imprimé après les totaux (l'emplacement exact dépend de la mise en page PDF). Les nouvelles offres reprennent le texte par défaut de Paramètres → Modèles PDF."
     }
   },
   "companyTax": {
@@ -1101,6 +1105,16 @@
     "firstUsed": "utilisé pour la première fois le {{date}}",
     "reference": "Champs disponibles",
     "standardEditHint": "Pour modifier cette mise en page, dupliquez-la sur la page",
-    "defaultOption": "Par défaut ({{name}})"
+    "defaultOption": "Par défaut ({{name}})",
+    "textDefaults": "Textes par défaut des offres",
+    "textDefaultsIntro": "Les nouvelles offres commencent avec ces textes, modifiables sur chaque offre. Les modifier ne change pas les offres existantes.",
+    "textDefaultsPlaceholders": "Variables, remplacées à l'impression : {{placeholders}}",
+    "saveTexts": "Enregistrer les textes",
+    "textsSaved": "Enregistré.",
+    "publishWarnings": "Remarque : {{warnings}}"
+  },
+  "documentWarnings": {
+    "pdf_intro_text_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte d'introduction ; le PDF s'affiche sans.",
+    "pdf_remarks_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte final / les conditions ; le PDF s'affiche sans."
   }
 }

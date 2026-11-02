@@ -49,6 +49,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   WOFF2) as uploads, and adds an uploaded font or image to a template
   (`add_attachment_to_pdf_template`, managers and admins). Font assets are
   checked to be real fonts, and their licence's embedding flag is reported.
+- Offers have an intro text (`intro_text`) besides the closing text / terms
+  (`remarks`, unchanged; existing texts stay as they are). Templates get it as
+  `intro_html` and decide where each text prints; the built-in layout puts the
+  intro above the line items. Settings → PDF Templates holds one default pair
+  that new offers start with (copied, so later edits don't change existing
+  offers; also via `get_pdf_text_defaults` / `set_pdf_text_defaults`). Both
+  texts may use placeholders filled in at print time: `{{ customer_name }}`,
+  `{{ valid_till }}`, `{{ transaction_date }}`, `{{ name }}`, `{{ company }}`,
+  `{{ currency }}`. Publishing a layout that never prints one of the texts
+  warns, and so does an offer whose layout drops a text it has.
 - A chat reply may link the PDF preview of a template it just rendered; the
   check against made-up PDF links rejected it as "PDF not generated".
 - Chat titles appear within seconds of the first message: the title is now

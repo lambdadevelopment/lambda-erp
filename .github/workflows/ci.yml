@@ -358,6 +358,14 @@ jobs:
       - name: PDF template fonts
         run: python -m tests.test_pdf_fonts
 
+      - name: Offer texts — SQLite
+        run: python -m tests.test_pdf_texts
+
+      - name: Offer texts — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_pdf_texts
+
       - name: MCP endpoint — PostgreSQL
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test

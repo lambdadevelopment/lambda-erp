@@ -1,7 +1,7 @@
 // PDF templates: the layouts offers print with (api/pdf_templates.py). Managers
 // and admins create and edit them; everyone can see them and pick one on an
 // offer. The chat, REST and MCP clients reach the same actions.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -12,7 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirm, usePrompt } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/auth-context";
-import { PDF_TEMPLATES_KEY, usePdfTemplates, type PdfTemplateSummary } from "@/hooks/use-pdf-templates";
+import {
+  PDF_TEMPLATES_KEY, usePdfTemplates, usePdfTextDefaults, type PdfTemplateSummary,
+} from "@/hooks/use-pdf-templates";
 
 export function canEditPdfTemplates(role: string | undefined) {
   return role === "admin" || role === "manager" || role === "public_manager";
@@ -35,6 +37,56 @@ export function TemplateBadges({ template }: { template: PdfTemplateSummary }) {
       )}
       {template.archived && <Badge variant="secondary">{t("pdfTemplates.archived")}</Badge>}
     </span>
+  );
+}
+
+/** The intro and closing texts new offers start with (one global pair). */
+function TextDefaultsCard({ canEdit }: { canEdit: boolean }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { data } = usePdfTextDefaults();
+  const [texts, setTexts] = useState({ intro_text: "", remarks: "" });
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    if (data) setTexts({ intro_text: data.intro_text, remarks: data.remarks });
+  }, [data]);
+  const save = useMutation({
+    mutationFn: () => api.runAction("set_pdf_text_defaults", { doctype: "Quotation", ...texts }),
+    onSuccess: (result) => {
+      qc.setQueryData([...PDF_TEMPLATES_KEY, "text-defaults"], result);
+      setSaved(true);
+    },
+  });
+  const dirty = !!data && (texts.intro_text !== data.intro_text || texts.remarks !== data.remarks);
+  const field = (key: "intro_text" | "remarks", label: string) => (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-medium text-fg">{t(`fields.${label}`, { defaultValue: label })}</span>
+      <textarea rows={4} value={texts[key]} disabled={!canEdit}
+        onChange={(e) => { setTexts((prev) => ({ ...prev, [key]: e.target.value })); setSaved(false); }}
+        className="block w-full rounded-lg bg-surface px-3 py-2 text-sm text-fg ring-1 ring-line focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-70" />
+    </label>
+  );
+  return (
+    <Card>
+      <h3 className="text-base font-semibold tracking-tight text-fg">{t("pdfTemplates.textDefaults")}</h3>
+      <p className="mt-1 max-w-2xl text-sm text-fg-muted">{t("pdfTemplates.textDefaultsIntro")}</p>
+      <div className="mt-4 space-y-4">
+        {field("intro_text", "Intro text")}
+        {field("remarks", "Closing text / terms")}
+      </div>
+      {data && (
+        <p className="mt-2 text-xs text-fg-muted">
+          {t("pdfTemplates.textDefaultsPlaceholders", { placeholders: data.placeholders.join(", "), interpolation: { escapeValue: false } })}
+        </p>
+      )}
+      {save.error && <p role="alert" className="mt-2 text-sm text-rose-700">{save.error.message}</p>}
+      {canEdit && (
+        <div className="mt-4 flex items-center gap-3">
+          <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending}>{t("pdfTemplates.saveTexts")}</Button>
+          {saved && !dirty && <span className="text-sm text-fg-muted">{t("pdfTemplates.textsSaved")}</span>}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -155,6 +207,8 @@ export default function PdfTemplatesPage() {
         <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
         {t("pdfTemplates.showArchived")}
       </label>
+
+      <TextDefaultsCard canEdit={canEdit} />
     </div>
   );
 }

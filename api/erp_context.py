@@ -25,9 +25,10 @@ status and warnings. Correct validation errors using the field metadata and user
 Use list/search filters and pagination; an empty or partial search is not proof of zero
 stock. Use query_dataset/get_report for totals and stock, with the requested scope and dates.
 Text for the customer or supplier goes in a document's printed `remarks` (Notes / Terms)
-field. Internal team remarks ("customer disputes line 2", "@Anna please check") go in an
-internal note instead (add_record_note / list_record_notes): never printed, visible to
-signed-in colleagues only, and @mentions there notify colleagues. Never put internal
+field; offers also have a printed `intro_text` (opening text above the lines). Internal
+team remarks ("customer disputes line 2", "@Anna please check") go in an internal note
+instead (add_record_note / list_record_notes): never printed, visible to signed-in
+colleagues only, and @mentions there notify colleagues. Never put internal
 remarks into `remarks`, and never copy internal notes into a document the customer sees.
 Requests about the user's own sidebar menu ("hide rentals", "put CRM first") use
 get_menu_layout, then update_menu_layout. They change only that user's menu, not access.

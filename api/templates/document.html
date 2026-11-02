@@ -58,6 +58,8 @@
   .remarks .rm-hr { border-top: 1px solid #d1d5db; margin: 6px 0; }
   .remarks em { font-style: italic; }
   .remarks strong { font-weight: 700; }
+  /* The offer's intro text: same markup as the notes, without the box. */
+  .remarks.intro { margin: 0 0 15px; padding: 0; background: none; border-radius: 0; font-size: 9pt; color: inherit; }
   .state-notice { display: inline-block; margin-bottom: 8pt; padding: 3px 10px; border: 1.5px solid #b91c1c; border-radius: 4px; color: #b91c1c; font-size: 10pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 </style>
 </head>
@@ -112,6 +114,11 @@
   </div>
   {% endfor %}
 </div>
+{% endif %}
+
+{# ---- Intro text (offers) ---- #}
+{% if intro_html is defined and intro_html %}
+<div class="remarks intro">{{ intro_html | safe }}</div>
 {% endif %}
 
 {# ---- Items table ---- #}

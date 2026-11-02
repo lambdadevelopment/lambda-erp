@@ -142,7 +142,10 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
       { name: "total_taxes_and_charges", label: "Tax", type: "currency", readOnly: true },
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
-      { name: "remarks", label: "Printed notes / terms", type: "textarea" },
+      { name: "intro_text", label: "Intro text", type: "textarea",
+        hint: "Printed above the line items (where exactly is up to the PDF layout). New offers start with the default from Settings → PDF Templates." },
+      { name: "remarks", label: "Closing text / terms", type: "textarea",
+        hint: "Printed after the totals (where exactly is up to the PDF layout). New offers start with the default from Settings → PDF Templates." },
     ],
     childTables: [
       { key: "items", label: "Items", fields: QUOTATION_ITEM_FIELDS },

@@ -657,7 +657,9 @@
     "Purchase Date": "Kaufdatum",
     "Notes": "Notizen",
     "Printed notes / terms": "Gedruckte Notizen / Konditionen",
-    "PDF Layout": "PDF-Layout"
+    "PDF Layout": "PDF-Layout",
+    "Intro text": "Einleitungstext",
+    "Closing text / terms": "Schlusstext / Konditionen"
   },
   "tables": {
     "items": "Positionen",
@@ -939,7 +941,9 @@
       "to_datetime": "Genaues Ende. Fenster sind halboffen [von, bis): eine Miete, die um 09:00 endet, und die nächste um 09:00 beginnende, kollidieren NICHT."
     },
     "quotation": {
-      "pdf_template": "Wie das PDF der Offerte aussieht. Wird beim Buchen der Offerte festgehalten."
+      "pdf_template": "Wie das PDF der Offerte aussieht. Wird beim Buchen der Offerte festgehalten.",
+      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Offerten starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen.",
+      "remarks": "Wird nach den Summen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Offerten starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
     }
   },
   "companyTax": {
@@ -1101,6 +1105,16 @@
     "firstUsed": "zuerst verwendet am {{date}}",
     "reference": "Verfügbare Felder",
     "standardEditHint": "Um dieses Layout zu ändern, dupliziere es auf der Seite",
-    "defaultOption": "Standard ({{name}})"
+    "defaultOption": "Standard ({{name}})",
+    "textDefaults": "Standardtexte für Offerten",
+    "textDefaultsIntro": "Neue Offerten starten mit diesen Texten; sie lassen sich pro Offerte ändern. Eine Änderung hier ändert bestehende Offerten nicht.",
+    "textDefaultsPlaceholders": "Platzhalter, beim Drucken ersetzt: {{placeholders}}",
+    "saveTexts": "Texte speichern",
+    "textsSaved": "Gespeichert.",
+    "publishWarnings": "Hinweis: {{warnings}}"
+  },
+  "documentWarnings": {
+    "pdf_intro_text_not_printed": "Das PDF-Layout «{{template}}» druckt den Einleitungstext nicht; das PDF erscheint ohne ihn.",
+    "pdf_remarks_not_printed": "Das PDF-Layout «{{template}}» druckt den Schlusstext / die Konditionen nicht; das PDF erscheint ohne sie."
   }
 }

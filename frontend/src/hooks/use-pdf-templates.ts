@@ -51,6 +51,22 @@ export function usePdfTemplates(includeArchived = false, enabled = true) {
   });
 }
 
+export interface PdfTextDefaults {
+  doctype: string;
+  intro_text: string;
+  remarks: string;
+  placeholders: string[];
+}
+
+export function usePdfTextDefaults(enabled = true) {
+  return useQuery({
+    queryKey: [...PDF_TEMPLATES_KEY, "text-defaults"],
+    queryFn: () => api.runAction("get_pdf_text_defaults", { doctype: "Quotation" }) as Promise<PdfTextDefaults>,
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
 export function usePdfTemplate(template: string | undefined) {
   return useQuery({
     queryKey: [...PDF_TEMPLATES_KEY, "detail", template],

@@ -626,7 +626,8 @@ class Database:
                 external_source TEXT,
                 external_reference TEXT,
                 pdf_template TEXT,
-                pdf_template_version TEXT
+                pdf_template_version TEXT,
+                intro_text TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Quotation Item" (
@@ -3128,6 +3129,13 @@ def _m043_pdf_templates(db: "Database") -> None:
     db.conn.commit()
 
 
+def _m044_quotation_intro_text(db: "Database") -> None:
+    """An offer's intro text (printed above the lines); `remarks` stays the
+    closing text / conditions. Existing offers keep their remarks as they are."""
+    db.ensure_column("Quotation", "intro_text", "TEXT")
+    db.conn.commit()
+
+
 def _m042_record_notes(db: "Database") -> None:
     """Internal team notes on any document or master (see api.record_notes)."""
     db.conn.execute(
@@ -3191,6 +3199,7 @@ Database.MIGRATIONS = [
     (41, "chat_turn_lease", _m041_chat_turn_lease),
     (42, "record_notes", _m042_record_notes),
     (43, "pdf_templates", _m043_pdf_templates),
+    (44, "quotation_intro_text", _m044_quotation_intro_text),
 ]
 
 
