@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+import time
 import traceback
 import uuid
 from datetime import date
@@ -3292,17 +3293,23 @@ def _title_model() -> str:
     return os.environ.get("LAMBDA_ERP_TITLE_MODEL") or TITLE_MODEL
 
 
+# Background title tasks, kept referenced so they aren't garbage-collected
+# before they finish.
+_title_tasks: set[asyncio.Task] = set()
+
+
 async def generate_title(
     session_id: str,
     user_message: str,
-    assistant_message: str,
+    assistant_message: str = "",
     client_ip: str | None = None,
     user_role: str | None = None,
 ):
-    """Generate a short title for the chat based on the first exchange.
+    """Generate a short title for the chat from its first message.
 
-    Called after the first assistant reply. Runs in the background so it
-    doesn't block the response.
+    Started in the background as soon as the first message arrives, so the
+    title shows up while the reply is still being written. Without a text
+    message (attachments only) it runs after the first reply and uses that too.
     """
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key or api_key == "sk-your-key-here":
@@ -3325,14 +3332,18 @@ async def generate_title(
                 return
 
         settled = False
+        started = time.monotonic()
+        exchange = f"User: {user_message[:200]}"
+        if assistant_message:
+            exchange += f"\nAssistant: {assistant_message[:200]}"
         try:
             # Responses API with low effort: GPT-6 models reason, and the
             # output budget must leave room for that before the title itself.
             response = await asyncio.to_thread(
                 client.responses.create,
                 model=title_model,
-                instructions="Generate a very short title (3-6 words, no quotes) for this chat based on the first exchange. Just the title, nothing else.",
-                input=f"User: {user_message[:200]}\nAssistant: {assistant_message[:200]}",
+                instructions="Generate a very short title (3-6 words, no quotes) for this chat based on its first message. Just the title, nothing else.",
+                input=exchange,
                 max_output_tokens=400,
                 reasoning={"effort": "low"},
             )
@@ -3353,6 +3364,8 @@ async def generate_title(
             title = (response.output_text or "").strip().strip('"\'')[:120]
             if title:
                 update_session_title(session_id, title)
+                print(f"[chat_title] model={title_model} session_id={session_id} "
+                      f"ms={int((time.monotonic() - started) * 1000)}", flush=True)
             else:
                 logger.warning("[chat_title] model=%s returned no title (status=%s)",
                                title_model, getattr(response, "status", None))
@@ -4040,9 +4053,33 @@ async def run_session_turn(
     Hooks (all optional, async):
       - ``on_event(event)``            streamed loop events (WS -> socket; REST -> no-op)
       - ``on_assistant_message(sid, content)``  fired after the reply is persisted
-      - ``on_title(sid, title)``       fired after a first-reply title is generated
+      - ``on_title(sid, title)``       fired once the first message's title is generated
     """
     is_first_reply = count_assistant_messages(session_id) == 0
+
+    def start_title(assistant_text: str = ""):
+        async def _gen_and_notify():
+            await generate_title(
+                session_id,
+                user_content,
+                assistant_text,
+                client_ip=client_ip,
+                user_role=(user_info or {}).get("role"),
+            )
+            if on_title:
+                session = get_session(session_id)
+                if session:
+                    await on_title(session_id, session["title"])
+        task = asyncio.create_task(_gen_and_notify())
+        _title_tasks.add(task)
+        task.add_done_callback(_title_tasks.discard)
+
+    # Title the chat from the first message right away, in parallel with the
+    # reply: waiting for the whole reply left "New Chat" in the sidebar for
+    # the length of the turn plus the title call.
+    title_started = is_first_reply and bool((user_content or "").strip())
+    if title_started:
+        start_title()
 
     messages = [{"role": "system", "content": build_system_prompt(user_info, channel=channel)}]
 
@@ -4111,20 +4148,8 @@ async def run_session_turn(
                 await on_assistant_message(session_id, assistant_content)
             break
 
-    if is_first_reply and assistant_content:
-        async def _gen_and_notify():
-            await generate_title(
-                session_id,
-                user_content,
-                assistant_content,
-                client_ip=client_ip,
-                user_role=(user_info or {}).get("role"),
-            )
-            if on_title:
-                session = get_session(session_id)
-                if session:
-                    await on_title(session_id, session["title"])
-        asyncio.create_task(_gen_and_notify())
+    if is_first_reply and not title_started and assistant_content:
+        start_title(assistant_content)
 
     return assistant_content
 

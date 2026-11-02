@@ -17,6 +17,7 @@ Run:  python -m tests.test_chat_api
       LAMBDA_ERP_TEST_DB=postgresql://... python -m tests.test_chat_api   # CI runs both
 """
 import os
+import time
 import sys
 
 
@@ -62,8 +63,8 @@ def _install_llm_stubs():
                             "error":"Warehouse is required", "warnings":[]})
         messages.append({"role": "assistant", "content": reply})
 
-    async def fake_title(*args, **kwargs):
-        return None
+    async def fake_title(session_id, user_message, assistant_message="", **kwargs):
+        _LAST.setdefault("titles", []).append((session_id, user_message, assistant_message))
 
     chat.run_thinking_loop = fake_loop
     chat.generate_title = fake_title
@@ -131,6 +132,13 @@ def check_chat_api():
         body = r.json()
         assert body["reply"] == "stub-reply" and body["session_id"], body
         sid = body["session_id"]
+        # The title comes from the first message alone, started before the
+        # reply instead of after it, so it never waits for the whole turn.
+        for _ in range(100):
+            if _LAST.get("titles"):
+                break
+            time.sleep(0.01)
+        assert _LAST.get("titles") == [(sid, "hello", "")], _LAST.get("titles")
         msgs = _LAST["messages"]
         assert len(msgs) == 2 and msgs[0]["role"] == "system", msgs
         assert msgs[1] == {"role": "user", "content": "hello"}, msgs  # no history replayed

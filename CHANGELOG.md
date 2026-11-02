@@ -13,6 +13,11 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- Chat titles appear within seconds of the first message: the title is now
+  generated from that message alongside the reply, instead of after the whole
+  reply, which left "New Chat" in the sidebar until a refresh. Each title logs
+  its duration as `[chat_title]`.
+
 ## [1.3.3] - 2026-10-30
 
 - Settings → Menu: drag groups and items into order (mouse, touch, or the
