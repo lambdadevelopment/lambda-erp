@@ -42,6 +42,8 @@ _EXCLUDE = {
     "retrieve_chat_history",
     "list_chat_attachments",
     "retrieve_chat_attachment",
+    "inspect_pdf_fonts",  # chat uploads only
+    "add_attachment_to_pdf_template",
     "create_custom_analytics_report",
     "get_custom_analytics_report",
     "update_custom_analytics_report",

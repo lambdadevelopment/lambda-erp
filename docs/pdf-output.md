@@ -88,6 +88,18 @@ of the turn and drops them before saving the tool trace; MCP returns them as
 image content; REST returns base64 PNG. Template `context_reference` carries
 the renderer notes the chat needs (fonts, page backgrounds, margin boxes).
 
+Fonts (api/pdf_fonts.py): WeasyPrint finds fonts through fontconfig, so what a
+template can print with is what is installed (the Docker image adds the
+`fonts-*` packages) plus fonts uploaded as template assets. The field
+reference lists the installed families from `fc-list`, and which common names
+print as a metric-compatible twin (`fc-match`: Helvetica/Arial → Liberation
+Sans, Calibri → Carlito, ...). Outside Docker the list is whatever the host
+has. In the chat, `inspect_pdf_fonts` reads the fonts an uploaded PDF uses
+from its font dictionaries and embedded font programs, and
+`add_attachment_to_pdf_template` turns an uploaded font or image into an
+asset, returning an `@font-face` rule. Fonts are never extracted from a PDF:
+embedded fonts are usually subsets, and embedding rights don't cover reuse.
+
 ## Generation and downloads
 
 - `POST /api/documents/{slug}/{name}/pdf`: interactive/REST authentication.

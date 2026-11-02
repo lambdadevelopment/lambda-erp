@@ -25,6 +25,8 @@ const ALLOWED_MIMES = new Set([
   "text/csv", "text/plain",
   // Structured bank statements
   "application/xml", "text/xml", "application/zip", "application/x-zip-compressed",
+  // Fonts for PDF templates
+  "font/ttf", "font/otf", "font/woff", "font/woff2",
 ]);
 
 // Some browsers/OSes hand us an empty or octet-stream type for Office files, so
@@ -32,7 +34,7 @@ const ALLOWED_MIMES = new Set([
 const ALLOWED_EXTS = new Set([
   "png", "jpg", "jpeg", "gif", "webp", "pdf",
   "xlsx", "xls", "ods", "docx", "doc", "odt", "pptx", "ppt", "odp", "csv", "txt",
-  "xml", "zip",
+  "xml", "zip", "ttf", "otf", "woff", "woff2",
 ]);
 
 interface PendingAttachment {
@@ -770,7 +772,7 @@ export default function ChatPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,.xlsx,.xls,.ods,.docx,.doc,.odt,.pptx,.ppt,.odp,.csv,.txt,.xml,.zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.oasis.opendocument.text,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.oasis.opendocument.presentation,text/csv,text/plain,application/xml,text/xml,application/zip,application/x-zip-compressed"
+            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,.xlsx,.xls,.ods,.docx,.doc,.odt,.pptx,.ppt,.odp,.csv,.txt,.xml,.zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.oasis.opendocument.text,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.oasis.opendocument.presentation,text/csv,text/plain,application/xml,text/xml,application/zip,application/x-zip-compressed,.ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
             multiple
             className="hidden"
             onChange={(e) => {

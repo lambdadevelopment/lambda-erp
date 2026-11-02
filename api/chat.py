@@ -1078,6 +1078,36 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "inspect_pdf_fonts",
+            "description": "List the exact fonts an uploaded PDF uses (read from the file, not guessed from its look), or identify an uploaded font file, and say for each whether PDF templates can print with it: installed, metric_compatible (another name with the same letter widths) or missing (falls back). Use it before styling a PDF template after a reference PDF.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "attachment_id": {"type": "string", "description": "The PDF or font file attachment (from list_chat_attachments)."},
+                },
+                "required": ["attachment_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_attachment_to_pdf_template",
+            "description": "Add a font file (ttf, otf, woff, woff2) or image (png, jpg, gif, webp) the user uploaded in this chat to a PDF template's working copy as an asset. Reference it by its file name in the template: url(\"name.woff2\") in @font-face (the result includes a ready @font-face rule), <img src=\"logo.png\">. Only add fonts the user may use: a commercial font needs a licence that allows embedding it in PDFs; mention that when a user uploads one.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "template": {"type": "string", "description": "PDF template id (e.g. PDFT-0001)."},
+                    "attachment_id": {"type": "string", "description": "The uploaded font or image (from list_chat_attachments)."},
+                    "filename": {"type": "string", "description": "Asset file name to use in the template; defaults to the upload's name."},
+                },
+                "required": ["template", "attachment_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "query_dataset",
             "description": (
                 "Run a deterministic SQL GROUP BY aggregation over a semantic "
@@ -1995,6 +2025,56 @@ def _handle_retrieve_chat_attachment(args, session_id: str | None = None, user_i
     }
 
 
+def _chat_attachment(args, session_id, user_id):
+    if not session_id or not user_id:
+        return None, {"error": "No active chat session for attachments."}
+    from api.attachments import get_attachments_by_ids
+    atts = get_attachments_by_ids([args.get("attachment_id") or ""], user_id)
+    if not atts:
+        return None, {"error": "Attachment not found or access denied."}
+    return atts[0], None
+
+
+def _handle_inspect_pdf_fonts(args, session_id: str | None = None, user_id: str | None = None):
+    from api import pdf_fonts
+    from api.attachments import FONT_MIME_TYPES
+    att, error = _chat_attachment(args, session_id, user_id)
+    if error:
+        return error
+    try:
+        if att["mime_type"] == "application/pdf":
+            fonts = pdf_fonts.fonts_in_pdf(att["data"])
+        elif att["mime_type"] in FONT_MIME_TYPES:
+            info = pdf_fonts.font_file_info(att["data"])
+            fonts = [{**info, **pdf_fonts.availability(info["family"]),
+                      "note": "Add it to a template with add_attachment_to_pdf_template to print with this exact file."}]
+        else:
+            return {"error": f"{att['filename']} is neither a PDF nor a font file."}
+    except Exception as exc:  # noqa: BLE001 — a malformed upload is the user's file, not a server fault
+        return {"error": f"Could not read the fonts of {att['filename']}: {exc}"}
+    return {"filename": att["filename"], "fonts": fonts, "installed_fonts": list(pdf_fonts.installed_families())}
+
+
+def _handle_add_attachment_to_pdf_template(args, user=None, session_id: str | None = None,
+                                           user_id: str | None = None):
+    from api import pdf_templates
+    att, error = _chat_attachment(args, session_id, user_id)
+    if error:
+        return error
+    filename = args.get("filename") or re.sub(r"[^A-Za-z0-9._-]+", "-", att["filename"]).strip("-")
+    try:
+        result = pdf_templates.add_pdf_template_asset(args.get("template") or "", filename, att["data"], user)
+    except (ValueError, pdf_templates.PDFError) as exc:
+        return {"error": str(exc)}
+    out = {"template": result["template"], "asset": filename, "assets": result["assets"]}
+    if result.get("font"):
+        out["font"] = result["font"]
+        out["note"] = "Add the css rule to the template's <style> and use the family in font-family."
+    else:
+        out["note"] = f'Reference it as <img src="{filename}"> or url("{filename}").'
+    return out
+
+
 def _load_camt_chat_attachments(args, user_id: str | None):
     attachment_ids = args.get("attachment_ids") or []
     if not user_id:
@@ -2354,6 +2434,8 @@ TOOL_HANDLERS = {
     "retrieve_chat_history": lambda args: _handle_retrieve_chat_history(args),
     "list_chat_attachments": _handle_list_chat_attachments,
     "retrieve_chat_attachment": _handle_retrieve_chat_attachment,
+    "inspect_pdf_fonts": _handle_inspect_pdf_fonts,
+    "add_attachment_to_pdf_template": _handle_add_attachment_to_pdf_template,
     "preview_bank_statement_attachments": _handle_preview_bank_statement_attachments,
     "import_bank_statement_attachments": _handle_import_bank_statement_attachments,
     "list_bank_reconciliation_queue": _handle_list_bank_reconciliation_queue,
@@ -3675,6 +3757,9 @@ async def run_thinking_loop(
         tool_handlers["retrieve_chat_history"] = lambda args: _handle_retrieve_chat_history(args, session_id)
         user_id_for_tools = user_info.get("name") if user_info else None
         tool_handlers["list_chat_attachments"] = lambda args: _handle_list_chat_attachments(args, session_id, user_id_for_tools)
+        tool_handlers["inspect_pdf_fonts"] = lambda args: _handle_inspect_pdf_fonts(args, session_id, user_id_for_tools)
+        tool_handlers["add_attachment_to_pdf_template"] = lambda args: _handle_add_attachment_to_pdf_template(
+            args, principal_ref[0], session_id, user_id_for_tools)
         tool_handlers["preview_bank_statement_attachments"] = (
             lambda args: _handle_preview_bank_statement_attachments(args, user_id_for_tools)
         )

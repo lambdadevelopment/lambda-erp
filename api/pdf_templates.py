@@ -520,7 +520,7 @@ Variables:
 Numbers: format with "%.2f"|format(value) or "{:,.2f}".format(value).
 Rules: the PDF must show the document number, the customer, the currency, net and grand total, and every line's name and amount (the export rejects a layout that omits them), plus pdf_state_notice when set. Images and fonts: upload them as template assets and reference them by file name (<img src="logo.png">, url("font.woff2")); external URLs are blocked.
 Renderer notes (WeasyPrint):
-- The server has only the DejaVu fonts: Helvetica, Arial and other system names fall back to DejaVu Sans. For a specific face, upload it as an asset and use @font-face.
+<<FONTS>>
 - A background on @page always fills the whole sheet; background-size/position there are ignored. For a band or rule at the paper edge, use an element with position: fixed and negative offsets equal to the page margins (e.g. top: -22mm; left: -20mm; width: 210mm; height: 2mm). Fixed elements repeat on every page.
 - Margin boxes (@top-left, @bottom-right, ...) sit inside the page margin and can't reach the paper edge; use them for text such as page numbers.
 - Repeating headers: <thead> rows repeat on every page; position: running(name) with content: element(name) in a margin box puts an element in every page's margin.
@@ -548,8 +548,13 @@ def get_pdf_template(args, user=None):
         result["based_on"] = row["based_on"]
         result["created_at"], result["created_by"] = row["created_at"], row["created_by"]
         result["draft_modified_by"], result["published_by"] = row["draft_modified_by"], row["published_by"]
-    result["context_reference"] = CONTEXT_REFERENCE
+    result["context_reference"] = context_reference()
     return result
+
+
+def context_reference() -> str:
+    from api.pdf_fonts import fonts_line
+    return CONTEXT_REFERENCE.replace("<<FONTS>>", fonts_line())
 
 
 def _asset_list(assets: dict) -> list[dict]:
@@ -729,6 +734,10 @@ def add_pdf_template_asset(template_id: str, filename: str, payload: bytes, user
         raise ValueError("Assets may be images (png, jpg, gif, webp, svg) or fonts (woff, woff2, ttf, otf)")
     if not payload or len(payload) > MAX_ASSET_BYTES:
         raise ValueError(f"Assets must be between 1 byte and {MAX_ASSET_BYTES // 1_000_000} MB")
+    font = None
+    if content_type.startswith("font/"):
+        from api.pdf_fonts import font_file_info
+        font = font_file_info(payload)
     assets = _assets(row["assets"])
     if filename not in assets and len(assets) >= MAX_ASSETS:
         raise ValueError(f"A template holds at most {MAX_ASSETS} assets")
@@ -739,7 +748,14 @@ def add_pdf_template_asset(template_id: str, filename: str, payload: bytes, user
                'ON CONFLICT DO NOTHING', [digest, content_type, payload, now()])
         assets[filename] = digest
         _save_assets(row["name"], assets, user)
-    return get_pdf_template({"template": row["name"], "include_html": False})
+    result = get_pdf_template({"template": row["name"], "include_html": False})
+    if font:
+        weight = "bold" if "bold" in (font["style"] or "").lower() else "normal"
+        style = "italic" if "italic" in (font["style"] or "").lower() else "normal"
+        result["font"] = {**font, "css": (
+            f'@font-face {{ font-family: "{font["family"]}"; src: url("{filename}"); '
+            f'font-weight: {weight}; font-style: {style}; }}')}
+    return result
 
 
 def _save_assets(template_id, assets, user):

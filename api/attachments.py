@@ -56,10 +56,14 @@ STRUCTURED_TOOL_MIME_TYPES = {
     "application/xml", "text/xml", "application/zip", "application/x-zip-compressed",
 }
 
+# Font files, for PDF templates (add_attachment_to_pdf_template). The model gets
+# a one-line description, never the bytes.
+FONT_MIME_TYPES = {"font/ttf", "font/otf", "font/woff", "font/woff2"}
+
 ALLOWED_MIME_TYPES = {
     "image/png", "image/jpeg", "image/gif", "image/webp",
     "application/pdf",
-} | OFFICE_MIME_TYPES | TEXT_MIME_TYPES | STRUCTURED_TOOL_MIME_TYPES
+} | OFFICE_MIME_TYPES | TEXT_MIME_TYPES | STRUCTURED_TOOL_MIME_TYPES | FONT_MIME_TYPES
 
 # Extension -> canonical mime, so a correctly-named file still uploads when the
 # browser/OS mislabels its type (Office files are frequently sent as
@@ -81,6 +85,7 @@ _EXT_TO_MIME = {
     "pdf": "application/pdf",
     "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
     "gif": "image/gif", "webp": "image/webp",
+    "ttf": "font/ttf", "otf": "font/otf", "woff": "font/woff", "woff2": "font/woff2",
 }
 _MIME_TO_EXT = {m: e for e, m in _EXT_TO_MIME.items()}
 
@@ -256,7 +261,7 @@ async def upload_attachment(
                 status_code=400,
                 detail=(f"Unsupported file type: {mime or ext or 'unknown'}. Allowed: images, PDF, "
                         "spreadsheets (Excel/CSV/ODS), documents (Word/OpenDocument), "
-                        "and structured bank files (XML/ZIP)."),
+                        "structured bank files (XML/ZIP) and fonts (TTF/OTF/WOFF/WOFF2)."),
             )
 
     chunks: list[bytes] = []
@@ -417,6 +422,16 @@ def build_multimodal_content(attachment: dict) -> dict:
                 "the conversation; use the dedicated bank-statement preview tool.]"
             ),
         }
+    if mime in FONT_MIME_TYPES:
+        from api.pdf_fonts import font_file_info
+        try:
+            font = font_file_info(attachment["data"])
+            what = f'family "{font["family"]}", style {font["style"]}, embedding: {font["embedding"]}'
+        except ValueError as exc:
+            what = str(exc)
+        return {"type": "text", "text": (
+            f"[Font file: {filename} ({what}; id {attachment['id']}). To print a PDF template with it, "
+            "call add_attachment_to_pdf_template with this attachment id.]")}
     if mime in TEXT_MIME_TYPES or mime.startswith("text/"):
         text = attachment["data"].decode("utf-8", errors="replace")
         return {"type": "text", "text": f"[File: {filename}]\n{text}"}

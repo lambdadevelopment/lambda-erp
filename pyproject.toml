@@ -21,6 +21,7 @@ dependencies = [
     "weasyprint>=62.0",
     "pypdf>=4.0",
     "pypdfium2>=4.30",
+    "fonttools[woff]>=4.38",
     "holidays>=0.40",
     "openpyxl>=3.1",
     "defusedxml>=0.7",

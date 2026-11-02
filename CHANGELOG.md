@@ -37,6 +37,16 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   reference lists the renderer's quirks (only DejaVu fonts installed; page
   backgrounds can't be sized). Images are shown to the model for the turn and
   not stored. Adds the `pypdfium2` dependency.
+- PDF templates can match a reference PDF's fonts. The Docker image installs
+  free fonts (Liberation, Carlito, Caladea, Inter, Roboto, Open Sans, Lato,
+  Source Sans 3); Liberation, Carlito and Caladea have the letter widths of
+  Arial/Helvetica, Times, Courier, Calibri and Cambria, which now print with
+  those instead of falling back to DejaVu Sans. The template field reference
+  lists the fonts the server really has. The chat reads the exact fonts of an
+  uploaded PDF (`inspect_pdf_fonts`), accepts font files (TTF, OTF, WOFF,
+  WOFF2) as uploads, and adds an uploaded font or image to a template
+  (`add_attachment_to_pdf_template`, managers and admins). Font assets are
+  checked to be real fonts, and their licence's embedding flag is reported.
 - A chat reply may link the PDF preview of a template it just rendered; the
   check against made-up PDF links rejected it as "PDF not generated".
 - Chat titles appear within seconds of the first message: the title is now

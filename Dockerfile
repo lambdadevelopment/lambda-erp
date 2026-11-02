@@ -32,6 +32,10 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # weasyprint needs the Pango/Cairo stack. curl powers the HEALTHCHECK.
+# The fonts-* packages are what PDF templates can print with (api/pdf_fonts.py
+# lists them to the chat). Liberation, Carlito and Caladea have the metrics of
+# Arial/Helvetica, Times, Courier, Calibri and Cambria, so layouts naming those
+# keep their line breaks; fontconfig maps the names to them.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpango-1.0-0 \
@@ -40,6 +44,16 @@ RUN apt-get update \
         libcairo2 \
         libgdk-pixbuf-2.0-0 \
         curl \
+        fontconfig \
+        fonts-dejavu-core \
+        fonts-liberation \
+        fonts-crosextra-carlito \
+        fonts-crosextra-caladea \
+        fonts-inter \
+        fonts-roboto-unhinted \
+        fonts-open-sans \
+        fonts-lato \
+        fonts-adobe-sourcesans3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install the Python project and its dependencies. flit needs the README.

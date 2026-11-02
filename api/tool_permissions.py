@@ -17,7 +17,7 @@ TOOL_ROLES = {
     **dict.fromkeys((
         "get_erp_context", "list_documents", "get_document_fields", "get_document", "generate_document_pdf",
         "get_master_fields", "search_masters", "get_report", "get_current_time",
-        "retrieve_chat_history", "list_chat_attachments", "retrieve_chat_attachment",
+        "retrieve_chat_history", "list_chat_attachments", "retrieve_chat_attachment", "inspect_pdf_fonts",
         "preview_bank_statement_attachments", "query_dataset",
         # Personal report drafts follow the viewer-accessible reporting API.
         # Their handlers enforce ownership; these do not post ERP transactions.
@@ -33,6 +33,9 @@ TOOL_ROLES = {
         "import_bank_statement_attachments", "list_bank_reconciliation_queue",
         "suggest_bank_reconciliation", "reconcile_bank_transaction",
         "undo_bank_reconciliation",
+        # Template assets are files on the server: real accounts only (as the
+        # REST upload), not the shared demo account.
+        "add_attachment_to_pdf_template",
     ), _MANAGERS),
     **dict.fromkeys((
         "delete_master", "plan_company_setup", "apply_company_setup",
