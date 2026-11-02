@@ -80,8 +80,9 @@ There is no render timeout: editing is limited to managers, admins and the
 shared demo account (`public_manager`), which can't upload or remove assets.
 
 `view_pdf_pages` (api/pdf_pages.py) lets the chat model and MCP clients see a
-rendered PDF: a document as it downloads, or a template's draft/live layout
-against an offer. It rasterizes up to four pages per call with pypdfium2 (110
+rendered PDF: a document as it downloads, a template's draft/live layout
+against an offer, or a PDF or image the caller uploaded to the chat
+(`attachment_id`, only their own uploads; an image counts as one page). It rasterizes up to four pages per call with pypdfium2 (110
 dpi; `area` top/middle/bottom crops a third at 220 dpi) and returns them under
 `_images`. The chat loop shows them to the model as image input for the rest
 of the turn and drops them before saving the tool trace; MCP returns them as

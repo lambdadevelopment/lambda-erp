@@ -36,7 +36,9 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   this way before calling them done, publishes only when asked, and its field
   reference lists the renderer's quirks (only DejaVu fonts installed; page
   backgrounds can't be sized). Images are shown to the model for the turn and
-  not stored. Adds the `pypdfium2` dependency.
+  not stored. Adds the `pypdfium2` dependency. It also renders a PDF or image
+  the caller uploaded to the chat (`attachment_id`), so the chat can compare
+  the same page and area of a reference and of its own render.
 - PDF templates can match a reference PDF's fonts. The Docker image installs
   free fonts (Liberation, Carlito, Caladea, Inter, Roboto, Open Sans, Lato,
   Source Sans 3); Liberation, Carlito and Caladea have the letter widths of

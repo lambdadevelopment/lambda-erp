@@ -318,6 +318,41 @@ class PdfTemplateTests(unittest.TestCase):
             r = self.client.post('/api/actions/view_pdf_pages', json=bad)
             self.assertEqual(r.status_code, 422, (bad, r.text))
 
+    def test_view_pdf_pages_shows_uploaded_references(self):
+        import io
+        from PIL import Image
+        from api import chat, pdf_pages
+        user = self.client.get('/api/auth/me').json()
+        sid = chat.create_session(user_id=user['name'])['id']
+
+        def upload(filename, data, content_type):
+            r = self.client.post('/api/chat/attachments', data={'session_id': sid},
+                                 files={'file': (filename, data, content_type)})
+            self.assertEqual(r.status_code, 200, r.text)
+            return r.json()['id']
+        name = self.quotation()
+        pdf_id = upload('reference.pdf', self.pdf(name), 'application/pdf')
+        whole = self.view(attachment_id=pdf_id)
+        self.assertEqual((whole['filename'], whole['pages_total'], whole['pages_shown']), ('reference.pdf', 1, [1]))
+        top = self.view(attachment_id=pdf_id, area='top')['_images'][0]
+        self.assertAlmostEqual(top['width'], 2 * whole['_images'][0]['width'], delta=3)
+
+        buf = io.BytesIO()
+        Image.new('RGB', (3000, 4000), (36, 39, 134)).save(buf, format='PNG')
+        png_id = upload('mockup.png', buf.getvalue(), 'image/png')
+        shot = self.view(attachment_id=png_id)['_images'][0]
+        self.assertEqual(shot['height'], 1290)  # scaled like a rendered page
+        self.assertAlmostEqual(shot['width'], 1290 * 3 / 4, delta=1)
+
+        broken = upload('broken.png', b'\x89PNG not really', 'image/png')
+        for bad in ({'attachment_id': png_id, 'pages': [2]}, {'attachment_id': broken},
+                    {'attachment_id': pdf_id, 'template': 'standard'}, {'attachment_id': 'nope'}):
+            r = self.client.post('/api/actions/view_pdf_pages', json=bad)
+            self.assertEqual(r.status_code, 422, (bad, r.text))
+        # Uploads stay with their owner.
+        with self.assertRaisesRegex(ValueError, 'not found'):
+            pdf_pages.view_pdf_pages({'attachment_id': pdf_id}, {'name': 'USR-someone-else', 'role': 'admin'})
+
     def test_mcp_and_chat_show_the_pages_to_the_model_without_storing_them(self):
         import asyncio
         import json
