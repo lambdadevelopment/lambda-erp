@@ -426,7 +426,10 @@ def _dashboard_summary(db, company=None):
         docs = db.get_all(
             doctype,
             fields=["name", "status", "docstatus", "creation"],
-            order_by="creation DESC",
+            # Undated rows last: Postgres puts NULLs first in DESC order, so
+            # an imported record without a creation time would crowd out the
+            # genuinely recent ones.
+            order_by="creation IS NULL, creation DESC",
             limit=3,
         )
         for d in docs:
@@ -434,7 +437,9 @@ def _dashboard_summary(db, company=None):
             entry["doctype"] = doctype
             recent.append(entry)
 
-    recent.sort(key=lambda x: x.get("creation", ""), reverse=True)
+    # A NULL creation comes back as None, which can't be compared with a
+    # timestamp; Postgres may also return datetimes rather than strings.
+    recent.sort(key=lambda x: str(x.get("creation") or ""), reverse=True)
 
     return {
         "total_revenue": flt(revenue[0]["total"], 2) if revenue else 0,

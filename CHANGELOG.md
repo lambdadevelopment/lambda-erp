@@ -17,6 +17,9 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   generated from that message alongside the reply, instead of after the whole
   reply, which left "New Chat" in the sidebar until a refresh. Each title logs
   its duration as `[chat_title]`.
+- The dashboard no longer fails when a recent document has no creation time
+  (an imported or migrated record): its recent-documents list sorts such
+  records last instead of crashing on the comparison.
 
 ## [1.3.3] - 2026-10-30
 

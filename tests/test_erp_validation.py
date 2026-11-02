@@ -2498,6 +2498,20 @@ def main():
     assert flt(dash["outstanding_receivable"], 2) > 0, "dashboard receivable should be positive"
     print(f"  Dashboard outstanding receivable (base): {dash['outstanding_receivable']:.2f}")
 
+    # Regression: a record without a creation time (an import, a migration)
+    # made the recent-documents sort compare None with a timestamp and crash
+    # the dashboard. It must still render, with dated records listed first.
+    undated = db.get_all("Quotation", fields=["name", "creation"], order_by="creation DESC", limit=1)[0]
+    db.sql('UPDATE "Quotation" SET creation = NULL WHERE name = ?', [undated["name"]])
+    try:
+        recent = _dashboard_summary(db, "Lambda Corp")["recent_documents"]
+        dated = [d for d in recent if d.get("creation")]
+        assert dated and recent[:len(dated)] == dated, "dated documents should come first"
+        assert [d["creation"] for d in dated] == sorted((d["creation"] for d in dated), reverse=True)
+    finally:
+        db.sql('UPDATE "Quotation" SET creation = ? WHERE name = ?', [undated["creation"], undated["name"]])
+    print("  Dashboard renders with an undated record, newest dated documents first")
+
     # =====================================================================
     print_header("41. STOCK MOVEMENTS dataset - most-moved item by volume")
     # =====================================================================
