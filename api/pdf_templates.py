@@ -518,7 +518,14 @@ Variables:
 - recurring_summary: per billing period [{frequency, label, net_total, grand_total, ...}]; show_frequency: whether any line recurs
 - plus whatever deployment plugins add (e.g. qr_bill_img on invoices)
 Numbers: format with "%.2f"|format(value) or "{:,.2f}".format(value).
-Rules: the PDF must show the document number, the customer, the currency, net and grand total, and every line's name and amount (the export rejects a layout that omits them), plus pdf_state_notice when set. Images and fonts: upload them as template assets and reference them by file name (<img src="logo.png">, url("font.woff2")); external URLs are blocked."""
+Rules: the PDF must show the document number, the customer, the currency, net and grand total, and every line's name and amount (the export rejects a layout that omits them), plus pdf_state_notice when set. Images and fonts: upload them as template assets and reference them by file name (<img src="logo.png">, url("font.woff2")); external URLs are blocked.
+Renderer notes (WeasyPrint):
+- The server has only the DejaVu fonts: Helvetica, Arial and other system names fall back to DejaVu Sans. For a specific face, upload it as an asset and use @font-face.
+- A background on @page always fills the whole sheet; background-size/position there are ignored. For a band or rule at the paper edge, use an element with position: fixed and negative offsets equal to the page margins (e.g. top: -22mm; left: -20mm; width: 210mm; height: 2mm). Fixed elements repeat on every page.
+- Margin boxes (@top-left, @bottom-right, ...) sit inside the page margin and can't reach the paper edge; use them for text such as page numbers.
+- Repeating headers: <thead> rows repeat on every page; position: running(name) with content: element(name) in a margin box puts an element in every page's margin.
+- Flexbox and grid work and break across pages.
+Look at the result with view_pdf_pages after each change."""
 
 
 def get_pdf_template(args, user=None):
@@ -777,13 +784,14 @@ _ACTIONS = {
         "publish=true also publishes it. Always send the whole html, not a fragment."),
     "publish_pdf_template": (publish_pdf_template, PublishTemplate, "manager",
         "Publish a PDF template's working copy after a test render against a document, so new and draft "
-        "documents using it print with it. Issued documents keep the layout they were issued with."),
+        "documents using it print with it. Issued documents keep the layout they were issued with. "
+        "Only when the user asked to publish, after you checked the result with view_pdf_pages."),
     "revert_pdf_template_draft": (revert_pdf_template_draft, TemplateRef, "manager",
         "Discard unpublished edits to a PDF template: the working copy goes back to the published layout."),
     "preview_pdf_template": (preview_pdf_template, Preview, "viewer",
         "Render a PDF template's working copy (source='draft') or published layout ('live') against a "
-        "document (default: the most recent offer) and return a download link. Use it to check a change "
-        "before publishing; it reports blocked resources and missing required content."),
+        "document (default: the most recent offer) and return a download link for the user. It reports "
+        "blocked resources and missing required content; to see the pages yourself, use view_pdf_pages."),
     "set_default_pdf_template": (set_default_pdf_template, SetDefault, "manager",
         "Choose the PDF template documents of a type print with unless one is chosen on the document "
         "('standard' for the built-in layout)."),

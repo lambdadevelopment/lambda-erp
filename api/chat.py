@@ -3486,8 +3486,11 @@ def _responses_msg_content(content):
         if ptype == "text":
             parts.append({"type": "input_text", "text": p.get("text", "")})
         elif ptype == "image_url":
-            url = (p.get("image_url") or {}).get("url")
-            parts.append({"type": "input_image", "image_url": url})
+            image = p.get("image_url") or {}
+            part = {"type": "input_image", "image_url": image.get("url")}
+            if image.get("detail"):
+                part["detail"] = image["detail"]
+            parts.append(part)
         elif ptype == "file":
             f = p.get("file") or {}
             item = {"type": "input_file"}
@@ -3857,9 +3860,13 @@ async def run_thinking_loop(
             # Pull any multimodal content out of the tool result before serializing.
             # retrieve_chat_attachment returns a {"_multimodal_content": {...}} block
             # which we inject as a fresh user message so the LLM can "see" the file.
+            # view_pdf_pages returns rendered pages under "_images" the same way;
+            # they are shown to the model for this turn and never persisted.
             multimodal_block = None
+            page_images = None
             if isinstance(result, dict):
                 multimodal_block = result.pop("_multimodal_content", None)
+                page_images = result.pop("_images", None)
 
             result_str = json.dumps(result, default=str)
             summary = result_str[:500] + "..." if len(result_str) > 500 else result_str
@@ -3898,6 +3905,9 @@ async def run_thinking_loop(
 
             if multimodal_block:
                 pending_multimodal.append(multimodal_block)
+            if page_images:
+                from api.pdf_pages import image_parts
+                pending_multimodal.extend(image_parts(page_images))
 
         # After this batch of tool calls, inject any retrieved attachments as
         # a new user message so the LLM can actually see them on the next turn.
@@ -3905,7 +3915,7 @@ async def run_thinking_loop(
             messages.append({
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "Here are the attachments you requested:"},
+                    {"type": "text", "text": "Here are the attachments and PDF pages you requested:"},
                     *pending_multimodal,
                 ],
             })

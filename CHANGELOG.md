@@ -29,6 +29,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   `revert_pdf_template_draft`, `set_default_pdf_template`,
   `archive_pdf_template`, `delete_pdf_template`, `delete_pdf_template_asset`;
   previews and asset uploads under `/api/pdf-templates/{template}/…`.
+- The chat and MCP clients can look at rendered PDFs: `view_pdf_pages`
+  returns chosen pages of a document's PDF, or of a template's working copy or
+  published layout, as images (a whole page, or a third of it at double
+  resolution for small details). The chat now checks its template changes
+  this way before calling them done, publishes only when asked, and its field
+  reference lists the renderer's quirks (only DejaVu fonts installed; page
+  backgrounds can't be sized). Images are shown to the model for the turn and
+  not stored. Adds the `pypdfium2` dependency.
 - Chat titles appear within seconds of the first message: the title is now
   generated from that message alongside the reply, instead of after the whole
   reply, which left "New Chat" in the sidebar until a refresh. Each title logs

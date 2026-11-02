@@ -20,6 +20,7 @@ dependencies = [
     "Jinja2>=3.1",
     "weasyprint>=62.0",
     "pypdf>=4.0",
+    "pypdfium2>=4.30",
     "holidays>=0.40",
     "openpyxl>=3.1",
     "defusedxml>=0.7",

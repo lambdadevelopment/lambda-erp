@@ -51,7 +51,7 @@ _EXCLUDE = {
 
 _READ_ONLY = {
     'search_mention_users', 'list_my_mentions', 'list_record_notes', 'get_menu_layout',
-    'list_pdf_templates', 'get_pdf_template',
+    'list_pdf_templates', 'get_pdf_template', 'view_pdf_pages',
     'get_erp_context',
     'list_documents', 'get_document_fields', 'get_document', 'get_master_fields',
     'search_masters', 'get_report', 'get_current_time', 'query_dataset',
@@ -190,8 +190,11 @@ def _handle(msg: dict, user: dict):
         except Exception as e:  # noqa: BLE001 — surface as an MCP tool error, not a 500
             out = {"error": str(e)}
         is_error = isinstance(out, dict) and "error" in out
+        images = out.pop("_images", None) if isinstance(out, dict) else None
         return result({
-            "content": [{"type": "text", "text": json.dumps(out, default=str, ensure_ascii=False)}],
+            "content": [{"type": "text", "text": json.dumps(out, default=str, ensure_ascii=False)},
+                        *({"type": "image", "data": image["data"], "mimeType": image["mime_type"]}
+                          for image in images or ())],
             "isError": is_error,
         })
     if is_notification:

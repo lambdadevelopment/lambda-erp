@@ -66,6 +66,8 @@ async def lifespan(app: FastAPI):
         initialize_menu_layout()
         from api.pdf_templates import initialize_pdf_templates
         initialize_pdf_templates()
+        from api.pdf_pages import initialize_pdf_pages
+        initialize_pdf_pages()
 
         # Load customer extension plugins before anything creates documents.
         load_plugins()

@@ -79,6 +79,15 @@ file, internal hosts) is blocked and reported. Rendered HTML is capped at 5 MB.
 There is no render timeout: editing is limited to managers, admins and the
 shared demo account (`public_manager`), which can't upload or remove assets.
 
+`view_pdf_pages` (api/pdf_pages.py) lets the chat model and MCP clients see a
+rendered PDF: a document as it downloads, or a template's draft/live layout
+against an offer. It rasterizes up to four pages per call with pypdfium2 (110
+dpi; `area` top/middle/bottom crops a third at 220 dpi) and returns them under
+`_images`. The chat loop shows them to the model as image input for the rest
+of the turn and drops them before saving the tool trace; MCP returns them as
+image content; REST returns base64 PNG. Template `context_reference` carries
+the renderer notes the chat needs (fonts, page backgrounds, margin boxes).
+
 ## Generation and downloads
 
 - `POST /api/documents/{slug}/{name}/pdf`: interactive/REST authentication.

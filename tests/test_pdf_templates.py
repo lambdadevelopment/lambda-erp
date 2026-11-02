@@ -79,6 +79,11 @@ class PdfTemplateTests(unittest.TestCase):
         self.assertEqual(r.status_code, 200, r.text[:300])
         return r.content
 
+    def view(self, **args):
+        r = self.client.post('/api/actions/view_pdf_pages', json=args)
+        self.assertEqual(r.status_code, 200, r.text)
+        return r.json()
+
     def stored(self, name):
         return get_db().get_value('Quotation', name, ['pdf_template', 'pdf_template_version'])
 
@@ -286,6 +291,79 @@ class PdfTemplateTests(unittest.TestCase):
         self.assertEqual(json.loads(row['assets']), {'logo.png': hashlib.sha256(PNG).hexdigest()})
 
     # -- permissions and channels ---------------------------------------
+
+    # -- looking at rendered pages ---------------------------------------
+
+    def test_view_pdf_pages_returns_the_pages_as_images(self):
+        import io
+        from PIL import Image
+        bar = '<div style="position: fixed; top: -15mm; left: -15mm; width: 210mm; height: 3mm; background: #dc008b"></div>'
+        tid = self.template(html=layout('Look', bar), publish=False)
+        name = self.quotation()
+        seen = self.view(template=tid, name=name)
+        self.assertEqual((seen['document'], seen['source'], seen['pages_total'], seen['pages_shown']),
+                         (name, 'draft', 1, [1]))
+        page = Image.open(io.BytesIO(base64.b64decode(seen['_images'][0]['data'])))
+        self.assertEqual(page.format, 'PNG')
+        self.assertAlmostEqual(page.width, 210 / 25.4 * 110, delta=3)  # A4 at 110 dpi
+        # The fixed bar reaches the top edge of the sheet.
+        self.assertEqual(page.convert('RGB').getpixel((page.width // 2, 2)), (220, 0, 139))
+        top = self.view(template=tid, name=name, area='top')['_images'][0]
+        self.assertAlmostEqual(top['width'], 2 * page.width, delta=3)
+        self.assertLess(top['height'], top['width'])
+        # A document renders as it downloads.
+        self.assertEqual(self.view(doctype='quotation', name=name)['pages_total'], 1)
+        for bad in ({'template': tid, 'pages': [2]}, {'template': tid, 'pages': []},
+                    {'template': tid, 'pages': [1, 1, 1, 1, 1]}, {'doctype': 'quotation'}):
+            r = self.client.post('/api/actions/view_pdf_pages', json=bad)
+            self.assertEqual(r.status_code, 422, (bad, r.text))
+
+    def test_mcp_and_chat_show_the_pages_to_the_model_without_storing_them(self):
+        import asyncio
+        import json
+        from types import SimpleNamespace as NS
+        from unittest.mock import patch
+        from api import chat
+        from api.routers import mcp
+        name = self.quotation()
+        user = {'name': 'USR-test', 'role': 'viewer'}
+        out = mcp._handle({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {
+            'name': 'view_pdf_pages', 'arguments': {'doctype': 'quotation', 'name': name}}}, user)['result']
+        self.assertFalse(out['isError'])
+        self.assertEqual([c['type'] for c in out['content']], ['text', 'image'])
+        self.assertEqual(out['content'][1]['mimeType'], 'image/png')
+        self.assertNotIn('_images', out['content'][0]['text'])
+
+        sid = chat.create_session()['id']
+        seen = []
+        replies = iter([
+            NS(content='', tool_calls=[NS(id='c1', function=NS(name='view_pdf_pages', arguments=json.dumps(
+                {'doctype': 'quotation', 'name': name, 'area': 'top'})))]),
+            NS(content='Looks right.', tool_calls=[]),
+        ])
+
+        def turn(client, messages, *args, **kwargs):
+            seen.append([dict(m) for m in messages])
+            return next(replies), None
+
+        async def event(e):
+            pass
+        with patch.object(chat, '_orchestrator_turn', side_effect=turn), \
+             patch.object(chat, 'refresh_auth_principal', side_effect=lambda u: u):
+            asyncio.run(chat.run_thinking_loop([], event, session_id=sid, user_info=user, max_iterations=3))
+        shown = seen[1][-1]
+        self.assertEqual(shown['role'], 'user')
+        images = [p for p in shown['content'] if p['type'] == 'image_url']
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0]['image_url']['detail'], 'high')
+        self.assertTrue(images[0]['image_url']['url'].startswith('data:image/png;base64,'))
+        tool_message = next(m for m in seen[1] if m['role'] == 'tool')
+        self.assertNotIn('iVBOR', tool_message['content'])
+        stored = get_db().sql('SELECT content FROM "Chat Message" WHERE session_id = ?', [sid])
+        self.assertTrue(stored)
+        self.assertFalse(any('iVBOR' in (r['content'] or '') for r in stored))
+        converted = chat._responses_msg_content(shown['content'])
+        self.assertEqual([p['detail'] for p in converted if p['type'] == 'input_image'], ['high'])
 
     def test_viewers_choose_but_cannot_edit_and_mcp_exposes_the_tools(self):
         self.client.put('/api/auth/settings', json={'rest_api_enabled': '1'})
