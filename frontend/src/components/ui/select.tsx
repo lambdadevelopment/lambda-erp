@@ -12,13 +12,15 @@ interface SelectProps {
   className?: string;
   required?: boolean;
   disabled?: boolean;
+  /** The empty first option; false when an option already means "none". */
+  placeholder?: string | false;
 }
 
 function normalizeOption(opt: SelectOption): { value: string; label: string } {
   return typeof opt === "string" ? { value: opt, label: opt } : opt;
 }
 
-export function Select({ label, options, value, onChange, className, required, disabled }: SelectProps) {
+export function Select({ label, options, value, onChange, className, required, disabled, placeholder = "Select..." }: SelectProps) {
   const selectId = label ? label.toLowerCase().replace(/\s+/g, "-") : undefined;
 
   return (
@@ -47,7 +49,7 @@ export function Select({ label, options, value, onChange, className, required, d
           className,
         )}
       >
-        <option value="">Select...</option>
+        {placeholder !== false && <option value="">{placeholder}</option>}
         {options.map((opt) => {
           const { value: v, label: l } = normalizeOption(opt);
           return (

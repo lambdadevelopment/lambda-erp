@@ -25,11 +25,13 @@ def pdf_content_disposition(name):
     return "inline; filename*=UTF-8''" + quote(filename, safe='')
 
 
-def create_pdf_export(doctype_slug, name, user):
+def create_pdf_export(doctype_slug, name, user, rendered=None):
+    """Store a validated PDF for its owner; `rendered` is a preview (e.g. a
+    PDF template's draft) to store instead of the document's own PDF."""
     owner = (user or {}).get('user_id') or (user or {}).get('name')
     if not owner:
         raise HTTPException(401, 'An authenticated PDF owner is required')
-    rendered = render_document_pdf(doctype_slug, name)
+    rendered = rendered or render_document_pdf(doctype_slug, name)
     data = rendered.data
     if len(data) > MAX_PDF_BYTES:
         raise PDFError('Generated PDF exceeds the 20 MB file limit', code='pdf_too_large')

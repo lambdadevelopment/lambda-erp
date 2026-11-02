@@ -95,18 +95,34 @@ def generate_pdf(doctype_slug: str, name: str) -> bytes:
 
 
 def render_document_pdf(doctype_slug: str, name: str) -> RenderedPDF:
-    """Single validated renderer used by UI, REST, MCP and generated files."""
+    """Single validated renderer used by UI, REST, MCP and generated files.
+
+    A submitted document with an archived PDF returns the file as issued
+    (api/pdf_templates.py); otherwise it renders with its PDF template.
+    """
+    from api import pdf_templates
+    from api.pdf_contract import state_for
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise PDFError(f'Unknown PDF document type: {doctype_slug}', code='pdf_unsupported')
     doc = load_document(doctype_slug, name)
+    archived = pdf_templates.archived_pdf(doctype, doc)
+    if archived is not None:
+        return RenderedPDF(archived, doc.get('modified'), state_for(doctype, doc), [])
+    return render_pdf_for(doctype, name, doc, pdf_templates.layout_for(doctype, doc))
+
+
+def render_pdf_for(doctype: str, name: str, doc: dict, layout=None, *, blocked=None) -> RenderedPDF:
+    """Render and validate `doc` (a loaded document dict), optionally with a
+    PDF template layout. URLs a user template tried to load are appended to
+    `blocked`."""
     contract = prepare(doctype, doc)
     kind = contract['profile'].kind
     try:
         if kind == 'proposal':
             result = _render_proposal_pdf(name, doc, contract)
         elif kind == 'commercial':
-            result = _render_commercial_pdf(doctype_slug, name, doc, contract)
+            result = _render_commercial_pdf(doctype, name, doc, contract, layout, blocked)
         else:
             result = _render_record_pdf(doctype, name, doc, contract)
     except PDFError:
@@ -117,16 +133,8 @@ def render_document_pdf(doctype_slug: str, name: str) -> RenderedPDF:
     return RenderedPDF(result, doc.get('modified'), contract['status'], contract['warnings'])
 
 
-def _render_commercial_pdf(doctype_slug, name, doc, contract):
+def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=None):
     db = get_db()
-    # Resolve doctype display name
-    doctype = doctype_slug.replace("-", " ").title()
-    # Fix multi-word: "Sales Invoice" not "Sales-Invoice"
-    for dt in DOC_CONFIG:
-        if dt.lower().replace(" ", "-") == doctype_slug:
-            doctype = dt
-            break
-
     config = DOC_CONFIG.get(doctype)
     if not config:
         raise PDFError(f'No commercial PDF mapping for {doctype}', code='pdf_unsupported')
@@ -220,12 +228,6 @@ def _render_commercial_pdf(doctype_slug, name, doc, contract):
         line.lstrip().startswith(">>") for line in _remarks.splitlines()
     )
 
-    # Render
-    template = _jinja_env.get_template("document.html")
-    # base_url = the resolved template's own directory, so a template (e.g. a
-    # plugin's branded override) can reference sibling assets — logo.png, fonts,
-    # CSS — by relative path. Falls back to the built-in templates dir.
-    base_url = template.filename or os.path.join(TEMPLATE_DIR, "document.html")
     context = dict(
         doc=doc,
         pdf_status=contract["status"],
@@ -267,6 +269,18 @@ def _render_commercial_pdf(doctype_slug, name, doc, contract):
         except Exception as exc:
             raise PDFError('PDF context provider failed', code='pdf_context_failed') from exc
 
+    if layout is not None:
+        from api.pdf_templates import render_html
+        data, urls = render_html(layout, context)
+        if blocked is not None:
+            blocked.extend(urls)
+        return data
+
+    template = _jinja_env.get_template("document.html")
+    # base_url = the resolved template's own directory, so a template (e.g. a
+    # plugin's branded override) can reference sibling assets — logo.png, fonts,
+    # CSS — by relative path. Falls back to the built-in templates dir.
+    base_url = template.filename or os.path.join(TEMPLATE_DIR, "document.html")
     html_str = template.render(**context)
 
     return HTML(string=html_str, base_url=base_url).write_pdf()

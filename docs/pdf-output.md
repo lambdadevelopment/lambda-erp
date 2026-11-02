@@ -45,6 +45,36 @@ when inapplicable and raise when required content cannot be produced; exceptions
 now fail the export. The content check detects omitted text, but does not prove
 visual correctness: add actual rendered-PDF tests for each custom layout.
 
+## PDF templates (offers)
+
+Quotations print with a PDF template (`api/pdf_templates.py`): HTML + CSS with
+Jinja, receiving the same context as `document.html`. `standard` is the
+deployment's own `document.html` (a plugin override wins); it is read-only and
+rendered as trusted code. Other templates live in the database:
+
+- `PDF Template` holds a working copy (`draft_html`, `assets`), edited in place
+  without versions, and the published layout (`live_html`, `live_assets`).
+  Publishing test-renders the working copy against an offer and rejects syntax
+  errors, missing required content and blocked resources.
+- A draft offer prints with its `pdf_template` (else the default from the
+  `pdf_template:Quotation` setting, else `standard`) and the published layout.
+- Submitting pins `pdf_template_version` (server-managed) to a `PDF Template
+  Version` row keyed by the layout's content hash, created on first use, and
+  stores the PDF as issued in `PDF Archive`, inside the submit transaction. A
+  custom layout that can't print the offer blocks the submit; the built-in one
+  logs and submits without an archive, as before. A submitted offer returns the
+  archived file; a cancelled one renders its pinned version with the notice.
+- Versions are never deleted. A template is deletable only while no version and
+  no draft offer references it; otherwise it can be archived.
+- Assets (images, fonts) are content-addressed in `PDF Template Asset`, so a
+  version keeps the exact bytes it printed with.
+
+User templates render in Jinja's `ImmutableSandboxedEnvironment`. WeasyPrint
+gets a URL fetcher that serves `data:` URLs, the template's assets and non-HTML
+files beside the built-in templates (a plugin logo); everything else (http,
+file, internal hosts) is blocked and reported. Rendered HTML is capped at 5 MB.
+There is no render timeout: editing is limited to managers and admins.
+
 ## Generation and downloads
 
 - `POST /api/documents/{slug}/{name}/pdf`: interactive/REST authentication.

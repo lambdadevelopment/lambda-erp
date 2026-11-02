@@ -51,6 +51,7 @@ _EXCLUDE = {
 
 _READ_ONLY = {
     'search_mention_users', 'list_my_mentions', 'list_record_notes', 'get_menu_layout',
+    'list_pdf_templates', 'get_pdf_template',
     'get_erp_context',
     'list_documents', 'get_document_fields', 'get_document', 'get_master_fields',
     'search_masters', 'get_report', 'get_current_time', 'query_dataset',
@@ -95,7 +96,7 @@ def _tools(role) -> list:
             "annotations": {
                 "readOnlyHint": fn['name'] in _READ_ONLY,
                 # Unknown extension actions are conservatively treated as writes.
-                "destructiveHint": fn['name'] not in _READ_ONLY | {'generate_document_pdf'},
+                "destructiveHint": fn['name'] not in _READ_ONLY | {'generate_document_pdf', 'preview_pdf_template'},
                 "openWorldHint": fn['name'] in services.REGISTERED_ACTIONS,
             },
             "securitySchemes": [{"type": "oauth2", "scopes": [

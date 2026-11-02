@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- PDF templates for offers (Settings → PDF Templates). Managers and admins
+  create layouts as HTML + CSS, starting from a copy of the built-in one, and
+  edit them as often as they like: saving changes the working copy in place,
+  publishing makes it the layout offers print with. Each offer can pick a
+  layout (`pdf_template`); a default applies otherwise. On submit the offer
+  pins the exact layout it was issued with (one shared version per distinct
+  layout, recorded only on use) and the PDF as issued is archived, so a
+  reprint returns the same file. A template can be deleted until an offer
+  uses it, then only archived. Templates render in a sandbox: Jinja's
+  sandboxed environment, and no resources beyond uploaded images and fonts.
+  The same actions are available to the chat, REST (`/api/actions/…`) and
+  MCP: `list_pdf_templates`, `get_pdf_template`, `create_pdf_template`,
+  `update_pdf_template`, `preview_pdf_template`, `publish_pdf_template`,
+  `revert_pdf_template_draft`, `set_default_pdf_template`,
+  `archive_pdf_template`, `delete_pdf_template`, `delete_pdf_template_asset`;
+  previews and asset uploads under `/api/pdf-templates/{template}/…`.
 - Chat titles appear within seconds of the first message: the title is now
   generated from that message alongside the reply, instead of after the whole
   reply, which left "New Chat" in the sidebar until a refresh. Each title logs

@@ -624,7 +624,9 @@ class Database:
                 modified TEXT,
                 ignore_pricing_rule INTEGER DEFAULT 0,
                 external_source TEXT,
-                external_reference TEXT
+                external_reference TEXT,
+                pdf_template TEXT,
+                pdf_template_version TEXT
             )""",
 
             """CREATE TABLE IF NOT EXISTS "Quotation Item" (
@@ -3063,6 +3065,69 @@ def _m041_chat_turn_lease(db: "Database") -> None:
     db.ensure_column("Chat Session", "active_turn_until", "TEXT")
 
 
+def _m043_pdf_templates(db: "Database") -> None:
+    """User-editable PDF templates (see api.pdf_templates).
+
+    A template keeps one working copy (`draft_html`) edited in place and the
+    published layout (`live_html`). Versions are only written when a document
+    is submitted with a layout: one row per distinct content, shared by every
+    document that used it. Assets are content-addressed blobs, so a version's
+    manifest keeps pointing at the exact bytes it printed with. The archive
+    holds the PDF as issued at submit.
+    """
+    for stmt in (
+        """CREATE TABLE IF NOT EXISTS "PDF Template" (
+            name TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            doctype TEXT NOT NULL,
+            company TEXT,
+            description TEXT,
+            draft_html TEXT NOT NULL,
+            live_html TEXT,
+            assets TEXT NOT NULL DEFAULT '{}',
+            live_assets TEXT,
+            archived INTEGER NOT NULL DEFAULT 0,
+            based_on TEXT,
+            created_at TEXT NOT NULL,
+            created_by TEXT,
+            draft_modified TEXT NOT NULL,
+            draft_modified_by TEXT,
+            published_at TEXT,
+            published_by TEXT
+        )""",
+        """CREATE TABLE IF NOT EXISTS "PDF Template Version" (
+            name TEXT PRIMARY KEY,
+            template TEXT NOT NULL,
+            sha256 TEXT NOT NULL,
+            html TEXT NOT NULL,
+            assets TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            UNIQUE (template, sha256)
+        )""",
+        """CREATE TABLE IF NOT EXISTS "PDF Template Asset" (
+            sha256 TEXT PRIMARY KEY,
+            content_type TEXT NOT NULL,
+            data BLOB NOT NULL,
+            created_at TEXT NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS "PDF Archive" (
+            doctype TEXT NOT NULL,
+            document_name TEXT NOT NULL,
+            template TEXT,
+            template_version TEXT,
+            sha256 TEXT NOT NULL,
+            data BLOB NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (doctype, document_name)
+        )""",
+    ):
+        db.conn.execute(db._ddl(stmt))
+    db.ensure_column("Quotation", "pdf_template", "TEXT")
+    db.ensure_column("Quotation", "pdf_template_version", "TEXT")
+    db.conn.execute('CREATE INDEX IF NOT EXISTS quotation_pdf_template_version ON "Quotation" (pdf_template_version)')
+    db.conn.commit()
+
+
 def _m042_record_notes(db: "Database") -> None:
     """Internal team notes on any document or master (see api.record_notes)."""
     db.conn.execute(
@@ -3125,6 +3190,7 @@ Database.MIGRATIONS = [
     (40, "naming_series", _m040_naming_series),
     (41, "chat_turn_lease", _m041_chat_turn_lease),
     (42, "record_notes", _m042_record_notes),
+    (43, "pdf_templates", _m043_pdf_templates),
 ]
 
 

@@ -354,7 +354,8 @@
       "Fleet Calendar": "Flottenkalender",
       "Fleet (Assets)": "Flotte (Geräte)",
       "Reservations": "Reservationen",
-      "Menu": "Menü"
+      "Menu": "Menü",
+      "PDF Templates": "PDF-Vorlagen"
     }
   },
   "login": {
@@ -655,7 +656,8 @@
     "Purpose": "Zweck",
     "Purchase Date": "Kaufdatum",
     "Notes": "Notizen",
-    "Printed notes / terms": "Gedruckte Notizen / Konditionen"
+    "Printed notes / terms": "Gedruckte Notizen / Konditionen",
+    "PDF Layout": "PDF-Layout"
   },
   "tables": {
     "items": "Positionen",
@@ -935,6 +937,9 @@
       "asset": "Eine bestimmte Maschine buchen. Eine Einheiten-Buchung belegt auch einen Platz im Artikel+Depot-Pool.",
       "from_datetime": "Genauer Beginn — Datum und Uhrzeit (z. B. 14:27). Ein reines Datum bedeutet 00:00.",
       "to_datetime": "Genaues Ende. Fenster sind halboffen [von, bis): eine Miete, die um 09:00 endet, und die nächste um 09:00 beginnende, kollidieren NICHT."
+    },
+    "quotation": {
+      "pdf_template": "Wie das PDF der Offerte aussieht. Wird beim Buchen der Offerte festgehalten."
     }
   },
   "companyTax": {
@@ -1042,5 +1047,60 @@
     "drag": "{{name}} ziehen, um die Reihenfolge zu ändern (oder auswählen und Pfeiltasten nutzen)",
     "discard": "Änderungen verwerfen",
     "unsaved": "Nicht gespeicherte Änderungen"
+  },
+  "pdfTemplates": {
+    "title": "PDF-Vorlagen",
+    "intro": "Die Layouts, mit denen Offerten gedruckt werden. Bearbeite eine Vorlage so oft du willst: Speichern ändert nur den Entwurf, Veröffentlichen macht ihn zum Layout der Offerten. Eine gebuchte Offerte behält das Layout und das PDF, mit dem sie ausgestellt wurde.",
+    "chatHint": "Du kannst auch den Chat fragen, z. B. „setz unser Logo oben rechts und nimm eine grössere Schrift in der Positionstabelle“.",
+    "new": "Neue Vorlage",
+    "newTitle": "Neue PDF-Vorlage",
+    "newBody": "Startet als Kopie von {{name}}.",
+    "copyOf": "Kopie von {{name}}",
+    "create": "Erstellen",
+    "standard": "Standard",
+    "standardDescription": "Das eingebaute Layout. Nur lesbar: dupliziere es, um das Aussehen zu ändern.",
+    "default": "Standardvorlage",
+    "builtIn": "Eingebaut",
+    "notPublished": "Nicht veröffentlicht",
+    "unpublishedChanges": "Unveröffentlichte Änderungen",
+    "archived": "Archiviert",
+    "usedBy_one": "Von {{count}} Offerte verwendet",
+    "usedBy_other": "Von {{count}} Offerten verwendet",
+    "makeDefault": "Als Standard setzen",
+    "duplicate": "Duplizieren",
+    "archive": "Archivieren",
+    "restore": "Wiederherstellen",
+    "deleteTitle": "{{name}} löschen?",
+    "deleteBody": "Keine Offerte hat diese Vorlage verwendet, es hängt also nichts davon ab.",
+    "showArchived": "Archivierte Vorlagen anzeigen",
+    "name": "Name",
+    "editHint": "Speichere so oft du willst: Es ändert sich nur der Entwurf. Veröffentliche, wenn die Vorschau stimmt; Offerten drucken mit dem veröffentlichten Layout.",
+    "publish": "Veröffentlichen",
+    "revert": "Unveröffentlichte Änderungen verwerfen",
+    "revertTitle": "Unveröffentlichte Änderungen verwerfen?",
+    "revertBody": "Der Entwurf wird auf das veröffentlichte Layout zurückgesetzt.",
+    "publishedNotice": "Veröffentlicht. Geprüft mit {{document}}.",
+    "source": "HTML und CSS",
+    "lines_one": "{{count}} Zeile",
+    "lines_other": "{{count}} Zeilen",
+    "preview": "Vorschau",
+    "previewWith": "Vorschau mit Offerte",
+    "refresh": "Aktualisieren",
+    "show_draft": "Entwurf",
+    "show_live": "Veröffentlicht",
+    "previewShowsSaved": "Die Vorschau zeigt den zuletzt gespeicherten Stand.",
+    "blocked": "Nicht geladen (nur hochgeladene Dateien sind erlaubt): {{urls}}",
+    "assets_one": "Bilder und Schriften ({{count}})",
+    "assets_other": "Bilder und Schriften ({{count}})",
+    "assetsHint": "Verweise auf eine hochgeladene Datei mit ihrem Namen, z. B. <img src=\"logo.png\">. Links auf andere Websites werden blockiert.",
+    "upload": "Datei hochladen",
+    "versions_one": "Ausgestellte Versionen ({{count}})",
+    "versions_other": "Ausgestellte Versionen ({{count}})",
+    "versionsHint": "Eine Version entsteht, wenn eine Offerte mit einem Layout gebucht wird. Offerten behalten die Version, mit der sie ausgestellt wurden.",
+    "noVersions": "Mit dieser Vorlage wurde noch keine Offerte ausgestellt.",
+    "firstUsed": "zuerst verwendet am {{date}}",
+    "reference": "Verfügbare Felder",
+    "standardEditHint": "Um dieses Layout zu ändern, dupliziere es auf der Seite",
+    "defaultOption": "Standard ({{name}})"
   }
 }

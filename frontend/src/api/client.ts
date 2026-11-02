@@ -494,6 +494,34 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  /** A PDF template's working copy (or published layout) rendered against a
+   *  document; resolves to the PDF and the document it was rendered with. */
+  pdfTemplatePreview: async (template: string, source: "draft" | "live", document?: string) => {
+    const params = new URLSearchParams({ source });
+    if (document) params.set("document", document);
+    const res = await fetch(`${BASE}/pdf-templates/${encodeURIComponent(template)}/preview?${params}`, {
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new ApiError(res.status, formatErrorDetail(body.detail));
+    }
+    return {
+      blob: await res.blob(),
+      document: res.headers.get("X-PDF-Document") ?? "",
+      blocked: res.headers.get("X-PDF-Blocked") ?? "",
+    };
+  },
+
+  uploadPdfTemplateAsset: (template: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return multipartRequest<any>(`/pdf-templates/${encodeURIComponent(template)}/assets`, form);
+  },
+
+  pdfTemplateAssetUrl: (template: string, filename: string) =>
+    `${BASE}/pdf-templates/${encodeURIComponent(template)}/assets/${encodeURIComponent(filename)}`,
+
   runAction: (action: string, data: Record<string, any>) =>
     request<any>(`/actions/${encodeURIComponent(action)}`, {
       method: "POST",

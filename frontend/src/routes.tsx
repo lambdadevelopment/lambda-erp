@@ -31,6 +31,8 @@ import { AdminRoute } from "@/components/auth/protected-route";
 import Users from "@/pages/admin/users";
 import GeneralSettings from "@/pages/admin/settings";
 import MenuLayout from "@/pages/settings/menu-layout";
+import PdfTemplates from "@/pages/settings/pdf-templates";
+import PdfTemplateEditor from "@/pages/settings/pdf-template-editor";
 import { getComponent } from "@/lib/component-registry";
 
 // The dashboard (the index route) is resolved through the component registry
@@ -91,6 +93,8 @@ const baseChildRoutes: RouteObject[] = [
   { path: "admin/users", element: <Users /> },
   { path: "admin/settings", element: <GeneralSettings /> },
   { path: "settings/menu", element: <MenuLayout /> },
+  { path: "settings/pdf-templates", element: <PdfTemplates /> },
+  { path: "settings/pdf-templates/:id", element: <PdfTemplateEditor /> },
 ];
 
 const extraTopRoutes: RouteObject[] = [];

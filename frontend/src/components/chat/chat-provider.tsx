@@ -699,6 +699,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               } else if (pendingToolCall.tool === "update_menu_layout") {
                 // The chat changed this user's menu: redraw the sidebar now.
                 queryClient.invalidateQueries({ queryKey: ["my-settings"] });
+              } else if (pendingToolCall.tool.includes("pdf_template")) {
+                // The chat edited a PDF layout: refresh open template pages.
+                queryClient.invalidateQueries({ queryKey: ["pdf-templates"] });
               } else {
                 const flashTarget = getNavigationFlashFromTool(pendingToolCall.tool, pendingToolCall.args);
                 if (flashTarget) {

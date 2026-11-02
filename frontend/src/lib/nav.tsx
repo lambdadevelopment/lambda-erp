@@ -131,6 +131,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Item Price", path: "/app/item-price" },
       { label: "Pricing Rule", path: "/app/pricing-rule" },
       { label: "Users & Team", path: "/admin/users" },
+      // Layouts offers print with (api/pdf_templates.py).
+      { label: "PDF Templates", path: "/settings/pdf-templates" },
       // Personal menu layout (hide / reorder); every signed-in user has one.
       { label: "Menu", path: "/settings/menu" },
     ],

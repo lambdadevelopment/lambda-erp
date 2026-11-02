@@ -20,7 +20,7 @@ export interface FieldDef {
   options?: Array<string | { value: string; label: string }>;
   // For type=select with a runtime-populated option list. "currency" fills the
   // dropdown from the available-currencies endpoint instead of static options.
-  optionsSource?: "currency";
+  optionsSource?: "currency" | "pdfTemplate";
   default?: any;
   hint?: string; // tooltip text shown via a help icon next to the label
 }
@@ -135,6 +135,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", required: true },
       { name: "transaction_date", label: "Date", type: "date", required: true },
       { name: "valid_till", label: "Valid Till", type: "date" },
+      { name: "pdf_template", label: "PDF Layout", type: "select", optionsSource: "pdfTemplate",
+        hint: "How the offer's PDF looks. Fixed when the offer is submitted." },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
       CURRENCY_FIELD,
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },

@@ -354,7 +354,8 @@
       "Fleet Calendar": "Calendrier de flotte",
       "Fleet (Assets)": "Flotte (matériel)",
       "Reservations": "Réservations",
-      "Menu": "Menu"
+      "Menu": "Menu",
+      "PDF Templates": "Modèles PDF"
     }
   },
   "login": {
@@ -655,7 +656,8 @@
     "Purpose": "Objet",
     "Purchase Date": "Date d'achat",
     "Notes": "Notes",
-    "Printed notes / terms": "Notes / conditions imprimées"
+    "Printed notes / terms": "Notes / conditions imprimées",
+    "PDF Layout": "Mise en page PDF"
   },
   "tables": {
     "items": "Lignes",
@@ -935,6 +937,9 @@
       "asset": "Réserver une machine précise. Une réservation d'unité consomme aussi une place du pool Article+Dépôt.",
       "from_datetime": "Début exact — date et heure (p. ex. 14:27). Une date seule signifie 00:00.",
       "to_datetime": "Fin exacte. Les fenêtres sont semi-ouvertes [de, à) : une location finissant à 09:00 et la suivante commençant à 09:00 ne se chevauchent PAS."
+    },
+    "quotation": {
+      "pdf_template": "L'apparence du PDF de l'offre. Figée lorsque l'offre est validée."
     }
   },
   "companyTax": {
@@ -1042,5 +1047,60 @@
     "drag": "Glisser pour déplacer {{name}} (ou le sélectionner et utiliser les flèches)",
     "discard": "Annuler les modifications",
     "unsaved": "Modifications non enregistrées"
+  },
+  "pdfTemplates": {
+    "title": "Modèles PDF",
+    "intro": "Les mises en page utilisées pour imprimer les offres. Modifiez un modèle autant que vous voulez : enregistrer ne change que le brouillon, publier en fait la mise en page des offres. Une offre validée conserve la mise en page et le PDF avec lesquels elle a été émise.",
+    "chatHint": "Vous pouvez aussi demander au chat, p. ex. « mets notre logo en haut à droite et agrandis la police du tableau des articles ».",
+    "new": "Nouveau modèle",
+    "newTitle": "Nouveau modèle PDF",
+    "newBody": "Commence comme copie de {{name}}.",
+    "copyOf": "Copie de {{name}}",
+    "create": "Créer",
+    "standard": "Standard",
+    "standardDescription": "La mise en page intégrée. Lecture seule : dupliquez-la pour changer l'apparence.",
+    "default": "Par défaut",
+    "builtIn": "Intégré",
+    "notPublished": "Non publié",
+    "unpublishedChanges": "Modifications non publiées",
+    "archived": "Archivé",
+    "usedBy_one": "Utilisé par {{count}} offre",
+    "usedBy_other": "Utilisé par {{count}} offres",
+    "makeDefault": "Définir par défaut",
+    "duplicate": "Dupliquer",
+    "archive": "Archiver",
+    "restore": "Restaurer",
+    "deleteTitle": "Supprimer {{name}} ?",
+    "deleteBody": "Aucune offre n'a utilisé ce modèle, rien n'en dépend.",
+    "showArchived": "Afficher les modèles archivés",
+    "name": "Nom",
+    "editHint": "Enregistrez autant que vous voulez : seul le brouillon change. Publiez quand l'aperçu convient ; les offres s'impriment avec la mise en page publiée.",
+    "publish": "Publier",
+    "revert": "Annuler les modifications non publiées",
+    "revertTitle": "Annuler les modifications non publiées ?",
+    "revertBody": "Le brouillon revient à la mise en page publiée.",
+    "publishedNotice": "Publié. Vérifié avec {{document}}.",
+    "source": "HTML et CSS",
+    "lines_one": "{{count}} ligne",
+    "lines_other": "{{count}} lignes",
+    "preview": "Aperçu",
+    "previewWith": "Aperçu avec l'offre",
+    "refresh": "Actualiser",
+    "show_draft": "Brouillon",
+    "show_live": "Publié",
+    "previewShowsSaved": "L'aperçu montre la dernière version enregistrée.",
+    "blocked": "Non chargé (seuls les fichiers téléversés sont autorisés) : {{urls}}",
+    "assets_one": "Images et polices ({{count}})",
+    "assets_other": "Images et polices ({{count}})",
+    "assetsHint": "Référencez un fichier téléversé par son nom, p. ex. <img src=\"logo.png\">. Les liens vers d'autres sites sont bloqués.",
+    "upload": "Téléverser un fichier",
+    "versions_one": "Versions émises ({{count}})",
+    "versions_other": "Versions émises ({{count}})",
+    "versionsHint": "Une version est enregistrée lorsqu'une offre est validée avec une mise en page. Les offres conservent la version avec laquelle elles ont été émises.",
+    "noVersions": "Aucune offre n'a encore été émise avec ce modèle.",
+    "firstUsed": "utilisé pour la première fois le {{date}}",
+    "reference": "Champs disponibles",
+    "standardEditHint": "Pour modifier cette mise en page, dupliquez-la sur la page",
+    "defaultOption": "Par défaut ({{name}})"
   }
 }

@@ -354,7 +354,8 @@
       "Fleet Calendar": "Fleet Calendar",
       "Fleet (Assets)": "Fleet (Assets)",
       "Reservations": "Reservations",
-      "Menu": "Menu"
+      "Menu": "Menu",
+      "PDF Templates": "PDF Templates"
     }
   },
   "login": {
@@ -697,7 +698,8 @@
     "Purpose": "Purpose",
     "Purchase Date": "Purchase Date",
     "Notes": "Notes",
-    "Printed notes / terms": "Printed notes / terms"
+    "Printed notes / terms": "Printed notes / terms",
+    "PDF Layout": "PDF Layout"
   },
   "tables": {
     "accounts": "accounts",
@@ -935,6 +937,9 @@
       "asset": "Book one specific machine. A unit booking also consumes a slot of its Item+Yard pool.",
       "from_datetime": "Exact start — date and time (e.g. 14:27). A bare date means 00:00.",
       "to_datetime": "Exact end. Windows are half-open [from, to): a hire ending 09:00 and the next starting 09:00 do NOT clash."
+    },
+    "quotation": {
+      "pdf_template": "How the offer's PDF looks. Fixed when the offer is submitted."
     }
   },
   "companyTax": {
@@ -1042,5 +1047,60 @@
     "drag": "Drag to reorder {{name}} (or focus it and use the arrow keys)",
     "discard": "Discard changes",
     "unsaved": "Unsaved changes"
+  },
+  "pdfTemplates": {
+    "title": "PDF templates",
+    "intro": "The layouts offers print with. Edit a template as often as you like: saving only changes its working copy, and publishing makes it the layout offers print with. When an offer is submitted, it keeps the layout and the PDF it was issued with.",
+    "chatHint": "You can also ask the chat, e.g. \"put our logo top right and use a larger font in the item table\".",
+    "new": "New template",
+    "newTitle": "New PDF template",
+    "newBody": "Starts as a copy of {{name}}.",
+    "copyOf": "Copy of {{name}}",
+    "create": "Create",
+    "standard": "Standard",
+    "standardDescription": "The built-in layout. Read-only: duplicate it to change the look.",
+    "default": "Default",
+    "builtIn": "Built-in",
+    "notPublished": "Not published",
+    "unpublishedChanges": "Unpublished changes",
+    "archived": "Archived",
+    "usedBy_one": "Used by {{count}} offer",
+    "usedBy_other": "Used by {{count}} offers",
+    "makeDefault": "Make default",
+    "duplicate": "Duplicate",
+    "archive": "Archive",
+    "restore": "Restore",
+    "deleteTitle": "Delete {{name}}?",
+    "deleteBody": "No offer has used this template, so nothing depends on it.",
+    "showArchived": "Show archived templates",
+    "name": "Name",
+    "editHint": "Save as often as you like: only the working copy changes. Publish when the preview looks right; offers print with the published layout.",
+    "publish": "Publish",
+    "revert": "Discard unpublished changes",
+    "revertTitle": "Discard unpublished changes?",
+    "revertBody": "The working copy goes back to the published layout.",
+    "publishedNotice": "Published. Checked against {{document}}.",
+    "source": "HTML and CSS",
+    "lines_one": "{{count}} line",
+    "lines_other": "{{count}} lines",
+    "preview": "Preview",
+    "previewWith": "Preview with offer",
+    "refresh": "Refresh",
+    "show_draft": "Working copy",
+    "show_live": "Published",
+    "previewShowsSaved": "The preview shows the last saved version.",
+    "blocked": "Not loaded (only uploaded assets are allowed): {{urls}}",
+    "assets_one": "Images and fonts ({{count}})",
+    "assets_other": "Images and fonts ({{count}})",
+    "assetsHint": "Reference an uploaded file by its name, e.g. <img src=\"logo.png\">. Links to other websites are blocked.",
+    "upload": "Upload file",
+    "versions_one": "Issued versions ({{count}})",
+    "versions_other": "Issued versions ({{count}})",
+    "versionsHint": "A version is recorded when an offer is submitted with a layout. Offers keep the version they were issued with.",
+    "noVersions": "No offer has been issued with this template yet.",
+    "firstUsed": "first used {{date}}",
+    "reference": "Available fields",
+    "standardEditHint": "To change this layout, duplicate it on the",
+    "defaultOption": "Default ({{name}})"
   }
 }

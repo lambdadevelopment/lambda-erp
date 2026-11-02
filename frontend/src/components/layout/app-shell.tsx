@@ -24,6 +24,8 @@ function deriveTitle(pathname: string, t: TFunction): string {
   if (parts[0] === "setup") return t("titles.setup");
   if (parts[0] === "tutorial") return t("titles.tutorial");
   if (parts[0] === "chat") return t("titles.chat");
+  if (parts[0] === "settings" && parts[1] === "menu") return t("menuLayout.title");
+  if (parts[0] === "settings" && parts[1] === "pdf-templates") return t("pdfTemplates.title");
   if (parts[0] === "accounting" && parts[1] === "bank-statements") return t("bankStatements.title");
   if (parts[0] === "accounting" && parts[1] === "bank-reconciliation") return t("bankReconciliation.title");
 

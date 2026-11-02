@@ -21,6 +21,7 @@ from api.mcp_oauth import router as mcp_oauth_router, OAuthError, oauth_error_ha
 from api.attachments import router as attachments_router
 from api.chat import chat_websocket, router as chat_router
 from api.routers import admin, documents, masters, reports, setup as setup_router, bank_reconciliation, bank_statements, analytics, accounting, proposals, chat_api, mcp, availability, actions
+from api.routers import pdf_templates as pdf_templates_router
 
 
 def load_plugins() -> None:
@@ -63,6 +64,8 @@ async def lifespan(app: FastAPI):
         initialize_record_notes()
         from api.menu_layout import initialize_menu_layout
         initialize_menu_layout()
+        from api.pdf_templates import initialize_pdf_templates
+        initialize_pdf_templates()
 
         # Load customer extension plugins before anything creates documents.
         load_plugins()
@@ -125,6 +128,7 @@ app.include_router(mcp_oauth_router)
 app.include_router(attachments_router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(proposals.router, prefix="/api")
+app.include_router(pdf_templates_router.router, prefix="/api")
 app.include_router(masters.router, prefix="/api")
 app.include_router(actions.router, prefix="/api")
 app.include_router(availability.router, prefix="/api")

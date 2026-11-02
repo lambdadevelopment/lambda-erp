@@ -30,6 +30,9 @@ class Quotation(Document):
         "taxes": ("Sales Taxes and Charges", None),
     }
     PREFIX = "QTN"
+    # Pinned at submit to the PDF layout the offer was issued with (see
+    # api.pdf_templates); `pdf_template` itself is chosen freely while a draft.
+    SERVER_MANAGED_FIELDS = ("pdf_template_version",)
 
     LINK_FIELDS = {
         "customer": "Customer",

@@ -19,6 +19,7 @@ import { HintTooltip } from "@/components/ui/hint-tooltip";
 import { NotesMarkupHelp } from "@/components/ui/notes-markup-help";
 import { RecordNotes, RecordNotesLink } from "@/components/record-notes";
 import { useCurrencies } from "@/hooks/use-currencies";
+import { usePdfTemplates } from "@/hooks/use-pdf-templates";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useTranslation } from "react-i18next";
 import { Printer } from "lucide-react";
@@ -222,6 +223,15 @@ function FieldRenderer({
   const needsCurrencyOptions =
     field.type === "select" && field.optionsSource === "currency";
   const currencyOptions = useCurrencies(undefined, needsCurrencyOptions);
+  // PDF layout pickers list the published templates (api/pdf_templates.py);
+  // empty means "the default layout".
+  const needsTemplateOptions = field.type === "select" && field.optionsSource === "pdfTemplate";
+  const { data: templateData } = usePdfTemplates(true, needsTemplateOptions);
+  const templates = templateData?.templates ?? [];
+  const templateTitle = (id: string) => {
+    const tpl = templates.find((entry) => entry.template === id);
+    return tpl?.standard ? t("pdfTemplates.standard") : tpl?.title ?? id;
+  };
 
   if (isDisabled) {
     // Link fields render as a clickable link in read-only mode when there's a
@@ -252,6 +262,10 @@ function FieldRenderer({
     }
 
     let display = value ?? "-";
+    if (needsTemplateOptions) {
+      display = value ? templateTitle(String(value)) : t("pdfTemplates.defaultOption", {
+        name: templateTitle(templateData?.defaults?.[doctypeLabel(doctype)] ?? "standard") });
+    }
     if ((field.type === "currency") && typeof value === "number") {
       display = formatCurrency(value, currency);
     }
@@ -286,6 +300,23 @@ function FieldRenderer({
           disabled={isDisabled}
           hideLabel
         />
+      </div>
+    );
+  }
+
+  if (needsTemplateOptions) {
+    const defaultId = templateData?.defaults?.[doctypeLabel(doctype)] ?? "standard";
+    const options = [
+      { value: "", label: t("pdfTemplates.defaultOption", { name: templateTitle(defaultId) }) },
+      ...templates
+        .filter((tpl) => tpl.published && (!tpl.archived || tpl.template === value))
+        .map((tpl) => ({ value: tpl.template, label: tpl.standard ? t("pdfTemplates.standard") : tpl.title })),
+    ];
+    return (
+      <div>
+        <Label />
+        <Select options={options} value={value ?? ""} placeholder={false}
+          onChange={(e) => onChange(e.target.value || null)} />
       </div>
     );
   }
@@ -1079,4 +1110,9 @@ export default function DocumentFormPage() {
       {!isNew && name && <RecordNotes recordType={config.slug} recordId={name} />}
     </div>
   );
+}
+
+/** "quotation" -> "Quotation", the key PDF template defaults use. */
+function doctypeLabel(slug: string | undefined) {
+  return (slug ?? "").split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
