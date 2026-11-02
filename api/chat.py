@@ -1571,6 +1571,11 @@ def _handle_list_documents(args):
         return {"error": str(exc)}
 
 
+# Tools whose result is a stored PDF export the reply may link to; the reply
+# check in run_session_turn rejects any other /documents/.../pdf link.
+PDF_EXPORT_TOOLS = ("generate_document_pdf", "preview_pdf_template")
+
+
 def _handle_generate_document_pdf(args, user=None):
     from api.pdf_exports import create_pdf_export
     from api.pdf_contract import PDFError
@@ -3891,7 +3896,7 @@ async def run_thinking_loop(
                 event_payload["report_id"] = result["id"]
             if fn_name == "generate_document_pdf":
                 event_payload["document_request"] = {key: fn_args.get(key) for key in ("doctype", "name")}
-            if success and fn_name == "generate_document_pdf" and isinstance(result, dict) and result.get("artifact_id"):
+            if success and fn_name in PDF_EXPORT_TOOLS and isinstance(result, dict) and result.get("artifact_id"):
                 event_payload["document"] = result
             if session_id:
                 _save_tool_trace(session_id, "tool_result", {**event_payload, "result": result})
@@ -4124,7 +4129,7 @@ async def run_session_turn(
     generated_files = []
 
     async def pdf_events(event):
-        if event.get('type') == 'tool_result' and event.get('tool') == 'generate_document_pdf' and event.get('success') and event.get('document'):
+        if event.get('type') == 'tool_result' and event.get('tool') in PDF_EXPORT_TOOLS and event.get('success') and event.get('document'):
             generated_files.append(event['document'])
         await on_event(event)
 

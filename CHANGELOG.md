@@ -37,6 +37,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   reference lists the renderer's quirks (only DejaVu fonts installed; page
   backgrounds can't be sized). Images are shown to the model for the turn and
   not stored. Adds the `pypdfium2` dependency.
+- A chat reply may link the PDF preview of a template it just rendered; the
+  check against made-up PDF links rejected it as "PDF not generated".
 - Chat titles appear within seconds of the first message: the title is now
   generated from that message alongside the reply, instead of after the whole
   reply, which left "New Chat" in the sidebar until a refresh. Each title logs

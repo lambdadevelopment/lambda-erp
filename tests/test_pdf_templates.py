@@ -365,6 +365,43 @@ class PdfTemplateTests(unittest.TestCase):
         converted = chat._responses_msg_content(shown['content'])
         self.assertEqual([p['detail'] for p in converted if p['type'] == 'input_image'], ['high'])
 
+    def test_chat_reply_may_link_the_preview_it_rendered(self):
+        import asyncio
+        import json
+        from types import SimpleNamespace as NS
+        from unittest.mock import patch
+        from api import chat
+        tid = self.template(html=layout('Linked'), publish=False)
+        self.quotation()
+        sid = chat.create_session()['id']
+        user = self.client.get('/api/auth/me').json()  # the downloader must be the one who generated it
+        fake = '/api/documents/quotation/QTN-9999/pdf?artifact_id=0000'
+
+        def turn(client, messages, *args, **kwargs):
+            tool = [m for m in messages if m['role'] == 'tool']
+            if not tool:
+                return NS(content='', tool_calls=[NS(id='c1', function=NS(name='preview_pdf_template',
+                          arguments=json.dumps({'template': tid})))]), None
+            url = json.loads(tool[-1]['content'])['download_url']
+            return NS(content=f'[Vorschau]({url}) and [made up]({fake})', tool_calls=[]), None
+
+        events = []
+
+        async def event(e):
+            events.append(e)
+        with patch.object(chat, '_orchestrator_turn', side_effect=turn), \
+             patch.object(chat, 'refresh_auth_principal', side_effect=lambda u: u), \
+             patch.object(chat, 'generate_title', side_effect=lambda *a, **k: None):
+            reply = asyncio.run(chat.run_session_turn(sid, 'Zeig mir die Vorschau', user, event))
+        preview = next(e for e in events if e.get('tool') == 'preview_pdf_template' and e['type'] == 'tool_result')
+        self.assertIn(preview['document']['download_url'], reply)
+        self.assertNotIn(fake, reply)
+        self.assertIn('[PDF not generated]', reply)
+        # The linked preview downloads.
+        r = self.client.get(preview['document']['download_url'])
+        self.assertEqual((r.status_code, r.content[:4]), (200, b'%PDF'), r.text[:200])
+        self.assertIn('Linked', pdf_text(r.content))
+
     def test_viewers_choose_but_cannot_edit_and_mcp_exposes_the_tools(self):
         self.client.put('/api/auth/settings', json={'rest_api_enabled': '1'})
         key = self.client.post('/api/auth/api-keys', json={'name': 'viewer', 'role': 'viewer'}).json()['token']
