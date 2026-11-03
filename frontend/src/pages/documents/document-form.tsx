@@ -447,6 +447,33 @@ function ChildTableEditor({
     onChange(rows.filter((_, i) => i !== idx));
   };
 
+  // Line deductions (tableDef.lineDeductions): the Rate column shows and edits
+  // the full price (price_list_rate) and the line's rate is that minus the
+  // deduction per unit, as the backend computes it. A null label means none.
+  const deductions = !!tableDef.lineDeductions;
+  const hasDeduction = (row: any) => deductions && row.discount_label != null;
+  const fullPrice = (row: any) => flt(row.price_list_rate) || flt(row.rate);
+  const patchRow = (idx: number, patch: Record<string, any>) =>
+    onChange(rows.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+  const addDeduction = (idx: number) => {
+    const row = rows[idx];
+    patchRow(idx, { price_list_rate: fullPrice(row), discount_amount: 0, discount_percentage: 0,
+      discount_label: t("deductions.defaultLabel") });
+  };
+  const removeDeduction = (idx: number) => {
+    const row = rows[idx];
+    patchRow(idx, { rate: fullPrice(row), discount_amount: 0, discount_label: null });
+  };
+  const setFullPrice = (idx: number, value: any) => {
+    const row = rows[idx];
+    patchRow(idx, { price_list_rate: value, rate: flt(value) - flt(row.discount_amount) });
+  };
+  const setDeduction = (idx: number, value: any) => {
+    const row = rows[idx];
+    patchRow(idx, { discount_amount: value, rate: fullPrice(row) - flt(value) });
+  };
+  const rateIndex = tableDef.fields.findIndex((f) => f.name === "rate");
+
   return (
     <Card title={t(`tables.${tableDef.key}`, { defaultValue: tableDef.label })}>
       <div className="-mx-6 overflow-x-auto px-6">
@@ -470,35 +497,89 @@ function ChildTableEditor({
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {rows.map((row, idx) => (
-              <tr key={idx}>
+            {rows.map((row, idx) => [
+              <tr key={idx} className={hasDeduction(row) ? "[&>td]:pb-0" : undefined}>
                 <td className="px-2 py-1 text-fg-muted">{idx + 1}</td>
-                {tableDef.fields.map((f) => (
-                  <td key={f.name} className="px-2 py-1 align-top">
+                {tableDef.fields.map((f) => {
+                  const asFullPrice = f.name === "rate" && hasDeduction(row);
+                  return (
+                    <td key={f.name} className="px-2 py-1 align-top">
+                      <FieldRenderer
+                        field={f}
+                        value={asFullPrice ? fullPrice(row) : f.name === "amount" && hasDeduction(row)
+                          ? flt(row.qty) * fullPrice(row) : row[f.name]}
+                        onChange={(v) => (asFullPrice ? setFullPrice(idx, v) : updateRow(idx, f.name, v))}
+                        readOnly={readOnly}
+                        rowData={row}
+                        hideLabel
+                        currency={currency}
+                      />
+                    </td>
+                  );
+                })}
+                {!readOnly && (
+                  <td className="px-2 py-1">
+                    <div className="flex flex-col items-start">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeRow(idx)}
+                      >
+                        Remove
+                      </Button>
+                      {deductions && rateIndex >= 0 && !hasDeduction(row) && (
+                        <Button variant="ghost" size="sm" onClick={() => addDeduction(idx)}>
+                          {t("deductions.add")}
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                )}
+              </tr>,
+              hasDeduction(row) && rateIndex >= 0 && (
+                <tr key={`${idx}-deduction`} className="!border-t-0">
+                  <td />
+                  <td colSpan={rateIndex} className="px-2 pb-2 align-top">
+                    {readOnly ? (
+                      <span className="italic text-fg-muted">{row.discount_label}</span>
+                    ) : (
+                      <Input
+                        value={row.discount_label ?? ""}
+                        onChange={(e) => updateRow(idx, "discount_label", e.target.value)}
+                        placeholder={t("deductions.labelPlaceholder")}
+                        aria-label={t("deductions.label")}
+                        className="italic"
+                      />
+                    )}
+                  </td>
+                  <td className="px-2 pb-2 align-top">
                     <FieldRenderer
-                      field={f}
-                      value={row[f.name]}
-                      onChange={(v) => updateRow(idx, f.name, v)}
+                      field={{ name: "discount_amount", label: "Deduction", type: "currency" }}
+                      value={row.discount_amount}
+                      onChange={(v) => setDeduction(idx, v)}
                       readOnly={readOnly}
                       rowData={row}
                       hideLabel
                       currency={currency}
                     />
                   </td>
-                ))}
-                {!readOnly && (
-                  <td className="px-2 py-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeRow(idx)}
-                    >
-                      Remove
-                    </Button>
+                  <td className="whitespace-nowrap px-2 pb-2 pt-3 text-right align-top italic text-fg-muted">
+                    −{formatCurrency(flt(row.qty) * flt(row.discount_amount), currency)}
                   </td>
-                )}
-              </tr>
-            ))}
+                  <td colSpan={Math.max(tableDef.fields.length - rateIndex - 2, 0) || undefined}
+                    className="px-2 pb-2 align-top text-xs text-fg-muted">
+                    {t("deductions.perUnit")}
+                  </td>
+                  {!readOnly && (
+                    <td className="px-2 pb-2 align-top">
+                      <Button variant="ghost" size="sm" onClick={() => removeDeduction(idx)}>
+                        {t("deductions.remove")}
+                      </Button>
+                    </td>
+                  )}
+                </tr>
+              ),
+            ])}
           </tbody>
         </table>
       </div>

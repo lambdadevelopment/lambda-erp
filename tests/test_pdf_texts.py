@@ -94,7 +94,7 @@ class PdfTextTests(unittest.TestCase):
     def test_layouts_that_drop_a_text_are_flagged(self):
         created = self.act('create_pdf_template', title='Bare', html=layout('Bare'))
         published = self.act('publish_pdf_template', template=created['template'])
-        self.assertEqual(published['missing_texts'], ['intro_text', 'remarks'])
+        self.assertEqual(published['missing_texts'], ['intro_text', 'remarks', 'line_deduction'])
         doc = self.quotation(pdf_template=created['template'], intro_text='Hallo', remarks='Tschüss')
         codes = [w['code'] for w in doc['_validation']['warnings']]
         self.assertEqual(codes, ['pdf_intro_text_not_printed', 'pdf_remarks_not_printed'])

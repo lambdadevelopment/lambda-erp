@@ -644,6 +644,7 @@ class Database:
                 price_list_rate REAL DEFAULT 0,
                 discount_percentage REAL DEFAULT 0,
                 discount_amount REAL DEFAULT 0,
+                discount_label TEXT,
                 amount REAL DEFAULT 0,
                 net_rate REAL DEFAULT 0,
                 net_amount REAL DEFAULT 0,
@@ -756,6 +757,7 @@ class Database:
                 price_list_rate REAL DEFAULT 0,
                 discount_percentage REAL DEFAULT 0,
                 discount_amount REAL DEFAULT 0,
+                discount_label TEXT,
                 amount REAL DEFAULT 0,
                 net_rate REAL DEFAULT 0,
                 net_amount REAL DEFAULT 0,
@@ -889,6 +891,7 @@ class Database:
                 price_list_rate REAL DEFAULT 0,
                 discount_percentage REAL DEFAULT 0,
                 discount_amount REAL DEFAULT 0,
+                discount_label TEXT,
                 amount REAL DEFAULT 0,
                 net_rate REAL DEFAULT 0,
                 net_amount REAL DEFAULT 0,
@@ -3136,6 +3139,14 @@ def _m044_quotation_intro_text(db: "Database") -> None:
     db.conn.commit()
 
 
+def _m045_line_discount_label(db: "Database") -> None:
+    """A line's deduction text (e.g. "Abzüglich bereits verrechnet"). With it,
+    the PDF prints the full price and the deduction as a sub-line."""
+    for table in ("Quotation Item", "Sales Order Item", "Sales Invoice Item"):
+        db.ensure_column(table, "discount_label", "TEXT")
+    db.conn.commit()
+
+
 def _m042_record_notes(db: "Database") -> None:
     """Internal team notes on any document or master (see api.record_notes)."""
     db.conn.execute(
@@ -3200,6 +3211,7 @@ Database.MIGRATIONS = [
     (42, "record_notes", _m042_record_notes),
     (43, "pdf_templates", _m043_pdf_templates),
     (44, "quotation_intro_text", _m044_quotation_intro_text),
+    (45, "line_discount_label", _m045_line_discount_label),
 ]
 
 

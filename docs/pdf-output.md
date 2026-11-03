@@ -99,6 +99,15 @@ Settings rows `pdf_text_default:Quotation:<field>`, copied in by a
 document warning (`pdf_<field>_not_printed`) flags an offer whose layout never
 uses a text it has; publishing reports the same as `missing_texts`.
 
+Line deductions: a line with `discount_label` and `discount_amount` > 0
+prints its full price (`item.gross_rate` / `item.gross_amount`, from
+`api.pdf_contract.line_deduction`) and a sub-line with the label and
+`−item.discount_total` (the deduction for the whole line). The export check
+accepts either the line's net amount or the full amount, deduction and label
+(`AnyOf` tokens), so older layouts keep exporting; a document warning
+(`pdf_line_deduction_not_printed`) and `missing_texts: ["line_deduction"]` on
+publish flag a layout that never uses `discount_label`.
+
 Fonts (api/pdf_fonts.py): WeasyPrint finds fonts through fontconfig, so what a
 template can print with is what is installed (the Docker image adds the
 `fonts-*` packages) plus fonts uploaded as template assets. The field

@@ -8,7 +8,7 @@ from jinja2 import Environment, FileSystemLoader, ChoiceLoader
 from weasyprint import HTML
 from lambda_erp.database import get_db
 from api.services import load_document, get_document_class
-from api.pdf_contract import prepare, validate_rendered_pdf, PDFError, register_pdf_state_labels  # noqa: F401
+from api.pdf_contract import prepare, validate_rendered_pdf, PDFError, register_pdf_state_labels, line_deduction  # noqa: F401
 from api.remarks_md import render_remarks
 from lambda_erp.controllers.taxes_and_totals import split_by_frequency
 
@@ -96,6 +96,19 @@ class RenderedPDF:
 # unknown names stay as written.
 TEXT_PLACEHOLDERS = ("name", "customer_name", "company", "transaction_date", "valid_till", "currency")
 _PLACEHOLDER = re.compile(r"\{\{\s*(" + "|".join(TEXT_PLACEHOLDERS) + r")\s*\}\}")
+
+
+def add_line_deductions(items):
+    """Lines with a labelled deduction print the full price and, below it,
+    the deduction: item.gross_rate, item.gross_amount, item.discount_total
+    (the deduction for the whole line, positive) and item.discount_label."""
+    for item in items:
+        deduction = line_deduction(item)
+        if deduction:
+            item["gross_rate"], item["gross_amount"] = deduction["gross_rate"], deduction["gross_amount"]
+            item["discount_total"], item["discount_label"] = deduction["amount"], deduction["label"]
+        else:
+            item["discount_total"] = 0
 
 
 def fill_text_placeholders(text, doc, party_name=None, company_name=None) -> str:
@@ -229,6 +242,7 @@ def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=No
             master_item_name = db.get_value("Item", code, "item_name")
             if master_item_name:
                 item["item_name"] = master_item_name
+    add_line_deductions(items)
 
     taxes = doc.get("taxes", [])
 
@@ -382,6 +396,7 @@ def _render_proposal_pdf(name, proposal, contract):
                 live = db.get_value("Item", code, "item_name")
                 if live:
                     item["item_name"] = live
+        add_line_deductions(items)
         default_title = items[0].get("item_name") if items else qname
         positions.append({
             "letter": chr(ord("A") + i),

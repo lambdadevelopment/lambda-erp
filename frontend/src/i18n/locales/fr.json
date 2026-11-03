@@ -1115,6 +1115,15 @@
   },
   "documentWarnings": {
     "pdf_intro_text_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte d'introduction ; le PDF s'affiche sans.",
-    "pdf_remarks_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte final / les conditions ; le PDF s'affiche sans."
+    "pdf_remarks_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte final / les conditions ; le PDF s'affiche sans.",
+    "pdf_line_deduction_not_printed": "La mise en page PDF « {{template}} » n'imprime pas les déductions de ligne ; ces lignes n'affichent que leur montant net."
+  },
+  "deductions": {
+    "defaultLabel": "Déduction",
+    "add": "+ Déduction",
+    "remove": "Retirer la déduction",
+    "label": "Texte de la déduction",
+    "labelPlaceholder": "p. ex. Moins déjà facturé (facture SINV-0003)",
+    "perUnit": "Déduction par unité, imprimée sous la ligne ; la ligne compte le reste."
   }
 }

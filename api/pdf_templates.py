@@ -356,11 +356,23 @@ def _prints(html: str | None, field: str, var: str) -> bool:
     return bool(html) and (var in html or f"doc.{field}" in html)
 
 
+# A line's deduction text (item.discount_label) is printed per line; a layout
+# without it prints those lines with their net amount only.
+LINE_DEDUCTION = ("line_deduction", "discount_label", "line deductions (item.discount_label / item.discount_total)")
+
+
+def _has_line_deduction(doc) -> bool:
+    return any(row.get("discount_label") and float(row.get("discount_amount") or 0) > 0
+               for row in doc.get("items") or [])
+
+
 def _text_warnings(doc) -> list[dict]:
     """Warn when an offer has a text its PDF layout never prints."""
     if doc.DOCTYPE not in DOCTYPES:
         return []
     texts = [(f, v, label) for f, v, label in _TEXTS if (doc.get(f) or "").strip()]
+    if _has_line_deduction(doc):
+        texts.append(LINE_DEDUCTION)
     if not texts:
         return []
     try:
@@ -573,6 +585,7 @@ Variables:
 - party_label ("Customer"), party_name, party_info (email, phone, address, city, zip_code, country, tax_id)
 - currency, page_size ("A4"/"Letter"), meta_fields (list of {label, value})
 - items: list of {idx, item_code, item_name, description, qty, uom, rate, amount, discount_percentage, frequency}
+  A line can carry a deduction (e.g. "Abzüglich bereits verrechnet"): then item.discount_total > 0 (the deduction for the whole line), item.discount_label is its text, and item.gross_rate / item.gross_amount are the full price. Print the full price on the line and a sub-line with the label and −discount_total; item.amount is the net (gross_amount − discount_total). A layout that ignores it prints only the net amount (and gets a warning).
 - taxes: list of {description, rate, tax_amount, total}
 - intro_html: the offer's intro text as safe HTML ({{ intro_html|safe }}); print it near the top, usually under the title
 - remarks_html: the closing text / notes / terms as safe HTML ({{ remarks_html|safe }}); usually after the totals
@@ -696,7 +709,8 @@ def publish_pdf_template(args, user=None):
                'published_by = ? WHERE name = ?', [stamp, _actor(user), row["name"]])
     result = get_pdf_template({"template": row["name"], "include_html": False})
     result["checked_against"] = sample
-    missing = [(field, var, label) for field, var, label in _TEXTS if not _prints(row["draft_html"], field, var)]
+    missing = [(field, var, label) for field, var, label in (*_TEXTS, LINE_DEDUCTION)
+               if not _prints(row["draft_html"], field, var)]
     result["missing_texts"] = [field for field, _var, _label in missing]
     result["warnings"] = [f"The layout never prints the {label} ({var}); offers that have one will print without it."
                           for _field, var, label in missing]

@@ -32,6 +32,7 @@
   table.lines td { padding: 3px 0; font-size: 9pt; }
   table.lines td.amount { text-align: right; white-space: nowrap; }
   table.lines td.desc { color: #333; }
+  table.lines tr.deduction td { font-style: italic; color: #555; padding-top: 0; }
 
   .footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 7.5pt; color: #999; text-align: center; }
   .state-notice { display: inline-block; margin-bottom: 8pt; padding: 3px 10px; border: 1.5px solid #b91c1c; border-radius: 4px; color: #b91c1c; font-size: 10pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
@@ -80,9 +81,15 @@
   <table class="lines">
     {% for item in p["items"] %}
     <tr>
-      <td class="desc">{{ item.item_name or item.description or item.item_code or "" }} ({{ "%g"|format(item.qty) }} × {{ p.currency }} {{ "%.2f"|format(item.rate) }}){% if item.frequency %} · {{ item.frequency }}{% endif %}</td>
-      <td class="amount">{{ p.currency }} {{ "%.2f"|format(item.amount) }}</td>
+      <td class="desc">{{ item.item_name or item.description or item.item_code or "" }} ({{ "%g"|format(item.qty) }} × {{ p.currency }} {{ "%.2f"|format(item.gross_rate if item.discount_total else item.rate) }}){% if item.frequency %} · {{ item.frequency }}{% endif %}</td>
+      <td class="amount">{{ p.currency }} {{ "%.2f"|format(item.gross_amount if item.discount_total else item.amount) }}</td>
     </tr>
+    {% if item.discount_total %}
+    <tr class="deduction">
+      <td class="desc">{{ item.discount_label }}</td>
+      <td class="amount">{{ p.currency }} &minus;{{ "%.2f"|format(item.discount_total) }}</td>
+    </tr>
+    {% endif %}
     {% endfor %}
   </table>
   {% include "_proposal_totals.html" %}

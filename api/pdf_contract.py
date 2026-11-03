@@ -16,6 +16,27 @@ class PDFError(ValidationError):
         self.fields = list(fields)
 
 
+class AnyOf(tuple):
+    """An expected-content token satisfied by any one of its alternatives
+    (each a list of strings that must all be printed)."""
+
+
+def line_deduction(row):
+    """A line's labelled deduction as printed: the full price, then the
+    deduction as a sub-line. None for a line without one."""
+    label = str(row.get('discount_label') or '').strip()
+    try:
+        per_unit, qty = float(row.get('discount_amount') or 0), float(row.get('qty') or 0)
+        rate = float(row.get('rate') or 0)
+    except (TypeError, ValueError):
+        return None
+    if not label or per_unit <= 0:
+        return None
+    gross_rate = round(rate + per_unit, 2)
+    return {'label': label, 'gross_rate': gross_rate, 'gross_amount': round(gross_rate * qty, 2),
+            'amount': round(per_unit * qty, 2)}
+
+
 DISPLAY_FIELDS = {'Company': 'company_name', 'Customer': 'customer_name', 'Supplier': 'supplier_name',
                   'Item': 'item_name', 'Warehouse': 'warehouse_name', 'Asset': 'asset_name',
                   'Account': 'account_name', 'Cost Center': 'cost_center_name', 'Bank Account': 'account_name',
@@ -141,7 +162,13 @@ def prepare(doctype, doc):
             require(row, ('qty', 'rate', 'amount'), f'items[{i}].')
             for key in ('qty', 'rate', 'amount'):
                 number(row[key], f'items[{i}].{key}')
-            tokens.append(format(number(row['amount'], f'items[{i}].amount'), '.2f'))
+            amount = format(number(row['amount'], f'items[{i}].amount'), '.2f')
+            deduction = line_deduction(row)
+            # A deduction prints as the full price plus a sub-line; a layout
+            # that prints only the net amount still shows the right total.
+            tokens.append(AnyOf(([amount], [format(deduction['gross_amount'], '.2f'),
+                                            format(deduction['amount'], '.2f'), deduction['label']]))
+                          if deduction else amount)
             _item(row, tokens, i)
             _quantity(row, f'items[{i}].qty', bool(doc.get('is_return')))
         for i, tax in enumerate(doc.get('taxes') or []):
@@ -293,15 +320,25 @@ def validate_rendered_pdf(data, expected):
     haystack = normalized(text)
     # Page footers can interrupt paragraphs. Check every line in short word
     # windows as well as every individual word, so missing tail text still fails.
-    checks = []
+    def checks(tokens):
+        out = []
+        for token in tokens:
+            for line in str(token).splitlines():
+                words = line.split()
+                if len(words) <= 12:
+                    out.append(line)
+                else:
+                    out.extend(words)
+                    out.extend(' '.join(words[i:i + 4]) for i in range(0, len(words), 4))
+        return out
+    def missing_from(tokens):
+        return [token for token in checks(tokens) if normalized(token) not in haystack]
+    absent = []
     for token in expected:
-        for line in str(token).splitlines():
-            words = line.split()
-            if len(words) <= 12:
-                checks.append(line)
-            else:
-                checks.extend(words)
-                checks.extend(' '.join(words[i:i + 4]) for i in range(0, len(words), 4))
-    absent = [token for token in checks if normalized(token) not in haystack]
+        if isinstance(token, AnyOf):
+            options = [missing_from(option) for option in token]
+            absent.extend([] if any(not o for o in options) else options[0])
+        else:
+            absent.extend(missing_from([token]))
     if not pages or absent:
         raise PDFError('PDF layout omitted required content: ' + ', '.join(token[:120] for token in absent[:6]), code='pdf_render_incomplete')

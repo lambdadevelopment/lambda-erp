@@ -28,6 +28,9 @@
   table.items th { background: #f1f5f9; padding: 6px 8px; text-align: left; font-size: 8pt; font-weight: 600; color: #555; border-bottom: 2px solid #e2e8f0; }
   table.items td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
   table.items .num { text-align: right; }
+  /* A deduction on the line above (item.discount_label / discount_total). */
+  table.items tr.deduction td { font-style: italic; color: #555; padding-top: 0; }
+  table.items tr.has-deduction td { border-bottom: none; }
   table.items tfoot td { border-top: 2px solid #e2e8f0; font-weight: bold; }
 
   .totals { margin-left: auto; width: 250px; margin-bottom: 20px; }
@@ -136,14 +139,28 @@
   </thead>
   <tbody>
     {% for item in items %}
-    <tr>
+    <tr{% if item.discount_total %} class="has-deduction"{% endif %}>
       <td>{{ loop.index }}</td>
       <td style="font-weight: 600">{{ item.item_code or "" }}</td>
       <td>{{ item.item_name or item.description or "" }}{% if item.frequency %}<br>{{ item.frequency }}{% endif %}</td>
       {% if show_warehouse %}<td>{{ item.warehouse or "" }}</td>{% endif %}
       <td class="num">{{ item.qty }}</td>
+      {% if item.discount_total %}
+      <td class="num">{{ "%.2f"|format(item.gross_rate) }}</td>
+      <td class="num">{{ "%.2f"|format(item.gross_amount) }}</td>
+    </tr>
+    <tr class="deduction">
+      <td></td>
+      <td></td>
+      <td>{{ item.discount_label }}</td>
+      {% if show_warehouse %}<td></td>{% endif %}
+      <td></td>
+      <td></td>
+      <td class="num">&minus;{{ "%.2f"|format(item.discount_total) }}</td>
+      {% else %}
       <td class="num">{{ "%.2f"|format(item.rate or 0) }}</td>
       <td class="num">{{ "%.2f"|format(item.amount) }}</td>
+      {% endif %}
     </tr>
     {% endfor %}
   </tbody>

@@ -1115,6 +1115,15 @@
   },
   "documentWarnings": {
     "pdf_intro_text_not_printed": "Das PDF-Layout «{{template}}» druckt den Einleitungstext nicht; das PDF erscheint ohne ihn.",
-    "pdf_remarks_not_printed": "Das PDF-Layout «{{template}}» druckt den Schlusstext / die Konditionen nicht; das PDF erscheint ohne sie."
+    "pdf_remarks_not_printed": "Das PDF-Layout «{{template}}» druckt den Schlusstext / die Konditionen nicht; das PDF erscheint ohne sie.",
+    "pdf_line_deduction_not_printed": "Das PDF-Layout «{{template}}» druckt keine Abzüge auf Positionen; diese Positionen erscheinen nur mit dem Nettobetrag."
+  },
+  "deductions": {
+    "defaultLabel": "Abzug",
+    "add": "+ Abzug",
+    "remove": "Abzug entfernen",
+    "label": "Text des Abzugs",
+    "labelPlaceholder": "z. B. Abzüglich bereits verrechnet (Rechnung SINV-0003)",
+    "perUnit": "Abzug pro Einheit, wird unter der Position gedruckt; die Position zählt den Rest."
   }
 }

@@ -190,6 +190,9 @@ def apply_pricing_rules(doc):
         # An explicit free line must not acquire a price from a rule.
         if item.get('rate') is not None and flt(item['rate']) == 0:
             continue
+        # A deduction written on the line (with its text) is the price agreed.
+        if item.get("discount_label"):
+            continue
         item_code = item.get("item_code")
         if not item_code:
             continue

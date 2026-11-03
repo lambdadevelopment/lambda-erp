@@ -29,6 +29,10 @@ export interface ChildTableDef {
   label: string;
   key: string; // field name on the parent doc (e.g. "items", "taxes", "accounts")
   fields: FieldDef[];
+  // Lines can carry a deduction with its own text (price_list_rate stays the
+  // full price, discount_amount per unit comes off it, discount_label is
+  // printed as a sub-line). Selling documents the deduction flows through.
+  lineDeductions?: boolean;
 }
 
 export interface ConversionDef {
@@ -148,7 +152,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         hint: "Printed after the totals (where exactly is up to the PDF layout). New offers start with the default from Settings → PDF Templates." },
     ],
     childTables: [
-      { key: "items", label: "Items", fields: QUOTATION_ITEM_FIELDS },
+      { key: "items", label: "Items", fields: QUOTATION_ITEM_FIELDS, lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "customer", "transaction_date", "grand_total", "status"],
@@ -198,7 +202,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
-      { key: "items", label: "Items", fields: ITEM_FIELDS },
+      { key: "items", label: "Items", fields: ITEM_FIELDS, lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "customer", "transaction_date", "grand_total", "status"],
@@ -230,7 +234,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
-      { key: "items", label: "Items", fields: [...ITEM_FIELDS, { name: "income_account", label: "Income Account", type: "link", linkDoctype: "account" }] },
+      { key: "items", label: "Items", fields: [...ITEM_FIELDS, { name: "income_account", label: "Income Account", type: "link", linkDoctype: "account" }], lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "customer", "posting_date", "grand_total", "outstanding_amount", "status"],

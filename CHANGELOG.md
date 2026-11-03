@@ -59,6 +59,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   `{{ valid_till }}`, `{{ transaction_date }}`, `{{ name }}`, `{{ company }}`,
   `{{ currency }}`. Publishing a layout that never prints one of the texts
   warns, and so does an offer whose layout drops a text it has.
+- A position on an offer, sales order or invoice can carry a deduction with
+  its own text, e.g. "Abzüglich bereits verrechnet (Rechnung SINV-0003)": the
+  line keeps its full price (`price_list_rate`), the deduction per unit
+  (`discount_amount`) comes off it, and `discount_label` is new. The PDF
+  prints the full price and the deduction as an italic sub-line; the line and
+  the totals count the rest, with the line's own tax. In the form: "+
+  Deduction" on a line. A deduction can't exceed its price (no negative
+  lines), pricing rules leave such a line alone, and it carries from the offer
+  into the order and the invoice. Templates get `item.discount_label`,
+  `item.discount_total`, `item.gross_rate` and `item.gross_amount`; a layout
+  that doesn't print deductions still exports (lines show their net amount)
+  but warns.
 - A chat reply may link the PDF preview of a template it just rendered; the
   check against made-up PDF links rejected it as "PDF not generated".
 - Chat titles appear within seconds of the first message: the title is now

@@ -1115,6 +1115,15 @@
   },
   "documentWarnings": {
     "pdf_intro_text_not_printed": "The PDF layout “{{template}}” doesn’t print the intro text; the PDF shows it without.",
-    "pdf_remarks_not_printed": "The PDF layout “{{template}}” doesn’t print the closing text / terms; the PDF shows it without."
+    "pdf_remarks_not_printed": "The PDF layout “{{template}}” doesn’t print the closing text / terms; the PDF shows it without.",
+    "pdf_line_deduction_not_printed": "The PDF layout “{{template}}” doesn’t print line deductions; those lines show only their net amount."
+  },
+  "deductions": {
+    "defaultLabel": "Deduction",
+    "add": "+ Deduction",
+    "remove": "Remove deduction",
+    "label": "Deduction text",
+    "labelPlaceholder": "e.g. Less already invoiced (invoice SINV-0003)",
+    "perUnit": "Deduction per unit, printed under the line; the line counts the rest."
   }
 }

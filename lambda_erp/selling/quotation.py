@@ -193,6 +193,7 @@ def make_sales_order(quotation_name):
             price_list_rate=item.get("price_list_rate"),
             discount_percentage=item.get("discount_percentage"),
             discount_amount=item.get("discount_amount"),
+            discount_label=item.get("discount_label"),
             warehouse=item.get("warehouse"),
             quotation_item=item.get("name"),
         ))
@@ -248,6 +249,7 @@ def make_sales_invoice_from_quotation(quotation_name):
             price_list_rate=item.get("price_list_rate"),
             discount_percentage=item.get("discount_percentage"),
             discount_amount=item.get("discount_amount"),
+            discount_label=item.get("discount_label"),
             warehouse=item.get("warehouse"),
         ))
 
