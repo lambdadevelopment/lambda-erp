@@ -71,6 +71,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   `item.discount_total`, `item.gross_rate` and `item.gross_amount`; a layout
   that doesn't print deductions still exports (lines show their net amount)
   but warns.
+- Every document list has the search box leads have (free text and
+  `field:value` filters): offers, proposals, orders, invoices, delivery notes,
+  receipts, POS invoices, payments, journal and stock entries, pricing rules,
+  budgets, subscriptions, bank transactions and reservations. Documents with
+  lines are also found by a line's item code, name or description ("Migration"
+  finds the offers with such a position), in the lists, prev/next, REST, MCP
+  and the chat's list search.
+- PDF template editor: images and fonts can be dragged onto the "Images and
+  fonts" section (several at once, also while it is collapsed); the file
+  picker accepts several files too. A refused file is named and doesn't stop
+  the others.
 - A chat reply may link the PDF preview of a template it just rendered; the
   check against made-up PDF links rejected it as "PDF not generated".
 - Chat titles appear within seconds of the first message: the title is now

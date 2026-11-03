@@ -64,6 +64,8 @@ export interface DoctypeConfig {
   // list shows a field-aware search box; the backend can also match via a
   // registered related-table expansion (register_search_expansion). Omit for no
   // search box.
+  // Documents with lines (items, subscription plans) also match a line's item
+  // code, name or description on the backend.
   searchFields?: string[];
   canSubmit: boolean;
   canCancel: boolean;
@@ -156,6 +158,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "customer", "transaction_date", "grand_total", "status"],
+    searchFields: ["name", "customer", "customer_name", "external_reference"],
     canSubmit: true,
     canCancel: true,
     conversions: [
@@ -177,6 +180,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [],
     childTables: [],
     listColumns: ["name", "title", "customer", "modified"],
+    searchFields: ["name", "title", "customer", "customer_name"],
     canSubmit: false,
     canCancel: false,
     conversions: [],
@@ -206,6 +210,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "customer", "transaction_date", "grand_total", "status"],
+    searchFields: ["name", "customer", "customer_name", "external_reference"],
     canSubmit: true,
     canCancel: true,
     conversions: [
@@ -238,6 +243,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "customer", "posting_date", "grand_total", "outstanding_amount", "status"],
+    searchFields: ["name", "customer", "customer_name", "sales_order", "return_against", "external_reference"],
     canSubmit: true,
     canCancel: true,
     conversions: [
@@ -266,6 +272,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "supplier", "transaction_date", "grand_total", "status"],
+    searchFields: ["name", "supplier", "supplier_name", "external_reference"],
     canSubmit: true,
     canCancel: true,
     conversions: [
@@ -311,6 +318,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "supplier", "posting_date", "grand_total", "outstanding_amount", "status"],
+    searchFields: ["name", "supplier", "supplier_name", "purchase_order", "return_against", "external_reference"],
     canSubmit: true,
     canCancel: true,
     conversions: [
@@ -368,6 +376,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       },
     ],
     listColumns: ["name", "payment_type", "party", "posting_date", "paid_amount", "status"],
+    searchFields: ["name", "party", "party_name", "reference_no"],
     canSubmit: true,
     canCancel: true,
     conversions: [],
@@ -399,6 +408,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       },
     ],
     listColumns: ["name", "posting_date", "remark", "total_debit", "status"],
+    searchFields: ["name", "remark"],
     canSubmit: true,
     canCancel: true,
     conversions: [],
@@ -436,6 +446,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       },
     ],
     listColumns: ["name", "stock_entry_type", "posting_date", "total_amount", "status"],
+    searchFields: ["name", "from_warehouse", "to_warehouse"],
     canSubmit: true,
     canCancel: true,
     conversions: [],
@@ -468,6 +479,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "customer", "posting_date", "grand_total", "status"],
+    searchFields: ["name", "customer", "customer_name", "return_against"],
     canSubmit: true,
     canCancel: true,
     conversions: [
@@ -502,6 +514,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "supplier", "posting_date", "grand_total", "status"],
+    searchFields: ["name", "supplier", "supplier_name", "return_against"],
     canSubmit: true,
     canCancel: true,
     conversions: [
@@ -550,6 +563,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       },
     ],
     listColumns: ["name", "customer", "posting_date", "grand_total", "status"],
+    searchFields: ["name", "customer", "customer_name"],
     canSubmit: true,
     canCancel: true,
     conversions: [],
@@ -620,6 +634,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     ],
     childTables: [],
     listColumns: ["name", "title", "item_code", "rate_or_discount", "discount_percentage", "status"],
+    searchFields: ["name", "title", "item_code", "customer", "supplier"],
     canSubmit: false,
     canCancel: false,
     conversions: [],
@@ -652,6 +667,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       },
     ],
     listColumns: ["name", "account", "cost_center", "fiscal_year", "budget_amount"],
+    searchFields: ["name", "account", "cost_center"],
     canSubmit: false,
     canCancel: false,
     conversions: [],
@@ -683,6 +699,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       },
     ],
     listColumns: ["name", "party", "billing_interval", "start_date", "status"],
+    searchFields: ["name", "party"],
     canSubmit: false,
     canCancel: false,
     conversions: [],
@@ -730,6 +747,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       ],
     }],
     listColumns: ["name", "posting_date", "counterparty_name", "deposit", "withdrawal", "currency", "status"],
+    searchFields: ["name", "counterparty_name", "remittance_information", "reference_number"],
     canSubmit: false,
     canCancel: false,
     conversions: [],
@@ -822,6 +840,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     childTables: [],
     listColumns: ["name", "item_code", "asset", "party", "from_datetime", "to_datetime", "status"],
     listFilters: ["status"],
+    searchFields: ["name", "party", "asset", "item_code", "voucher_no"],
     canSubmit: false,
     canCancel: false,
     conversions: [],

@@ -781,6 +781,27 @@ def document_search_columns(db, doctype_slug: str) -> list[str]:
     return _useful_text_columns(db, doctype)
 
 
+# Documents with lines also match on them: an offer is found by an item code,
+# line name or line description ("Migration", "M-PDF"). A subquery on the
+# child table, so a common term doesn't turn into a huge IN list.
+_LINE_SEARCH_TABLES = ("items", "plans")
+_LINE_SEARCH_COLUMNS = ("item_code", "item_name", "description")
+
+
+def _line_search(db, doctype: str, like: str):
+    cls = DOCUMENT_CLASSES.get(doctype)
+    parts, params = [], []
+    for key, (table, *_rest) in (getattr(cls, "CHILD_TABLES", None) or {}).items():
+        if key not in _LINE_SEARCH_TABLES:
+            continue
+        columns = db._get_table_columns(table)
+        matches = [f'LOWER(CAST("{c}" AS TEXT)) LIKE LOWER(?)' for c in _LINE_SEARCH_COLUMNS if c in columns]
+        if "parent" in columns and matches:
+            parts.append(f'name IN (SELECT parent FROM "{table}" WHERE {" OR ".join(matches)})')
+            params.extend([like] * len(matches))
+    return (" OR ".join(parts), params) if parts else (None, [])
+
+
 def register_search_expansion(doctype_slug: str, fn) -> None:
     """Register a related-table search for a doctype's list. `fn(query, db)`
     returns an iterable of this doctype's PK names whose related records match
@@ -810,6 +831,10 @@ def _search_clause(db, doctype: str, doctype_slug: str, search, search_fields):
             # exist" — matches the master path (_handle_search_masters, 2026-08-13).
             parts.append(f'LOWER(CAST("{f}" AS TEXT)) LIKE LOWER(?)')
             params.append(like)
+    line_clause, line_params = _line_search(db, doctype, like)
+    if line_clause:
+        parts.append(line_clause)
+        params.extend(line_params)
     extra = []
     seen = set()
     for fn in _SEARCH_EXPANSIONS.get(doctype_slug, []):
