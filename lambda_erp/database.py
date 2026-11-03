@@ -3147,6 +3147,22 @@ def _m045_line_discount_label(db: "Database") -> None:
     db.conn.commit()
 
 
+def _m046_pdf_templates_all_documents(db: "Database") -> None:
+    """PDF templates beyond offers (see api.pdf_templates.DOCTYPES): the chosen
+    layout, the version an issued document was pinned to, and the intro text
+    printed above the lines. Proposals and reservations are never issued, so
+    they only choose a layout."""
+    for table in ("Sales Order", "Sales Invoice", "Purchase Order", "Delivery Note"):
+        db.ensure_column(table, "pdf_template", "TEXT")
+        db.ensure_column(table, "pdf_template_version", "TEXT")
+        db.ensure_column(table, "intro_text", "TEXT")
+        index = table.lower().replace(" ", "_") + "_pdf_template_version"
+        db.conn.execute(f'CREATE INDEX IF NOT EXISTS {index} ON "{table}" (pdf_template_version)')
+    for table in ("Proposal", "Reservation"):
+        db.ensure_column(table, "pdf_template", "TEXT")
+    db.conn.commit()
+
+
 def _m042_record_notes(db: "Database") -> None:
     """Internal team notes on any document or master (see api.record_notes)."""
     db.conn.execute(
@@ -3212,6 +3228,7 @@ Database.MIGRATIONS = [
     (43, "pdf_templates", _m043_pdf_templates),
     (44, "quotation_intro_text", _m044_quotation_intro_text),
     (45, "line_discount_label", _m045_line_discount_label),
+    (46, "pdf_templates_all_documents", _m046_pdf_templates_all_documents),
 ]
 
 

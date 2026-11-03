@@ -496,9 +496,10 @@ export const api = {
 
   /** A PDF template's working copy (or published layout) rendered against a
    *  document; resolves to the PDF and the document it was rendered with. */
-  pdfTemplatePreview: async (template: string, source: "draft" | "live", document?: string) => {
+  pdfTemplatePreview: async (template: string, source: "draft" | "live", document?: string, doctype?: string) => {
     const params = new URLSearchParams({ source });
     if (document) params.set("document", document);
+    if (doctype) params.set("doctype", doctype);
     const res = await fetch(`${BASE}/pdf-templates/${encodeURIComponent(template)}/preview?${params}`, {
       credentials: "include",
     });

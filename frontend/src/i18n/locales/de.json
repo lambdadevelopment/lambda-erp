@@ -270,6 +270,10 @@
     "pricing-rule": {
       "one": "Preisregel",
       "other": "Preisregeln"
+    },
+    "reservation": {
+      "one": "Reservation",
+      "other": "Reservationen"
     }
   },
   "masters": {
@@ -938,12 +942,29 @@
       "item_code": "Pool-Reservation ('ein 1.7t-Bagger'): Artikel + Depot + Menge setzen. Für eine bestimmte Maschine stattdessen Gerät setzen.",
       "asset": "Eine bestimmte Maschine buchen. Eine Einheiten-Buchung belegt auch einen Platz im Artikel+Depot-Pool.",
       "from_datetime": "Genauer Beginn — Datum und Uhrzeit (z. B. 14:27). Ein reines Datum bedeutet 00:00.",
-      "to_datetime": "Genaues Ende. Fenster sind halboffen [von, bis): eine Miete, die um 09:00 endet, und die nächste um 09:00 beginnende, kollidieren NICHT."
+      "to_datetime": "Genaues Ende. Fenster sind halboffen [von, bis): eine Miete, die um 09:00 endet, und die nächste um 09:00 beginnende, kollidieren NICHT.",
+      "pdf_template": "Wie die Reservationsbestätigung aussieht."
     },
     "quotation": {
       "pdf_template": "Wie das PDF der Offerte aussieht. Wird beim Buchen der Offerte festgehalten.",
       "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Offerten starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen.",
       "remarks": "Wird nach den Summen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Offerten starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
+    },
+    "sales-order": {
+      "pdf_template": "Wie das PDF aussieht. Wird beim Buchen festgehalten.",
+      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
+    },
+    "sales-invoice": {
+      "pdf_template": "Wie das PDF aussieht. Wird beim Buchen festgehalten.",
+      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
+    },
+    "purchase-order": {
+      "pdf_template": "Wie das PDF aussieht. Wird beim Buchen festgehalten.",
+      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
+    },
+    "delivery-note": {
+      "pdf_template": "Wie das PDF aussieht. Wird beim Buchen festgehalten.",
+      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
     }
   },
   "companyTax": {
@@ -1054,7 +1075,7 @@
   },
   "pdfTemplates": {
     "title": "PDF-Vorlagen",
-    "intro": "Die Layouts, mit denen Offerten gedruckt werden. Bearbeite eine Vorlage so oft du willst: Speichern ändert nur den Entwurf, Veröffentlichen macht ihn zum Layout der Offerten. Eine gebuchte Offerte behält das Layout und das PDF, mit dem sie ausgestellt wurde.",
+    "intro": "Die Layouts, mit denen Belege gedruckt werden: Offerten, Aufträge, Rechnungen, Bestellungen, Lieferscheine, Sammelofferten und Reservationsbestätigungen, jeder Typ mit eigenen Vorlagen und eigenem Standard. Bearbeite eine Vorlage so oft du willst: Speichern ändert nur den Entwurf, Veröffentlichen macht ihn zum Layout der Belege. Ein gebuchter Beleg behält das Layout und das PDF, mit dem er ausgestellt wurde.",
     "chatHint": "Du kannst auch den Chat fragen, z. B. „setz unser Logo oben rechts und nimm eine grössere Schrift in der Positionstabelle“.",
     "new": "Neue Vorlage",
     "newTitle": "Neue PDF-Vorlage",
@@ -1078,7 +1099,7 @@
     "deleteBody": "Keine Offerte hat diese Vorlage verwendet, es hängt also nichts davon ab.",
     "showArchived": "Archivierte Vorlagen anzeigen",
     "name": "Name",
-    "editHint": "Speichere so oft du willst: Es ändert sich nur der Entwurf. Veröffentliche, wenn die Vorschau stimmt; Offerten drucken mit dem veröffentlichten Layout.",
+    "editHint": "Speichere so oft du willst: Es ändert sich nur der Entwurf. Veröffentliche, wenn die Vorschau stimmt; Belege drucken mit dem veröffentlichten Layout.",
     "publish": "Veröffentlichen",
     "revert": "Unveröffentlichte Änderungen verwerfen",
     "revertTitle": "Unveröffentlichte Änderungen verwerfen?",
@@ -1088,7 +1109,7 @@
     "lines_one": "{{count}} Zeile",
     "lines_other": "{{count}} Zeilen",
     "preview": "Vorschau",
-    "previewWith": "Vorschau mit Offerte",
+    "previewWith": "Vorschau mit Beleg",
     "refresh": "Aktualisieren",
     "show_draft": "Entwurf",
     "show_live": "Veröffentlicht",
@@ -1100,7 +1121,7 @@
     "upload": "Datei hochladen",
     "versions_one": "Ausgestellte Versionen ({{count}})",
     "versions_other": "Ausgestellte Versionen ({{count}})",
-    "versionsHint": "Eine Version entsteht, wenn eine Offerte mit einem Layout gebucht wird. Offerten behalten die Version, mit der sie ausgestellt wurden.",
+    "versionsHint": "Eine Version entsteht, wenn ein Beleg mit einem Layout gebucht wird. Belege behalten die Version, mit der sie ausgestellt wurden.",
     "noVersions": "Mit dieser Vorlage wurde noch keine Offerte ausgestellt.",
     "firstUsed": "zuerst verwendet am {{date}}",
     "reference": "Verfügbare Felder",
@@ -1113,12 +1134,20 @@
     "textsSaved": "Gespeichert.",
     "publishWarnings": "Hinweis: {{warnings}}",
     "uploading": "Wird hochgeladen…",
-    "dropHint": "oder Bilder und Schriften hierher ziehen (PNG, JPG, SVG, WebP, GIF, TTF, OTF, WOFF, WOFF2)"
+    "dropHint": "oder Bilder und Schriften hierher ziehen (PNG, JPG, SVG, WebP, GIF, TTF, OTF, WOFF, WOFF2)",
+    "textDefaultsFor": "Standardtexte für {{type}}",
+    "textDefaultsIntroFor": "Neue {{type}} starten mit diesen Texten; sie lassen sich pro Beleg ändern. Eine Änderung hier ändert bestehende Belege nicht.",
+    "newTitleFor": "Neue PDF-Vorlage ({{type}})",
+    "newFor": "Neue Vorlage: {{type}}",
+    "fromOtherType": "Aus Vorlage eines anderen Typs…",
+    "usedByIssued_one": "Von {{count}} gebuchten Beleg verwendet",
+    "usedByIssued_other": "Von {{count}} gebuchten Belegen verwendet"
   },
   "documentWarnings": {
     "pdf_intro_text_not_printed": "Das PDF-Layout «{{template}}» druckt den Einleitungstext nicht; das PDF erscheint ohne ihn.",
     "pdf_remarks_not_printed": "Das PDF-Layout «{{template}}» druckt den Schlusstext / die Konditionen nicht; das PDF erscheint ohne sie.",
-    "pdf_line_deduction_not_printed": "Das PDF-Layout «{{template}}» druckt keine Abzüge auf Positionen; diese Positionen erscheinen nur mit dem Nettobetrag."
+    "pdf_line_deduction_not_printed": "Das PDF-Layout «{{template}}» druckt keine Abzüge auf Positionen; diese Positionen erscheinen nur mit dem Nettobetrag.",
+    "pdf_variable_not_printed": "Das PDF-Layout «{{template}}» druckt {{label}} nicht; das PDF erscheint ohne."
   },
   "deductions": {
     "defaultLabel": "Abzug",

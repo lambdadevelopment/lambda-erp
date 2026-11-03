@@ -82,6 +82,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
   fonts" section (several at once, also while it is collapsed); the file
   picker accepts several files too. A refused file is named and doesn't stop
   the others.
+- PDF templates for every customer- or supplier-facing document: sales
+  orders, sales invoices (incl. credit notes), purchase orders, delivery notes,
+  proposals and reservation confirmations, besides offers. Each type has its
+  own templates, default and built-in layout; Settings → PDF Templates has a
+  tab per type, and a new template can start from another type's (the invoice
+  in the style of the offer). Orders, invoices, purchase orders and delivery
+  notes pin and archive the layout they were issued with, like offers;
+  proposals and reservations print with their current layout. Orders,
+  invoices, purchase orders and delivery notes also get an intro text and
+  default texts per type. Delivery notes and reservations now print with their
+  own built-in layouts (`delivery_note.html`, `reservation.html`: the
+  warehouse by name, no prices; the reservation period formatted) instead of
+  the generic record layout; a deployment that overrode `record.html` for
+  them needs an override of those files. A layout that drops content a
+  deployment adds, such as the Swiss QR bill on invoices, is flagged when
+  publishing and on the document. Actions take `doctype` (`get_pdf_template`
+  and `preview_pdf_template` for `standard`, `view_pdf_pages` too).
 - A chat reply may link the PDF preview of a template it just rendered; the
   check against made-up PDF links rejected it as "PDF not generated".
 - Chat titles appear within seconds of the first message: the title is now

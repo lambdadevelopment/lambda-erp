@@ -8,6 +8,7 @@ os.environ.setdefault('OPENAI_API_KEY', 'sk-test-unused')
 from fastapi.testclient import TestClient
 
 from api.main import app
+from api.pdf_templates import DOCTYPES
 from lambda_erp.database import get_db
 from tests.pdf_fixtures import seed_pdf_documents
 from tests.test_availability_api import _reset_db
@@ -92,7 +93,7 @@ class PdfTemplateTests(unittest.TestCase):
     def test_new_template_copies_standard_and_edits_leave_no_versions(self):
         listed = self.act('list_pdf_templates')
         self.assertEqual([t['template'] for t in listed['templates']], ['standard'])
-        self.assertEqual(listed['defaults'], {'Quotation': 'standard'})
+        self.assertEqual(listed['defaults'], {dt: 'standard' for dt in DOCTYPES})
         created = self.act('create_pdf_template', title='Branded')
         tid = created['template']
         self.assertFalse(created['published'])
@@ -248,7 +249,7 @@ class PdfTemplateTests(unittest.TestCase):
         unused = self.template('Unused', html=layout('Unused'))
         self.act('set_default_pdf_template', template=unused)
         self.assertEqual(self.act('delete_pdf_template', template=unused)['deleted'], unused)
-        self.assertEqual(self.act('list_pdf_templates')['defaults'], {'Quotation': 'standard'})
+        self.assertEqual(self.act('list_pdf_templates')['defaults'], {dt: 'standard' for dt in DOCTYPES})
 
     # -- sandbox --------------------------------------------------------
 

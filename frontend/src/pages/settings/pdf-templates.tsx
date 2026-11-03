@@ -1,8 +1,10 @@
-// PDF templates: the layouts offers print with (api/pdf_templates.py). Managers
-// and admins create and edit them; everyone can see them and pick one on an
-// offer. The chat, REST and MCP clients reach the same actions.
+// PDF templates: the layouts documents print with, per document type (offers,
+// orders, invoices, purchase orders, delivery notes, proposals, reservations;
+// api/pdf_templates.py). Managers and admins create and edit them; everyone can
+// see them and pick one on a document. The chat, REST and MCP clients reach the
+// same actions.
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Copy, FileText, Plus } from "lucide-react";
@@ -12,9 +14,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirm, usePrompt } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/auth-context";
+import { Select } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
-  PDF_TEMPLATES_KEY, usePdfTemplates, usePdfTextDefaults, type PdfTemplateSummary,
+  PDF_TEMPLATES_KEY, PDF_TEMPLATE_DOCTYPES, pdfTemplateDoctype, usePdfTemplates, usePdfTextDefaults,
+  type PdfTemplateDoctype, type PdfTemplateSummary,
 } from "@/hooks/use-pdf-templates";
+
+/** Link to a template's editor; the built-in one is per document type. */
+export function templateHref(template: string, doctype: string) {
+  const base = `/settings/pdf-templates/${encodeURIComponent(template)}`;
+  return template === "standard" ? `${base}?doctype=${encodeURIComponent(doctype)}` : base;
+}
 
 export function canEditPdfTemplates(role: string | undefined) {
   return role === "admin" || role === "manager" || role === "public_manager";
@@ -40,20 +51,20 @@ export function TemplateBadges({ template }: { template: PdfTemplateSummary }) {
   );
 }
 
-/** The intro and closing texts new offers start with (one global pair). */
-function TextDefaultsCard({ canEdit }: { canEdit: boolean }) {
+/** The intro and closing texts new documents of a type start with (one pair per type). */
+function TextDefaultsCard({ canEdit, type }: { canEdit: boolean; type: PdfTemplateDoctype }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data } = usePdfTextDefaults();
+  const { data } = usePdfTextDefaults(true, type.doctype);
   const [texts, setTexts] = useState({ intro_text: "", remarks: "" });
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     if (data) setTexts({ intro_text: data.intro_text, remarks: data.remarks });
   }, [data]);
   const save = useMutation({
-    mutationFn: () => api.runAction("set_pdf_text_defaults", { doctype: "Quotation", ...texts }),
+    mutationFn: () => api.runAction("set_pdf_text_defaults", { doctype: type.doctype, ...texts }),
     onSuccess: (result) => {
-      qc.setQueryData([...PDF_TEMPLATES_KEY, "text-defaults"], result);
+      qc.setQueryData([...PDF_TEMPLATES_KEY, "text-defaults", type.doctype], result);
       setSaved(true);
     },
   });
@@ -68,8 +79,12 @@ function TextDefaultsCard({ canEdit }: { canEdit: boolean }) {
   );
   return (
     <Card>
-      <h3 className="text-base font-semibold tracking-tight text-fg">{t("pdfTemplates.textDefaults")}</h3>
-      <p className="mt-1 max-w-2xl text-sm text-fg-muted">{t("pdfTemplates.textDefaultsIntro")}</p>
+      <h3 className="text-base font-semibold tracking-tight text-fg">
+        {t("pdfTemplates.textDefaultsFor", { type: t(`doctypes.${type.slug}.other`) })}
+      </h3>
+      <p className="mt-1 max-w-2xl text-sm text-fg-muted">
+        {t("pdfTemplates.textDefaultsIntroFor", { type: t(`doctypes.${type.slug}.other`) })}
+      </p>
       <div className="mt-4 space-y-4">
         {field("intro_text", "Intro text")}
         {field("remarks", "Closing text / terms")}
@@ -99,7 +114,12 @@ export default function PdfTemplatesPage() {
   const prompt = usePrompt();
   const confirm = useConfirm();
   const [showArchived, setShowArchived] = useState(false);
-  const { data, isLoading, error } = usePdfTemplates(showArchived);
+  const [params, setParams] = useSearchParams();
+  const type = pdfTemplateDoctype(params.get("type")) ?? PDF_TEMPLATE_DOCTYPES[0];
+  const { data, isLoading, error } = usePdfTemplates(showArchived, true, type.doctype);
+  // Templates of the other types, to start this type's layout in the same style.
+  const { data: all } = usePdfTemplates(false, canEditPdfTemplates(user?.role));
+  const otherTypes = (all?.templates ?? []).filter((tpl) => !tpl.standard && tpl.doctype !== type.doctype);
 
   const run = useMutation({
     mutationFn: ({ action, args }: { action: string; args: Record<string, unknown> }) => api.runAction(action, args),
@@ -107,16 +127,17 @@ export default function PdfTemplatesPage() {
   });
 
   const create = async (basedOn: PdfTemplateSummary) => {
+    const name = basedOn.standard ? t("pdfTemplates.standard") : basedOn.title;
     const title = await prompt({
-      title: t("pdfTemplates.newTitle"),
-      body: t("pdfTemplates.newBody", { name: basedOn.title }),
+      title: t("pdfTemplates.newTitleFor", { type: t(`doctypes.${type.slug}.one`) }),
+      body: t("pdfTemplates.newBody", { name }),
       defaultValue: basedOn.standard ? "" : t("pdfTemplates.copyOf", { name: basedOn.title }),
       confirmLabel: t("pdfTemplates.create"),
     });
     if (!title?.trim()) return;
     const created = await run.mutateAsync({
       action: "create_pdf_template",
-      args: { title: title.trim(), based_on: basedOn.template },
+      args: { title: title.trim(), based_on: basedOn.template, doctype: type.doctype },
     });
     navigate(`/settings/pdf-templates/${encodeURIComponent(created.template)}`);
   };
@@ -139,13 +160,43 @@ export default function PdfTemplatesPage() {
             <p className="mt-1 max-w-2xl text-sm text-fg-muted">{t("pdfTemplates.intro")}</p>
             <p className="mt-2 max-w-2xl text-xs text-fg-muted">{t("pdfTemplates.chatHint")}</p>
           </div>
-          {canEdit && standard && (
+        </div>
+        <div role="tablist" className="mt-4 flex flex-wrap gap-1.5">
+          {PDF_TEMPLATE_DOCTYPES.map((entry) => (
+            <button key={entry.slug} type="button" role="tab" aria-selected={entry.slug === type.slug}
+              onClick={() => setParams(entry.slug === "quotation" ? {} : { type: entry.slug })}
+              className={cn("rounded-full px-3 py-1 text-sm ring-1 transition-colors",
+                entry.slug === type.slug
+                  ? "bg-brand text-white ring-brand"
+                  : "bg-surface text-fg-muted ring-line hover:text-fg")}>
+              {t(`doctypes.${entry.slug}.other`)}
+            </button>
+          ))}
+        </div>
+        {canEdit && standard && (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <Button onClick={() => create(standard)} disabled={run.isPending}>
               <Plus className="h-4 w-4" />
-              {t("pdfTemplates.new")}
+              {t("pdfTemplates.newFor", { type: t(`doctypes.${type.slug}.one`) })}
             </Button>
-          )}
-        </div>
+            {otherTypes.length > 0 && (
+              <div className="w-72 max-w-full">
+                <Select value="" placeholder={false}
+                  options={[
+                    { value: "", label: t("pdfTemplates.fromOtherType") },
+                    ...otherTypes.map((tpl) => ({
+                      value: tpl.template,
+                      label: `${tpl.title} (${t(`doctypes.${pdfTemplateDoctype(tpl.doctype)?.slug ?? "quotation"}.one`)})`,
+                    })),
+                  ]}
+                  onChange={(e) => {
+                    const source = otherTypes.find((tpl) => tpl.template === e.target.value);
+                    if (source) void create(source);
+                  }} />
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
       {(error || run.error) && (
@@ -160,7 +211,7 @@ export default function PdfTemplatesPage() {
             <FileText className="h-5 w-5 shrink-0 text-fg-muted" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <Link to={`/settings/pdf-templates/${encodeURIComponent(tpl.template)}`}
+                <Link to={templateHref(tpl.template, type.doctype)}
                   className="truncate text-sm font-semibold text-fg hover:text-brand">
                   {tpl.standard ? t("pdfTemplates.standard") : tpl.title}
                 </Link>
@@ -168,7 +219,8 @@ export default function PdfTemplatesPage() {
               </div>
               <p className="mt-0.5 text-xs text-fg-muted">
                 {[tpl.standard ? t("pdfTemplates.standardDescription") : tpl.description,
-                  t("pdfTemplates.usedBy", { count: tpl.used_by_documents })].filter(Boolean).join(" · ")}
+                  type.slug === "proposal" || type.slug === "reservation" ? null
+                    : t("pdfTemplates.usedByIssued", { count: tpl.used_by_documents })].filter(Boolean).join(" · ")}
               </p>
             </div>
             {canEdit && (
@@ -176,7 +228,7 @@ export default function PdfTemplatesPage() {
                 {!tpl.default && tpl.published && !tpl.archived && (
                   <Button variant="ghost" size="sm" disabled={run.isPending}
                     onClick={() => run.mutate({ action: "set_default_pdf_template",
-                      args: { doctype: "Quotation", template: tpl.template } })}>
+                      args: { doctype: type.doctype, template: tpl.template } })}>
                     {t("pdfTemplates.makeDefault")}
                   </Button>
                 )}
@@ -208,7 +260,7 @@ export default function PdfTemplatesPage() {
         {t("pdfTemplates.showArchived")}
       </label>
 
-      <TextDefaultsCard canEdit={canEdit} />
+      {type.texts && <TextDefaultsCard key={type.doctype} canEdit={canEdit} type={type} />}
     </div>
   );
 }

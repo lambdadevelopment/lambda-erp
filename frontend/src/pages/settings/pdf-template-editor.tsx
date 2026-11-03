@@ -3,7 +3,7 @@
 // in place (no versions); publishing makes it what offers print with. A
 // version appears only when an offer is submitted with a layout.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ChevronDown, ChevronRight, RefreshCw, Trash2, Upload } from "lucide-react";
@@ -16,7 +16,9 @@ import { SaveButton } from "@/components/ui/save-button";
 import { useConfirm } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
-import { PDF_TEMPLATES_KEY, usePdfTemplate } from "@/hooks/use-pdf-templates";
+import {
+  PDF_TEMPLATES_KEY, PDF_TEMPLATE_DOCTYPES, pdfTemplateDoctype, usePdfTemplate,
+} from "@/hooks/use-pdf-templates";
 import { TemplateBadges, canEditPdfTemplates, canManagePdfAssets } from "@/pages/settings/pdf-templates";
 
 /** Files dragged in from the desktop (not text or elements dragged on the page). */
@@ -62,7 +64,9 @@ function Section({ title, children, open: initiallyOpen = false, onDropFiles }: 
 }
 
 /** The saved working copy (or the built-in layout) rendered as a PDF. */
-function Preview({ template, revision, source }: { template: string; revision: number; source: "draft" | "live" }) {
+function Preview({ template, revision, source, doctype }: {
+  template: string; revision: number; source: "draft" | "live"; doctype: string;
+}) {
   const { t } = useTranslation();
   const [document, setDocument] = useState("");
   const [applied, setApplied] = useState("");
@@ -72,7 +76,7 @@ function Preview({ template, revision, source }: { template: string; revision: n
     let url: string | undefined;
     let cancelled = false;
     setState((prev) => ({ ...prev, loading: true }));
-    api.pdfTemplatePreview(template, source, applied || undefined)
+    api.pdfTemplatePreview(template, source, applied || undefined, template === "standard" ? doctype : undefined)
       .then((result) => {
         if (cancelled) return;
         url = URL.createObjectURL(result.blob);
@@ -83,13 +87,13 @@ function Preview({ template, revision, source }: { template: string; revision: n
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [template, revision, source, applied]);
+  }, [template, revision, source, applied, doctype]);
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-0 flex-1">
-          <Input label={t("pdfTemplates.previewWith")} placeholder={state.document || "QTN-0001"}
+          <Input label={t("pdfTemplates.previewWith")} placeholder={state.document || ""}
             value={document} onChange={(e) => setDocument(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") setApplied(document.trim()); }} />
         </div>
@@ -116,11 +120,15 @@ function Preview({ template, revision, source }: { template: string; revision: n
 export default function PdfTemplateEditor() {
   const { t } = useTranslation();
   const { id = "" } = useParams();
+  const [params] = useSearchParams();
+  // The built-in layout is one per document type (?doctype=…).
+  const standardType = id === "standard" ? params.get("doctype") || "Quotation" : undefined;
   const navigate = useNavigate();
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { user } = useAuth();
-  const { data: tpl, error: loadError } = usePdfTemplate(id);
+  const { data: tpl, error: loadError } = usePdfTemplate(id, standardType);
+  const type = pdfTemplateDoctype(standardType ?? tpl?.doctype) ?? PDF_TEMPLATE_DOCTYPES[0];
   const editable = canEditPdfTemplates(user?.role) && !!tpl && !tpl.standard && !tpl.archived;
   const assetsEditable = editable && canManagePdfAssets(user?.role);
   const { dirty, markDirty, markClean } = useUnsavedChanges();
@@ -142,7 +150,8 @@ export default function PdfTemplateEditor() {
   // Action results omit the HTML, so merge them into the cached template
   // rather than replacing it.
   const refresh = (next?: Record<string, unknown>) => {
-    if (next) qc.setQueryData([...PDF_TEMPLATES_KEY, "detail", id], (prev: object | undefined) => ({ ...prev, ...next }));
+    if (next) qc.setQueryData([...PDF_TEMPLATES_KEY, "detail", id, standardType ?? ""],
+      (prev: object | undefined) => ({ ...prev, ...next }));
     qc.invalidateQueries({ queryKey: PDF_TEMPLATES_KEY });
     setRevision((r) => r + 1);
   };
@@ -153,10 +162,17 @@ export default function PdfTemplateEditor() {
   });
 
   // "Published. Checked against …", plus a note for each printed text the layout never shows.
-  const publishedNotice = useCallback((result: { checked_against?: string | null; missing_texts?: string[]; title?: string }) => {
+  const publishedNotice = useCallback((result: {
+    checked_against?: string | null; missing_texts?: string[]; title?: string;
+    missing_variables?: { variable: string; label: string }[];
+  }) => {
     const parts = result.checked_against ? [t("pdfTemplates.publishedNotice", { document: result.checked_against })] : [];
-    const missing = (result.missing_texts ?? []).map((field) =>
-      t(`documentWarnings.pdf_${field}_not_printed`, { template: result.title ?? "", interpolation: { escapeValue: false } }));
+    const options = { template: result.title ?? "", interpolation: { escapeValue: false } };
+    const missing = [
+      ...(result.missing_texts ?? []).map((field) => t(`documentWarnings.pdf_${field}_not_printed`, options)),
+      ...(result.missing_variables ?? []).map((item) =>
+        t("documentWarnings.pdf_variable_not_printed", { ...options, label: item.label })),
+    ];
     if (missing.length) parts.push(t("pdfTemplates.publishWarnings", { warnings: missing.join(" "), interpolation: { escapeValue: false } }));
     return parts.join(" ");
   }, [t]);
@@ -236,10 +252,12 @@ export default function PdfTemplateEditor() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Link to="/settings/pdf-templates" className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg">
+        <Link to={type.slug === "quotation" ? "/settings/pdf-templates" : `/settings/pdf-templates?type=${type.slug}`}
+          className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg">
           <ArrowLeft className="h-4 w-4" />
           {t("pdfTemplates.title")}
         </Link>
+        <span className="text-sm text-fg-muted">· {t(`doctypes.${type.slug}.other`)}</span>
       </div>
 
       <Card>
@@ -308,7 +326,7 @@ export default function PdfTemplateEditor() {
               </span>
             )}
           </div>
-          <Preview template={id} revision={revision} source={tpl.standard ? "live" : source} />
+          <Preview template={id} revision={revision} source={tpl.standard ? "live" : source} doctype={type.doctype} />
           {dirty && <p className="text-xs text-fg-muted">{t("pdfTemplates.previewShowsSaved")}</p>}
         </div>
       </div>
@@ -355,28 +373,31 @@ export default function PdfTemplateEditor() {
         </Section>
       )}
 
-      <Section title={t("pdfTemplates.versions", { count: tpl.versions.length })}>
-        <p className="mb-3 text-xs text-fg-muted">{t("pdfTemplates.versionsHint")}</p>
-        {tpl.versions.length === 0 ? (
-          <p className="text-sm text-fg-muted">{t("pdfTemplates.noVersions")}</p>
-        ) : (
-          <ul className="space-y-1 text-sm">
-            {tpl.versions.map((version) => (
-              <li key={version.version} className="flex flex-wrap gap-x-3">
-                <span className="font-semibold">{version.label}</span>
-                <span className="text-fg-muted">{t("pdfTemplates.firstUsed", { date: version.first_used.slice(0, 10) })}</span>
-                <span>{t("pdfTemplates.usedBy", { count: version.documents })}</span>
-                {version.example_document && (
-                  <Link className="text-sky-600 hover:underline"
-                    to={`/app/quotation/${encodeURIComponent(version.example_document)}`}>
-                    {version.example_document}
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
+      {/* Proposals and reservations are never issued, so they have no versions. */}
+      {tpl.issued !== false && (
+        <Section title={t("pdfTemplates.versions", { count: tpl.versions.length })}>
+          <p className="mb-3 text-xs text-fg-muted">{t("pdfTemplates.versionsHint")}</p>
+          {tpl.versions.length === 0 ? (
+            <p className="text-sm text-fg-muted">{t("pdfTemplates.noVersions")}</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {tpl.versions.map((version) => (
+                <li key={version.version} className="flex flex-wrap gap-x-3">
+                  <span className="font-semibold">{version.label}</span>
+                  <span className="text-fg-muted">{t("pdfTemplates.firstUsed", { date: version.first_used.slice(0, 10) })}</span>
+                  <span>{t("pdfTemplates.usedByIssued", { count: version.documents })}</span>
+                  {version.example_document && (
+                    <Link className="text-sky-600 hover:underline"
+                      to={`/app/${type.slug}/${encodeURIComponent(version.example_document)}`}>
+                      {version.example_document}
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      )}
 
       <Section title={t("pdfTemplates.reference")}>
         <pre className="whitespace-pre-wrap text-xs leading-5 text-fg-muted">{tpl.context_reference}</pre>

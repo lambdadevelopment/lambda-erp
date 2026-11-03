@@ -200,6 +200,10 @@ def prepare(doctype, doc):
                     raise PDFError('PDF requires a supported stock_entry_type')
                 keys = ('s_warehouse', 't_warehouse') if movement == 'Material Transfer' else ('s_warehouse',) if movement == 'Material Issue' else ('t_warehouse',)
                 require(row, keys, f'items[{i}].')
+    # What a layout chosen per document type (delivery notes, reservations; see
+    # api.pdf_templates) must print: number, state, party and lines. The fields
+    # below are the generic record layout's own content.
+    core_tokens = list(tokens)
     if profile.kind == 'reservation':
         _quantity(doc, 'qty')
         if number(doc['qty'], 'qty') % 1:
@@ -267,6 +271,7 @@ def prepare(doctype, doc):
         party_currency = get_db().get_value(party_type, party_id, 'default_currency') if party_id else None
         fields.append({'key': 'currency', 'value': party_currency or company_currency})
     return {'profile': profile, 'status': state, 'notice': notice, 'warnings': warnings, 'tokens': tokens,
+            'core_tokens': core_tokens,
             'fields': fields, 'tables': tables, 'party_name': party_name,
             'company': company, 'company_currency': company_currency}
 

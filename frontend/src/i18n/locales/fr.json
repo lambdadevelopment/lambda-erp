@@ -270,6 +270,10 @@
     "pricing-rule": {
       "one": "Règle de prix",
       "other": "Règles de prix"
+    },
+    "reservation": {
+      "one": "Réservation",
+      "other": "Réservations"
     }
   },
   "masters": {
@@ -938,12 +942,29 @@
       "item_code": "Réservation de pool ('une pelle de 1,7 t') : renseigner Article + Dépôt + Qté. Pour une machine précise, renseigner Équipement.",
       "asset": "Réserver une machine précise. Une réservation d'unité consomme aussi une place du pool Article+Dépôt.",
       "from_datetime": "Début exact — date et heure (p. ex. 14:27). Une date seule signifie 00:00.",
-      "to_datetime": "Fin exacte. Les fenêtres sont semi-ouvertes [de, à) : une location finissant à 09:00 et la suivante commençant à 09:00 ne se chevauchent PAS."
+      "to_datetime": "Fin exacte. Les fenêtres sont semi-ouvertes [de, à) : une location finissant à 09:00 et la suivante commençant à 09:00 ne se chevauchent PAS.",
+      "pdf_template": "L’aspect de la confirmation de réservation."
     },
     "quotation": {
       "pdf_template": "L'apparence du PDF de l'offre. Figée lorsque l'offre est validée.",
       "intro_text": "Imprimé au-dessus des positions (l'emplacement exact dépend de la mise en page PDF). Les nouvelles offres reprennent le texte par défaut de Paramètres → Modèles PDF.",
       "remarks": "Imprimé après les totaux (l'emplacement exact dépend de la mise en page PDF). Les nouvelles offres reprennent le texte par défaut de Paramètres → Modèles PDF."
+    },
+    "sales-order": {
+      "pdf_template": "L’aspect du PDF. Fixé lors de la validation du document.",
+      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF."
+    },
+    "sales-invoice": {
+      "pdf_template": "L’aspect du PDF. Fixé lors de la validation du document.",
+      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF."
+    },
+    "purchase-order": {
+      "pdf_template": "L’aspect du PDF. Fixé lors de la validation du document.",
+      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF."
+    },
+    "delivery-note": {
+      "pdf_template": "L’aspect du PDF. Fixé lors de la validation du document.",
+      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF."
     }
   },
   "companyTax": {
@@ -1054,7 +1075,7 @@
   },
   "pdfTemplates": {
     "title": "Modèles PDF",
-    "intro": "Les mises en page utilisées pour imprimer les offres. Modifiez un modèle autant que vous voulez : enregistrer ne change que le brouillon, publier en fait la mise en page des offres. Une offre validée conserve la mise en page et le PDF avec lesquels elle a été émise.",
+    "intro": "Les mises en page utilisées pour imprimer les documents : offres, commandes, factures, commandes fournisseur, bons de livraison, propositions et confirmations de réservation, chaque type avec ses modèles et son modèle par défaut. Modifiez un modèle autant que vous voulez : enregistrer ne change que le brouillon, publier en fait la mise en page des documents. Un document validé conserve la mise en page et le PDF avec lesquels il a été émis.",
     "chatHint": "Vous pouvez aussi demander au chat, p. ex. « mets notre logo en haut à droite et agrandis la police du tableau des articles ».",
     "new": "Nouveau modèle",
     "newTitle": "Nouveau modèle PDF",
@@ -1078,7 +1099,7 @@
     "deleteBody": "Aucune offre n'a utilisé ce modèle, rien n'en dépend.",
     "showArchived": "Afficher les modèles archivés",
     "name": "Nom",
-    "editHint": "Enregistrez autant que vous voulez : seul le brouillon change. Publiez quand l'aperçu convient ; les offres s'impriment avec la mise en page publiée.",
+    "editHint": "Enregistrez autant que vous voulez : seul le brouillon change. Publiez quand l’aperçu convient ; les documents s’impriment avec la mise en page publiée.",
     "publish": "Publier",
     "revert": "Annuler les modifications non publiées",
     "revertTitle": "Annuler les modifications non publiées ?",
@@ -1088,7 +1109,7 @@
     "lines_one": "{{count}} ligne",
     "lines_other": "{{count}} lignes",
     "preview": "Aperçu",
-    "previewWith": "Aperçu avec l'offre",
+    "previewWith": "Aperçu avec le document",
     "refresh": "Actualiser",
     "show_draft": "Brouillon",
     "show_live": "Publié",
@@ -1100,7 +1121,7 @@
     "upload": "Téléverser un fichier",
     "versions_one": "Versions émises ({{count}})",
     "versions_other": "Versions émises ({{count}})",
-    "versionsHint": "Une version est enregistrée lorsqu'une offre est validée avec une mise en page. Les offres conservent la version avec laquelle elles ont été émises.",
+    "versionsHint": "Une version est enregistrée lorsqu’un document est validé avec une mise en page. Les documents conservent la version avec laquelle ils ont été émis.",
     "noVersions": "Aucune offre n'a encore été émise avec ce modèle.",
     "firstUsed": "utilisé pour la première fois le {{date}}",
     "reference": "Champs disponibles",
@@ -1113,12 +1134,20 @@
     "textsSaved": "Enregistré.",
     "publishWarnings": "Remarque : {{warnings}}",
     "uploading": "Envoi…",
-    "dropHint": "ou glissez des images et des polices ici (PNG, JPG, SVG, WebP, GIF, TTF, OTF, WOFF, WOFF2)"
+    "dropHint": "ou glissez des images et des polices ici (PNG, JPG, SVG, WebP, GIF, TTF, OTF, WOFF, WOFF2)",
+    "textDefaultsFor": "Textes par défaut : {{type}}",
+    "textDefaultsIntroFor": "Les nouveaux documents ({{type}}) commencent avec ces textes ; ils peuvent être modifiés sur chaque document. Les modifier ici ne change pas les documents existants.",
+    "newTitleFor": "Nouveau modèle PDF ({{type}})",
+    "newFor": "Nouveau modèle : {{type}}",
+    "fromOtherType": "Partir d’un modèle d’un autre type…",
+    "usedByIssued_one": "Utilisé par {{count}} document émis",
+    "usedByIssued_other": "Utilisé par {{count}} documents émis"
   },
   "documentWarnings": {
     "pdf_intro_text_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte d'introduction ; le PDF s'affiche sans.",
     "pdf_remarks_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte final / les conditions ; le PDF s'affiche sans.",
-    "pdf_line_deduction_not_printed": "La mise en page PDF « {{template}} » n'imprime pas les déductions de ligne ; ces lignes n'affichent que leur montant net."
+    "pdf_line_deduction_not_printed": "La mise en page PDF « {{template}} » n'imprime pas les déductions de ligne ; ces lignes n'affichent que leur montant net.",
+    "pdf_variable_not_printed": "La mise en page PDF « {{template}} » n’imprime pas : {{label}} ; le PDF s’affiche sans."
   },
   "deductions": {
     "defaultLabel": "Déduction",

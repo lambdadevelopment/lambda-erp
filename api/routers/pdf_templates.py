@@ -18,16 +18,18 @@ _manager = Depends(require_role("manager"))
 
 
 @router.get("/{template}/preview")
-def preview(template: str, source: str = "draft", document: str | None = None, user: dict = _viewer):
+def preview(template: str, source: str = "draft", document: str | None = None, doctype: str | None = None,
+            user: dict = _viewer):
     """The template's working copy (or published layout) rendered against a document."""
     if source not in ("draft", "live"):
         raise HTTPException(422, "source must be 'draft' or 'live'")
     try:
-        rendered, sample, blocked = pdf_templates.render_preview(template, source=source, document=document)
+        rendered, sample, blocked = pdf_templates.render_preview(template, source=source, document=document,
+                                                                 doctype=doctype)
     except (ValueError, PDFError) as exc:
         raise HTTPException(422, str(exc))
     if rendered is None:
-        raise HTTPException(404, "There is no document to preview with yet; create an offer first.")
+        raise HTTPException(404, "There is no document of this type to preview with yet; create one first.")
     headers = {"Content-Disposition": pdf_content_disposition(f"{sample}-preview"),
                "Cache-Control": "no-store", "X-PDF-Document": sample}
     if blocked:

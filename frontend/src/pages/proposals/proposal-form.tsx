@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { LinkField } from "@/components/document/link-field";
+import { PdfLayoutSelect } from "@/components/document/pdf-layout-select";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
@@ -52,6 +53,7 @@ export default function ProposalForm() {
     partner_name: "",
     partner_email: "",
     cover_letter: "",
+    pdf_template: "",
   });
   const [rows, setRows] = useState<PositionRow[]>([blankRow()]);
   const [appendix, setAppendix] = useState<string | null>(null);
@@ -83,6 +85,7 @@ export default function ProposalForm() {
       partner_name: existing.partner_name ?? "",
       partner_email: existing.partner_email ?? "",
       cover_letter: existing.cover_letter ?? "",
+      pdf_template: existing.pdf_template ?? "",
     });
     const qs = (existing.quotations ?? []) as PositionRow[];
     setRows(qs.length ? qs.map((r) => ({ ...blankRow(), ...r })) : [blankRow()]);
@@ -108,6 +111,7 @@ export default function ProposalForm() {
 
   const payload = () => ({
     ...form,
+    pdf_template: form.pdf_template || null,
     quotations: rows
       .filter((r) => r.quotation)
       .map((r, i) => ({ ...r, idx: i + 1, is_recommended: r.is_recommended ? 1 : 0 })),
@@ -239,6 +243,8 @@ export default function ProposalForm() {
           <LinkField label={tr("fields.Company", "Company")} value={form.company} onChange={(v) => set("company", v)} linkDoctype="company" readOnly={false} />
           <Input label={tr("fields.Partner", "Account Manager")} value={form.partner_name} onChange={(e) => set("partner_name", e.target.value)} />
           <Input label={tr("fields.Partner Email", "Account Manager Email")} value={form.partner_email} onChange={(e) => set("partner_email", e.target.value)} />
+          <PdfLayoutSelect doctype="Proposal" label={tr("fields.PDF Layout", "PDF Layout")}
+            value={form.pdf_template} onChange={(v) => set("pdf_template", v)} />
         </div>
         <div>
           <div className="mb-1.5 flex items-center justify-between">

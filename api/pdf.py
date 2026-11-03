@@ -94,7 +94,8 @@ class RenderedPDF:
 # Placeholders the printed texts (intro and notes/terms) may use, e.g. a default
 # closing text "Gültig bis {{ valid_till }}". Plain substitution, not Jinja:
 # unknown names stay as written.
-TEXT_PLACEHOLDERS = ("name", "customer_name", "company", "transaction_date", "valid_till", "currency")
+TEXT_PLACEHOLDERS = ("name", "customer_name", "party_name", "company", "transaction_date", "posting_date",
+                     "valid_till", "due_date", "delivery_date", "schedule_date", "currency")
 _PLACEHOLDER = re.compile(r"\{\{\s*(" + "|".join(TEXT_PLACEHOLDERS) + r")\s*\}\}")
 
 
@@ -114,9 +115,10 @@ def add_line_deductions(items):
 def fill_text_placeholders(text, doc, party_name=None, company_name=None) -> str:
     if not text:
         return ""
-    values = {"name": doc.get("name"), "customer_name": party_name or doc.get("customer_name"),
-              "company": company_name or doc.get("company"), "transaction_date": doc.get("transaction_date"),
-              "valid_till": doc.get("valid_till"), "currency": doc.get("currency")}
+    party = party_name or doc.get("customer_name") or doc.get("supplier_name")
+    values = {field: doc.get(field) for field in TEXT_PLACEHOLDERS}
+    # customer_name is the document's party (a supplier on purchase orders).
+    values.update(customer_name=party, party_name=party, company=company_name or doc.get("company"))
     return _PLACEHOLDER.sub(lambda m: str(values.get(m.group(1)) or ""), text)
 
 
@@ -148,22 +150,56 @@ def render_pdf_for(doctype: str, name: str, doc: dict, layout=None, *, blocked=N
     `blocked`."""
     contract = prepare(doctype, doc)
     kind = contract['profile'].kind
+    tokens = contract['tokens']
     try:
         if kind == 'proposal':
-            result = _render_proposal_pdf(name, doc, contract)
+            result = _render_proposal_pdf(name, doc, contract, layout, blocked)
         elif kind == 'commercial':
             result = _render_commercial_pdf(doctype, name, doc, contract, layout, blocked)
+        elif doctype == 'Delivery Note':
+            result = _render_commercial_pdf(doctype, name, doc, contract, layout, blocked, file='delivery_note.html')
+            tokens = contract['core_tokens']
+        elif doctype == 'Reservation':
+            result = _render_reservation_pdf(name, doc, contract, layout, blocked)
+            tokens = contract['core_tokens']
         else:
             result = _render_record_pdf(doctype, name, doc, contract)
     except PDFError:
         raise
     except Exception as exc:
         raise PDFError(f'PDF rendering failed for {doctype} {name}: {exc}', code='pdf_render_failed') from exc
-    validate_rendered_pdf(result, contract['tokens'])
+    validate_rendered_pdf(result, tokens)
     return RenderedPDF(result, doc.get('modified'), contract['status'], contract['warnings'])
 
 
-def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=None):
+def _finish(doctype, name, context, file, layout=None, blocked=None):
+    """Let plugins add to the context, then render it with `layout` (a PDF
+    template) or the built-in `file`."""
+    from api import pdf_templates
+    for provider in _pdf_context_providers:
+        try:
+            extra = provider(doctype, name, context)
+            if extra:
+                context.update(extra)
+                pdf_templates.note_provided_variables(doctype, [key for key, value in extra.items() if value])
+        except Exception as exc:
+            raise PDFError('PDF context provider failed', code='pdf_context_failed') from exc
+
+    if layout is not None:
+        data, urls = pdf_templates.render_html(layout, context)
+        if blocked is not None:
+            blocked.extend(urls)
+        return data
+
+    template = _jinja_env.get_template(file)
+    # base_url = the resolved template's own directory, so a template (e.g. a
+    # plugin's branded override) can reference sibling assets — logo.png, fonts,
+    # CSS — by relative path. Falls back to the built-in templates dir.
+    base_url = template.filename or os.path.join(TEMPLATE_DIR, file)
+    return HTML(string=template.render(**context), base_url=base_url).write_pdf()
+
+
+def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=None, file="document.html"):
     db = get_db()
     config = DOC_CONFIG.get(doctype)
     if not config:
@@ -243,6 +279,10 @@ def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=No
             if master_item_name:
                 item["item_name"] = master_item_name
     add_line_deductions(items)
+    if doctype in SHOW_WAREHOUSE:
+        for item in items:
+            if item.get("warehouse"):
+                item["warehouse_name"] = db.get_value("Warehouse", item["warehouse"], "warehouse_name") or item["warehouse"]
 
     taxes = doc.get("taxes", [])
 
@@ -293,31 +333,9 @@ def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=No
         show_frequency=show_frequency,
     )
 
-    # Let deployment plugins augment the context (e.g. a Swiss QR-bill image for
+    # Deployment plugins may augment the context (e.g. a Swiss QR-bill image for
     # invoices). Provider errors must fail the export.
-    for provider in _pdf_context_providers:
-        try:
-            extra = provider(doctype, name, context)
-            if extra:
-                context.update(extra)
-        except Exception as exc:
-            raise PDFError('PDF context provider failed', code='pdf_context_failed') from exc
-
-    if layout is not None:
-        from api.pdf_templates import render_html
-        data, urls = render_html(layout, context)
-        if blocked is not None:
-            blocked.extend(urls)
-        return data
-
-    template = _jinja_env.get_template("document.html")
-    # base_url = the resolved template's own directory, so a template (e.g. a
-    # plugin's branded override) can reference sibling assets — logo.png, fonts,
-    # CSS — by relative path. Falls back to the built-in templates dir.
-    base_url = template.filename or os.path.join(TEMPLATE_DIR, "document.html")
-    html_str = template.render(**context)
-
-    return HTML(string=html_str, base_url=base_url).write_pdf()
+    return _finish(doctype, name, context, file, layout, blocked)
 
 
 def _append_pdf(base_pdf: bytes, extra_pdf: bytes) -> bytes:
@@ -343,7 +361,7 @@ def generate_proposal_pdf(name: str) -> bytes:
     return generate_pdf('proposal', name)
 
 
-def _render_proposal_pdf(name, proposal, contract):
+def _render_proposal_pdf(name, proposal, contract, layout=None, blocked=None):
     db = get_db()
     # Customer (party) — looked up live so a corrected name/address shows.
     party_name = proposal.get("customer_name") or proposal.get("customer") or ""
@@ -419,10 +437,9 @@ def _render_proposal_pdf(name, proposal, contract):
     page_size_row = db.sql('SELECT value FROM "Settings" WHERE key = \'pdf_page_size\'')
     page_size = page_size_row[0]["value"] if page_size_row else "A4"
 
-    template = _jinja_env.get_template("proposal.html")
-    base_url = template.filename or os.path.join(TEMPLATE_DIR, "proposal.html")
     context = dict(
         proposal=proposal,
+        doc=proposal,
         pdf_status=contract["status"],
         pdf_state_notice=contract["notice"],
         pdf_warnings=contract["warnings"],
@@ -434,18 +451,7 @@ def _render_proposal_pdf(name, proposal, contract):
         positions=positions,
         page_size=page_size,
     )
-
-    # Let deployment plugins augment the context, same seam as generate_pdf.
-    for provider in _pdf_context_providers:
-        try:
-            extra = provider("Proposal", name, context)
-            if extra:
-                context.update(extra)
-        except Exception as exc:
-            raise PDFError('PDF context provider failed', code='pdf_context_failed') from exc
-
-    html_str = template.render(**context)
-    pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
+    pdf_bytes = _finish("Proposal", name, context, "proposal.html", layout, blocked)
 
     # Staple the uploaded appendix (stored as a blob) onto the end.
     appendix = db.sql('SELECT data FROM "Proposal Appendix" WHERE parent = ?', [name])
@@ -457,6 +463,54 @@ def _render_proposal_pdf(name, proposal, contract):
             pdf_bytes = _append_pdf(pdf_bytes, bytes(data))
 
     return pdf_bytes
+
+
+def _render_reservation_pdf(name, doc, contract, layout=None, blocked=None):
+    """A reservation confirmation for the customer (or supplier) it is for."""
+    db = get_db()
+    company_id = doc.get("company") or ""
+    company_info = _get_dict(db.get_value(
+        "Company", company_id, ["company_name", "email", "phone", "address", "city", "zip_code", "country",
+                                "tax_id", "iban"])) if company_id else {}
+    party_type, party = doc.get("party_type"), doc.get("party")
+    party_info = {}
+    if party_type in ("Customer", "Supplier") and party:
+        name_field = "customer_name" if party_type == "Customer" else "supplier_name"
+        party_info = _get_dict(db.get_value(party_type, party, [name_field, "email", "phone", "address", "city",
+                                                                  "zip_code", "country", "tax_id"]))
+    asset = _get_dict(db.get_value("Asset", doc["asset"], ["asset_name", "asset_tag"])) if doc.get("asset") else {}
+    item_name = db.get_value("Item", doc["item_code"], "item_name") if doc.get("item_code") else None
+    warehouse_name = db.get_value("Warehouse", doc["warehouse"], "warehouse_name") if doc.get("warehouse") else None
+
+    def stamp(value):
+        from datetime import datetime
+        try:
+            return datetime.fromisoformat(str(value)).strftime("%d.%m.%Y %H:%M")
+        except (TypeError, ValueError):
+            return str(value or "")
+
+    page_size_row = db.sql('SELECT value FROM "Settings" WHERE key = ?', ['pdf_page_size'])
+    context = dict(
+        doc=doc,
+        title=contract["profile"].title,
+        pdf_status=contract["status"],
+        pdf_state_notice=contract["notice"],
+        pdf_warnings=contract["warnings"],
+        company_name=company_info.get("company_name") or company_id,
+        company_info=company_info,
+        party_label=party_type or "",
+        party_name=contract["party_name"] or "",
+        party_info=party_info,
+        item_name=item_name or doc.get("item_code") or "",
+        asset_name=asset.get("asset_name") or doc.get("asset") or "",
+        asset_tag=asset.get("asset_tag") or "",
+        warehouse_name=warehouse_name or doc.get("warehouse") or "",
+        period_from=stamp(doc.get("from_datetime")),
+        period_to=stamp(doc.get("to_datetime")),
+        qty=doc.get("qty"),
+        page_size=page_size_row[0]["value"] if page_size_row else "A4",
+    )
+    return _finish("Reservation", name, context, "reservation.html", layout, blocked)
 
 
 # Shared record layouts use strict contexts; a misspelled field must fail rather

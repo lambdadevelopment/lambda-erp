@@ -28,6 +28,8 @@ class PurchaseOrder(Document):
         "items": ("Purchase Order Item", None),
         "taxes": ("Sales Taxes and Charges", None),
     }
+    # Pinned at submit to the PDF layout it was issued with (api.pdf_templates).
+    SERVER_MANAGED_FIELDS = ("pdf_template_version",)
     PREFIX = "PO"
 
     LINK_FIELDS = {

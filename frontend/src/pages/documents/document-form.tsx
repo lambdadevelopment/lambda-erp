@@ -19,7 +19,9 @@ import { HintTooltip } from "@/components/ui/hint-tooltip";
 import { NotesMarkupHelp } from "@/components/ui/notes-markup-help";
 import { RecordNotes, RecordNotesLink } from "@/components/record-notes";
 import { useCurrencies } from "@/hooks/use-currencies";
-import { usePdfTemplates, usePdfTextDefaults } from "@/hooks/use-pdf-templates";
+import {
+  PDF_TEMPLATE_DOCTYPES, pdfTemplateDoctype, usePdfTemplates, usePdfTextDefaults,
+} from "@/hooks/use-pdf-templates";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useTranslation } from "react-i18next";
 import { Printer } from "lucide-react";
@@ -305,10 +307,13 @@ function FieldRenderer({
   }
 
   if (needsTemplateOptions) {
-    const defaultId = templateData?.defaults?.[doctypeLabel(doctype)] ?? "standard";
+    const ownType = pdfTemplateDoctype(doctype)?.doctype ?? doctypeLabel(doctype);
+    const defaultId = templateData?.defaults?.[ownType] ?? "standard";
     const options = [
       { value: "", label: t("pdfTemplates.defaultOption", { name: templateTitle(defaultId) }) },
       ...templates
+        // Only this document type's layouts; the built-in one exists for every type.
+        .filter((tpl) => tpl.standard || tpl.doctype === ownType)
         .filter((tpl) => tpl.published && (!tpl.archived || tpl.template === value))
         .map((tpl) => ({ value: tpl.template, label: tpl.standard ? t("pdfTemplates.standard") : tpl.title })),
     ];
@@ -888,7 +893,8 @@ export default function DocumentFormPage() {
 
   // A new offer starts with the default intro and closing texts (Settings →
   // PDF Templates); the server applies the same defaults to API-created offers.
-  const textDefaults = usePdfTextDefaults(isNew && config?.slug === "quotation");
+  const textType = PDF_TEMPLATE_DOCTYPES.find((entry) => entry.slug === config?.slug && entry.texts);
+  const textDefaults = usePdfTextDefaults(isNew && !!textType, textType?.doctype);
   const prefilledTexts = useRef(false);
   useEffect(() => {
     if (!isNew || prefilledTexts.current || !textDefaults.data || formData.docstatus !== 0) return;

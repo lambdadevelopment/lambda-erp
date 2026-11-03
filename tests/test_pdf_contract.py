@@ -59,7 +59,8 @@ class PDFTests(unittest.TestCase):
 
     def test_reservation_regression_contains_customer_machine_dates_no_financial_defaults(self):
         output=text(pdf.generate_pdf('reservation',self.docs['Reservation']))
-        for token in ('Ada Example','Machine unit','PDF-Asset','Excavator Example','St. Gallen Yard','2026-09-16 08:00:00','2026-09-18 08:00:00','Reserved'):
+        # The reservation confirmation layout (reservation.html): unit by name and tag, dates formatted.
+        for token in ('Ada Example','Machine unit','SG-123','Excavator Example','St. Gallen Yard','16.09.2026 08:00','18.09.2026 08:00','Reserved'):
             self.assertIn(token,output)
         self.assertNotIn('0.00',output)
         self.assertNotIn('USD',output)

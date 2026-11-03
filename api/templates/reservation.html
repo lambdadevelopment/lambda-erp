@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+{# Built-in reservation confirmation. Context: doc (the reservation), title,
+   company_name/company_info, party_label/party_name/party_info, item_name,
+   asset_name, asset_tag, warehouse_name, period_from, period_to, qty. #}
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: {{ page_size }}; margin: 20mm 15mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1a1a1a; line-height: 1.4; }
+
+  .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  .company { font-size: 14pt; font-weight: bold; color: #2563eb; }
+  .doc-title { text-align: right; }
+  .doc-title h1 { font-size: 16pt; color: #1a1a1a; margin: 0; }
+  .doc-title .doc-name { font-size: 10pt; color: #666; }
+  .doc-title .doc-date { font-size: 9pt; color: #888; margin-top: 2px; }
+
+  .parties { display: flex; justify-content: space-between; margin-bottom: 20px; padding: 12px; background: #f8fafc; border-radius: 4px; }
+  .party-block h3 { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; }
+  .party-block .name { font-weight: bold; font-size: 10pt; }
+  .party-block .detail { font-size: 8pt; color: #555; }
+
+  .meta-row { display: flex; gap: 30px; margin-bottom: 15px; font-size: 8.5pt; }
+  .meta-item { }
+  .meta-item .label { color: #888; text-transform: uppercase; letter-spacing: 0.3px; font-size: 7pt; }
+  .meta-item .value { font-weight: 600; }
+
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+  table.items th { background: #f1f5f9; padding: 6px 8px; text-align: left; font-size: 8pt; font-weight: 600; color: #555; border-bottom: 2px solid #e2e8f0; }
+  table.items td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
+  table.items .num { text-align: right; }
+  /* A deduction on the line above (item.discount_label / discount_total). */
+  table.items tr.deduction td { font-style: italic; color: #555; padding-top: 0; }
+  table.items tr.has-deduction td { border-bottom: none; }
+  table.items tfoot td { border-top: 2px solid #e2e8f0; font-weight: bold; }
+
+  .totals { margin-left: auto; width: 250px; margin-bottom: 20px; }
+  .totals table { width: 100%; }
+  .totals td { padding: 4px 0; font-size: 9pt; }
+  .totals td.label { color: #555; }
+  .totals td.amount { text-align: right; font-weight: 600; }
+  .totals .grand { font-size: 11pt; border-top: 2px solid #1a1a1a; padding-top: 6px; }
+
+  .taxes { margin-bottom: 10px; }
+  .taxes h3 { font-size: 8pt; color: #888; text-transform: uppercase; margin-bottom: 4px; }
+
+  .status-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 8pt; font-weight: bold; }
+  .status-submitted { background: #dbeafe; color: #1d4ed8; }
+  .status-cancelled { background: #fee2e2; color: #dc2626; }
+  .status-draft { background: #f3f4f6; color: #6b7280; }
+  .status-return { background: #fef3c7; color: #d97706; }
+
+  .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 7.5pt; color: #999; text-align: center; }
+  .remarks { margin-top: 15px; padding: 8px; background: #fefce8; border-radius: 4px; font-size: 8pt; color: #713f12; }
+  /* Structured notes (remarks_html). A template can restyle these freely. */
+  .remarks .rm-block { overflow: hidden; margin-bottom: 8px; }
+  .remarks .rm-block:last-child { margin-bottom: 0; }
+  .remarks .rm-h { font-weight: 700; }
+  .remarks .rm-h + .rm-p, .remarks .rm-p + .rm-p { margin-top: 2px; }
+  .remarks .rm-amt { float: right; text-align: right; margin: 0 0 4px 16px; }
+  .remarks .rm-amt-val { white-space: nowrap; }
+  .remarks .rm-hr { border-top: 1px solid #d1d5db; margin: 6px 0; }
+  .remarks em { font-style: italic; }
+  .remarks strong { font-weight: 700; }
+  /* The offer's intro text: same markup as the notes, without the box. */
+  .remarks.intro { margin: 0 0 15px; padding: 0; background: none; border-radius: 0; font-size: 9pt; color: inherit; }
+  .booking { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  .booking th { width: 32%; text-align: left; font-size: 8pt; font-weight: 600; color: #555; padding: 7px 8px; background: #f8fafc; border-bottom: 1px solid #fff; }
+  .booking td { padding: 7px 8px; border-bottom: 1px solid #f1f5f9; }
+  .period { font-size: 11pt; font-weight: 700; }
+  .state-notice { display: inline-block; margin-bottom: 8pt; padding: 3px 10px; border: 1.5px solid #b91c1c; border-radius: 4px; color: #b91c1c; font-size: 10pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+{% if pdf_state_notice %}<div class="state-notice">{{ pdf_state_notice }}</div>{% endif %}
+
+<div class="header">
+  <div>
+    <div class="company">{{ company_name or doc.company or "" }}</div>
+  </div>
+  <div class="doc-title">
+    <h1>{{ title }}</h1>
+    <div class="doc-name">{{ doc.name }}</div>
+    <div class="doc-date">{{ doc.status or "" }}</div>
+  </div>
+</div>
+
+<div class="parties">
+  <div class="party-block">
+    <h3>From</h3>
+    <div class="name">{{ company_name or doc.company or "" }}</div>
+    {% if company_info.get("address") %}<div class="detail">{{ company_info.address }}</div>{% endif %}
+    {% if company_info.get("city") or company_info.get("zip_code") %}<div class="detail">{{ company_info.get("zip_code") or "" }} {{ company_info.get("city") or "" }}</div>{% endif %}
+    {% if company_info.get("email") %}<div class="detail">{{ company_info.email }}</div>{% endif %}
+    {% if company_info.get("phone") %}<div class="detail">{{ company_info.phone }}</div>{% endif %}
+  </div>
+  {% if party_name %}
+  <div class="party-block" style="text-align: right;">
+    <h3>{{ party_label }}</h3>
+    <div class="name">{{ party_name }}</div>
+    {% if party_info.get("address") %}<div class="detail">{{ party_info.address }}</div>{% endif %}
+    {% if party_info.get("city") or party_info.get("zip_code") %}<div class="detail">{{ party_info.get("zip_code") or "" }} {{ party_info.get("city") or "" }}</div>{% endif %}
+    {% if party_info.get("email") %}<div class="detail">{{ party_info.email }}</div>{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% for warning in pdf_warnings %}{% if warning.code == "asset_unassigned" %}<p style="margin-bottom: 10px; color: #92400e;">{{ warning.message }}</p>{% endif %}{% endfor %}
+
+<table class="booking">
+  <tr><th>Period</th><td class="period">{{ period_from }} – {{ period_to }}</td></tr>
+  <tr><th>Item</th><td>{{ item_name }}</td></tr>
+  {% if doc.allocation_mode == "Unit" %}<tr><th>Unit</th><td>{{ asset_name }}{% if asset_tag %} ({{ asset_tag }}){% endif %}</td></tr>
+  {% else %}<tr><th>Allocation</th><td>Pool</td></tr>{% endif %}
+  <tr><th>Quantity</th><td>{{ "%g"|format(qty or 0) }}</td></tr>
+  <tr><th>Location</th><td>{{ warehouse_name }}</td></tr>
+  {% if doc.purpose %}<tr><th>Purpose</th><td>{{ doc.purpose }}</td></tr>{% endif %}
+  {% if doc.voucher_no %}<tr><th>Reference</th><td>{{ doc.voucher_type or "" }} {{ doc.voucher_no }}</td></tr>{% endif %}
+</table>
+
+{% if doc.notes %}
+<div class="remarks" style="white-space: pre-line;">{{ doc.notes }}</div>
+{% endif %}
+
+<div class="footer">
+  {{ doc.name }} &middot; Generated from Lambda ERP
+</div>
+
+</body>
+</html>

@@ -270,6 +270,10 @@
     "pricing-rule": {
       "one": "Pricing Rule",
       "other": "Pricing Rules"
+    },
+    "reservation": {
+      "one": "Reservation",
+      "other": "Reservations"
     }
   },
   "masters": {
@@ -938,12 +942,29 @@
       "item_code": "Pooled booking ('a 1.7t excavator'): set Item + Yard + Qty. For a specific machine, set Asset instead.",
       "asset": "Book one specific machine. A unit booking also consumes a slot of its Item+Yard pool.",
       "from_datetime": "Exact start — date and time (e.g. 14:27). A bare date means 00:00.",
-      "to_datetime": "Exact end. Windows are half-open [from, to): a hire ending 09:00 and the next starting 09:00 do NOT clash."
+      "to_datetime": "Exact end. Windows are half-open [from, to): a hire ending 09:00 and the next starting 09:00 do NOT clash.",
+      "pdf_template": "How the reservation confirmation looks."
     },
     "quotation": {
       "pdf_template": "How the offer's PDF looks. Fixed when the offer is submitted.",
       "intro_text": "Printed above the line items (where exactly is up to the PDF layout). New offers start with the default from Settings → PDF Templates.",
       "remarks": "Printed after the totals (where exactly is up to the PDF layout). New offers start with the default from Settings → PDF Templates."
+    },
+    "sales-order": {
+      "pdf_template": "How the PDF looks. Fixed when the document is submitted.",
+      "intro_text": "Printed above the line items (where exactly is up to the PDF layout). New documents start with the default from Settings → PDF Templates."
+    },
+    "sales-invoice": {
+      "pdf_template": "How the PDF looks. Fixed when the document is submitted.",
+      "intro_text": "Printed above the line items (where exactly is up to the PDF layout). New documents start with the default from Settings → PDF Templates."
+    },
+    "purchase-order": {
+      "pdf_template": "How the PDF looks. Fixed when the document is submitted.",
+      "intro_text": "Printed above the line items (where exactly is up to the PDF layout). New documents start with the default from Settings → PDF Templates."
+    },
+    "delivery-note": {
+      "pdf_template": "How the PDF looks. Fixed when the document is submitted.",
+      "intro_text": "Printed above the line items (where exactly is up to the PDF layout). New documents start with the default from Settings → PDF Templates."
     }
   },
   "companyTax": {
@@ -1054,7 +1075,7 @@
   },
   "pdfTemplates": {
     "title": "PDF templates",
-    "intro": "The layouts offers print with. Edit a template as often as you like: saving only changes its working copy, and publishing makes it the layout offers print with. When an offer is submitted, it keeps the layout and the PDF it was issued with.",
+    "intro": "The layouts documents print with: offers, sales orders, invoices, purchase orders, delivery notes, proposals and reservation confirmations, each type with its own templates and default. Edit a template as often as you like: saving only changes its working copy, and publishing makes it the layout documents print with. A submitted document keeps the layout and the PDF it was issued with.",
     "chatHint": "You can also ask the chat, e.g. \"put our logo top right and use a larger font in the item table\".",
     "new": "New template",
     "newTitle": "New PDF template",
@@ -1078,7 +1099,7 @@
     "deleteBody": "No offer has used this template, so nothing depends on it.",
     "showArchived": "Show archived templates",
     "name": "Name",
-    "editHint": "Save as often as you like: only the working copy changes. Publish when the preview looks right; offers print with the published layout.",
+    "editHint": "Save as often as you like: only the working copy changes. Publish when the preview looks right; documents print with the published layout.",
     "publish": "Publish",
     "revert": "Discard unpublished changes",
     "revertTitle": "Discard unpublished changes?",
@@ -1088,7 +1109,7 @@
     "lines_one": "{{count}} line",
     "lines_other": "{{count}} lines",
     "preview": "Preview",
-    "previewWith": "Preview with offer",
+    "previewWith": "Preview with document",
     "refresh": "Refresh",
     "show_draft": "Working copy",
     "show_live": "Published",
@@ -1100,7 +1121,7 @@
     "upload": "Upload file",
     "versions_one": "Issued versions ({{count}})",
     "versions_other": "Issued versions ({{count}})",
-    "versionsHint": "A version is recorded when an offer is submitted with a layout. Offers keep the version they were issued with.",
+    "versionsHint": "A version is recorded when a document is submitted with a layout. Documents keep the version they were issued with.",
     "noVersions": "No offer has been issued with this template yet.",
     "firstUsed": "first used {{date}}",
     "reference": "Available fields",
@@ -1113,12 +1134,20 @@
     "textsSaved": "Saved.",
     "publishWarnings": "Note: {{warnings}}",
     "uploading": "Uploading…",
-    "dropHint": "or drag images and fonts here (PNG, JPG, SVG, WebP, GIF, TTF, OTF, WOFF, WOFF2)"
+    "dropHint": "or drag images and fonts here (PNG, JPG, SVG, WebP, GIF, TTF, OTF, WOFF, WOFF2)",
+    "textDefaultsFor": "Default texts for {{type}}",
+    "textDefaultsIntroFor": "New {{type}} start with these texts; they can be changed on each document. Changing them here doesn’t change existing documents.",
+    "newTitleFor": "New PDF template ({{type}})",
+    "newFor": "New template: {{type}}",
+    "fromOtherType": "Start from another type’s template…",
+    "usedByIssued_one": "Used by {{count}} issued document",
+    "usedByIssued_other": "Used by {{count}} issued documents"
   },
   "documentWarnings": {
     "pdf_intro_text_not_printed": "The PDF layout “{{template}}” doesn’t print the intro text; the PDF shows it without.",
     "pdf_remarks_not_printed": "The PDF layout “{{template}}” doesn’t print the closing text / terms; the PDF shows it without.",
-    "pdf_line_deduction_not_printed": "The PDF layout “{{template}}” doesn’t print line deductions; those lines show only their net amount."
+    "pdf_line_deduction_not_printed": "The PDF layout “{{template}}” doesn’t print line deductions; those lines show only their net amount.",
+    "pdf_variable_not_printed": "The PDF layout “{{template}}” doesn’t print the {{label}}; the PDF shows it without."
   },
   "deductions": {
     "defaultLabel": "Deduction",

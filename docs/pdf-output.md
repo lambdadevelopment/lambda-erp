@@ -45,19 +45,35 @@ when inapplicable and raise when required content cannot be produced; exceptions
 now fail the export. The content check detects omitted text, but does not prove
 visual correctness: add actual rendered-PDF tests for each custom layout.
 
-## PDF templates (offers)
+## PDF templates
 
-Quotations print with a PDF template (`api/pdf_templates.py`): HTML + CSS with
-Jinja, receiving the same context as `document.html`. `standard` is the
-deployment's own `document.html` (a plugin override wins); it is read-only and
-rendered as trusted code. Other templates live in the database:
+Offers, sales orders, sales invoices (incl. credit notes), purchase orders,
+delivery notes, proposals and reservations print with a PDF template
+(`api/pdf_templates.py` `DOCTYPES`): HTML + CSS with Jinja. A template belongs to
+one document type and receives the same context as that type's built-in layout
+(`STANDARD_FILES`): `document.html` for offers, orders, invoices and purchase
+orders, `delivery_note.html` (the same context, no prices), `proposal.html` and
+`reservation.html`. `standard` is the deployment's own file for the type (a
+plugin override wins); it is read-only and rendered as trusted code. A template
+may `{% include %}` / `{% extends %}` the built-in files (the sandbox's loader
+reads only those). Other templates live in the database:
 
 - `PDF Template` holds a working copy (`draft_html`, `assets`), edited in place
   without versions, and the published layout (`live_html`, `live_assets`).
   Publishing test-renders the working copy against an offer and rejects syntax
   errors, missing required content and blocked resources.
-- A draft offer prints with its `pdf_template` (else the default from the
-  `pdf_template:Quotation` setting, else `standard`) and the published layout.
+- A draft prints with its `pdf_template` (else the default from the
+  `pdf_template:<Doctype>` setting, else `standard`) and the published layout.
+  Proposals and reservations are never submitted, so they always print this
+  way and nothing is pinned or archived for them.
+- Delivery notes and reservations check only their core content (number,
+  state, party, lines: `core_tokens` in `pdf_contract.prepare`), not every
+  field of the generic record layout they used before.
+- Content a deployment's context provider adds (e.g. `qr_bill_img` on
+  invoices) is learned from the provider's results, or registered with
+  `pdf_templates.register_pdf_template_requirement`; publishing reports a
+  layout that never uses it (`missing_variables`) and the document warns
+  (`pdf_variable_not_printed`).
 - Submitting pins `pdf_template_version` (server-managed) to a `PDF Template
   Version` row keyed by the layout's content hash, created on first use, and
   stores the PDF as issued in `PDF Archive`, inside the submit transaction. A

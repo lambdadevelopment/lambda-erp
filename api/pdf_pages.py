@@ -34,10 +34,11 @@ AREAS = {"page": (0.0, 1.0), "top": (0.0, 0.36), "middle": (0.32, 0.68), "bottom
 
 class ViewPages(mentions.Input):
     doctype: str | None = Field(default=None, max_length=100,
-                                description="Document type slug, e.g. 'quotation'. Defaults to the template's.")
+                                description="Document type slug, e.g. 'quotation' or 'sales-invoice'. With a "
+                                            "template it is only needed for 'standard' (default: quotation).")
     name: str | None = Field(default=None, max_length=140,
-                             description="Document to render. With a template, the offer to render it against "
-                                         "(default: the latest offer).")
+                             description="Document to render. With a template, the document of the template's "
+                                         "type to render it against (default: the most recent one).")
     template: str | None = Field(default=None, max_length=100,
                                  description="PDF template id to render instead of the document's own layout.")
     source: Literal["draft", "live"] = Field(default="draft",
@@ -114,11 +115,16 @@ def _attachment(attachment_id: str, user) -> dict:
     return atts[0]
 
 
+def _doctype_name(value: str) -> str:
+    from api.services import SLUG_TO_DOCTYPE
+    return SLUG_TO_DOCTYPE.get(value.strip().lower(), value)
+
+
 def view_pdf_pages(args, user=None):
     data = ViewPages.model_validate(args)
     if not data.pages:
         raise ValueError("Ask for at least one page.")
-    if sum(bool(x) for x in (data.attachment_id, data.template, data.doctype)) > 1:
+    if data.attachment_id and (data.template or data.doctype):
         raise ValueError("Pass one of: attachment_id, template, or doctype + name.")
     if data.attachment_id:
         att = _attachment(data.attachment_id, user)
@@ -133,9 +139,10 @@ def view_pdf_pages(args, user=None):
         if data.template:
             from api import pdf_templates
             rendered, name, blocked = pdf_templates.render_preview(
-                data.template, source=data.source, document=data.name)
+                data.template, source=data.source, document=data.name,
+                doctype=_doctype_name(data.doctype) if data.doctype else None)
             if rendered is None:
-                raise ValueError("There is no document to render the template with yet; create an offer first.")
+                raise ValueError("There is no document of the template's type to render it with yet; create one first.")
             subject = {"template": data.template, "source": data.source, "document": name}
         else:
             if not (data.doctype and data.name):
@@ -166,7 +173,7 @@ def _result(subject: dict, total: int, images: list[dict], area: str, blocked: l
 DESCRIPTION = (
     "Look at a PDF: returns the requested pages as images you can see. Render a document (doctype + "
     "name, exactly as it downloads), a PDF template (template, source draft|live, optionally name = the "
-    "offer to render it against), or a PDF or image the user uploaded in the chat (attachment_id), e.g. "
+    "document of its type to render it against; for 'standard' also doctype), or a PDF or image the user uploaded in the chat (attachment_id), e.g. "
     "a reference layout. Use area top/middle/bottom to see a third of the page at double resolution for "
     "small details. After changing a PDF template, look at the result before telling the user it is "
     "done; check every page you changed. To match a reference, view the same page and area of the "
