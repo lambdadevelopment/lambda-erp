@@ -134,6 +134,7 @@ The result is booked in one step — chart of accounts, sensible default account
 - Custom analytics drafts via chat (persisted, shareable, editable)
 - Server-side aggregation tool for in-chat factual answers across large datasets
 - PDF / image attachment → add invoices, create quotations, etc. all directly by adding them in the chat
+- **PDF output with your own layouts** — every offer, order, invoice, purchase order, delivery note, proposal and reservation prints as a PDF. Layouts are HTML/CSS templates with your own images and fonts, edited in the settings or simply by asking the chat ("make the offer layout look like our letterhead"), previewed against real documents, then published as versions; submitted documents keep the exact layout they were issued with. See [`docs/pdf-output.md`](docs/pdf-output.md).
 - **Programmatic API** — drive the ERP from external systems with per-user, role-capped Bearer keys: a [chat API](docs/chat-api.md) (converse with the agent) and a [REST API](docs/rest-api.md) (documents, masters, reports — the same endpoints the web app uses, so a connector or sync job can create and submit documents directly). Both off by default; an admin enables each independently and issues keys.
 - **MCP server** — the ERP speaks the [Model Context Protocol](https://modelcontextprotocol.io) at `POST /api/mcp`, so **any MCP-capable agent (Claude, Codex, an IDE assistant) can drive it directly** — list/create/update/submit documents, manage master data, run reports — as *structured, validated tool calls*, not brittle screen-scraping or hand-written HTTP glue. The tool list is built from the live registries, so a plugin's own doctypes (e.g. a CRM's leads/contacts) are exposed automatically. It reuses the *same* Bearer keys and roles as the REST API — a viewer key is read-only, a manager key can write — so access is scoped, auditable, and off by default. In practice: point your assistant at your instance and ask "which invoices are overdue?" or "create a quotation for Acme with 3× SVC-SPARK" and it operates on real data, from wherever you already work. The API-keys settings page hands you ready-to-paste Claude and Codex config the moment you create a key.
 - Auth with admin/manager/viewer roles plus a public demo mode
@@ -148,7 +149,6 @@ The result is booked in one step — chart of accounts, sensible default account
 - Manufacturing (BOM, work orders)
 - HR / Payroll beyond the journal-entry workaround
 - Regional compliance packs (GST, VAT returns, etc.) - see below
-- PDF report creation directly inside the chat
 
 ---
 
