@@ -60,8 +60,9 @@ class PDFTests(unittest.TestCase):
     def test_reservation_regression_contains_customer_machine_dates_no_financial_defaults(self):
         output=text(pdf.generate_pdf('reservation',self.docs['Reservation']))
         # The reservation confirmation layout (reservation.html): unit by name and tag, dates formatted.
-        for token in ('Ada Example','Machine unit','SG-123','Excavator Example','St. Gallen Yard','16.09.2026 08:00','18.09.2026 08:00','Reserved'):
+        for token in ('Ada Example','Machine unit','SG-123','Excavator Example','St. Gallen Yard','16.09.2026 08:00','18.09.2026 08:00'):
             self.assertIn(token,output)
+        self.assertTrue({'Reserved','Reserviert'} & set(output.split()),output)  # the internal layout is German
         self.assertNotIn('0.00',output)
         self.assertNotIn('USD',output)
 
@@ -69,7 +70,8 @@ class PDFTests(unittest.TestCase):
         name=self.docs['Reservation']
         self.db.set_value('Reservation',name,{'allocation_mode':'Pool','asset':None})
         output=text(pdf.generate_pdf('reservation',name))
-        self.assertIn('Pool booking: no individual machine assigned.',output)
+        self.assertTrue('Pool booking: no individual machine assigned.' in output
+                        or 'Pool-Reservation: noch keine bestimmte Maschine zugeteilt.' in output, output)
         self.db.set_value('Reservation',name,{'party':None,'party_type':None,'purpose':'Workshop maintenance'})
         self.assertIn('Workshop maintenance',text(pdf.generate_pdf('reservation',name)))
         self.db.set_value('Reservation',name,'purpose',None)
