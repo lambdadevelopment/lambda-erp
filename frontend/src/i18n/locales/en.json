@@ -1111,7 +1111,9 @@
     "textDefaultsPlaceholders": "Placeholders, filled in when the PDF prints: {{placeholders}}",
     "saveTexts": "Save texts",
     "textsSaved": "Saved.",
-    "publishWarnings": "Note: {{warnings}}"
+    "publishWarnings": "Note: {{warnings}}",
+    "uploading": "Uploading…",
+    "dropHint": "or drag images and fonts here (PNG, JPG, SVG, WebP, GIF, TTF, OTF, WOFF, WOFF2)"
   },
   "documentWarnings": {
     "pdf_intro_text_not_printed": "The PDF layout “{{template}}” doesn’t print the intro text; the PDF shows it without.",

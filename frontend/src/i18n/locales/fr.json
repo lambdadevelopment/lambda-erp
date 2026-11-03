@@ -1111,7 +1111,9 @@
     "textDefaultsPlaceholders": "Variables, remplacées à l'impression : {{placeholders}}",
     "saveTexts": "Enregistrer les textes",
     "textsSaved": "Enregistré.",
-    "publishWarnings": "Remarque : {{warnings}}"
+    "publishWarnings": "Remarque : {{warnings}}",
+    "uploading": "Envoi…",
+    "dropHint": "ou glissez des images et des polices ici (PNG, JPG, SVG, WebP, GIF, TTF, OTF, WOFF, WOFF2)"
   },
   "documentWarnings": {
     "pdf_intro_text_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte d'introduction ; le PDF s'affiche sans.",

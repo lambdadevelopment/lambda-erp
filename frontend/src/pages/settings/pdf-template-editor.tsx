@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ChevronDown, ChevronRight, RefreshCw, Trash2, Upload } from "lucide-react";
 import { api } from "@/api/client";
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,12 +19,38 @@ import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
 import { PDF_TEMPLATES_KEY, usePdfTemplate } from "@/hooks/use-pdf-templates";
 import { TemplateBadges, canEditPdfTemplates, canManagePdfAssets } from "@/pages/settings/pdf-templates";
 
-function Section({ title, children, open: initiallyOpen = false }: {
+/** Files dragged in from the desktop (not text or elements dragged on the page). */
+const draggingFiles = (event: React.DragEvent) => event.dataTransfer.types.includes("Files");
+
+function Section({ title, children, open: initiallyOpen = false, onDropFiles }: {
   title: string; children: React.ReactNode; open?: boolean;
+  /** Accept files dropped anywhere on the section (it opens while dragging). */
+  onDropFiles?: (files: File[]) => void;
 }) {
   const [open, setOpen] = useState(initiallyOpen);
+  const [dragOver, setDragOver] = useState(false);
+  const dropProps = onDropFiles ? {
+    onDragOver: (event: React.DragEvent) => {
+      if (!draggingFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      setDragOver(true);
+      setOpen(true);
+    },
+    onDragLeave: (event: React.DragEvent) => {
+      const related = event.relatedTarget as Node | null;
+      if (!related || !(event.currentTarget as Node).contains(related)) setDragOver(false);
+    },
+    onDrop: (event: React.DragEvent) => {
+      if (!draggingFiles(event)) return;
+      event.preventDefault();
+      setDragOver(false);
+      onDropFiles(Array.from(event.dataTransfer.files));
+    },
+  } : {};
   return (
-    <div className="rounded-xl bg-surface ring-1 ring-line shadow-card">
+    <div {...dropProps} className={cn("rounded-xl bg-surface ring-1 ring-line shadow-card transition-shadow",
+      dragOver && "ring-2 ring-brand")}>
       <button type="button" onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-fg">
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -166,13 +193,23 @@ export default function PdfTemplateEditor() {
     refresh();
   };
 
-  const upload = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      refresh(await api.uploadPdfTemplateAsset(id, file));
-    } catch (err) {
-      setNotice((err as Error).message);
+  // One file at a time (each upload returns the updated template); a refused
+  // file doesn't stop the others, and every refusal is shown.
+  const [uploading, setUploading] = useState(false);
+  const upload = async (files: File[]) => {
+    if (!files.length) return;
+    setUploading(true);
+    setNotice("");
+    const errors: string[] = [];
+    for (const file of files) {
+      try {
+        refresh(await api.uploadPdfTemplateAsset(id, file));
+      } catch (err) {
+        errors.push(`${file.name}: ${(err as Error).message}`);
+      }
     }
+    setUploading(false);
+    if (errors.length) setNotice(errors.join(" "));
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -277,7 +314,8 @@ export default function PdfTemplateEditor() {
       </div>
 
       {!tpl.standard && (
-        <Section title={t("pdfTemplates.assets", { count: tpl.assets.length })} open={tpl.assets.length > 0}>
+        <Section title={t("pdfTemplates.assets", { count: tpl.assets.length })} open={tpl.assets.length > 0}
+          onDropFiles={assetsEditable ? (files) => void upload(files) : undefined}>
           <p className="mb-3 text-xs text-fg-muted">{t("pdfTemplates.assetsHint")}</p>
           <ul className="space-y-2">
             {tpl.assets.map((asset) => (
@@ -301,13 +339,17 @@ export default function PdfTemplateEditor() {
           </ul>
           {assetsEditable && (
             <>
-              <input ref={fileInput} type="file" className="hidden"
+              <input ref={fileInput} type="file" className="hidden" multiple
                 accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.woff,.woff2,.ttf,.otf"
-                onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
-              <Button variant="secondary" size="sm" className="mt-3" onClick={() => fileInput.current?.click()}>
-                <Upload className="h-4 w-4" />
-                {t("pdfTemplates.upload")}
-              </Button>
+                onChange={(e) => { void upload(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+              <button type="button" disabled={uploading} onClick={() => fileInput.current?.click()}
+                className="mt-3 flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface-subtle px-4 py-5 text-center transition-colors hover:border-brand/50 hover:bg-brand/5 disabled:opacity-60">
+                <Upload className="mb-1 h-5 w-5 text-brand" />
+                <span className="text-sm font-medium text-fg">
+                  {uploading ? t("pdfTemplates.uploading") : t("pdfTemplates.upload")}
+                </span>
+                <span className="mt-0.5 text-xs text-fg-muted">{t("pdfTemplates.dropHint")}</span>
+              </button>
             </>
           )}
         </Section>

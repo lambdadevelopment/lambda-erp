@@ -1111,7 +1111,9 @@
     "textDefaultsPlaceholders": "Platzhalter, beim Drucken ersetzt: {{placeholders}}",
     "saveTexts": "Texte speichern",
     "textsSaved": "Gespeichert.",
-    "publishWarnings": "Hinweis: {{warnings}}"
+    "publishWarnings": "Hinweis: {{warnings}}",
+    "uploading": "Wird hochgeladen…",
+    "dropHint": "oder Bilder und Schriften hierher ziehen (PNG, JPG, SVG, WebP, GIF, TTF, OTF, WOFF, WOFF2)"
   },
   "documentWarnings": {
     "pdf_intro_text_not_printed": "Das PDF-Layout «{{template}}» druckt den Einleitungstext nicht; das PDF erscheint ohne ihn.",
