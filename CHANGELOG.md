@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-03
+
 - PDF templates for offers (Settings → PDF Templates). Managers and admins
   create layouts as HTML + CSS, starting from a copy of the built-in one, and
   edit them as often as they like: saving changes the working copy in place,
