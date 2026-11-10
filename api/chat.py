@@ -39,6 +39,7 @@ from api.demo_limits import (
     is_demo_role,
     limiter as demo_limiter,
 )
+from api.llm_provider import client_kwargs, llm_configured, not_configured_message
 from api.providers import cost_of_openai_call, cost_of_transcription
 from api.routers.masters import create_master_record, update_master_record, delete_master_record
 from api.routers.analytics import DATASET_FILTER_DESCRIPTION
@@ -3034,7 +3035,7 @@ Users can attach PDFs and images (receipts, bills, contracts, screenshots) to th
 # GPT-6.1 Sol acts as the planner/orchestrator. When it decides a report needs
 # a custom analytics view it calls the create/update custom analytics tools.
 # Those handlers make a separate, narrowly prompted GPT-6.1 Sol call for the bounded
-# declarative report spec. Both roles use the existing OPENAI_API_KEY.
+# declarative report spec. Both roles use the same provider and key (api/llm_provider.py).
 # ---------------------------------------------------------------------------
 
 
@@ -3246,9 +3247,8 @@ def _generate_report_spec_via_openai(
     user_role: str | None = None,
     session_id: str | None = None,
 ) -> dict:
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key or api_key == "sk-your-key-here":
-        raise RuntimeError("OPENAI_API_KEY is not configured")
+    if not llm_configured():
+        raise RuntimeError(not_configured_message())
 
     model = _report_specialist_model()
 
@@ -3278,10 +3278,7 @@ def _generate_report_spec_via_openai(
     )
     user_msg = "\n\n".join(user_parts)
 
-    client = OpenAI(
-        api_key=api_key,
-        timeout=httpx.Timeout(120.0, connect=10.0),
-    )
+    client = OpenAI(**client_kwargs(httpx.Timeout(120.0, connect=10.0)))
     validation_feedback: str | None = None
     max_attempts = 2
 
@@ -3402,16 +3399,12 @@ async def generate_title(
     title shows up while the reply is still being written. Without a text
     message (attachments only) it runs after the first reply and uses that too.
     """
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key or api_key == "sk-your-key-here":
+    if not llm_configured():
         return
 
     title_model = _title_model()
     try:
-        client = OpenAI(
-            api_key=api_key,
-            timeout=httpx.Timeout(30.0, connect=5.0),
-        )
+        client = OpenAI(**client_kwargs(httpx.Timeout(30.0, connect=5.0)))
         reservation_id = None
         if is_demo_role(user_role):
             _blocked, reservation_id = demo_limiter.reserve(
@@ -3708,15 +3701,14 @@ async def run_thinking_loop(
     declarative-spec step to a separate narrowly prompted GPT-6.1 Sol call. We emit an
     `llm_provider` event around that delegation so the UI can surface it.
     """
-    openai_api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not openai_api_key or openai_api_key == "sk-your-key-here":
-        await on_event({"type": "error", "content": "Error: OPENAI_API_KEY is not configured. Please set it in the .env file."})
+    if not llm_configured():
+        await on_event({"type": "error", "content": f"Error: {not_configured_message()}. Set it in the environment (.env)."})
         return
 
-    openai_client = OpenAI(
-        api_key=openai_api_key,
-        timeout=httpx.Timeout(120.0, connect=10.0),
-    )
+    openai_client = OpenAI(**client_kwargs(
+        httpx.Timeout(120.0, connect=10.0),
+        erp_user=user_info.get("name") if user_info else None,
+    ))
 
     # Closures below read through this reference so a live role/key refresh
     # immediately affects resource-aware handlers as well as the shared policy.
@@ -4079,14 +4071,14 @@ VOICE_TRANSCRIBE_PROMPT = (
 _MIN_TRANSCRIBE_BYTES = 1500  # ~1s of webm/opus at the ~1.5 KB/s we assume below
 
 
-def transcribe_audio(audio_bytes: bytes, audio_format: str, api_key: str) -> str:
+def transcribe_audio(audio_bytes: bytes, audio_format: str, erp_user: str | None = None) -> str:
     """Transcribe audio to text via OpenAI gpt-4o-transcribe.
 
     Returns the transcript, or "" when the model detects silence/near-silence
     (empty result or a prompt-echo hallucination on a near-silent clip).
     Raises on an actual API error so the caller can surface it.
     """
-    client = OpenAI(api_key=api_key, timeout=httpx.Timeout(60.0, connect=10.0))
+    client = OpenAI(**client_kwargs(httpx.Timeout(60.0, connect=10.0), erp_user=erp_user))
 
     audio_file = io.BytesIO(audio_bytes)
     audio_file.name = f"voice.{audio_format or 'webm'}"
@@ -4583,11 +4575,10 @@ async def chat_websocket(
                 # Voice → text: transcribe a recorded clip and return the text
                 # for the composer. No LLM turn here — the user reviews/edits
                 # the text and sends it like any typed message.
-                openai_api_key = os.environ.get("OPENAI_API_KEY", "")
-                if not openai_api_key or openai_api_key == "sk-your-key-here":
+                if not llm_configured():
                     await send_event(
                         "transcription_result", request_id=request_id,
-                        success=False, error="Speech-to-text is not available (OPENAI_API_KEY not configured).",
+                        success=False, error=f"Speech-to-text is not available ({not_configured_message()}).",
                     )
                     continue
 
@@ -4620,7 +4611,7 @@ async def chat_websocket(
 
                 try:
                     text = await asyncio.to_thread(
-                        transcribe_audio, audio_bytes, audio_format, openai_api_key,
+                        transcribe_audio, audio_bytes, audio_format, ws_user_id,
                     )
                 except Exception as e:
                     logger.warning("Transcription failed: %s", e)

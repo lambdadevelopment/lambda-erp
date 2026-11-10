@@ -9,6 +9,7 @@ import time
 import uuid
 from typing import Optional
 
+import httpx
 import openpyxl
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
@@ -17,6 +18,7 @@ from openai import OpenAI
 from lambda_erp.database import get_db
 from lambda_erp.utils import now
 from api.auth import require_role, get_current_user
+from api.llm_provider import client_kwargs
 from api.demo_limits import demo_max_attachment_bytes, is_demo_role
 
 logger = logging.getLogger(__name__)
@@ -105,7 +107,6 @@ _OPENAI_FILE_TTL_SECONDS = 30 * 24 * 3600      # 30 days
 _OPENAI_FILE_REUSE_MARGIN = 300               # re-upload if within 5 min of expiry
 SPREADSHEET_ROW_WARN_LIMIT = 1000             # OpenAI augments ~1000 rows/sheet
 
-_openai_singleton: Optional[OpenAI] = None
 _expires_after_supported = True               # flips off if the API rejects it once
 
 # The single Office spreadsheet mime we can cheaply row-count (openpyxl).
@@ -113,12 +114,9 @@ _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def _openai_client() -> OpenAI:
-    """Lazily build a module-level OpenAI client for Files uploads (a separate
-    call from the chat completion; same OPENAI_API_KEY)."""
-    global _openai_singleton
-    if _openai_singleton is None:
-        _openai_singleton = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
-    return _openai_singleton
+    """An OpenAI client for Files uploads (a separate call from the chat
+    turn; same provider and key, see api/llm_provider.py)."""
+    return OpenAI(**client_kwargs(httpx.Timeout(60.0, connect=10.0)))
 
 
 def _create_openai_file(att: dict):
