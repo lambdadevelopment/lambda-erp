@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-10
+
+- Model calls can go through Lambda's gateway (lambda.dev) instead of OpenAI
+  directly: `LAMBDA_ERP_LLM_PROVIDER=lambda` with a Lambda model key in
+  `LAMBDA_LLM_API_KEY` (and `LAMBDA_LLM_BASE_URL`, default
+  `https://platform.lambda.dev/v1/llm/openai`). The calls are billed to the
+  Lambda organization the key belongs to; each one names the ERP user who
+  caused it (`X-Lambda-ERP-User`, never sent on to OpenAI), so the
+  organization's usage can be split by person. Chat, the report specialist,
+  chat titles, attachments and voice input all follow the setting. OpenAI with
+  `OPENAI_API_KEY` stays the default; nothing changes for existing setups.
+- "Not configured" messages name the variable that is missing for the chosen
+  provider.
+- `.env.example` no longer pins the report specialist to `gpt-5.6-terra`; it
+  uses the built-in default (`gpt-6.1-sol`), like the chat.
+
 ## [1.4.0] - 2026-11-03
 
 - PDF templates for offers (Settings → PDF Templates). Managers and admins
