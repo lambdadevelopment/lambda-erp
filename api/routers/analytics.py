@@ -261,6 +261,11 @@ def visible_dataset(name: str):
         return None
     permissions.require_artifact("dataset", name)
     hidden = permissions.hidden_artifact_fields("dataset", name)
+    assigned = permissions.artifact_scope_sql("dataset", name)
+    if assigned:
+        # Limited to the caller's assigned records before anything is
+        # selected, filtered, grouped or aggregated.
+        spec = {**spec, "default_where": [*spec.get("default_where", []), *assigned]}
     if not hidden:
         return spec
     field_sql = {key: value for key, value in spec["field_sql"].items() if key not in hidden}
@@ -1255,7 +1260,7 @@ def create_report_draft_record(
         "report": validated["report"],
     }
     db.sql(
-        'INSERT INTO "Report Draft" (id, title, description, definition_json, created_by, source_chat_session_id) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO "Report Draft" (id, title, description, definition_json, created_by, source_chat_session_id, access_stamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [
             draft_id,
             validated["title"],
@@ -1263,6 +1268,8 @@ def create_report_draft_record(
             json.dumps(definition),
             (user or {}).get("name"),
             source_chat_session_id,
+            # Written under these restrictions (permissions, stored content).
+            permissions.access_stamp((user or {}).get("restrictions")) if user else permissions.access_stamp(),
         ],
     )
     db.conn.commit()
@@ -1277,11 +1284,23 @@ def create_report_draft_record(
     }
 
 
+def _draft_readable(row: dict, user: dict | None) -> bool:
+    """A draft someone wrote (ownerless ones are seeded system assets, whose
+    data is fetched under the reader's own restrictions) is given back only
+    to a reader who may see at least what its author could."""
+    if not row.get("created_by"):
+        return True
+    if user is not None:
+        return permissions.stored_content_readable(row.get("access_stamp"), user.get("restrictions"), use_current=False)
+    return permissions.stored_content_readable(row.get("access_stamp"))
+
+
 def get_report_draft_record(report_id: str, user: dict | None = None) -> dict[str, Any] | None:
     db = get_db()
     rows = db.sql(
         '''
-        SELECT id, title, description, definition_json, created_by, source_chat_session_id, created_at, updated_at
+        SELECT id, title, description, definition_json, created_by, source_chat_session_id, created_at, updated_at,
+               access_stamp
         FROM "Report Draft"
         WHERE id = ?
         LIMIT 1
@@ -1293,6 +1312,8 @@ def get_report_draft_record(report_id: str, user: dict | None = None) -> dict[st
     row = dict(rows[0])
     if user and row.get("created_by") and row.get("created_by") != user.get("name") and user.get("role") != "admin":
         raise HTTPException(403, "You do not have access to this report draft.")
+    if not _draft_readable(row, user):
+        raise HTTPException(403, "This report draft was saved before your access was restricted.")
     definition = json.loads(row["definition_json"])
     return {
         "id": row["id"],
@@ -1331,10 +1352,14 @@ def update_report_draft_record(report_id: str, payload: dict[str, Any], user: di
     db.sql(
         '''
         UPDATE "Report Draft"
-        SET title = ?, description = ?, definition_json = ?, updated_at = CURRENT_TIMESTAMP
+        SET title = ?, description = ?, definition_json = ?, updated_at = CURRENT_TIMESTAMP, access_stamp = ?
         WHERE id = ?
         ''',
-        [title, description, json.dumps(definition), report_id],
+        [title, description, json.dumps(definition),
+         permissions.widen_stamp(
+             (db.sql('SELECT access_stamp FROM "Report Draft" WHERE id = ?', [report_id]) or [{}])[0].get("access_stamp"),
+             (user or {}).get("restrictions"), use_current=user is None),
+         report_id],
     )
     db.conn.commit()
     return get_report_draft_record(report_id, user)
@@ -1367,7 +1392,7 @@ def list_report_drafts(user: dict = _viewer):
     if user.get("role") == "admin":
         rows = db.sql(
             '''
-            SELECT id, title, description, created_by, source_chat_session_id, created_at, updated_at
+            SELECT id, title, description, created_by, source_chat_session_id, created_at, updated_at, access_stamp
             FROM "Report Draft"
             ORDER BY updated_at DESC
             '''
@@ -1380,7 +1405,7 @@ def list_report_drafts(user: dict = _viewer):
         # open, so showing them in the list is consistent.
         rows = db.sql(
             '''
-            SELECT id, title, description, created_by, source_chat_session_id, created_at, updated_at
+            SELECT id, title, description, created_by, source_chat_session_id, created_at, updated_at, access_stamp
             FROM "Report Draft"
             WHERE created_by = ? OR created_by IS NULL
             ORDER BY updated_at DESC
@@ -1399,7 +1424,7 @@ def list_report_drafts(user: dict = _viewer):
                 "updated_at": row.get("updated_at"),
                 "url": f"/reports/analytics?report_id={row['id']}",
             }
-            for row in (dict(r) for r in rows)
+            for row in (dict(r) for r in rows) if _draft_readable(row, user)
         ]
     }
 

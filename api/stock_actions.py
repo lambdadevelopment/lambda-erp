@@ -16,7 +16,9 @@ class MoveLocation(mentions.Input):
 
 def prepare_location_move(args):
     data = MoveLocation.model_validate(args)
-    permissions.require_writable("Stock Entry", "create")
+    permissions.require_writable("Stock Entry", "create", keeps_hidden_fields=True)
+    permissions.require_warehouse_in_scope(data.warehouse)
+    permissions.require_warehouse_in_scope(data.to_warehouse, optional=True)
     entry = make_location_move(data.warehouse, data.from_location, data.to_location, data.to_warehouse)
     entry.save()
     return services.load_document("stock-entry", entry.name)
@@ -39,7 +41,7 @@ class SuggestPicks(mentions.Input):
 def reserve_order(args):
     data = ReserveOrder.model_validate(args)
     permissions.require_readable("Sales Order", data.sales_order)
-    permissions.require_writable("Stock Reservation", "create")
+    permissions.require_writable("Stock Reservation", "create", keeps_hidden_fields=True)
     from lambda_erp.stock.reservation import reserve_sales_order
     return reserve_sales_order(data.sales_order, data.sales_order_items)
 
@@ -47,6 +49,8 @@ def reserve_order(args):
 def suggest(args):
     data = SuggestPicks.model_validate(args)
     permissions.require("Stock Reservation", "read")
+    permissions.require_warehouse_in_scope(data.warehouse)
+    permissions.require_in_scope("customer", data.customer, optional=True)
     from lambda_erp.stock.reservation import suggest_picks
     return suggest_picks(data.item_code, data.warehouse, data.qty, customer=data.customer,
                          sales_order_item=data.sales_order_item, include_short_dated=data.include_short_dated)
@@ -64,10 +68,11 @@ def prepare_count(args):
     data = PrepareCount.model_validate(args)
     from lambda_erp.stock.stock_count import prepare_stock_count
     if data.stock_count:
-        permissions.require_writable("Stock Count", "update")
+        permissions.require_writable("Stock Count", "update", keeps_hidden_fields=True)
         permissions.require_readable("Stock Count", data.stock_count)
     else:
-        permissions.require_writable("Stock Count", "create")
+        permissions.require_writable("Stock Count", "create", keeps_hidden_fields=True)
+    permissions.require_warehouse_in_scope(data.warehouse)
     doc = prepare_stock_count(data.warehouse, location=data.location, item_code=data.item_code,
                               item_prefix=data.item_prefix, stock_count=data.stock_count)
     doc.save()
@@ -108,9 +113,11 @@ class PrepareRecall(mentions.Input):
 
 def record_consignment_withdrawal(args):
     data = RecordWithdrawal.model_validate(args)
-    permissions.require_writable("Consignment Withdrawal", "create")
+    permissions.require_writable("Consignment Withdrawal", "create", keeps_hidden_fields=True)
     permissions.require("Consignment Withdrawal", "submit")
-    permissions.require_writable("Sales Invoice", "create")
+    permissions.require_writable("Sales Invoice", "create", keeps_hidden_fields=True)
+    permissions.require_warehouse_in_scope(data.warehouse)
+    permissions.require_warehouse_in_scope(data.replenish_from_warehouse, optional=True)
     from lambda_erp.stock.consignment import record_withdrawal
     for line in data.items:
         if line.qty is None:
@@ -124,7 +131,9 @@ def record_consignment_withdrawal(args):
 
 def prepare_consignment_stocking(args):
     data = PrepareStocking.model_validate(args)
-    permissions.require_writable("Stock Entry", "create")
+    permissions.require_writable("Stock Entry", "create", keeps_hidden_fields=True)
+    permissions.require_warehouse_in_scope(data.warehouse)
+    permissions.require_warehouse_in_scope(data.from_warehouse, optional=True)
     from lambda_erp.stock.consignment import make_consignment_stocking
     entry = make_consignment_stocking(
         data.warehouse, [line.model_dump(exclude_none=True) for line in data.items], from_warehouse=data.from_warehouse)
@@ -134,7 +143,9 @@ def prepare_consignment_stocking(args):
 
 def prepare_consignment_recall(args):
     data = PrepareRecall.model_validate(args)
-    permissions.require_writable("Stock Entry", "create")
+    permissions.require_writable("Stock Entry", "create", keeps_hidden_fields=True)
+    permissions.require_warehouse_in_scope(data.warehouse)
+    permissions.require_warehouse_in_scope(data.to_warehouse)
     from lambda_erp.stock.consignment import make_consignment_recall
     entry = make_consignment_recall(
         data.warehouse, data.to_warehouse, to_location=data.to_location,

@@ -440,7 +440,8 @@ def _batch_stock(db, item_code=None, warehouse=None, batch_no=None, item_prefix=
         + 'GROUP BY d.item_code, i.item_name, d.warehouse, d.batch_no, b.name, b.expiry_date, b.disabled '
         + ('' if include_empty else 'HAVING SUM(d.actual_qty) <> 0 ')
         + 'ORDER BY d.item_code, b.expiry_date, d.batch_no, d.warehouse', params)
-    return {"rows": [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows]}
+    return {"rows": permissions.scope_rows(
+        "report", "batch-stock", [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows])}
 
 
 def _stock_detail(db, item_code=None, warehouse=None, location=None, batch_no=None, item_prefix=None,
@@ -461,7 +462,8 @@ def _stock_detail(db, item_code=None, warehouse=None, location=None, batch_no=No
         + _STOCK_DETAIL_FROM
         + (f"WHERE {' AND '.join(where)} " if where else "")
         + 'ORDER BY d.item_code, d.warehouse, d.location, b.expiry_date, d.batch_no', params)
-    return {"rows": [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows]}
+    return {"rows": permissions.scope_rows(
+        "report", "stock-detail", [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows])}
 
 
 def _stock_availability(db, item_code=None, warehouse=None, item_prefix=None):
@@ -472,7 +474,8 @@ def _stock_availability(db, item_code=None, warehouse=None, item_prefix=None):
     permissions.require_artifact("report", "stock-availability")
     from lambda_erp.stock.reservation import availability_rows
     rows = []
-    for row in availability_rows(item_code, warehouse, item_prefix):
+    for row in permissions.scope_rows("report", "stock-availability",
+                                      list(availability_rows(item_code, warehouse, item_prefix))):
         plan = db.get_value("Bin", {"item_code": row.item_code, "warehouse": row.warehouse},
                             ["reserved_qty", "ordered_qty"]) or {}
         rows.append({**row, "item_name": db.get_value("Item", row.item_code, "item_name") or row.item_code,
@@ -499,8 +502,9 @@ def _sales_backlog(db, customer=None, item_code=None, warehouse=None, sales_orde
     permissions.require("Sales Order", "read")
     from lambda_erp.backlog import sales_backlog
     # Purchase orders behind a shortage are shown to those who may read them.
-    return {"rows": sales_backlog(customer, item_code, warehouse, sales_order, item_prefix, only_deliverable,
-                                  with_purchase_orders=permissions.can("Purchase Order", "read"))}
+    return {"rows": permissions.scope_rows("report", "sales-backlog", sales_backlog(
+        customer, item_code, warehouse, sales_order, item_prefix, only_deliverable,
+        with_purchase_orders=permissions.can("Purchase Order", "read")))}
 
 
 @router.get("/sales-backlog")
@@ -521,7 +525,8 @@ def _purchase_backlog(db, supplier=None, item_code=None, warehouse=None, overdue
     permissions.require_artifact("report", "purchase-backlog")
     permissions.require("Purchase Order", "read")
     from lambda_erp.backlog import purchase_backlog
-    return {"rows": purchase_backlog(supplier, item_code, warehouse, overdue_only)}
+    return {"rows": permissions.scope_rows(
+        "report", "purchase-backlog", purchase_backlog(supplier, item_code, warehouse, overdue_only))}
 
 
 @router.get("/purchase-backlog")
@@ -1019,6 +1024,9 @@ def _ar_aging(db, company=None, as_of_date=None):
     if company:
         where.append("si.company = ?")
         params.append(company)
+    assigned = permissions.scope_sql("customer", "si.customer")
+    if assigned:
+        where.append(assigned)
 
     # Per-invoice outstanding_at_date is computed with two correlated
     # sub-queries: sum allocations and sum credit-note reductions, both

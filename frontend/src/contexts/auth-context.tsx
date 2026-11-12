@@ -10,6 +10,13 @@ export interface User {
   // none (they can set a first one from Settings). Undefined on older sessions
   // until the next /me refresh.
   has_password?: boolean;
+  // Set for a user with an access profile or a record scope: what to leave
+  // out of the menus. The server enforces all of it regardless.
+  restrictions?: {
+    unreadable_types?: string[];
+    denied_reports?: string[];
+    record_scope?: Record<string, string[]>;
+  } | null;
 }
 
 interface AuthContextValue {

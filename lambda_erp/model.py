@@ -348,6 +348,7 @@ class Document:
                 self._normalize_timestamps(before_validate=True)
                 self.validate()
                 normalize_item_prices(self)
+                self._require_in_scope()
                 from lambda_erp.validation import validate_document_requirements
                 validate_document_requirements(self)
                 self._validate_links()
@@ -359,6 +360,13 @@ class Document:
             self._persisted, self._loaded_modified = persisted
             raise
         return self
+
+    def _require_in_scope(self):
+        """A user restricted to assigned customers or warehouses cannot write
+        a document outside of them, by whatever path it is written."""
+        from lambda_erp import permissions
+        if permissions.current_scope():
+            permissions.require_record_in_scope(self.DOCTYPE, self.as_dict())
 
     def _validate_server_managed_fields(self):
         """Allow round trips, but only the owning workflow can change progress."""
@@ -398,6 +406,7 @@ class Document:
                 self._normalize_timestamps(before_validate=True)
                 self.validate()
                 normalize_item_prices(self)
+                self._require_in_scope()
                 from lambda_erp.validation import validate_document_requirements
                 validate_document_requirements(self)
                 self._validate_links()

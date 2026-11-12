@@ -4,6 +4,7 @@ JWT cookie-based auth with role hierarchy: admin > manager > viewer.
 First user to register becomes admin. Subsequent users need an invite.
 """
 
+import json
 import os
 import uuid
 import secrets
@@ -232,9 +233,10 @@ def make_auth_principal(
     # An access profile narrows what the role allows. It belongs to the user,
     # so every credential of theirs (session, API key, MCP token) carries it.
     from lambda_erp.permissions import load_restrictions
-    profile = get_db().get_value("User", user["name"], "access_profile")
+    access = get_db().get_value("User", user["name"], ["access_profile", "record_scope"]) or {}
+    profile = access.get("access_profile")
     principal["access_profile"] = profile or None
-    principal["restrictions"] = load_restrictions(profile)
+    principal["restrictions"] = load_restrictions(profile, access.get("record_scope"))
     # Whoever authenticates a request is its principal for the data layer,
     # also through a dependency that forgets to say so. An explicit bind (or
     # a tool call run under its own principal) still takes precedence.
@@ -559,11 +561,30 @@ def me(user: dict = Depends(get_current_user)):
     db = get_db()
     row = db.get_value("User", user["name"], ["hashed_password"])
     has_password = has_usable_password(row["hashed_password"]) if row else False
-    from lambda_erp.permissions import describe_restrictions
     return {"name": user["name"], "email": user["email"], "full_name": user["full_name"],
             "role": user["role"], "has_password": has_password,
             "access_profile": user.get("access_profile"),
-            "restrictions": describe_restrictions(user.get("restrictions"))}
+            "restrictions": _describe_restrictions(user)}
+
+
+def _describe_restrictions(user):
+    """What a client needs to leave out of its menus: the profile's own
+    settings plus, worked out here, the document and master types the user
+    cannot read and the reports they cannot open. None when unrestricted."""
+    from lambda_erp import permissions
+    described = permissions.describe_restrictions(user.get("restrictions"))
+    if described is None:
+        return None
+    from api import services
+    from api.routers import reports
+    with permissions.acting_as(user):
+        types = {**services.SLUG_TO_DOCTYPE, **{slug: table for slug, (table, _) in services.MASTER_TABLES.items()}}
+        described["unreadable_types"] = sorted(slug for slug, doctype in types.items()
+                                               if not permissions.can(doctype, "read"))
+        names = {route.path.rsplit("/", 1)[-1] for route in reports.router.routes
+                 if getattr(route, "path", "").startswith("/reports/") and "{" not in route.path}
+        described["denied_reports"] = sorted(name for name in names if permissions.artifact_denied("report", name))
+    return described
 
 
 @router.post("/change-password")
@@ -639,8 +660,17 @@ def create_invite(data: InviteRequest, user: dict = Depends(require_interactive_
 @router.get("/users")
 def list_users(user: dict = Depends(require_interactive_admin)):
     db = get_db()
-    rows = db.sql('SELECT name, email, full_name, role, enabled, creation, access_profile FROM "User" ORDER BY creation')
-    return [dict(r) for r in rows]
+    rows = db.sql('SELECT name, email, full_name, role, enabled, creation, access_profile, record_scope '
+                  'FROM "User" ORDER BY creation')
+    result = []
+    for row in rows:
+        entry = dict(row)
+        try:
+            entry["record_scope"] = json.loads(entry["record_scope"]) if entry.get("record_scope") else None
+        except ValueError:
+            entry["record_scope"] = {"error": "unreadable; the user is locked out until it is set again"}
+        result.append(entry)
+    return result
 
 
 # --- Access profiles -------------------------------------------------------
@@ -729,6 +759,34 @@ def assign_access_profile(user_name: str, data: AssignProfileRequest, user: dict
         raise HTTPException(status_code=409, detail="You cannot restrict your own account")
     db.set_value("User", user_name, {"access_profile": profile, "modified": now()})
     return {"ok": True}
+
+
+class RecordScopeRequest(BaseModel):
+    record_scope: dict | None = None
+
+
+@router.put("/users/{user_name}/record-scope")
+def assign_record_scope(user_name: str, data: RecordScopeRequest, user: dict = Depends(require_interactive_admin)):
+    """Restrict a user to assigned records: {"customer": [...], "warehouse":
+    [...]}. A dimension left out is not restricted; null or {} lifts it."""
+    from lambda_erp.exceptions import ValidationError
+    from lambda_erp.permissions import SCOPE_DIMENSIONS, validate_record_scope
+    db = get_db()
+    if not db.exists("User", user_name):
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        scope = validate_record_scope(data.record_scope)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if scope and user_name == user["name"]:
+        raise HTTPException(status_code=409, detail="You cannot restrict your own account")
+    for dimension, values in scope.items():
+        missing = [value for value in values if not db.exists(SCOPE_DIMENSIONS[dimension], value)]
+        if missing:
+            raise HTTPException(status_code=422,
+                                detail=f"Unknown {SCOPE_DIMENSIONS[dimension]}: {', '.join(missing)}")
+    db.set_value("User", user_name, {"record_scope": json.dumps(scope) if scope else None, "modified": now()})
+    return {"ok": True, "record_scope": scope or None}
 
 
 @router.put("/users/{user_name}/role")

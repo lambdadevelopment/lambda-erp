@@ -13,6 +13,8 @@ from lambda_erp.database import get_db
 from lambda_erp.utils import now
 from api.auth import require_role
 
+from lambda_erp import permissions
+
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
 _viewer = Depends(require_role("viewer"))
@@ -42,6 +44,7 @@ def cover_default(company: str = "", customer: str = "", _user: dict = _viewer):
         template = db.get_value("Company", company, "proposal_cover_template") or ""
     cust = {}
     if customer:
+        permissions.require_readable("Customer", customer)
         row = db.get_value("Customer", customer, ["customer_name", "contact_person"])
         if row:
             cust = dict(row)
@@ -59,6 +62,8 @@ async def upload_appendix(name: str, file: UploadFile = File(...), user: dict = 
     db = get_db()
     if not db.exists("Proposal", name):
         raise HTTPException(status_code=404, detail=f"Proposal {name} not found")
+    permissions.require("Proposal", "update")
+    permissions.require_record_visible("Proposal", name)
 
     mime = (file.content_type or "").lower()
     if mime != "application/pdf":
@@ -88,6 +93,8 @@ def delete_appendix(name: str, user: dict = _manager):
     db = get_db()
     if not db.exists("Proposal", name):
         raise HTTPException(status_code=404, detail=f"Proposal {name} not found")
+    permissions.require("Proposal", "update")
+    permissions.require_record_visible("Proposal", name)
     db.delete("Proposal Appendix", filters={"parent": name})
     db.set_value("Proposal", name, "appendix_filename", None)
     db.commit()
@@ -98,6 +105,7 @@ def delete_appendix(name: str, user: dict = _manager):
 def download_appendix(name: str, _user: dict = _viewer):
     """Download the stored appendix PDF (for previewing what's attached)."""
     db = get_db()
+    permissions.require_readable("Proposal", name)
     rows = db.sql('SELECT filename, data FROM "Proposal Appendix" WHERE parent = ?', [name])
     if not rows or not rows[0].get("data"):
         raise HTTPException(status_code=404, detail="No appendix attached.")

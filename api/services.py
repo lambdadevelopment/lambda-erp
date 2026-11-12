@@ -172,6 +172,7 @@ def register_doctype(doctype: str, cls, slug: str | None = None, *, pdf_profile=
         PROFILES[doctype] = pdf_profile
     elif doctype not in PROFILES:
         raise ValueError(f'{doctype}: explicitly register a PDFProfile or DisabledPDF(reason)')
+    permissions.note_registered_type(doctype, already_known=doctype in DOCUMENT_CLASSES)
     DOCUMENT_CLASSES[doctype] = cls
     slug = slug or doctype.lower().replace(" ", "-")
     SLUG_TO_DOCTYPE[slug] = doctype
@@ -283,6 +284,7 @@ def register_master(slug: str, table: str, name_field: str, *,
     minimum sequential suffix width. `identity_alias` lets callers address the
     `name` PK under a friendlier key, like item's `item_code`.
     """
+    permissions.note_registered_type(table, already_known=slug in MASTER_TABLES)
     MASTER_TABLES[slug] = (table, name_field)
     if name_prefix:
         if name_digits < 1:
@@ -583,13 +585,18 @@ def create_document(doctype_slug: str, data: dict) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
-    permissions.require_writable(doctype, "create")
+    permissions.require_writable(doctype, "create", keeps_hidden_fields=True)
+    data = permissions.clean_hidden_input(doctype, data)
     data = _validate_document_input(doctype, cls, data)
     default_taxes = _default_tax_rows(cls, data)
     if default_taxes is not None:
         data = {**data, "taxes": default_taxes}
     doc = cls(data)
-    doc.save()
+    with get_db().atomic():
+        doc.save()
+        # Prices or values the caller cannot see were derived by the server;
+        # where none could be, nothing is saved.
+        permissions.require_hidden_complete(doctype, doc)
     return load_document(doctype_slug, doc.name)
 
 
@@ -608,10 +615,12 @@ def update_document(doctype_slug: str, name: str, data: dict) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
-    permissions.require_writable(doctype, "update")
+    permissions.require_writable(doctype, "update", keeps_hidden_fields=True)
     permissions.require_record_visible(doctype, name)
+    data = permissions.clean_hidden_input(doctype, data)
     data = _validate_document_input(doctype, cls, data)
     doc = cls.load(name)
+    fresh = {}
     # A client that sends back the `modified` it loaded (the document form
     # does) edits that version: if someone saved in between, the write-state
     # check refuses instead of the stale copy silently replacing their changes
@@ -625,10 +634,16 @@ def update_document(doctype_slug: str, name: str, data: dict) -> dict:
     # Update child tables if provided
     for table_name in doc.CHILD_TABLES:
         if table_name in data:
+            stored_rows = [dict(row) for row in doc._children.get(table_name) or []]
+            rows = [_dict(row) for row in data[table_name]]
+            # Lines sent by someone who cannot see their prices keep them.
+            fresh[table_name] = permissions.restore_hidden_values(doctype, stored_rows, rows, table_name)
             doc._children[table_name] = []
-            for row in data[table_name]:
-                doc.append(table_name, _dict(row))
-    doc.save()
+            for row in rows:
+                doc.append(table_name, row)
+    with get_db().atomic():
+        doc.save()
+        permissions.require_hidden_complete(doctype, doc, fresh)
     return load_document(doctype_slug, doc.name)
 
 
@@ -729,7 +744,8 @@ def convert_document(doctype_slug: str, name: str, target_doctype: str) -> dict:
 
     permissions.require(source_doctype, "convert")
     permissions.require_readable(source_doctype, name)
-    permissions.require_writable(target_doctype, "create")
+    # The converter builds the document on the server from the source.
+    permissions.require_writable(target_doctype, "create", keeps_hidden_fields=True)
     new_doc = converter(name)
     # Honor a registered class override for the produced doctype. The core
     # converter builds a base-class instance; if a plugin registered a subclass

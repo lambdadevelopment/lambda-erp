@@ -13,6 +13,43 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.14] - 2026-11-12
+
+Migration 61 runs on startup; it restricts nobody. See `docs/access-profiles.md`.
+
+- **Record scope.** A user can be restricted to assigned customers and/or
+  warehouses (Settings → Users, or `PUT /api/auth/users/{user}/record-scope`).
+  - Records outside the scope do not appear in lists, searches or counts and
+    cannot be read, edited, submitted, cancelled, converted or printed.
+  - A document cannot be saved or submitted with a customer or warehouse
+    outside the scope, by whatever path.
+  - Reports, datasets and metrics are limited to the assigned records, or
+    refused when they cannot be (ledger reports, the dashboard, traceability
+    reports, aggregate metrics).
+  - Restricted by customer also hides other customers' consignment
+    warehouses and their stock.
+- **Writing documents with hidden fields.** A user whose profile hides
+  purchase prices or cost can now create and edit purchasing documents and
+  stock entries. They never supply the hidden values: the server keeps the
+  stored ones and derives new ones (from the order, the buying price list,
+  the valuation), and refuses the write where none is on record.
+  **Changed:** such writes were refused as a whole before; a value sent for a
+  hidden field is now refused with 403.
+- **Extension types are closed to restricted users until declared.**
+  **Changed:** a document or master type added by a plugin is refused for a
+  user with an access profile unless the plugin declares its content
+  (`register_plain_doctype`, `register_sensitive_*`) or the profile names it;
+  with a record scope the plugin also declares how the type relates to it.
+- **Stored conversations and report drafts** carry the restrictions they were
+  written under; a user restricted later no longer gets earlier ones back.
+- `GET /api/auth/me` lists the types and reports a restricted user cannot
+  open; the menu leaves them out.
+- New in `lambda_erp.permissions`: `register_record_scope`,
+  `register_scoped_artifact`, `register_scope_dimension`,
+  `register_plain_doctype`, `register_hidden_write_requirement`,
+  `require_in_scope`, `require_warehouse_in_scope`, `scope_sql`, `scope_rows`,
+  `require_no_record_scope`.
+
 ## [1.4.13] - 2026-11-12
 
 Migration 60 runs on startup. See `docs/serial-numbers.md`.

@@ -145,99 +145,8 @@ def check_access_profiles():
         assert rep.get("/api/auth/access-profiles").status_code == 403
         assert clerk.post("/api/auth/access-profiles", json={"name": "Mine"}).status_code == 403
 
-        # ---- the walk -----------------------------------------------------------
-        names = {slug: [row["name"] for row in db.sql(f'SELECT name FROM "{doctype}"')]
-                 for slug, doctype in services.SLUG_TO_DOCTYPE.items()}
-        master_names = {slug: [row["name"] for row in db.sql(f'SELECT name FROM "{table}" LIMIT 5')]
-                        for slug, (table, _) in services.MASTER_TABLES.items()}
-
-        def rest_walk(client):
-            seen = []
-
-            def get(path, **params):
-                r = client.get(path, params=params or None)
-                seen.append((f"GET {path} {params or ''}", r.status_code, r.text))
-                return r
-
-            for slug in services.SLUG_TO_DOCTYPE:
-                get(f"/api/documents/{slug}")
-                get(f"/api/documents/{slug}", limit=500, include_discarded="true")
-                get(f"/api/documents/{slug}/fields")
-                get(f"/api/documents/{slug}/search", q="S")
-                get(f"/api/documents/{slug}/filter-values", field="name")
-                for name in names[slug]:
-                    get(f"/api/documents/{slug}/{name}")
-                    get(f"/api/documents/{slug}/{name}/adjacent")
-                    if slug.startswith("purchase") or slug == "stock-entry":
-                        r = client.post(f"/api/documents/{slug}/{name}/pdf")
-                        seen.append((f"POST pdf {slug}/{name}", r.status_code, r.text))
-            for slug in services.MASTER_TABLES:
-                get(f"/api/masters/{slug}")
-                get(f"/api/masters/{slug}/search", q="S")
-                get(f"/api/masters/{slug}/fields")
-                get(f"/api/masters/{slug}/filter-values", field="name")
-                for name in master_names[slug]:
-                    get(f"/api/masters/{slug}/{name}")
-            get("/api/masters/account/tree")
-            for report in ("trial-balance", "chart-of-accounts", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "sales-backlog", "purchase-backlog", "batch-stock",
-                           "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"):
-                get(f"/api/reports/{report}")
-                get(f"/api/reports/{report}", company="Test Co")
-            get("/api/reports/analytics/metrics")
-            for metric, meta in analytics.METRICS.items():
-                for group_by in meta["group_by"]:
-                    get("/api/reports/analytics", metric=metric, group_by=group_by)
-            get("/api/reports/runtime/datasets")
-            for dataset in analytics.SEMANTIC_DATASETS:
-                r = client.post("/api/reports/runtime/data", json={"requests": [{"dataset": dataset, "limit": 500}]})
-                seen.append((f"POST runtime/data {dataset}", r.status_code, r.text))
-            for batch in ("LOT-NONE",):
-                get("/api/reports/batch-recipients", batch_no=batch)
-                get("/api/reports/batch-changes", batch_no=batch)
-                get("/api/reports/batch-movements", batch_no=batch)
-            get("/api/reports/serial-trace", serial_no="SN-NONE")
-            get("/api/chat-doctypes")
-            get("/api/reports/runtime/drafts")
-            return seen
-
-        def tool_walk(user_id):
-            principal = auth.make_auth_principal(
-                dict(db.get_value("User", user_id, ["name", "email", "full_name", "role", "enabled"])),
-                auth.SESSION_CREDENTIAL)
-            seen = []
-
-            def call(tool, args):
-                try:
-                    result = mcp._call(tool, args, principal)
-                except Exception as exc:  # the transports report errors as text
-                    result = {"error": f"{type(exc).__name__}: {exc}"}
-                text = json.dumps(result, default=str)
-                seen.append((f"{tool} {json.dumps(args, default=str)[:120]}", "error" in text[:40], text))
-                return result
-
-            call("get_erp_context", {})
-            for slug in services.SLUG_TO_DOCTYPE:
-                call("list_documents", {"doctype": slug, "limit": 100})
-                call("get_document_fields", {"doctype": slug})
-                for name in names[slug]:
-                    call("get_document", {"doctype": slug, "name": name})
-                    call("generate_document_pdf", {"doctype": slug, "name": name})
-            for slug in services.MASTER_TABLES:
-                call("search_masters", {"master_type": slug})
-                call("search_masters", {"master_type": slug, "query": "S"})
-                call("search_masters", {"master_type": slug, "query": "Suplier"})  # fuzzy path
-                call("get_master_fields", {"master_type": slug})
-            for report in ("trial-balance", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "sales-backlog", "purchase-backlog", "batch-stock", "dashboard-summary",
-                           "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"):
-                call("get_report", {"report_type": report, "filters": {"company": "Test Co"}})
-            for dataset, spec in analytics.SEMANTIC_DATASETS.items():
-                numeric = [field for field, kind in spec["fields"].items() if kind == "number"]
-                call("query_dataset", {"dataset": dataset, "measures": {"n": ["count"]}})
-                for field in numeric:
-                    call("query_dataset", {"dataset": dataset, "measures": {"x": ["sum", field], "y": ["max", field]}})
-                call("query_dataset", {"dataset": dataset, "group_by": list(spec["fields"])[:3],
-                                       "measures": {"n": ["count"]}})
-            return seen
+        from tests.access_walk import build_walks
+        rest_walk, tool_walk = build_walks(db)
 
         def leaks(seen):
             return [(what, secret) for what, _, text in seen for secret in SECRETS if secret in text]
@@ -324,12 +233,75 @@ def check_access_profiles():
         assert r.status_code == 200, r.text
         clerk_order = r.json()["name"]
         assert clerk.post(f"/api/documents/sales-order/{clerk_order}/submit").status_code == 200
+        # Documents whose prices are hidden can still be written: the server
+        # keeps and derives the prices, the user never supplies one.
+        db.insert("Item", {"name": "N", "item_name": "No buying price", "is_stock_item": 1, "standard_rate": 5})
+        db.insert("Warehouse", {"name": "B", "warehouse_name": "B", "company": "Test Co"})
+        # A buying list applies as the company's default (a supplier has none of its own).
+        db.set_value("Company", "Test Co", {"default_price_list": buying["name"]})
+        db.commit()
+        draft = services.create_document("purchase-order", {
+            "company": "Test Co", "supplier": "SUP", "transaction_date": "2026-11-12",
+            "items": [{**line, "qty": 4, "rate": 73.91}]})
+        order_line = {**line, "qty": 1}
         r = clerk.post("/api/documents/purchase-order", json={
             "company": "Test Co", "supplier": "SUP", "transaction_date": "2026-11-12",
-            "items": [{**line, "qty": 1, "rate": 1}]})
-        assert r.status_code == 403 and "hides fields of Purchase Order" in r.text, r.text
-        r = clerk.put(f"/api/documents/purchase-order/{po['name']}", json={"remarks": "x"})
-        assert r.status_code == 403, r.text
+            "items": [{**order_line, "rate": 1}]})
+        assert r.status_code == 403 and "you cannot set" in r.text and "items.rate" in r.text, r.text
+        # Blank prices, as a form sends them, are not an attempt to set one.
+        r = clerk.post("/api/documents/purchase-order", json={
+            "company": "Test Co", "supplier": "SUP", "transaction_date": "2026-11-12",
+            "items": [{**order_line, "rate": None, "amount": 0}]})
+        assert r.status_code == 200, r.text
+        created = r.json()
+        assert "rate" not in created["items"][0] and "grand_total" not in created, created
+        assert not any(secret in r.text for secret in SECRETS), r.text
+        assert db.get_value("Purchase Order Item", {"parent": created["name"]}, "rate") == 73.91  # the buying price list
+        # No price on record and none may be entered: nothing is saved.
+        before = db.sql('SELECT COUNT(*) AS n FROM "Purchase Order"')[0]["n"]
+        r = clerk.post("/api/documents/purchase-order", json={
+            "company": "Test Co", "supplier": "SUP", "transaction_date": "2026-11-12",
+            "items": [{"item_code": "N", "warehouse": "A", "qty": 1}]})
+        assert r.status_code == 403 and "no value on record" in r.text, r.text
+        assert db.sql('SELECT COUNT(*) AS n FROM "Purchase Order"')[0]["n"] == before
+        # Editing keeps the stored prices of the lines that stay.
+        seen = clerk.get(f"/api/documents/purchase-order/{draft['name']}").json()
+        assert "rate" not in seen["items"][0], seen
+        seen["items"][0]["qty"] = 6
+        r = clerk.put(f"/api/documents/purchase-order/{draft['name']}", json={"remarks": "x", "items": seen["items"]})
+        assert r.status_code == 200, r.text
+        stored = db.get_value("Purchase Order", draft["name"], ["grand_total", "remarks"])
+        assert round(stored["grand_total"], 2) == 443.46 and stored["remarks"] == "x", stored  # 6 x 73.91
+        assert "443.46" not in r.text and "73.91" not in r.text, r.text
+        r = clerk.put(f"/api/documents/purchase-order/{draft['name']}", json={"remarks": "y"})
+        assert r.status_code == 200 and round(db.get_value("Purchase Order", draft["name"], "grand_total"), 2) == 443.46
+        r = clerk.put(f"/api/documents/purchase-order/{draft['name']}", json={"grand_total": 1})
+        assert r.status_code == 403 and "grand_total" in r.text, r.text
+        # A line that now names another item is a new line: its price is not inherited.
+        seen["items"][0]["item_code"] = "N"
+        r = clerk.put(f"/api/documents/purchase-order/{draft['name']}", json={"items": seen["items"]})
+        assert r.status_code == 403 and "no value on record" in r.text, r.text
+        assert db.get_value("Purchase Order Item", {"parent": draft["name"]}, ["item_code", "rate"]) == \
+            {"item_code": "S", "rate": 73.91}
+        # Receiving against the order takes the order's prices.
+        r = clerk.post(f"/api/documents/purchase-order/{created['name']}/submit")
+        assert r.status_code == 200, r.text
+        r = clerk.post(f"/api/documents/purchase-order/{created['name']}/convert", json={"target_doctype": "Purchase Receipt"})
+        assert r.status_code == 200 and "73.91" not in r.text, r.text
+        receipt = r.json()["name"]
+        assert db.get_value("Purchase Receipt Item", {"parent": receipt}, "rate") == 73.91
+        assert clerk.post(f"/api/documents/purchase-receipt/{receipt}/submit").status_code == 200
+        # Moving stock needs no cost from the user; bringing it in from nowhere does.
+        r = clerk.post("/api/documents/stock-entry", json={
+            "company": "Test Co", "stock_entry_type": "Material Transfer", "posting_date": "2026-11-12",
+            "items": [{"item_code": "S", "qty": 1, "s_warehouse": "A", "t_warehouse": "B"}]})
+        assert r.status_code == 200 and "basic_rate" not in r.json()["items"][0], r.text
+        assert clerk.post(f"/api/documents/stock-entry/{r.json()['name']}/submit").status_code == 200
+        assert not any(secret in r.text for secret in SECRETS), r.text
+        r = clerk.post("/api/documents/stock-entry", json={
+            "company": "Test Co", "stock_entry_type": "Material Receipt", "posting_date": "2026-11-12",
+            "items": [{"item_code": "S", "qty": 1, "t_warehouse": "A", "basic_rate": 2}]})
+        assert r.status_code == 403 and "you cannot set" in r.text, r.text
         assert clerk.post("/api/masters/supplier", json={"supplier_name": "New"}).status_code == 403
         assert clerk.post("/api/masters/customer", json={"customer_name": "New"}).status_code == 200
         # The same through the tools.
@@ -338,9 +310,9 @@ def check_access_profiles():
         try:
             mcp._call("create_document", {"doctype": "purchase-order", "data": {
                 "company": "Test Co", "supplier": "SUP", "items": [{**line, "qty": 1, "rate": 1}]}}, clerk_principal)
-            raise AssertionError("a restricted manager created a purchase order through a tool")
+            raise AssertionError("a restricted manager set a purchase price through a tool")
         except PermissionDenied as exc:
-            assert "hides fields of Purchase Order" in str(exc), exc
+            assert "you cannot set" in str(exc), exc
 
         # ---- per-action permissions ----------------------------------------------
         r = admin.post("/api/auth/access-profiles", json={
@@ -375,6 +347,8 @@ def check_access_profiles():
             assert r.status_code == 200 and "grand_total" not in r.json(), r.text[:300]
             assert keyed.get("/api/reports/general-ledger", headers=headers).status_code == 403
             # The chat API's own document routes (a separate authentication path).
+            names = {slug: [row["name"] for row in db.sql(f'SELECT name FROM "{doctype}"')]
+                     for slug, doctype in services.SLUG_TO_DOCTYPE.items()}
             for slug, doc_names in names.items():
                 for name in doc_names:
                     r = keyed.get(f"/api/v1/documents/{slug}/{name}", headers=headers)
@@ -425,6 +399,49 @@ def check_access_profiles():
                     assert not unclassified, (
                         f"{doctype} {key or '(document)'}: numeric column(s) {sorted(unclassified)} are neither "
                         f"classified in permissions.SENSITIVE_FIELDS nor known to be harmless")
+
+        # ---- types a plugin adds are closed until someone says what is in them ---
+        db.conn.execute(db._ddl('CREATE TABLE IF NOT EXISTS "Visit Note" (name TEXT PRIMARY KEY, title TEXT, '
+                                'customer TEXT, disabled INTEGER DEFAULT 0, creation TEXT, modified TEXT)'))
+        db.conn.commit()
+        with permissions.loading_plugins():
+            services.register_master("visit-note", "Visit Note", "title", name_prefix="VN")
+            # A plugin that replaces a core class does not turn the type into its own.
+            services.register_doctype("Sales Order", services.DOCUMENT_CLASSES["Sales Order"])
+        try:
+            assert "Visit Note" in permissions.PLUGIN_TYPES and "Sales Order" not in permissions.PLUGIN_TYPES
+            assert admin.post("/api/masters/visit-note", json={"title": "Synthetic visit"}).status_code == 200
+            assert admin.put(f"/api/auth/users/{clerk_id}/access-profile", json={"access_profile": "Field"}).status_code == 200
+            assert plain.get("/api/masters/visit-note").status_code == 200
+            assert clerk.get("/api/masters/sales-order").status_code in (200, 404)
+            r = clerk.get("/api/masters/visit-note")
+            assert r.status_code == 403 and "extension type" in r.text, (r.status_code, r.text)
+            # The profile names it ...
+            assert admin.put("/api/auth/access-profiles/Field", json={
+                "hidden_classes": ["purchase_price"],
+                "permissions": {"doctypes": {"Supplier": [], "Visit Note": ["read"]}}}).status_code == 200
+            assert clerk.get("/api/masters/visit-note").status_code == 200
+            assert clerk.post("/api/masters/visit-note", json={"title": "x"}).status_code == 403
+            assert admin.put("/api/auth/access-profiles/Field", json={
+                "hidden_classes": ["purchase_price"], "permissions": {"doctypes": {"Supplier": []}}}).status_code == 200
+            assert clerk.get("/api/masters/visit-note").status_code == 403
+            # ... or the plugin declares it.
+            permissions.register_plain_doctype("Visit Note")
+            assert clerk.get("/api/masters/visit-note").status_code == 200
+            # A user restricted to assigned records needs to know how the type relates to them.
+            assert admin.put(f"/api/auth/users/{rep_id}/access-profile", json={"access_profile": None}).status_code == 200
+            assert admin.put(f"/api/auth/users/{rep_id}/record-scope",
+                             json={"record_scope": {"customer": ["C"]}}).status_code == 200
+            r = rep.get("/api/masters/visit-note")
+            assert r.status_code == 403 and "assigned Customer" in r.text, (r.status_code, r.text)
+            permissions.register_record_scope("Visit Note", "customer", "customer", optional=True)
+            assert rep.get("/api/masters/visit-note").status_code == 200
+        finally:
+            permissions.PLUGIN_TYPES.discard("Visit Note")
+            permissions.PLAIN_TYPES.discard("Visit Note")
+            permissions.RECORD_SCOPES.pop("Visit Note", None)
+            services.MASTER_TABLES.pop("visit-note", None)
+        print("  [ok] extension types stay closed to restricted users until declared or named")
 
     print("All access profile checks passed.")
 

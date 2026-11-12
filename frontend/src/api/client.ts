@@ -807,6 +807,10 @@ export const api = {
     ),
   authDeleteAccessProfile: (name: string) =>
     request<any>(`/auth/access-profiles/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  authAssignRecordScope: (userName: string, record_scope: Record<string, string[]> | null) =>
+    request<any>(`/auth/users/${encodeURIComponent(userName)}/record-scope`, {
+      method: "PUT", body: JSON.stringify({ record_scope }),
+    }),
   authAssignAccessProfile: (userName: string, access_profile: string | null) =>
     request<any>(`/auth/users/${encodeURIComponent(userName)}/access-profile`, {
       method: "PUT", body: JSON.stringify({ access_profile }),

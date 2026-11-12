@@ -83,6 +83,7 @@ SESSION_SELECT = """
         cs.user_id,
         cs.created_at,
         cs.updated_at,
+        cs.access_stamp,
         (
             SELECT MAX(cm.created_at)
             FROM "Chat Message" cm
@@ -106,12 +107,28 @@ def create_session(user_id: str | None = None) -> dict:
     # would cause the sidebar to sort a brand-new session below older ones
     # whose last_message_at came from now().
     created_at = now()
+    # What is said in here is said under the owner's restrictions (see
+    # lambda_erp.permissions, stored content).
+    from lambda_erp import permissions
+    stamp = permissions.access_stamp(permissions.restrictions_of_user(user_id)) if user_id else None
     db.sql(
-        'INSERT INTO "Chat Session" (id, title, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        [session_id, "New Chat", user_id, created_at, created_at],
+        'INSERT INTO "Chat Session" (id, title, user_id, created_at, updated_at, access_stamp) VALUES (?, ?, ?, ?, ?, ?)',
+        [session_id, "New Chat", user_id, created_at, created_at, stamp],
     )
     db.conn.commit()
     return get_session(session_id) or {"id": session_id, "title": "New Chat"}
+
+
+def _public_session(session: dict | None) -> dict | None:
+    """A session row for a client: the access stamp stays on the server."""
+    if not session:
+        return session
+    return {key: value for key, value in session.items() if key != "access_stamp"}
+
+
+def _session_readable(session: dict, restrictions) -> bool:
+    from lambda_erp import permissions
+    return permissions.stored_content_readable(session.get("access_stamp"), restrictions, use_current=False)
 
 
 def list_sessions(user_id: str | None = None, role: str | None = None) -> list[dict]:
@@ -131,17 +148,24 @@ def list_sessions(user_id: str | None = None, role: str | None = None) -> list[d
         params.append("demo")
     where = f" WHERE {' AND '.join(f'({c})' for c in clauses)}" if clauses else ""
     rows = db.sql(f"{SESSION_SELECT}{where} ORDER BY created_at DESC", params)
-    return [dict(r) for r in rows]
+    # A user who has since been restricted does not get back conversations
+    # that hold what they could see before.
+    from lambda_erp import permissions
+    restrictions = permissions.restrictions_of_user(user_id) if user_id else permissions.current_restrictions()
+    return [_public_session(dict(r)) for r in rows if _session_readable(dict(r), restrictions)]
 
 
 def get_session(session_id: str) -> dict | None:
     db = get_db()
     rows = db.sql(f"{SESSION_SELECT} WHERE cs.id = ?", [session_id])
-    return dict(rows[0]) if rows else None
+    return _public_session(dict(rows[0])) if rows else None
 
 
 def can_access_session(session: dict | None, user: dict | None) -> bool:
     if not session or not user:
+        return False
+    stamp = get_db().sql('SELECT access_stamp FROM "Chat Session" WHERE id = ?', [session.get("id")])
+    if not stamp or not _session_readable(dict(stamp[0]), user.get("restrictions")):
         return False
     if user.get("role") == "admin":
         return True
@@ -249,6 +273,16 @@ def save_chat_message(session_id: str, role: str, content: str, message_type: st
         'INSERT INTO "Chat Message" (session_id, role, message_type, content, metadata_json) VALUES (?, ?, ?, ?, ?)',
         [session_id, role, message_type, content, metadata_json],
     )
+    # Someone who may see more than the session's owner has written into it:
+    # the session now holds that, too.
+    from lambda_erp import permissions
+    writer = permissions.current_principal()
+    if writer is not None:
+        rows = db.sql('SELECT access_stamp FROM "Chat Session" WHERE id = ?', [session_id])
+        if rows:
+            wider = permissions.widen_stamp(rows[0]["access_stamp"], writer.get("restrictions"), use_current=False)
+            if wider != rows[0]["access_stamp"]:
+                db.sql('UPDATE "Chat Session" SET access_stamp = ? WHERE id = ?', [wider, session_id])
     db.conn.commit()
     touch_session(session_id)
 

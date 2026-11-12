@@ -3552,6 +3552,15 @@ def _m060_serial_numbers(db: "Database") -> None:
         db.ensure_column(table, "serial_no", "TEXT")
 
 
+def _m061_record_scope(db: "Database") -> None:
+    """Record scope per user and a stamp of the reader's restrictions on
+    stored chat sessions and report drafts (see docs/access-profiles.md).
+    Nobody is restricted by this migration."""
+    db.ensure_column("User", "record_scope", "TEXT")
+    db.ensure_column("Chat Session", "access_stamp", "TEXT")
+    db.ensure_column("Report Draft", "access_stamp", "TEXT")
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3652,6 +3661,7 @@ Database.MIGRATIONS = [
     (58, "stock_count", _m058_stock_count),
     (59, "batch_change_log", _m059_batch_change_log),
     (60, "serial_numbers", _m060_serial_numbers),
+    (61, "record_scope", _m061_record_scope),
 ]
 
 

@@ -58,7 +58,20 @@ import { useChat } from "@/components/chat/chat-provider";
 import { getNavGroups, type NavGroup } from "@/lib/nav";
 import { MENU_SETTINGS_PATH, buildCatalog, ordered, parseLayout } from "@/lib/nav-layout";
 import { useMySettings } from "@/hooks/use-my-settings";
-import { useAuth } from "@/contexts/auth-context";
+import { useAuth, type User } from "@/contexts/auth-context";
+
+// Menu entries a restricted user (access profile or record scope) cannot open.
+// Only for a tidy menu: the server refuses these whatever the menu shows.
+function restrictedPath(path: string, restrictions: User["restrictions"]): boolean {
+  if (!restrictions) return false;
+  const unreadable = new Set(restrictions.unreadable_types ?? []);
+  const [, section, name] = path.split("/");
+  if ((section === "app" || section === "masters") && name) return unreadable.has(name);
+  if (section === "reports" && name) return (restrictions.denied_reports ?? []).includes(name);
+  if (section === "accounting" && name?.startsWith("bank-")) return unreadable.has("bank-transaction");
+  if (section === "rentals") return Object.keys(restrictions.record_scope ?? {}).length > 0;
+  return false;
+}
 import { getBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
@@ -412,9 +425,10 @@ export function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
       if (item.adminOnly && user?.role !== "admin") return false;
       if (item.managerOnly && user?.role !== "manager" && user?.role !== "admin") return false;
       if (item.path === MENU_SETTINGS_PATH && !personal) return false;
+      if (restrictedPath(item.path, user?.restrictions)) return false;
       return true;
     }),
-  })), [user?.role, personal]);
+  })), [user?.role, user?.restrictions, personal]);
 
   // Publish the catalog when it changed (new plugin menu, role or language).
   const catalog = useMemo(() => JSON.stringify(buildCatalog(roleGroups, t)), [roleGroups, t]);

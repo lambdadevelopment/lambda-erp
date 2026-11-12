@@ -2,6 +2,7 @@
 from pydantic import Field
 
 from api import mentions, services
+from lambda_erp import permissions
 from lambda_erp.controllers import price_resolution
 
 
@@ -27,6 +28,7 @@ def explain(args):
     doctype = services.SLUG_TO_DOCTYPE.get(data.doctype, data.doctype)
     if data.name:
         return price_resolution.explain_document_line(doctype, data.name, data.line or 1)
+    permissions.require_in_scope("customer", data.customer, optional=True)
     if not data.item_code:
         raise ValueError("Give item_code (with customer or supplier) for a what-if, or name and line of a saved document")
     return price_resolution.explain_price(

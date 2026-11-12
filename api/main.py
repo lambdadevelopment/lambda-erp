@@ -38,6 +38,8 @@ def load_plugins() -> None:
     """
     import importlib
 
+    from lambda_erp import permissions
+
     names = [m.strip() for m in os.environ.get("LAMBDA_ERP_PLUGINS", "").split(",") if m.strip()]
     for name in names:
         print(f"[plugins] loading {name}", flush=True)
@@ -45,7 +47,9 @@ def load_plugins() -> None:
         register = getattr(module, "register", None)
         if not callable(register):
             raise RuntimeError(f"Plugin '{name}' has no callable register()")
-        register()
+        # Types a plugin adds are closed to restricted users until declared.
+        with permissions.loading_plugins():
+            register()
 
 
 @asynccontextmanager

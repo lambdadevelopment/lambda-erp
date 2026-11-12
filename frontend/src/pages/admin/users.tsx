@@ -9,6 +9,27 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { usePrompt } from "@/components/ui/dialog";
 
+type ScopeKind = "customer" | "warehouse";
+const SCOPE_KINDS: { key: ScopeKind; label: string }[] = [
+  { key: "customer", label: "customers" },
+  { key: "warehouse", label: "warehouses" },
+];
+
+interface ScopeEdit {
+  name: string;
+  fullName: string;
+  restricted: Record<ScopeKind, boolean>;
+  values: Record<ScopeKind, string>;
+}
+
+function scopeSummary(scope: Record<string, any> | null | undefined): string {
+  if (!scope) return "all";
+  if (scope.error) return "unreadable: locked out";
+  const parts = SCOPE_KINDS.filter(({ key }) => key in scope)
+    .map(({ key, label }) => `${(scope[key] as string[]).length} ${label}`);
+  return parts.length ? parts.join(", ") : "all";
+}
+
 export default function UsersPage() {
   usePageTitle("Users");
   const { user: currentUser } = useAuth();
@@ -66,6 +87,36 @@ export default function UsersPage() {
     mutationFn: ({ name, profile }: { name: string; profile: string | null }) =>
       api.authAssignAccessProfile(name, profile),
     onSuccess: refreshProfiles,
+  });
+
+  const [scopeEdit, setScopeEdit] = useState<ScopeEdit | null>(null);
+  const [scopeError, setScopeError] = useState<string | null>(null);
+  const editScope = (u: any) => {
+    setScopeError(null);
+    const scope: Record<string, string[]> = u.record_scope && !u.record_scope.error ? u.record_scope : {};
+    setScopeEdit({
+      name: u.name,
+      fullName: u.full_name || u.email,
+      restricted: { customer: "customer" in scope, warehouse: "warehouse" in scope },
+      values: { customer: (scope.customer ?? []).join(", "), warehouse: (scope.warehouse ?? []).join(", ") },
+    });
+  };
+  const saveScopeMut = useMutation({
+    mutationFn: () => {
+      if (!scopeEdit) throw new Error("Nothing to save");
+      const scope: Record<string, string[]> = {};
+      for (const { key } of SCOPE_KINDS) {
+        if (scopeEdit.restricted[key]) {
+          scope[key] = scopeEdit.values[key].split(",").map((v) => v.trim()).filter(Boolean);
+        }
+      }
+      return api.authAssignRecordScope(scopeEdit.name, Object.keys(scope).length ? scope : null);
+    },
+    onSuccess: () => {
+      setScopeEdit(null);
+      queryClient.invalidateQueries({ queryKey: ["auth-users"] });
+    },
+    onError: (error) => setScopeError((error as Error).message),
   });
 
   const emptyProfile: AccessProfile = { name: "", description: "", hidden_classes: [], permissions: {} };
@@ -244,6 +295,7 @@ export default function UsersPage() {
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Email</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Role</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Access profile</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-500">Assigned records</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
                 <th className="px-4 py-2 text-right font-medium text-gray-500">Actions</th>
               </tr>
@@ -290,6 +342,14 @@ export default function UsersPage() {
                       </select>
                     )}
                   </td>
+                  <td className="px-4 py-2 text-xs text-gray-600">
+                    <span>{scopeSummary(u.record_scope)}</span>
+                    {u.role !== "public_manager" && u.name !== currentUser?.name ? (
+                      <button type="button" className="ml-2 text-blue-600 hover:underline" onClick={() => editScope(u)}>
+                        Edit
+                      </button>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-2">
                     <span className={`rounded px-2 py-0.5 text-xs font-medium ${u.enabled ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                       {u.enabled ? "Active" : "Disabled"}
@@ -311,6 +371,43 @@ export default function UsersPage() {
           </table>
         )}
       </Card>
+
+      {scopeEdit && (
+        <Card title={`Assigned records: ${scopeEdit.fullName}`}>
+          <p className="mb-3 text-sm text-gray-500">
+            Restrict this user to assigned customers or warehouses. They then see and write only documents, stock and
+            reports of those; anything that cannot be limited to them (ledger reports, the dashboard) is refused.
+            A kind that is not restricted is left as it is. Restricted with nothing listed means none at all.
+          </p>
+          <div className="space-y-3">
+            {SCOPE_KINDS.map(({ key, label }) => (
+              <div key={key}>
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                  <input
+                    type="checkbox"
+                    checked={scopeEdit.restricted[key]}
+                    onChange={(e) => setScopeEdit({ ...scopeEdit, restricted: { ...scopeEdit.restricted, [key]: e.target.checked } })}
+                  />
+                  Restrict to assigned {label}
+                </label>
+                {scopeEdit.restricted[key] && (
+                  <input
+                    className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                    placeholder={`IDs of the ${label}, separated by commas`}
+                    value={scopeEdit.values[key]}
+                    onChange={(e) => setScopeEdit({ ...scopeEdit, values: { ...scopeEdit.values, [key]: e.target.value } })}
+                  />
+                )}
+              </div>
+            ))}
+            {scopeError && <p className="text-sm text-red-600">{scopeError}</p>}
+            <div className="flex gap-2">
+              <Button onClick={() => saveScopeMut.mutate()} disabled={saveScopeMut.isPending}>Save</Button>
+              <Button variant="secondary" onClick={() => setScopeEdit(null)}>Cancel</Button>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Access profiles */}
       <Card title="Access Profiles">

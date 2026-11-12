@@ -22,6 +22,8 @@ from lambda_erp.assets.reservation import (
 )
 from api.auth import require_role
 
+from lambda_erp import permissions
+
 router = APIRouter(
     prefix="/availability",
     tags=["availability"],
@@ -47,6 +49,7 @@ def check_availability(
       `available_qty` still be > 0 (a pooled booking reduced the count without
       naming a unit); the form should respect both.
     """
+    permissions.require_no_record_scope("the fleet availability")
     db = get_db()
     try:
         capacity = pool_capacity(db, item_code, warehouse)
@@ -100,6 +103,7 @@ def calendar_feed(
       with the party for a bar label. Pooled bookings (no `asset`) carry a null
       `asset`; the caller renders them on an item lane or a "pool" row.
     """
+    permissions.require_no_record_scope("the fleet availability")
     db = get_db()
 
     asset_filters: dict = {"disabled": 0}

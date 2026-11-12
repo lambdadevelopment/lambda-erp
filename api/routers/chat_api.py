@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from api.auth import get_api_caller
 from api.chat import (
+    can_access_session,
     claim_session_turn,
     create_session,
     delete_session,
@@ -73,7 +74,8 @@ async def chat(payload: ChatApiRequest, request: Request, caller: dict = Depends
 
     if payload.session_id:
         session = get_session(payload.session_id)
-        if not session or session.get("user_id") != owner:
+        # Also refused: a conversation from before the caller was restricted.
+        if not session or session.get("user_id") != owner or not can_access_session(session, caller):
             raise HTTPException(status_code=404, detail="Session not found")
         target_session_id = payload.session_id
         replay_history = True  # opt-in continuity

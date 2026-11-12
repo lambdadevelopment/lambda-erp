@@ -297,6 +297,9 @@ def _validate_master_input(master_type, doctype, data, name=None):
         _validate_batch(db, merged, name)
     if master_type == 'serial-no':
         _validate_serial(db, data, name)
+    # A user restricted to assigned records cannot write one outside of them
+    # (a new customer or warehouse is never one of the assigned).
+    permissions.require_record_in_scope(doctype, {**merged, 'name': name})
     if master_type == 'warehouse':
         _validate_warehouse_locations(db, merged, name)
     if master_type == 'storage-location':
