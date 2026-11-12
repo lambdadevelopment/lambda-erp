@@ -703,6 +703,29 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     conversions: [],
   },
 
+  "item-bundle": {
+    slug: "item-bundle", label: "Item Bundle", dateField: "creation", usesExchangeRate: false,
+    fields: [
+      { name: "item_code", label: "Bundle Item", type: "link", linkDoctype: "item", required: true,
+        hint: "The item code that stands for the bundle. It must not be a stock item. On a sales document it is replaced by the items below." },
+      { name: "bundle_name", label: "Name", type: "text" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "disabled", label: "Disabled", type: "select", options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0" },
+    ],
+    childTables: [
+      {
+        key: "items", label: "Items",
+        fields: [
+          { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
+          { name: "item_name", label: "Item Name", type: "text", readOnly: true },
+          { name: "qty", label: "Qty per Bundle", type: "number", required: true },
+        ],
+      },
+    ],
+    listColumns: ["name", "item_code", "bundle_name", "disabled"],
+    searchFields: ["name", "item_code", "bundle_name"],
+    canSubmit: false, canCancel: false, conversions: [],
+  },
   "price-list": {
     slug: "price-list", label: "Price List", dateField: "creation", usesExchangeRate: false,
     fields: [

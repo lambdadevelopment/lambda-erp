@@ -3034,6 +3034,11 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - Never invent or guess a serial number. If the user has not given them, ask; to see what is in stock use search_masters master_type="serial-no" (filter item_code, warehouse) or the serial-trace report for one number.
 - Units from before the item was serial-tracked have no number: give them one with a Stock Entry of type "Serial Assignment" (item_code, qty, t_warehouse, serial_no).
 
+### Item bundles
+- An **Item Bundle** (doctype `item-bundle`: item_code = the bundle, items = rows of item_code and qty per bundle) makes one item code stand for several items. The bundle's own item is not a stock item.
+- On quotations, sales orders, delivery notes and sales / POS invoices, put the bundle's item_code and qty on a line and save: the line is replaced by one line per item of the bundle, which are then ordinary lines. Do not give a bundle line a rate, discount or batch; do not expand a bundle by hand.
+- When the user names a set, look for it with list_documents doctype="item-bundle" (or the item) before listing single items yourself.
+
 ### Addresses
 - A customer can have several addresses (master_type="address": customer, label, is_billing, is_shipping, is_default_billing, is_default_shipping, recipient_name, contact_person, address, zip_code, city, country, instructions). Search them with search_masters master_type="address" and the customer's name.
 - Quotation, Sales Order, Delivery Note and Sales Invoice carry `billing_address` and `shipping_address` (address record ids of that customer) and `billing_address_display` / `shipping_address_display` (the text that prints). Leave them out to get the customer's defaults; documents made from an order follow the order.

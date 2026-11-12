@@ -11,6 +11,7 @@ def seed_pdf_documents():
     db.insert('Warehouse', {'name':'W-PDF', 'warehouse_name':'St. Gallen Yard', 'company':'PDF Co'})
     db.insert('Warehouse', {'name':'W-PDF-2', 'warehouse_name':'Chur Yard', 'company':'PDF Co'})
     db.insert('Item', {'name':'M-PDF', 'item_name':'Excavator Example', 'is_stock_item':1,'is_asset_tracked':1})
+    db.insert('Item', {'name':'SET-PDF', 'item_name':'Excavator set', 'is_stock_item':0})
     db.insert('Account', {'name':'BANK-PDF','account_name':'Bank account','account_type':'Bank','company':'PDF Co','account_currency':'CHF'})
     db.insert('Account', {'name':'AR-PDF','account_name':'Receivable','account_type':'Receivable','company':'PDF Co','account_currency':'CHF'})
     common = dict(company='PDF Co', customer='C-PDF', supplier='S-PDF', currency='CHF', transaction_date='2026-09-16', posting_date='2026-09-16', docstatus=0, status='Draft', net_total=20, grand_total=20, total_taxes_and_charges=0,
@@ -27,6 +28,8 @@ def seed_pdf_documents():
                             items=[dict(item_code='M-PDF', item_name='Excavator Example', batch_no='LOT-1', system_qty=3, counted_qty=2)]),
         'Consignment Withdrawal': dict(company='PDF Co', customer='C-PDF', warehouse='W-PDF', posting_date='2026-09-16', status='Draft', docstatus=0,
                                        items=[dict(item_code='M-PDF', item_name='Excavator Example', qty=2, uom='Nos', batch_no='LOT-1')]),
+        'Item Bundle': dict(item_code='SET-PDF', bundle_name='Excavator set', docstatus=0,
+                            items=[dict(item_code='M-PDF', item_name='Excavator Example', qty=2)]),
         'Stock Reservation': dict(company='PDF Co', item_code='M-PDF', warehouse='W-PDF', reserved_qty=2, status='Reserved', remarks='Set aside for a demonstration', docstatus=0),
         'Payment Entry': dict(company='PDF Co',posting_date='2026-09-16',payment_type='Receive',party_type='Customer',party='C-PDF',currency='CHF',paid_from='AR-PDF',paid_to='BANK-PDF',paid_amount=20,received_amount=20,references=[dict(reference_doctype='Sales Invoice',reference_name='PDF-Sales-Invoice',allocated_amount=20)]),
         'Journal Entry': dict(company='PDF Co', posting_date='2026-09-16', total_debit=20,total_credit=20, accounts=[dict(account='BANK-PDF',debit=20,credit=0,debit_in_account_currency=20,credit_in_account_currency=0),dict(account='AR-PDF',debit=0,credit=20,debit_in_account_currency=0,credit_in_account_currency=20)]),

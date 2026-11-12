@@ -346,6 +346,9 @@ class Document:
                 from lambda_erp.controllers.item_prices import normalize_item_prices
                 normalize_item_prices(self)
                 self._normalize_timestamps(before_validate=True)
+                # A bundle line becomes the lines of its items before anything is priced.
+                from lambda_erp.bundles import expand_bundle_lines
+                expand_bundle_lines(self)
                 from lambda_erp.addresses import resolve_document_addresses
                 resolve_document_addresses(self)
                 self.validate()
@@ -406,6 +409,9 @@ class Document:
                 from lambda_erp.controllers.item_prices import normalize_item_prices
                 normalize_item_prices(self)
                 self._normalize_timestamps(before_validate=True)
+                # A bundle line becomes the lines of its items before anything is priced.
+                from lambda_erp.bundles import expand_bundle_lines
+                expand_bundle_lines(self)
                 from lambda_erp.addresses import resolve_document_addresses
                 resolve_document_addresses(self)
                 self.validate()

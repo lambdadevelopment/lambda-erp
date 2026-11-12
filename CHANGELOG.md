@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.18] - 2026-11-12
+
+Migration 64 runs on startup; no item becomes a bundle. See `docs/bundles.md`.
+
+- **Item bundles.** New document type `item-bundle`: one item code that
+  stands for several items with a quantity each. On quotations, sales
+  orders, delivery notes and sales / POS invoices, a line with the bundle is
+  replaced by one line per item when the document is saved. The lines are
+  ordinary from then on (priced, reserved, picked, delivered and invoiced on
+  their own) and keep `bundle_item` / `bundle_qty`.
+
 ## [1.4.17] - 2026-11-12
 
 Migration 63 runs on startup; it creates no address and changes no document.

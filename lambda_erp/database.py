@@ -3624,6 +3624,43 @@ def _m063_addresses(db: "Database") -> None:
             db.ensure_column(table, column, "TEXT")
 
 
+def _m064_item_bundles(db: "Database") -> None:
+    """Item bundles: an item code that stands for several items and expands
+    into their lines on sales documents (see docs/bundles.md). No item
+    becomes a bundle by this migration."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Item Bundle" (
+            name TEXT PRIMARY KEY,
+            item_code TEXT NOT NULL,
+            bundle_name TEXT,
+            description TEXT,
+            disabled INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'Draft',
+            docstatus INTEGER DEFAULT 0,
+            discarded INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Item Bundle Item" (
+            name TEXT PRIMARY KEY,
+            parent TEXT NOT NULL,
+            idx INTEGER DEFAULT 0,
+            item_code TEXT,
+            item_name TEXT,
+            qty REAL DEFAULT 1
+        )"""))
+    db.conn.execute(db._ddl('CREATE INDEX IF NOT EXISTS "ix_item_bundle_item_code" ON "Item Bundle" (item_code)'))
+    db.conn.execute(db._ddl('CREATE INDEX IF NOT EXISTS "ix_item_bundle_item_parent" ON "Item Bundle Item" (parent)'))
+    db.conn.commit()
+    for table in ("Item Bundle", "Item Bundle Item"):
+        db._col_cache.pop(table, None)
+        db._text_col_cache.pop(table, None)
+    for table in ("Quotation Item", "Sales Order Item", "Delivery Note Item", "Sales Invoice Item", "POS Invoice Item"):
+        db.ensure_column(table, "bundle_item", "TEXT")
+        db.ensure_column(table, "bundle_qty", "REAL")
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3727,6 +3764,7 @@ Database.MIGRATIONS = [
     (61, "record_scope", _m061_record_scope),
     (62, "stock_document_pricing", _m062_stock_document_pricing),
     (63, "addresses", _m063_addresses),
+    (64, "item_bundles", _m064_item_bundles),
 ]
 
 
