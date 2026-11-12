@@ -120,6 +120,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class _PrincipalScope:
+    """One permissions scope per request, so the caller authenticated by a
+    route dependency is the principal the data layer sees (lambda_erp.permissions)."""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        from lambda_erp import permissions
+        token = permissions.open_request_scope()
+        try:
+            await self.inner(scope, receive, send)
+        finally:
+            permissions.close_request_scope(token)
+
+
+app.add_middleware(_PrincipalScope)
+
 # Exception handlers
 register_exception_handlers(app)
 app.add_exception_handler(OAuthError, oauth_error_handler)

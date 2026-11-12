@@ -13,6 +13,33 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.6] - 2026-11-12
+
+Migration 52 runs on startup. No profile is created and no user is assigned
+one, so nothing changes for existing users. See `docs/access-profiles.md`.
+
+- **Access profiles.** A profile narrows what a user's role allows.
+  - It hides classes of sensitive data: `purchase_price`, `cost`,
+    `supplier_terms`, `margin`. Hidden fields are left out of documents and
+    lists; hidden records, document types, reports, datasets and metrics are
+    refused; PDFs of documents with hidden fields are refused. Filtering,
+    sorting or aggregating by a hidden field is refused too.
+  - The same rules apply to the web app, REST, the chat (before data reaches
+    the model), MCP, API keys and PDF template previews.
+  - It can take away actions per document or master type (read, create,
+    update, submit, cancel, discard, convert, delete, export), e.g. "may save
+    a draft but not submit it".
+  - Managed by an admin in Settings → Users (new *Access Profiles* section and
+    a profile column per user) or over `/api/auth/access-profiles`.
+    `/api/auth/me` reports the caller's restrictions.
+  - A disabled or missing profile locks its users out.
+  - Plugins declare their own sensitive fields, records, document types and
+    reports through `lambda_erp.permissions`.
+  - Not included yet: restricting a user to assigned customers or warehouses,
+    a stock count document.
+- REST submit, cancel, discard and convert now know the calling user, like
+  create and update already did.
+
 ## [1.4.5] - 2026-11-12
 
 Migration 51 runs on startup. Nothing changes for existing items until one is

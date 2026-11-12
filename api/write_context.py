@@ -15,9 +15,13 @@ def current_write_actor():
 
 @contextmanager
 def write_actor(user):
+    # The same identity is the principal whose access profile restricts what
+    # this call may read and write (lambda_erp.permissions).
+    from lambda_erp.permissions import acting_as
     token = _ACTOR.set(user)
     try:
-        yield
+        with acting_as(user):
+            yield
     finally:
         _ACTOR.reset(token)
 

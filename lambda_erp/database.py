@@ -3271,6 +3271,26 @@ def _m051_batches(db: "Database") -> None:
     db.conn.commit()
 
 
+def _m052_access_profiles(db: "Database") -> None:
+    """Access profiles narrow what a user's role allows (lambda_erp.permissions).
+    No profile is created and no user is assigned one: nothing changes for
+    existing users."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Access Profile" (
+            name TEXT PRIMARY KEY,
+            description TEXT,
+            hidden_classes TEXT,
+            permissions TEXT,
+            disabled INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.commit()
+    db._col_cache.pop("Access Profile", None)
+    db._text_col_cache.pop("Access Profile", None)
+    db.ensure_column("User", "access_profile", "TEXT")
+
+
 def _m042_record_notes(db: "Database") -> None:
     """Internal team notes on any document or master (see api.record_notes)."""
     db.conn.execute(
@@ -3342,6 +3362,7 @@ Database.MIGRATIONS = [
     (49, "pricing_rule_currency", _m049_pricing_rule_currency),
     (50, "amount_only_returns", _m050_amount_only_returns),
     (51, "batches", _m051_batches),
+    (52, "access_profiles", _m052_access_profiles),
 ]
 
 

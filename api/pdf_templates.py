@@ -498,9 +498,14 @@ def render_preview(template_id: str, *, source: str = "draft", document: str | N
         layout = Layout(template_id, row["title"], html, _assets(assets))
     if not layout.trusted:
         _compile(layout.html)
+    # A preview prints a real document: the same access rules as its PDF.
+    from api.pdf import require_exportable
+    from lambda_erp import permissions
+    require_exportable(doctype)
     doc = _sample_document(doctype, document)
     if doc is None:
         return None, None, []
+    permissions.require_readable(doctype, doc["name"])
     from api.pdf import render_pdf_for
     blocked: list[str] = []
     rendered = render_pdf_for(doctype, doc["name"], doc, layout, blocked=blocked)

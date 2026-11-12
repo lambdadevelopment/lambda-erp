@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from api.auth import require_role
+from lambda_erp import permissions
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt
 
@@ -251,6 +252,33 @@ METRICS: dict[str, dict[str, Any]] = {
 }
 
 
+def visible_dataset(name: str):
+    """The dataset as the current caller may use it: None if unknown, refused
+    if their access profile denies it, and without the columns it hides (so
+    they cannot be selected, filtered, grouped or aggregated)."""
+    spec = SEMANTIC_DATASETS.get(name)
+    if not spec:
+        return None
+    permissions.require_artifact("dataset", name)
+    hidden = permissions.hidden_artifact_fields("dataset", name)
+    if not hidden:
+        return spec
+    field_sql = {key: value for key, value in spec["field_sql"].items() if key not in hidden}
+    return {
+        **spec,
+        "fields": {key: value for key, value in spec["fields"].items() if key not in hidden},
+        "field_sql": field_sql,
+        "filter_fields": set(spec["filter_fields"]) - hidden,
+        # The default order may sort by a hidden column, which would reveal its ranking.
+        "default_order_by": f"{next(iter(field_sql.values()))} ASC",
+    }
+
+
+def visible_datasets():
+    return [(name, visible_dataset(name)) for name in SEMANTIC_DATASETS
+            if not permissions.artifact_denied("dataset", name)]
+
+
 def _chart_type(group_by: str) -> str:
     return "line" if group_by in _TIME_BUCKETS else "bar"
 
@@ -266,6 +294,7 @@ def list_metrics(_user: dict = _viewer):
                 "time_based": m["time_based"],
             }
             for key, m in METRICS.items()
+            if not permissions.artifact_denied("metric", key)
         ],
     }
 
@@ -282,6 +311,7 @@ def analytics(
     meta = METRICS.get(metric)
     if not meta:
         raise HTTPException(400, f"Unknown metric '{metric}'. Try /analytics/metrics.")
+    permissions.require_artifact("metric", metric)
     if group_by not in meta["group_by"]:
         raise HTTPException(
             400,
@@ -442,7 +472,7 @@ class ReportDraftPayload(StrictReportModel):
     def validate_references(self):
         request_fields: dict[str, set[str]] = {}
         for request in self.data_requests:
-            dataset = SEMANTIC_DATASETS.get(request.dataset)
+            dataset = visible_dataset(request.dataset)
             if not dataset:
                 raise ValueError(f"Unknown semantic dataset '{request.dataset}'")
             source = request.name or request.dataset
@@ -1036,7 +1066,7 @@ def _build_dataset_filter_clauses(spec: dict[str, Any], filters: dict[str, Any],
 
 def _fetch_semantic_dataset(request: RuntimeDataRequest) -> dict[str, Any]:
     db = get_db()
-    spec = SEMANTIC_DATASETS.get(request.dataset)
+    spec = visible_dataset(request.dataset)
     if not spec:
         raise HTTPException(400, f"Unknown semantic dataset '{request.dataset}'")
 
@@ -1090,7 +1120,7 @@ def aggregate_semantic_dataset(
     sum / count / avg / min / max. For `count`, field can be omitted or
     set to "*".
     """
-    spec = SEMANTIC_DATASETS.get(dataset)
+    spec = visible_dataset(dataset)
     if not spec:
         raise HTTPException(400, f"Unknown semantic dataset '{dataset}'")
 
@@ -1194,7 +1224,7 @@ def list_semantic_datasets(_user: dict = _viewer):
                 "default_limit": spec["default_limit"],
                 "max_limit": spec["max_limit"],
             }
-            for dataset, spec in SEMANTIC_DATASETS.items()
+            for dataset, spec in visible_datasets()
         ]
     }
 

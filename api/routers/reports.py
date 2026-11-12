@@ -7,6 +7,7 @@ from lambda_erp.database import get_db
 from lambda_erp.utils import flt, nowdate
 from lambda_erp.controllers.currency import get_exchange_rate
 from api.auth import require_role
+from lambda_erp import permissions
 
 router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_role("viewer"))])
 
@@ -45,6 +46,7 @@ def _present(db, report, company, presentation_currency, rate_date):
 
 
 def _trial_balance(db, company=None, from_date=None, to_date=None):
+    permissions.require_artifact("report", "trial-balance")
     filters = {"is_group": 0}
     if company:
         filters["company"] = company
@@ -138,6 +140,7 @@ def _chart_of_accounts(db, company=None, from_date=None, to_date=None,
     Group accounts roll up every descendant's balance (plus any postings of
     their own, though entries normally land on leaves).
     """
+    permissions.require_artifact("report", "chart-of-accounts")
     acc_filters = {}
     if company:
         acc_filters["company"] = company
@@ -249,6 +252,7 @@ def chart_of_accounts(
 
 
 def _general_ledger(db, filters=None):
+    permissions.require_artifact("report", "general-ledger")
     filters = filters or {}
     where = ["is_cancelled = 0"]
     params = []
@@ -350,6 +354,7 @@ def general_ledger(
 
 
 def _stock_balance(db, item_code=None, warehouse=None):
+    permissions.require_artifact("report", "stock-balance")
     filters = {}
     if item_code:
         filters["item_code"] = item_code
@@ -370,7 +375,7 @@ def _stock_balance(db, item_code=None, warehouse=None):
         entry["item_name"] = item_name
         result.append(entry)
 
-    return {"rows": result}
+    return {"rows": permissions.redact_rows("report", "stock-balance", result)}
 
 
 @router.get("/stock-balance")
@@ -388,6 +393,7 @@ def _batch_stock(db, item_code=None, warehouse=None, batch_no=None, item_prefix=
     `batch_no` is the label as printed on the goods: the same label can exist
     on several items, so it can return several rows. Stock of a tracked item
     that has no batch yet appears with an empty batch_no."""
+    permissions.require_artifact("report", "batch-stock")
     where, params = [], []
     for column, value in (("d.item_code", item_code), ("d.warehouse", warehouse), ("d.batch_no", batch_no)):
         if value:
@@ -438,6 +444,7 @@ def _batch_movements(db, batch_no=None, item_code=None, warehouse=None):
     """Every stock movement of a batch, oldest first, with its document, line
     and the customer or supplier of that document: where a batch came from
     and who received it. `batch_no` alone can match several items."""
+    permissions.require_artifact("report", "batch-movements")
     if not batch_no:
         raise HTTPException(status_code=422, detail="batch_no is required")
     where, params = ["s.batch_no = ?"], [batch_no]
@@ -475,6 +482,7 @@ def batch_movements(
 
 def _dashboard_summary(db, company=None):
     """Compute dashboard summary metrics."""
+    permissions.require_artifact("report", "dashboard-summary")
 
     company_filter = ""
     params = []
@@ -533,13 +541,15 @@ def _dashboard_summary(db, company=None):
     # timestamp; Postgres may also return datetimes rather than strings.
     recent.sort(key=lambda x: str(x.get("creation") or ""), reverse=True)
 
-    return {
+    summary = {
         "total_revenue": flt(revenue[0]["total"], 2) if revenue else 0,
         "outstanding_receivable": flt(receivable[0]["total"], 2) if receivable else 0,
         "outstanding_payable": flt(payable[0]["total"], 2) if payable else 0,
         "total_stock_value": flt(stock_value[0]["total"], 2) if stock_value else 0,
-        "recent_documents": recent[:10],
+        "recent_documents": [doc for doc in recent if permissions.can(doc["doctype"], "read")][:10],
     }
+    # An access profile leaves out the figures of the classes it hides.
+    return permissions.redact_rows("report", "dashboard-summary", [summary])[0]
 
 
 @router.get("/dashboard-summary")
@@ -551,6 +561,7 @@ def dashboard_summary(company: str | None = None):
 
 def _profit_and_loss(db, company=None, from_date=None, to_date=None):
     """Income and Expense accounts grouped by root_type."""
+    permissions.require_artifact("report", "profit-and-loss")
     filters = {"is_group": 0}
     if company:
         filters["company"] = company
@@ -639,6 +650,7 @@ def profit_and_loss(
 
 def _balance_sheet(db, company=None, as_of_date=None):
     """Asset, Liability, and Equity accounts as of a date."""
+    permissions.require_artifact("report", "balance-sheet")
     filters = {"is_group": 0}
     if company:
         filters["company"] = company
@@ -754,6 +766,7 @@ def _ar_aging(db, company=None, as_of_date=None):
                             - Payment Entries allocated ≤ as_of_date
                             - Credit Notes (return SIs) posted ≤ as_of_date
     """
+    permissions.require_artifact("report", "ar-aging")
     if not as_of_date:
         as_of_date = date.today().isoformat()
 
@@ -862,6 +875,7 @@ def _ap_aging(db, company=None, as_of_date=None):
     Mirror image of _ar_aging — rebuilds outstanding historically so
     past-date queries reflect what was open on that date.
     """
+    permissions.require_artifact("report", "ap-aging")
     if not as_of_date:
         as_of_date = date.today().isoformat()
 

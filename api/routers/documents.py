@@ -276,19 +276,22 @@ def update_doc(doctype_slug: str, name: str, data: dict, _user: dict = _manager)
 
 @router.post("/{doctype_slug}/{name}/submit")
 def submit_doc(doctype_slug: str, name: str, _user: dict = _manager):
-    return submit_document(doctype_slug, name)
+    from api.write_context import run_as_actor
+    return run_as_actor(_user, submit_document, doctype_slug, name)
 
 
 @router.post("/{doctype_slug}/{name}/cancel")
 def cancel_doc(doctype_slug: str, name: str, _user: dict = _manager):
-    return cancel_document(doctype_slug, name)
+    from api.write_context import run_as_actor
+    return run_as_actor(_user, cancel_document, doctype_slug, name)
 
 
 @router.post("/{doctype_slug}/{name}/discard")
 def discard_doc(doctype_slug: str, name: str, _user: dict = _manager):
     """Void an unwanted draft (soft delete — kept for the audit trail, hidden
     from default lists). Only valid on drafts; submitted docs must be cancelled."""
-    return discard_document(doctype_slug, name)
+    from api.write_context import run_as_actor
+    return run_as_actor(_user, discard_document, doctype_slug, name)
 
 
 @router.post("/{doctype_slug}/{name}/convert")
@@ -296,4 +299,5 @@ def convert_doc(doctype_slug: str, name: str, data: dict, _user: dict = _manager
     target = data.get("target_doctype")
     if not target:
         return {"detail": "target_doctype is required"}
-    return convert_document(doctype_slug, name, target)
+    from api.write_context import run_as_actor
+    return run_as_actor(_user, convert_document, doctype_slug, name, target)

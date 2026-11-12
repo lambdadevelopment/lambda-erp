@@ -9,14 +9,14 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
-from api.auth import require_non_public_manager, require_role
+from api.auth import require_non_public_manager, require_role, require_bank_access
 from lambda_erp.accounting.bank_statement_import import import_documents, preview_documents
 from lambda_erp.accounting.camt import CamtError, MAX_ARCHIVE_BYTES, mask_iban, parse_camt_upload
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError
 
 
-router = APIRouter(prefix="/bank-statements", tags=["bank-statements"])
+router = APIRouter(prefix="/bank-statements", tags=["bank-statements"], dependencies=[Depends(require_bank_access)])
 MAX_TOTAL_UPLOAD_BYTES = 50 * 1024 * 1024
 
 

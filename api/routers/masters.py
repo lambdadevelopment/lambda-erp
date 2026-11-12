@@ -19,6 +19,7 @@ from api.auth import require_role, require_non_public_manager
 from api.list_values import distinct_list_values
 from api.time_filters import request_time_filter, resolve_time_filter, time_predicate
 from lambda_erp.exceptions import ValidationError
+from lambda_erp import permissions
 from lambda_erp.validation import missing
 
 router = APIRouter(prefix="/masters", tags=["masters"])
@@ -147,6 +148,9 @@ def _get_table(master_type: str):
     entry = MASTER_TABLES.get(master_type)
     if not entry:
         return None, None
+    # Every master operation starts here: a type the caller's access profile
+    # cannot read does not exist for them (PermissionDenied -> 403).
+    permissions.require(entry[0], "read")
     return entry  # (doctype, name_field)
 
 
@@ -336,6 +340,7 @@ def _create_master_record(master_type: str, data: dict) -> dict:
     doctype, _ = _get_table(master_type)
     if not doctype:
         raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
+    permissions.require_writable(doctype, "create")
 
     db = get_db()
     doc = _normalize_master_data(data)
@@ -410,6 +415,8 @@ def _update_master_record(master_type: str, name: str, data: dict) -> dict:
     doctype, _ = _get_table(master_type)
     if not doctype:
         raise HTTPException(status_code=404, detail=f"Unknown master type: {master_type}")
+    permissions.require_writable(doctype, "update")
+    permissions.require_record_visible(doctype, name)
 
     db = get_db()
     normalized = _normalize_master_data(data)
@@ -477,7 +484,7 @@ def _master_list_where(db, doctype: str, master_type: str, request: Request,
     search and field filters of the list the user opened the record from.
     """
     columns = db._get_table_columns(doctype)
-    where_parts: list = []
+    where_parts: list = list(permissions.record_conditions(doctype))
     params: list = []
 
     active = None if include_disabled else _with_active_filter(db, doctype)
@@ -635,8 +642,10 @@ def search_masters(master_type: str, q: str = "", _user: dict = _viewer):
         return []
     db = get_db()
     active_prefix = 'disabled = 0 AND ' if "disabled" in db._get_table_columns(doctype) else ""
+    for condition in permissions.record_conditions(doctype):
+        active_prefix += f"({condition}) AND "
     if not q:
-        return db.get_all(doctype, filters=_with_active_filter(db, doctype), fields=["name", name_field], limit=10)
+        return db.sql(f'SELECT name, "{name_field}" FROM "{doctype}" WHERE {active_prefix}1 = 1 LIMIT 10')
 
     # Case-INSENSITIVE: on Postgres plain LIKE is case-sensitive, so "plus medica"
     # would miss "Plus Medica AG". LOWER(...) LIKE LOWER(...) is portable (SQLite
@@ -744,10 +753,11 @@ def get_master(master_type: str, name: str, _user: dict = _viewer):
     if not doctype:
         return {"detail": f"Unknown master type: {master_type}"}
     db = get_db()
+    permissions.require_record_visible(doctype, name)
     rows = db.get_all(doctype, filters={"name": name}, fields=["*"])
     if not rows:
         return {"detail": f"{doctype} {name} not found"}
-    return rows[0]
+    return permissions.redact_document(doctype, rows[0])
 
 
 @router.post("/{master_type}")
@@ -775,6 +785,8 @@ def delete_master_record(master_type: str, name: str) -> dict:
     doctype, _ = _get_table(master_type)
     if not doctype:
         raise HTTPException(status_code=422, detail=f"Unknown master type: {master_type}")
+    permissions.require(doctype, "delete")
+    permissions.require_record_visible(doctype, name)
     db = get_db()
     if not db.exists(doctype, name):
         raise HTTPException(status_code=404, detail=f"{doctype} {name} not found")

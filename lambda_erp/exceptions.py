@@ -9,6 +9,10 @@ class MandatoryError(ValidationError):
     pass
 
 
+class PermissionDenied(ValidationError):
+    """The caller's access profile does not allow this (HTTP 403)."""
+
+
 class InvalidCurrency(ValidationError):
     pass
 

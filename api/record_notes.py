@@ -74,7 +74,17 @@ def view_url(record_type, record_id, note_id=None):
 
 def _can_access(record_type, record_id, user):
     target = _target(record_type)
-    return bool(target and _reader(user) and get_db().exists(target[0], record_id))
+    if not (target and _reader(user) and get_db().exists(target[0], record_id)):
+        return False
+    # Notes on a record the caller's access profile hides are hidden with it.
+    from lambda_erp import permissions
+    from lambda_erp.exceptions import PermissionDenied
+    try:
+        with permissions.acting_as(user):
+            permissions.require_readable(target[0], record_id)
+    except PermissionDenied:
+        return False
+    return True
 
 
 def _create(record_type, record_id, body, user):

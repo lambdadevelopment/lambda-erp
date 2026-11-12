@@ -13,6 +13,7 @@ from lambda_erp.exceptions import (
     InvalidAccountError,
     InvalidCurrency,
     InsufficientFunds,
+    PermissionDenied,
 )
 
 
@@ -84,6 +85,10 @@ def register_exception_handlers(app: FastAPI):
     @app.exception_handler(ValueError)
     async def value_error(request: Request, exc: ValueError):
         return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(PermissionDenied)
+    async def permission_denied(request: Request, exc: PermissionDenied):
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
 
     @app.exception_handler(DocumentStatusError)
     async def document_status_error(request: Request, exc: DocumentStatusError):

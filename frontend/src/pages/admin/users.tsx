@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { usePageTitle } from "@/lib/use-page-title";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
+import { api, type AccessProfile } from "@/api/client";
 import { useAuth } from "@/contexts/auth-context";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,56 @@ export default function UsersPage() {
   const revokeMut = useMutation({
     mutationFn: (token: string) => api.authRevokeInvite(token),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["auth-invites"] }),
+  });
+
+  const { data: profileData } = useQuery({
+    queryKey: ["auth-access-profiles"],
+    queryFn: () => api.authListAccessProfiles(),
+    enabled: currentUser?.role === "admin",
+  });
+  const profiles = profileData?.profiles ?? [];
+  const refreshProfiles = () => {
+    queryClient.invalidateQueries({ queryKey: ["auth-access-profiles"] });
+    queryClient.invalidateQueries({ queryKey: ["auth-users"] });
+  };
+  const assignProfileMut = useMutation({
+    mutationFn: ({ name, profile }: { name: string; profile: string | null }) =>
+      api.authAssignAccessProfile(name, profile),
+    onSuccess: refreshProfiles,
+  });
+
+  const emptyProfile: AccessProfile = { name: "", description: "", hidden_classes: [], permissions: {} };
+  const [editing, setEditing] = useState<{ profile: AccessProfile; isNew: boolean; permissionsText: string } | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const editProfile = (profile: AccessProfile, isNew: boolean) => {
+    setProfileError(null);
+    const doctypes = profile.permissions?.doctypes ?? {};
+    const hasRules = Object.keys(doctypes).length > 0 || profile.permissions?.default != null;
+    setEditing({ profile: { ...profile }, isNew, permissionsText: hasRules ? JSON.stringify(profile.permissions, null, 2) : "" });
+  };
+  const saveProfileMut = useMutation({
+    mutationFn: async () => {
+      if (!editing) return;
+      let permissions = {};
+      if (editing.permissionsText.trim()) {
+        try {
+          permissions = JSON.parse(editing.permissionsText);
+        } catch {
+          throw new Error("Action rules must be valid JSON");
+        }
+      }
+      return api.authSaveAccessProfile({ ...editing.profile, permissions }, editing.isNew);
+    },
+    onSuccess: () => {
+      setEditing(null);
+      refreshProfiles();
+    },
+    onError: (error) => setProfileError((error as Error).message),
+  });
+  const deleteProfileMut = useMutation({
+    mutationFn: (name: string) => api.authDeleteAccessProfile(name),
+    onSuccess: refreshProfiles,
+    onError: (error) => setProfileError((error as Error).message),
   });
 
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
@@ -193,6 +243,7 @@ export default function UsersPage() {
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Name</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Email</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Role</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-500">Access profile</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
                 <th className="px-4 py-2 text-right font-medium text-gray-500">Actions</th>
               </tr>
@@ -221,6 +272,25 @@ export default function UsersPage() {
                     )}
                   </td>
                   <td className="px-4 py-2">
+                    {u.role === "public_manager" || u.name === currentUser?.name ? (
+                      <span className="text-xs text-gray-400">{u.access_profile || "none"}</span>
+                    ) : (
+                      <select
+                        value={u.access_profile || ""}
+                        onChange={(e) => assignProfileMut.mutate({ name: u.name, profile: e.target.value || null })}
+                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
+                      >
+                        <option value="">none (role only)</option>
+                        {profiles.map((p) => (
+                          <option key={p.name} value={p.name}>{p.name}{p.disabled ? " (disabled)" : ""}</option>
+                        ))}
+                        {u.access_profile && !profiles.some((p) => p.name === u.access_profile) ? (
+                          <option value={u.access_profile}>{u.access_profile} (missing: locked out)</option>
+                        ) : null}
+                      </select>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
                     <span className={`rounded px-2 py-0.5 text-xs font-medium ${u.enabled ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                       {u.enabled ? "Active" : "Disabled"}
                     </span>
@@ -239,6 +309,127 @@ export default function UsersPage() {
               ))}
             </tbody>
           </table>
+        )}
+      </Card>
+
+      {/* Access profiles */}
+      <Card title="Access Profiles">
+        <p className="mb-3 text-sm text-gray-600">
+          A profile narrows what a user&apos;s role allows: it hides classes of sensitive data everywhere
+          (documents, lists, reports, PDFs, chat) and can take away actions per document type.
+          Users without a profile are not restricted. A disabled or deleted profile locks its users out.
+        </p>
+        {profiles.length > 0 && (
+          <table className="mb-4 min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium text-gray-500">Profile</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-500">Hides</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-500">Action rules</th>
+                <th className="px-4 py-2 text-right font-medium text-gray-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {profiles.map((p) => (
+                <tr key={p.name}>
+                  <td className="px-4 py-2">
+                    <div className="font-medium text-gray-900">{p.name}{p.disabled ? " (disabled)" : ""}</div>
+                    <div className="text-xs text-gray-500">{p.description}</div>
+                  </td>
+                  <td className="px-4 py-2 text-gray-700">{p.hidden_classes.join(", ") || "nothing"}</td>
+                  <td className="px-4 py-2 text-gray-700">
+                    {Object.keys(p.permissions?.doctypes ?? {}).length + (p.permissions?.default != null ? 1 : 0) || "none"}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => editProfile(p, false)}>Edit</Button>
+                      <Button variant="danger" size="sm" onClick={() => deleteProfileMut.mutate(p.name)}>Delete</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {editing ? (
+          <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+            <div className="flex flex-wrap gap-4">
+              <Input
+                label="Name"
+                value={editing.profile.name}
+                disabled={!editing.isNew}
+                onChange={(e) => setEditing({ ...editing, profile: { ...editing.profile, name: e.target.value } })}
+              />
+              <Input
+                label="Description"
+                value={editing.profile.description ?? ""}
+                onChange={(e) => setEditing({ ...editing, profile: { ...editing.profile, description: e.target.value } })}
+              />
+            </div>
+            <div>
+              <div className="mb-1 text-sm font-medium text-gray-900">Hide</div>
+              {Object.entries(profileData?.sensitivity_classes ?? {}).map(([cls, description]) => (
+                <label key={cls} className="flex items-start gap-2 py-1 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={editing.profile.hidden_classes.includes(cls)}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      profile: {
+                        ...editing.profile,
+                        hidden_classes: e.target.checked
+                          ? [...editing.profile.hidden_classes, cls]
+                          : editing.profile.hidden_classes.filter((c) => c !== cls),
+                      },
+                    })}
+                  />
+                  <span><span className="font-mono text-xs">{cls}</span> <span className="text-gray-600">{description}</span></span>
+                </label>
+              ))}
+              <p className="mt-1 text-xs text-gray-500">
+                Hiding purchase prices also hides cost, supplier balances and the financial statements;
+                hiding cost also hides the financial statements.
+              </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-900" htmlFor="profile-permissions">
+                Action rules (optional, JSON)
+              </label>
+              <textarea
+                id="profile-permissions"
+                className="h-32 w-full rounded border border-gray-300 p-2 font-mono text-xs"
+                placeholder={'{"default": ["read"], "doctypes": {"Sales Order": ["read", "create", "update"], "Supplier": []}}'}
+                value={editing.permissionsText}
+                onChange={(e) => setEditing({ ...editing, permissionsText: e.target.value })}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Per document or master type (by its name, e.g. &quot;Sales Order&quot;, &quot;Supplier&quot;), the actions that
+                remain: {(profileData?.actions ?? []).join(", ")}. An empty list hides the type. &quot;default&quot; applies to
+                every type not listed; leave it out to allow whatever the role allows.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={!!editing.profile.disabled}
+                onChange={(e) => setEditing({ ...editing, profile: { ...editing.profile, disabled: e.target.checked } })}
+              />
+              Disabled (locks its users out)
+            </label>
+            {profileError && <p className="text-sm text-red-600">{profileError}</p>}
+            <div className="flex gap-2">
+              <Button onClick={() => saveProfileMut.mutate()} disabled={!editing.profile.name.trim() || saveProfileMut.isPending}>
+                Save profile
+              </Button>
+              <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {profileError && <p className="mb-2 text-sm text-red-600">{profileError}</p>}
+            <Button variant="secondary" onClick={() => editProfile(emptyProfile, true)}>New profile</Button>
+          </>
         )}
       </Card>
 

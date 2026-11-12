@@ -6,6 +6,7 @@ import time
 from lambda_erp.utils import _dict, now
 from api.time_filters import resolve_time_filter, time_predicate, time_quality, page_metadata, time_filter_fields
 from lambda_erp.database import get_db, get_write_generation
+from lambda_erp import permissions
 
 from lambda_erp.selling.quotation import (
     Quotation, make_sales_order,
@@ -490,10 +491,12 @@ def document_field_metadata(doctype_slug: str) -> dict:
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
     db = get_db()
+    permissions.require(doctype, "read")
+    hidden = permissions.hidden_fields(doctype)
     return {
         "doctype": doctype_slug,
-        "fields": sorted(db._get_table_columns(doctype)),
-        "text_fields": sorted(db._get_text_columns(doctype)),
+        "fields": sorted(db._get_table_columns(doctype) - hidden),
+        "text_fields": sorted(db._get_text_columns(doctype) - hidden),
         "default_search_fields": document_search_columns(db, doctype_slug),
         "time_filter_fields": time_filter_fields(db, doctype),
         "child_tables": sorted(cls.CHILD_TABLES),
@@ -556,6 +559,7 @@ def create_document(doctype_slug: str, data: dict) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
+    permissions.require_writable(doctype, "create")
     data = _validate_document_input(doctype, cls, data)
     default_taxes = _default_tax_rows(cls, data)
     if default_taxes is not None:
@@ -569,16 +573,19 @@ def load_document(doctype_slug: str, name: str) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
+    permissions.require_readable(doctype, name)
     doc = cls.load(name)
     result = doc.as_dict()
     result["_validation"] = _document_validation(doc)
-    return result
+    return permissions.redact_document(doctype, result)
 
 
 def update_document(doctype_slug: str, name: str, data: dict) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
+    permissions.require_writable(doctype, "update")
+    permissions.require_record_visible(doctype, name)
     data = _validate_document_input(doctype, cls, data)
     doc = cls.load(name)
     # A client that sends back the `modified` it loaded (the document form
@@ -645,18 +652,22 @@ def submit_document(doctype_slug: str, name: str) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
+    permissions.require(doctype, "submit")
+    permissions.require_readable(doctype, name)
     doc = cls.load(name)
     doc.submit()
-    return doc.as_dict()
+    return permissions.redact_document(doctype, doc.as_dict())
 
 
 def cancel_document(doctype_slug: str, name: str) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
+    permissions.require(doctype, "cancel")
+    permissions.require_readable(doctype, name)
     doc = cls.load(name)
     doc.cancel()
-    return doc.as_dict()
+    return permissions.redact_document(doctype, doc.as_dict())
 
 
 def discard_document(doctype_slug: str, name: str) -> dict:
@@ -664,9 +675,11 @@ def discard_document(doctype_slug: str, name: str) -> dict:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise ValueError(f"Unknown document type: {doctype_slug}")
+    permissions.require(doctype, "discard")
+    permissions.require_readable(doctype, name)
     doc = cls.load(name)
     doc.discard()
-    return doc.as_dict()
+    return permissions.redact_document(doctype, doc.as_dict())
 
 
 def register_converter(source_doctype: str, target_doctype: str, fn) -> None:
@@ -690,6 +703,9 @@ def convert_document(doctype_slug: str, name: str, target_doctype: str) -> dict:
     if not converter:
         raise ValueError(f"Cannot convert {source_doctype} to {target_doctype}")
 
+    permissions.require(source_doctype, "convert")
+    permissions.require_readable(source_doctype, name)
+    permissions.require_writable(target_doctype, "create")
     new_doc = converter(name)
     # Honor a registered class override for the produced doctype. The core
     # converter builds a base-class instance; if a plugin registered a subclass
@@ -701,7 +717,7 @@ def convert_document(doctype_slug: str, name: str, target_doctype: str) -> dict:
         new_doc.__class__ = override
 
     new_doc.save()
-    return new_doc.as_dict()
+    return permissions.redact_document(target_doctype, new_doc.as_dict())
 
 
 DATE_FIELDS = {
@@ -1014,6 +1030,8 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
     columns = db._get_table_columns(doctype)
     if order_by and order_by not in columns:
         raise ValueError(f"Unknown order_by field: {order_by}")
+    permissions.require_fields_visible(doctype, [order_by] if order_by else [], "sort by")
+    permissions.require_fields_visible(doctype, fields, "select")
     order_clause = _order_clause(order_by, order)
     if window and (order_by is None or order_by == window["field"]):
         order_clause = f'erp_timestamp_epoch("{window["field"]}") {order.upper()}, name {order.upper()}'
@@ -1031,7 +1049,7 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
         query += " OFFSET ?"
         params.append(max(0, int(offset)))
     rows = db.sql(query, params)
-    return rows if fields else _attach_children(db, doctype_slug, rows)
+    return rows if fields else _attach_children(db, doctype_slug, rows)  # all columns: redacted there
 
 
 def list_document_page(doctype_slug: str, *, time_filter=None, **kwargs):
@@ -1065,7 +1083,9 @@ _COUNT_CACHE_MAX = 512
 
 def _count_cache_key(doctype_slug, filters, include_discarded):
     items = tuple(sorted((k, str(v)) for k, v in (filters or {}).items()))
-    return (doctype_slug, items, bool(include_discarded))
+    # Record rules of an access profile change what is counted.
+    visible = tuple(permissions.record_conditions(SLUG_TO_DOCTYPE.get(doctype_slug)))
+    return (doctype_slug, items, bool(include_discarded), visible)
 
 
 def invalidate_count_cache() -> None:
@@ -1161,6 +1181,7 @@ def list_master_records(
         raise ValueError(f"Unknown master type: {master_type}")
     doctype, _ = entry
     db = get_db()
+    permissions.require(doctype, "read")
     window = resolve_time_filter(db, doctype, time_filter)
     columns = db._get_table_columns(doctype)
     text_fields = sorted(db._get_text_columns(doctype))
@@ -1183,6 +1204,9 @@ def list_master_records(
     if not include_disabled and "disabled" in columns:
         where_parts.insert(0, '"disabled" = ?')
         params.insert(0, 0)
+    permissions.require_fields_visible(
+        doctype, [*db_filters, *(search_fields or []), *(fields or []), *([order_by] if order_by else [])])
+    where_parts.extend(permissions.record_conditions(doctype))
 
     requested_search_fields = list(dict.fromkeys(aliases.get(field, field) for field in (search_fields or [])))
     unknown_search = [field for field in requested_search_fields if field not in columns]
@@ -1303,6 +1327,10 @@ def _filter_where(db, doctype: str, doctype_slug: str, filters: dict, include_di
     unknown = set(db_filters) - set(db._get_table_columns(doctype))
     if unknown:
         raise ValueError(f"Unknown filter fields: {', '.join(sorted(unknown))}")
+    permissions.require(doctype, "read")
+    permissions.require_fields_visible(doctype, db_filters, "filter by")
+    permissions.require_fields_visible(doctype, [date_field_override] if date_field_override else [], "filter by")
+    permissions.require_fields_visible(doctype, search_fields if isinstance(search_fields, (list, tuple)) else [], "search")
     window = resolve_time_filter(db, doctype, time_filter)
     if window and (from_date or to_date or date_field_override or window["field"] in db_filters):
         raise ValueError("Do not combine time_filter with legacy date filters or another filter on the same field")
@@ -1325,6 +1353,7 @@ def _filter_where(db, doctype: str, doctype_slug: str, filters: dict, include_di
         clause, bounds = time_predicate(window)
         where_parts.append(clause)
         params.extend(bounds)
+    where_parts.extend(permissions.record_conditions(doctype))
     return where_parts, params
 
 
@@ -1345,6 +1374,7 @@ def adjacent_documents(doctype_slug: str, name: str, filters: dict = None,
     _order_clause(order_by, order)
     if order_by and order_by not in cols:
         raise ValueError(f"Unknown order_by field: {order_by}")
+    permissions.require_fields_visible(doctype, [order_by] if order_by else [], "sort by")
     oc = order_by or (window["field"] if window else "creation")
     expression = f'"{oc}"'
     if window and oc == window["field"]:
@@ -1392,7 +1422,7 @@ def _list_with_offset(db, doctype, doctype_slug, db_filters, limit, offset, orde
 
 
 def _attach_children(db, doctype_slug: str, rows: list) -> list:
-    _, cls = get_document_class(doctype_slug)
+    doctype, cls = get_document_class(doctype_slug)
     result = []
     for row in rows:
         doc_dict = dict(row)
@@ -1405,7 +1435,7 @@ def _attach_children(db, doctype_slug: str, rows: list) -> list:
                     order_by="idx",
                 )
                 doc_dict[table_name] = [dict(c) for c in children]
-        result.append(doc_dict)
+        result.append(permissions.redact_document(doctype or SLUG_TO_DOCTYPE.get(doctype_slug), doc_dict))
     return result
 
 

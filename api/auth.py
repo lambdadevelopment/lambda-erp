@@ -229,6 +229,17 @@ def make_auth_principal(
     principal["credential_type"] = credential_type
     if api_key_id:
         principal["api_key_id"] = api_key_id
+    # An access profile narrows what the role allows. It belongs to the user,
+    # so every credential of theirs (session, API key, MCP token) carries it.
+    from lambda_erp.permissions import load_restrictions
+    profile = get_db().get_value("User", user["name"], "access_profile")
+    principal["access_profile"] = profile or None
+    principal["restrictions"] = load_restrictions(profile)
+    # Whoever authenticates a request is its principal for the data layer,
+    # also through a dependency that forgets to say so. An explicit bind (or
+    # a tool call run under its own principal) still takes precedence.
+    from lambda_erp.permissions import bind_request_principal_if_unset
+    bind_request_principal_if_unset(principal)
     return principal
 
 
@@ -292,6 +303,14 @@ def refresh_auth_principal(principal: dict | None) -> dict | None:
     return make_auth_principal(user, credential_type)
 
 
+def _bind(principal: dict) -> dict:
+    """Make the authenticated caller the principal of this request for the
+    data layer's access checks."""
+    from lambda_erp.permissions import bind_request_principal
+    bind_request_principal(principal)
+    return principal
+
+
 def get_current_user(request: Request) -> dict:
     """FastAPI dependency: resolve the caller for every cookie-gated REST route.
 
@@ -318,7 +337,7 @@ def get_current_user(request: Request) -> dict:
         if user_name:
             user = db.get_value("User", user_name, ["name", "email", "full_name", "role", "enabled"])
             if user and user.get("enabled"):
-                return make_auth_principal(dict(user), SESSION_CREDENTIAL)
+                return _bind(make_auth_principal(dict(user), SESSION_CREDENTIAL))
 
     bearer = _bearer_token(request)
     if bearer is not None:
@@ -327,14 +346,14 @@ def get_current_user(request: Request) -> dict:
         key, owner, effective_role = _lookup_api_key(db, bearer)
         owner = dict(owner)
         owner["role"] = effective_role
-        return make_auth_principal(
+        return _bind(make_auth_principal(
             owner, API_KEY_CREDENTIAL, api_key_id=key["id"]
-        )
+        ))
 
     # Fall back to public manager (demo mode)
     pub = db.sql('SELECT name, email, full_name, role, enabled FROM "User" WHERE role = \'public_manager\' AND enabled = 1')
     if pub:
-        return make_auth_principal(dict(pub[0]), PUBLIC_DEMO_CREDENTIAL)
+        return _bind(make_auth_principal(dict(pub[0]), PUBLIC_DEMO_CREDENTIAL))
 
     raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -372,6 +391,15 @@ def require_role(minimum_role: str):
 
 
 # Pre-built for convenience
+def require_bank_access(user: dict = Depends(get_current_user)) -> dict:
+    """Bank statements and reconciliation are financial records: refused for
+    a user whose access profile hides them (lambda_erp.permissions)."""
+    from lambda_erp import permissions
+    with permissions.acting_as(user):
+        permissions.require("Bank Transaction", "read")
+    return user
+
+
 require_admin = require_role("admin")
 require_manager = require_role("manager")
 require_viewer = require_role("viewer")
@@ -531,8 +559,11 @@ def me(user: dict = Depends(get_current_user)):
     db = get_db()
     row = db.get_value("User", user["name"], ["hashed_password"])
     has_password = has_usable_password(row["hashed_password"]) if row else False
+    from lambda_erp.permissions import describe_restrictions
     return {"name": user["name"], "email": user["email"], "full_name": user["full_name"],
-            "role": user["role"], "has_password": has_password}
+            "role": user["role"], "has_password": has_password,
+            "access_profile": user.get("access_profile"),
+            "restrictions": describe_restrictions(user.get("restrictions"))}
 
 
 @router.post("/change-password")
@@ -608,8 +639,96 @@ def create_invite(data: InviteRequest, user: dict = Depends(require_interactive_
 @router.get("/users")
 def list_users(user: dict = Depends(require_interactive_admin)):
     db = get_db()
-    rows = db.sql('SELECT name, email, full_name, role, enabled, creation FROM "User" ORDER BY creation')
+    rows = db.sql('SELECT name, email, full_name, role, enabled, creation, access_profile FROM "User" ORDER BY creation')
     return [dict(r) for r in rows]
+
+
+# --- Access profiles -------------------------------------------------------
+# A profile narrows what a user's role allows: it hides classes of sensitive
+# data and can take away actions per document type (lambda_erp.permissions).
+
+class AccessProfileRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    hidden_classes: list[str] = []
+    permissions: dict = {}
+    disabled: bool = False
+
+
+class AssignProfileRequest(BaseModel):
+    access_profile: str | None = None
+
+
+def _profile_out(row) -> dict:
+    import json
+    return {"name": row["name"], "description": row.get("description") or "",
+            "hidden_classes": json.loads(row.get("hidden_classes") or "[]"),
+            "permissions": json.loads(row.get("permissions") or "{}"),
+            "disabled": bool(row.get("disabled"))}
+
+
+def _profile_values(data: AccessProfileRequest) -> dict:
+    import json
+    from lambda_erp.permissions import validate_profile
+    classes, permissions = validate_profile(data.hidden_classes, data.permissions)
+    return {"description": data.description or "", "hidden_classes": json.dumps(classes),
+            "permissions": json.dumps(permissions), "disabled": int(data.disabled), "modified": now()}
+
+
+@router.get("/access-profiles")
+def list_access_profiles(user: dict = Depends(require_interactive_admin)):
+    from lambda_erp.permissions import ACTIONS, SENSITIVITY_CLASSES
+    rows = get_db().sql('SELECT * FROM "Access Profile" ORDER BY name')
+    return {"profiles": [_profile_out(r) for r in rows],
+            "sensitivity_classes": SENSITIVITY_CLASSES, "actions": list(ACTIONS)}
+
+
+@router.post("/access-profiles")
+def create_access_profile(data: AccessProfileRequest, user: dict = Depends(require_interactive_admin)):
+    db = get_db()
+    name = (data.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Name is required")
+    if db.exists("Access Profile", name):
+        raise HTTPException(status_code=409, detail=f"Access profile {name} already exists")
+    db.insert("Access Profile", {"name": name, "creation": now(), **_profile_values(data)})
+    return _profile_out(db.get_value("Access Profile", name, ["name", "description", "hidden_classes", "permissions", "disabled"]))
+
+
+@router.put("/access-profiles/{profile}")
+def update_access_profile(profile: str, data: AccessProfileRequest, user: dict = Depends(require_interactive_admin)):
+    db = get_db()
+    if not db.exists("Access Profile", profile):
+        raise HTTPException(status_code=404, detail="Access profile not found")
+    db.set_value("Access Profile", profile, _profile_values(data))
+    return _profile_out(db.get_value("Access Profile", profile, ["name", "description", "hidden_classes", "permissions", "disabled"]))
+
+
+@router.delete("/access-profiles/{profile}")
+def delete_access_profile(profile: str, user: dict = Depends(require_interactive_admin)):
+    db = get_db()
+    if not db.exists("Access Profile", profile):
+        raise HTTPException(status_code=404, detail="Access profile not found")
+    users = db.sql('SELECT name FROM "User" WHERE access_profile = ?', [profile])
+    if users:
+        raise HTTPException(status_code=409, detail=(
+            f"Access profile {profile} is assigned to {len(users)} user(s); assign them another profile first"))
+    db.sql('DELETE FROM "Access Profile" WHERE name = ?', [profile])
+    return {"ok": True}
+
+
+@router.put("/users/{user_name}/access-profile")
+def assign_access_profile(user_name: str, data: AssignProfileRequest, user: dict = Depends(require_interactive_admin)):
+    db = get_db()
+    if not db.exists("User", user_name):
+        raise HTTPException(status_code=404, detail="User not found")
+    profile = (data.access_profile or "").strip() or None
+    if profile and not db.exists("Access Profile", profile):
+        raise HTTPException(status_code=404, detail="Access profile not found")
+    if profile and user_name == user["name"]:
+        raise HTTPException(status_code=409, detail="You cannot restrict your own account")
+    db.set_value("User", user_name, {"access_profile": profile, "modified": now()})
+    return {"ok": True}
 
 
 @router.put("/users/{user_name}/role")
@@ -1023,7 +1142,7 @@ def get_api_caller(request: Request) -> dict:
     )
     principal["full_name"] = f"{owner.get('full_name') or key['owner']} (API)"
     principal["api_key_user"] = key["owner"]
-    return principal
+    return _bind(principal)
 
 
 class ApiKeyCreate(BaseModel):

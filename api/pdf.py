@@ -122,6 +122,17 @@ def fill_text_placeholders(text, doc, party_name=None, company_name=None) -> str
     return _PLACEHOLDER.sub(lambda m: str(values.get(m.group(1)) or ""), text)
 
 
+def require_exportable(doctype: str) -> None:
+    """A PDF shows the whole document, so a caller whose access profile hides
+    some of its fields (or the export action) gets no PDF of it at all, also
+    not one that was archived or generated earlier."""
+    from lambda_erp import permissions
+    from lambda_erp.exceptions import PermissionDenied
+    permissions.require(doctype, "export")
+    if permissions.has_hidden_fields(doctype):
+        raise PermissionDenied(f"Your access profile hides fields of {doctype}, so you cannot export it as PDF")
+
+
 def generate_pdf(doctype_slug: str, name: str) -> bytes:
     return render_document_pdf(doctype_slug, name).data
 
@@ -137,6 +148,7 @@ def render_document_pdf(doctype_slug: str, name: str) -> RenderedPDF:
     doctype, cls = get_document_class(doctype_slug)
     if not cls:
         raise PDFError(f'Unknown PDF document type: {doctype_slug}', code='pdf_unsupported')
+    require_exportable(doctype)
     doc = load_document(doctype_slug, name)
     archived = pdf_templates.archived_pdf(doctype, doc)
     if archived is not None:

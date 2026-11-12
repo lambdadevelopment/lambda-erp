@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Query
 
-from api.auth import require_role
+from api.auth import require_role, require_bank_access
 from lambda_erp.accounting.bank_reconciliation import (
     list_bank_transactions,
     reconcile_with_existing_voucher,
@@ -15,7 +15,8 @@ from lambda_erp.accounting.bank_reconciliation import (
 from lambda_erp.accounting.subscription import Subscription
 
 
-router = APIRouter(tags=["bank-reconciliation"], dependencies=[Depends(require_role("manager"))])
+router = APIRouter(tags=["bank-reconciliation"],
+                   dependencies=[Depends(require_role("manager")), Depends(require_bank_access)])
 
 
 @router.get("/bank-reconciliation/transactions")

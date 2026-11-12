@@ -56,6 +56,12 @@ def create_pdf_export(doctype_slug, name, user, rendered=None):
 
 
 def get_pdf_export(artifact_id, doctype_slug, name, user):
+    from api.pdf import require_exportable
+    from lambda_erp import permissions
+    doctype, _ = get_document_class(doctype_slug)
+    if doctype:
+        require_exportable(doctype)
+        permissions.require_readable(doctype, name)
     rows = get_db().sql('SELECT * FROM "Generated PDF" WHERE id = ? AND user_id = ? AND doctype = ? AND document_name = ?',
                         [artifact_id, (user or {}).get('user_id') or (user or {}).get('name'), doctype_slug, name])
     if not rows:

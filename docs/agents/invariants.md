@@ -37,6 +37,17 @@ before touching any accounting, stock, or lifecycle path.
   Never bypass either — the floor-at-0 in `_update_original_outstanding`
   is defense-in-depth, not correctness.
 
+- **Access profiles are applied at the data boundary.** Anything that
+  returns ERP data to a caller goes through `api.services` (already checked
+  and redacted) or calls `lambda_erp.permissions` itself (`require`,
+  `require_artifact`, `redact_document`, `redact_rows`, `record_conditions`).
+  A new route, report, dataset, tool or PDF path that reads tables directly
+  and skips this leaks purchase prices to restricted users. Add it to the
+  walk in `tests/test_access_profiles.py`. A new price / cost / value column
+  on a purchasing or stock document must be classified in
+  `permissions.SENSITIVE_FIELDS` (the same test fails otherwise). See
+  `docs/access-profiles.md`.
+
 ## Convention — easy to break, hard to spot
 
 - **Sign convention for outstanding.** Normal invoices carry positive

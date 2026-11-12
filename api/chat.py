@@ -1685,8 +1685,12 @@ def _fuzzy_master_search(db, doctype, search_cols, query, has_disabled, limit):
     Substring search misses typos ("Meynex" vs "medynex"), so when it finds
     nothing we pull a capped candidate set and score it in Python with difflib —
     portable across SQLite and Postgres, no DB extensions required."""
-    where = "WHERE disabled = 0 " if has_disabled else ""
-    candidates = db.sql(f'SELECT * FROM "{doctype}" {where}LIMIT 1000')
+    from lambda_erp import permissions
+    permissions.require(doctype, "read")
+    conditions = (["disabled = 0"] if has_disabled else []) + [f"({c})" for c in permissions.record_conditions(doctype)]
+    where = f"WHERE {' AND '.join(conditions)} " if conditions else ""
+    candidates = [permissions.redact_document(doctype, row)
+                  for row in db.sql(f'SELECT * FROM "{doctype}" {where}LIMIT 1000')]
 
     q = query.lower()
     scored = []
@@ -1719,6 +1723,8 @@ def _handle_get_master_fields(args):
     if not entry:
         return {"error": f"Unknown master type: {master_type}"}
     doctype, _ = entry
+    from lambda_erp import permissions
+    permissions.require(doctype, "read")
     default_search = _master_search_columns(db, doctype)
     bulk = services.master_bulk_text_columns(db, doctype)
     cls = services.DOCUMENT_CLASSES.get(doctype)
@@ -2109,7 +2115,14 @@ def _load_camt_chat_attachments(args, user_id: str | None):
     return documents, None
 
 
+def _require_bank_access():
+    """Bank tools follow the access profile of the calling user."""
+    from lambda_erp import permissions
+    permissions.require("Bank Transaction", "read")
+
+
 def _handle_preview_bank_statement_attachments(args, user_id: str | None = None):
+    _require_bank_access()
     documents, error = _load_camt_chat_attachments(args, user_id)
     if error:
         return error
@@ -2118,6 +2131,7 @@ def _handle_preview_bank_statement_attachments(args, user_id: str | None = None)
 
 
 def _handle_import_bank_statement_attachments(args, user_info: dict | None = None):
+    _require_bank_access()
     role = (user_info or {}).get("role")
     if role not in {"manager", "admin"}:
         return {"error": "Importing bank statements requires manager access and is unavailable in demo mode."}
@@ -2185,6 +2199,7 @@ def _bank_reconciliation_access(user_info: dict | None):
 
 
 def _handle_list_bank_reconciliation_queue(args, user_info: dict | None = None):
+    _require_bank_access()
     denied = _bank_reconciliation_access(user_info)
     if denied:
         return denied
@@ -2196,6 +2211,7 @@ def _handle_list_bank_reconciliation_queue(args, user_info: dict | None = None):
 
 
 def _handle_suggest_bank_reconciliation(args, user_info: dict | None = None):
+    _require_bank_access()
     denied = _bank_reconciliation_access(user_info)
     if denied:
         return denied
@@ -2207,6 +2223,7 @@ def _handle_suggest_bank_reconciliation(args, user_info: dict | None = None):
 
 
 def _handle_reconcile_bank_transaction(args, user_info: dict | None = None):
+    _require_bank_access()
     denied = _bank_reconciliation_access(user_info)
     if denied:
         return denied
@@ -2254,6 +2271,7 @@ def _handle_reconcile_bank_transaction(args, user_info: dict | None = None):
 
 
 def _handle_undo_bank_reconciliation(args, user_info: dict | None = None):
+    _require_bank_access()
     denied = _bank_reconciliation_access(user_info)
     if denied:
         return denied
@@ -3123,9 +3141,9 @@ line for continuous time trends, and pie only for a small part-of-whole set.
 
 
 def _dataset_catalog_text() -> str:
-    from api.routers.analytics import SEMANTIC_DATASETS
+    from api.routers.analytics import visible_datasets
     lines = []
-    for ds, spec in SEMANTIC_DATASETS.items():
+    for ds, spec in visible_datasets():
         fields = ", ".join(spec.get("fields", []))
         filter_fields = ", ".join(sorted(spec.get("filter_fields", []) or []))
         lines.append(

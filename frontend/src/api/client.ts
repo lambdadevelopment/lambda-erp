@@ -258,6 +258,16 @@ export interface FleetCalendarFeed {
   reservations: CalendarReservation[];
 }
 
+/** Narrows what a user's role allows: hidden classes of sensitive data and,
+ *  per document or master type, the actions that remain. */
+export interface AccessProfile {
+  name: string;
+  description?: string;
+  hidden_classes: string[];
+  permissions: { default?: string[] | null; doctypes?: Record<string, string[]> };
+  disabled?: boolean;
+}
+
 export const api = {
   // Generic request (used by sidebar for chat sessions)
   request,
@@ -766,6 +776,23 @@ export const api = {
     request<any>(`/auth/users/${encodeURIComponent(userName)}/role`, { method: "PUT", body: JSON.stringify({ role }) }),
   authDisableUser: (userName: string) =>
     request<any>(`/auth/users/${encodeURIComponent(userName)}`, { method: "DELETE" }),
+  authListAccessProfiles: () =>
+    request<{
+      profiles: AccessProfile[];
+      sensitivity_classes: Record<string, string>;
+      actions: string[];
+    }>("/auth/access-profiles"),
+  authSaveAccessProfile: (profile: AccessProfile, isNew: boolean) =>
+    request<AccessProfile>(
+      isNew ? "/auth/access-profiles" : `/auth/access-profiles/${encodeURIComponent(profile.name)}`,
+      { method: isNew ? "POST" : "PUT", body: JSON.stringify(profile) },
+    ),
+  authDeleteAccessProfile: (name: string) =>
+    request<any>(`/auth/access-profiles/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  authAssignAccessProfile: (userName: string, access_profile: string | null) =>
+    request<any>(`/auth/users/${encodeURIComponent(userName)}/access-profile`, {
+      method: "PUT", body: JSON.stringify({ access_profile }),
+    }),
   authListInvites: () => request<any[]>("/auth/invites"),
   authRevokeInvite: (token: string) =>
     request<any>(`/auth/invites/${encodeURIComponent(token)}`, { method: "DELETE" }),
