@@ -178,7 +178,7 @@ def check_access_profiles():
                 for name in master_names[slug]:
                     get(f"/api/masters/{slug}/{name}")
             get("/api/masters/account/tree")
-            for report in ("trial-balance", "chart-of-accounts", "general-ledger", "stock-balance", "batch-stock",
+            for report in ("trial-balance", "chart-of-accounts", "general-ledger", "stock-balance", "stock-detail", "batch-stock",
                            "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"):
                 get(f"/api/reports/{report}")
                 get(f"/api/reports/{report}", company="Test Co")
@@ -221,7 +221,7 @@ def check_access_profiles():
                 call("search_masters", {"master_type": slug, "query": "S"})
                 call("search_masters", {"master_type": slug, "query": "Suplier"})  # fuzzy path
                 call("get_master_fields", {"master_type": slug})
-            for report in ("trial-balance", "general-ledger", "stock-balance", "batch-stock", "dashboard-summary",
+            for report in ("trial-balance", "general-ledger", "stock-balance", "stock-detail", "batch-stock", "dashboard-summary",
                            "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"):
                 call("get_report", {"report_type": report, "filters": {"company": "Test Co"}})
             for dataset, spec in analytics.SEMANTIC_DATASETS.items():

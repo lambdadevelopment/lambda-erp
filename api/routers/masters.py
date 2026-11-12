@@ -64,6 +64,10 @@ DELETE_REFERENCE_CHECKS = {
         ('SELECT 1 FROM "Stock Ledger Entry" s JOIN "Batch" b ON b.item_code = s.item_code '
          'AND b.batch_no = s.batch_no WHERE b.name = ? LIMIT 1', "stock ledger entry"),
     ],
+    "storage-location": [
+        ('SELECT 1 FROM "Stock Ledger Entry" s JOIN "Storage Location" l ON l.warehouse = s.warehouse '
+         'AND l.location = s.location WHERE l.name = ? LIMIT 1', "stock ledger entry"),
+    ],
     "customer": [
         ('SELECT 1 FROM "Quotation" WHERE customer = ? LIMIT 1', "quotation"),
         ('SELECT 1 FROM "Sales Order" WHERE customer = ? LIMIT 1', "sales order"),
@@ -220,6 +224,7 @@ MASTER_LINK_FIELDS = {
     'account': {'company': 'Company', 'parent_account': 'Account'},
     'cost-center': {'company': 'Company', 'parent_cost_center': 'Cost Center'},
     'batch': {'item_code': 'Item'},
+    'storage-location': {'warehouse': 'Warehouse'},
 }
 
 
@@ -285,6 +290,10 @@ def _validate_master_input(master_type, doctype, data, name=None):
         _validate_item_batch_flags(db, merged, name)
     if master_type == 'batch':
         _validate_batch(db, merged, name)
+    if master_type == 'warehouse':
+        _validate_warehouse_locations(db, merged, name)
+    if master_type == 'storage-location':
+        _validate_storage_location(db, merged, name)
     if master_type == 'company' and data.get('default_sales_tax_template'):
         template = db.get_value('Tax Template', data['default_sales_tax_template'], ['company', 'tax_type'])
         if not template or template['company'] != (name or data.get('name')) or template['tax_type'] != 'Sales':
@@ -305,6 +314,34 @@ def _validate_item_batch_flags(db, merged, name):
             'SELECT 1 FROM "Stock Ledger Entry" WHERE item_code = ? AND batch_no IS NOT NULL '
             'AND batch_no <> \'\' LIMIT 1', [name]):
         raise ValidationError(f'Item {name}: batch tracking cannot be switched off, the stock ledger has batches of it')
+
+
+def _validate_warehouse_locations(db, merged, name):
+    """Storage locations can be switched on at any time (stock already there
+    stays without a location until it is put away). They cannot be switched
+    off while stock lies in a location."""
+    if flt(merged.get('use_locations')) and flt(merged.get('is_group')):
+        raise ValidationError('Warehouse: a group warehouse holds no stock and cannot use storage locations')
+    if name and not flt(merged.get('use_locations')) and db.sql(
+            'SELECT 1 FROM "Stock Balance Detail" WHERE warehouse = ? AND location <> \'\' '
+            'AND actual_qty <> 0 LIMIT 1', [name]):
+        raise ValidationError(
+            f'Warehouse {name}: storage locations cannot be switched off while stock lies in a location')
+
+
+def _validate_storage_location(db, merged, name):
+    for field in ('warehouse', 'location'):
+        if missing(merged.get(field)):
+            raise ValidationError(f'Storage Location: {field} is required')
+    if str(merged['location']) != str(merged['location']).strip():
+        raise ValidationError('Storage Location: location must not start or end with a space')
+    warehouse = db.get_value('Warehouse', merged['warehouse'], ['is_group'])
+    if warehouse and flt(warehouse.get('is_group')):
+        raise ValidationError('Storage Location: a group warehouse holds no stock')
+    twin = db.get_value('Storage Location', {'warehouse': merged['warehouse'], 'location': merged['location']}, 'name')
+    if twin and twin != name:
+        raise ValidationError(
+            f'Storage location {merged["location"]} already exists in warehouse {merged["warehouse"]} ({twin})')
 
 
 def _validate_batch(db, merged, name):

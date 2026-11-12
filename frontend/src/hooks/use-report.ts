@@ -41,6 +41,14 @@ export function useBatchStock(params?: Record<string, string>) {
   return { data, isLoading, error, refetch };
 }
 
+export function useStockDetail(params?: Record<string, string>) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["report", "stock-detail", params],
+    queryFn: () => api.stockDetail(params),
+  });
+  return { data, isLoading, error, refetch };
+}
+
 export function useBatchMovements(params: Record<string, string> | null) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["report", "batch-movements", params],

@@ -33,6 +33,7 @@ class StockEntry(Document):
         "stock_entry_type must be Opening Stock, Material Receipt, Material Issue, Material Transfer or Batch Assignment.",
         "Every items row requires an existing item_code and a positive finite qty. Receipt/opening need t_warehouse; issue needs s_warehouse; transfer needs two distinct warehouses. Warehouses must belong to company.",
         "Rows of a batch-tracked item (Item.has_batch_no) require batch_no; a new batch on a receipt/opening row also needs expiry_date when the item has expiry dates. A transfer moves the batch as it is. Items that are not batch-tracked take no batch_no.",
+        "In a warehouse with storage locations (Warehouse.use_locations) every row names the location: s_location for the source side, t_location for the target side. A Material Transfer may stay inside one warehouse when the two locations differ; it then changes neither total quantity nor value and posts no GL. In such a move s_location may be left empty to put away stock that has no location yet. Warehouses without storage locations take no location.",
         "Batch Assignment gives stock that has no batch (from before the item was batch-tracked) its batch without moving it: each row needs the warehouse (s_warehouse or t_warehouse), batch_no and qty; it changes neither total quantity nor value and posts no GL.",
     )
 
@@ -86,7 +87,16 @@ class StockEntry(Document):
         db = get_db()
         for item in self.get('items'):
             if self.stock_entry_type == 'Material Transfer' and item.get('s_warehouse') == item.get('t_warehouse'):
-                raise ValidationError('Source and Target Warehouse must be different')
+                # Inside one warehouse a transfer is a move between storage locations.
+                uses = db.exists('Warehouse', item['s_warehouse']) and flt(
+                    db.get_value('Warehouse', item['s_warehouse'], 'use_locations'))
+                source, target = (str(item.get(f) or '').strip() for f in ('s_location', 't_location'))
+                if not uses:
+                    raise ValidationError('Source and Target Warehouse must be different')
+                if not target or source == target:
+                    raise ValidationError(
+                        'A transfer inside one warehouse moves stock between storage locations: '
+                        'give a Target Location that differs from the Source Location')
             if self.stock_entry_type in ('Opening Stock', 'Material Receipt') and item.get('s_warehouse'):
                 raise ValidationError('A receipt cannot have a Source Warehouse; use Material Transfer')
             if self.stock_entry_type == 'Material Issue' and item.get('t_warehouse'):
@@ -127,6 +137,10 @@ class StockEntry(Document):
                     raise ValidationError(
                         "Batch Assignment does not move stock: Source and Target Warehouse must be the same")
                 item["s_warehouse"] = item["t_warehouse"] = warehouse
+                # The stock stays in its storage location unless both are given
+                # (an empty source then means stock that has no location yet).
+                if not item.get("t_location"):
+                    item["t_location"] = item.get("s_location")
                 if not str(item.get("batch_no") or "").strip():
                     raise ValidationError(
                         f"Batch is required for Batch Assignment (Item: {item.get('item_code')})")
@@ -188,14 +202,19 @@ class StockEntry(Document):
             # and puts it back, at the same value, under the batch.
             source_batch = ({'batch_no': None, 'allow_unassigned_batch': True}
                             if self.stock_entry_type == 'Batch Assignment' else batch)
+            # A move inside one warehouse may take stock that has no storage
+            # location yet (from before the warehouse used them) and put it away.
+            same_warehouse = bool(item.get('s_warehouse')) and item.get('s_warehouse') == item.get('t_warehouse')
+            source_location = {'location': item.get('s_location'),
+                               'allow_unassigned_location': same_warehouse and not item.get('s_location')}
             if item.get('s_warehouse'):
-                make_sl_entries([{**base, **source_batch, 'warehouse': item['s_warehouse'], 'actual_qty': -flt(item['qty']), 'outgoing_rate': 0}])
+                make_sl_entries([{**base, **source_batch, **source_location, 'warehouse': item['s_warehouse'], 'actual_qty': -flt(item['qty']), 'outgoing_rate': 0}])
                 posted = db.get_value('Stock Ledger Entry', {'voucher_type': self.DOCTYPE, 'voucher_no': self.name, 'voucher_detail_no': item['name'], 'warehouse': item['s_warehouse']}, ['stock_value_difference'])
                 value = -flt(posted.stock_value_difference)
                 rate = value / flt(item['qty'])
                 outgoing += value
             if item.get('t_warehouse'):
-                make_sl_entries([{**base, **batch, 'expiry_date': item.get('expiry_date'), 'warehouse': item['t_warehouse'], 'actual_qty': flt(item['qty']), 'incoming_rate': rate, 'incoming_rate_is_explicit': True}])
+                make_sl_entries([{**base, **batch, 'expiry_date': item.get('expiry_date'), 'location': item.get('t_location'), 'warehouse': item['t_warehouse'], 'actual_qty': flt(item['qty']), 'incoming_rate': rate, 'incoming_rate_is_explicit': True}])
                 incoming += flt(item['qty']) * rate
             item['basic_rate'] = rate
             item['basic_amount'] = item['amount'] = flt(flt(item['qty']) * rate, 2)
@@ -253,3 +272,45 @@ class StockEntry(Document):
                       cost_center=cost_center, voucher_type=self.DOCTYPE, voucher_no=self.name,
                       posting_date=self.posting_date, company=self.company, remarks=f'{self.stock_entry_type} via {self.name}')
                 for account, value in amounts.items() if flt(value, 2)]
+
+
+def make_location_move(warehouse, from_location, to_location, to_warehouse=None):
+    """A draft Material Transfer that moves everything in one storage location
+    to another: one row per item and batch found there. Nothing is posted
+    until the draft is submitted, and it posts completely or not at all.
+
+    `to_warehouse` defaults to the same warehouse (a move between locations).
+    """
+    from lambda_erp.stock.stock_ledger import get_stock_details, get_storage_location
+
+    db = get_db()
+    from_location = str(from_location or '').strip()
+    to_location = str(to_location or '').strip()
+    target_warehouse = to_warehouse or warehouse
+    if not db.exists('Warehouse', warehouse) or not db.exists('Warehouse', target_warehouse):
+        raise ValidationError('Warehouse not found')
+    if not flt(db.get_value('Warehouse', warehouse, 'use_locations')):
+        raise ValidationError(f'Warehouse {warehouse} does not use storage locations')
+    if not get_storage_location(warehouse, from_location):
+        raise ValidationError(f'Unknown storage location {from_location} in warehouse {warehouse}')
+    target_uses = flt(db.get_value('Warehouse', target_warehouse, 'use_locations'))
+    if target_uses and not get_storage_location(target_warehouse, to_location):
+        raise ValidationError(f'Unknown storage location {to_location} in warehouse {target_warehouse}')
+    if not target_uses and to_location:
+        raise ValidationError(f'Warehouse {target_warehouse} does not use storage locations')
+    if target_warehouse == warehouse and from_location == to_location:
+        raise ValidationError('Source and target storage location are the same')
+    rows = [row for row in get_stock_details(warehouse=warehouse, location=from_location)
+            if flt(row['actual_qty']) > 0]
+    if not rows:
+        raise ValidationError(f'Storage location {from_location} in warehouse {warehouse} is empty')
+    entry = StockEntry(company=db.get_value('Warehouse', warehouse, 'company'),
+                       stock_entry_type='Material Transfer', posting_date=nowdate(),
+                       from_warehouse=warehouse, to_warehouse=target_warehouse)
+    for row in sorted(rows, key=lambda r: (r['item_code'], r['batch_no'])):
+        entry.append('items', _dict(
+            item_code=row['item_code'], qty=flt(row['actual_qty']),
+            s_warehouse=warehouse, t_warehouse=target_warehouse,
+            s_location=from_location, t_location=to_location or None,
+            batch_no=row['batch_no'] or None))
+    return entry

@@ -81,6 +81,7 @@ const baseChildRoutes: RouteObject[] = [
   { path: "reports/trial-balance", element: <TrialBalance /> },
   { path: "reports/general-ledger", element: <GeneralLedger /> },
   { path: "reports/stock-balance", element: <StockBalance /> },
+  { path: "reports/stock-detail", element: <BatchStock /> },
   { path: "reports/batch-stock", element: <BatchStock /> },
   { path: "reports/profit-and-loss", element: <ProfitLoss /> },
   { path: "reports/balance-sheet", element: <BalanceSheet /> },

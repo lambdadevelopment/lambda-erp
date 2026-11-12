@@ -568,6 +568,9 @@ export const api = {
   batchStock: (params?: Record<string, string>) =>
     request<{ rows: any[] }>(`/reports/batch-stock${qs(params)}`),
 
+  stockDetail: (params?: Record<string, string>) =>
+    request<{ rows: any[] }>(`/reports/stock-detail${qs(params)}`),
+
   batchMovements: (params: Record<string, string>) =>
     request<{ rows: any[] }>(`/reports/batch-movements${qs(params)}`),
 

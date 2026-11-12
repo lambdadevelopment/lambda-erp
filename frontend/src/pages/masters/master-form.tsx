@@ -27,6 +27,7 @@ const TYPE_LABELS: Record<string, string> = {
   warehouse: "Warehouse",
   company: "Company",
   batch: "Batch",
+  "storage-location": "Storage Location",
 };
 
 const AUTO_NAME_TYPES = new Set(["customer", "supplier", "item", "warehouse"]);

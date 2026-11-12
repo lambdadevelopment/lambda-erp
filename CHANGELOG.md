@@ -13,6 +13,33 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.7] - 2026-11-12
+
+Migration 53 runs on startup. Nothing changes for a warehouse until it is
+switched to storage locations. See `docs/storage-locations.md`.
+
+- **Storage locations.** A warehouse can have storage locations
+  (`use_locations`), places inside it such as shelves or bins.
+  - New `Storage Location` master, one record per warehouse and location
+    label; a location can be disabled (it then takes no new stock).
+  - `location` on Delivery Note, Purchase Receipt and invoice lines,
+    `s_location` / `t_location` on Stock Entry lines. Required in a warehouse
+    that uses locations (drafts may wait), refused elsewhere.
+  - Stock is kept and checked per location, and per batch within it.
+  - A Material Transfer may stay inside one warehouse to move stock between
+    two locations: no change of total quantity or value, no GL.
+  - New action `prepare_location_move` (REST, chat, MCP) drafts the move of
+    everything in a location as one Stock Entry, which posts completely or
+    not at all.
+  - Switching an existing warehouse on keeps its stock "without location"
+    until it is put away.
+  - New report `stock-detail`: item, warehouse, storage location, batch,
+    expiry and quantity in one view, with filters for item, item-code prefix,
+    item group, warehouse, location and expiry range. In the UI it replaces
+    "Batch Stock" as Reports → Stock by Location & Batch.
+  - `batch-stock` adds up over locations; `batch-movements` shows the
+    location of each movement.
+
 ## [1.4.6] - 2026-11-12
 
 Migration 52 runs on startup. No profile is created and no user is assigned

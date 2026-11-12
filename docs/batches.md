@@ -4,8 +4,9 @@ Batch-tracked stock: every movement of a tracked item names its batch, and
 quantities are kept and checked per batch. Available from 1.4.5 (migration 51).
 Nothing changes for an item until it is switched to batch tracking.
 
-Not in this release: serial numbers, a stock count / reconciliation document,
-blocking of batches, picking suggestions (FEFO), storage locations.
+Not included: serial numbers, a stock count / reconciliation document,
+blocking of batches, picking suggestions (FEFO). Storage locations (1.4.7)
+are a second dimension next to the batch: see `docs/storage-locations.md`.
 
 ## Data model
 
@@ -17,7 +18,7 @@ blocking of batches, picking suggestions (FEFO), storage locations.
 | `batch_no` on lines | Stock Entry, Delivery Note, Purchase Receipt, Sales / Purchase / POS Invoice lines. The label, read together with the line's item. |
 | `expiry_date` on receiving lines | Stock Entry, Purchase Receipt, Purchase Invoice lines: the expiry date of a batch that is new. |
 | `Stock Ledger Entry.batch_no` | The batch of each movement. |
-| `Stock Balance Detail` | Quantity per item × warehouse × batch. `batch_no = ''` is stock without a batch. |
+| `Stock Balance Detail` | Quantity per item × warehouse × batch (× storage location from 1.4.7). `batch_no = ''` is stock without a batch. |
 
 `Bin` stays the quantity and moving-average value per item × warehouse.
 Valuation is not per batch. For every item × warehouse the `Stock Balance

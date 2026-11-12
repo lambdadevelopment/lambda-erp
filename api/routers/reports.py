@@ -386,16 +386,11 @@ def stock_balance(
     return _stock_balance(get_db(), item_code, warehouse)
 
 
-def _batch_stock(db, item_code=None, warehouse=None, batch_no=None, item_prefix=None,
-                 expiring_before=None, include_empty=False):
-    """Stock per item x warehouse x batch with the batch's expiry date.
-
-    `batch_no` is the label as printed on the goods: the same label can exist
-    on several items, so it can return several rows. Stock of a tracked item
-    that has no batch yet appears with an empty batch_no."""
-    permissions.require_artifact("report", "batch-stock")
+def _stock_detail_where(item_code=None, warehouse=None, batch_no=None, item_prefix=None, expiring_before=None,
+                        include_empty=False, location=None, item_group=None, expiring_after=None):
     where, params = [], []
-    for column, value in (("d.item_code", item_code), ("d.warehouse", warehouse), ("d.batch_no", batch_no)):
+    for column, value in (("d.item_code", item_code), ("d.warehouse", warehouse), ("d.batch_no", batch_no),
+                          ("d.location", location), ("i.item_group", item_group)):
         if value:
             where.append(f"{column} = ?")
             params.append(value)
@@ -405,20 +400,75 @@ def _batch_stock(db, item_code=None, warehouse=None, batch_no=None, item_prefix=
     if expiring_before:
         where.append("b.expiry_date IS NOT NULL AND b.expiry_date <= ?")
         params.append(expiring_before)
+    if expiring_after:
+        where.append("b.expiry_date IS NOT NULL AND b.expiry_date >= ?")
+        params.append(expiring_after)
     if not include_empty:
         where.append("d.actual_qty <> 0")
+    return where, params
+
+
+_STOCK_DETAIL_FROM = (
+    'FROM "Stock Balance Detail" d '
+    'LEFT JOIN "Item" i ON i.name = d.item_code '
+    'LEFT JOIN "Batch" b ON b.item_code = d.item_code AND b.batch_no = d.batch_no ')
+
+
+def _batch_stock(db, item_code=None, warehouse=None, batch_no=None, item_prefix=None,
+                 expiring_before=None, include_empty=False):
+    """Stock per item x warehouse x batch with the batch's expiry date, added
+    up over the warehouse's storage locations (stock-detail shows those).
+
+    `batch_no` is the label as printed on the goods: the same label can exist
+    on several items, so it can return several rows. Stock of a tracked item
+    that has no batch yet appears with an empty batch_no."""
+    permissions.require_artifact("report", "batch-stock")
+    where, params = _stock_detail_where(item_code, warehouse, batch_no, item_prefix, expiring_before, True)
     if not batch_no:
         # Untracked items have no batches to show; their stock is in stock-balance.
         where.append("(d.batch_no <> '' OR COALESCE(i.has_batch_no, 0) = 1)")
     rows = db.sql(
         'SELECT d.item_code, i.item_name, d.warehouse, d.batch_no, b.name AS batch, b.expiry_date, '
-        'COALESCE(b.disabled, 0) AS batch_disabled, d.actual_qty '
-        'FROM "Stock Balance Detail" d '
-        'LEFT JOIN "Item" i ON i.name = d.item_code '
-        'LEFT JOIN "Batch" b ON b.item_code = d.item_code AND b.batch_no = d.batch_no '
+        'COALESCE(b.disabled, 0) AS batch_disabled, SUM(d.actual_qty) AS actual_qty '
+        + _STOCK_DETAIL_FROM
         + (f"WHERE {' AND '.join(where)} " if where else "")
+        + 'GROUP BY d.item_code, i.item_name, d.warehouse, d.batch_no, b.name, b.expiry_date, b.disabled '
+        + ('' if include_empty else 'HAVING SUM(d.actual_qty) <> 0 ')
         + 'ORDER BY d.item_code, b.expiry_date, d.batch_no, d.warehouse', params)
     return {"rows": [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows]}
+
+
+def _stock_detail(db, item_code=None, warehouse=None, location=None, batch_no=None, item_prefix=None,
+                  item_group=None, expiring_before=None, expiring_after=None, include_empty=False):
+    """Where stock is, in one view: item, warehouse, storage location, batch,
+    expiry date and quantity. Every stock item appears, with an empty batch_no
+    or location where it has none."""
+    permissions.require_artifact("report", "stock-detail")
+    where, params = _stock_detail_where(item_code, warehouse, batch_no, item_prefix, expiring_before,
+                                        include_empty, location, item_group, expiring_after)
+    rows = db.sql(
+        'SELECT d.item_code, i.item_name, i.item_group, d.warehouse, d.location, d.batch_no, b.expiry_date, '
+        'd.actual_qty '
+        + _STOCK_DETAIL_FROM
+        + (f"WHERE {' AND '.join(where)} " if where else "")
+        + 'ORDER BY d.item_code, d.warehouse, d.location, b.expiry_date, d.batch_no', params)
+    return {"rows": [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows]}
+
+
+@router.get("/stock-detail")
+def stock_detail(
+    item_code: str | None = None,
+    warehouse: str | None = None,
+    location: str | None = None,
+    batch_no: str | None = None,
+    item_prefix: str | None = None,
+    item_group: str | None = None,
+    expiring_before: str | None = None,
+    expiring_after: str | None = None,
+    include_empty: bool = False,
+):
+    return _stock_detail(get_db(), item_code, warehouse, location, batch_no, item_prefix, item_group,
+                         expiring_before, expiring_after, include_empty)
 
 
 @router.get("/batch-stock")
@@ -453,7 +503,7 @@ def _batch_movements(db, batch_no=None, item_code=None, warehouse=None):
             where.append(f"{column} = ?")
             params.append(value)
     rows = db.sql(
-        'SELECT s.name, s.posting_date, s.item_code, s.warehouse, s.batch_no, s.actual_qty, '
+        'SELECT s.name, s.posting_date, s.item_code, s.warehouse, s.location, s.batch_no, s.actual_qty, '
         's.voucher_type, s.voucher_no, s.voucher_detail_no '
         f'FROM "Stock Ledger Entry" s WHERE {" AND ".join(where)} '
         'ORDER BY s.posting_date, s.creation, s.name', params)

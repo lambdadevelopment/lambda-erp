@@ -50,6 +50,22 @@ when touching stock code:
 - Returns: `workflow.validate_return` checks the batch against the original
   document; `returnable_rows` consumes returned quantities per batch.
 
+## Storage locations
+
+Full description: [`docs/storage-locations.md`](../storage-locations.md).
+
+- A second dimension of `Stock Balance Detail` (`location`, `''` = none),
+  checked in `stock_ledger.resolve_entry_location`. Same pattern as batches:
+  required where the warehouse uses them, refused elsewhere, enforced at the
+  ledger.
+- A Material Transfer with the same warehouse on both sides is legal only
+  between two different locations; it must leave Bin quantity and value
+  unchanged and post no GL.
+- `allow_unassigned_location` is set only by the cancel path and by the
+  source leg of a move inside one warehouse.
+- `get_batch_balances` adds up over locations; use `get_stock_details` for
+  the per-location rows.
+
 ## Moving-average cost
 
 - The `Bin` table holds current `valuation_rate` per item+warehouse.

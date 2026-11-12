@@ -87,6 +87,8 @@ MASTER_TABLES = {
     "cost-center": ("Cost Center", "cost_center_name"),
     # One row per (item, batch label); the label alone is not unique.
     "batch": ("Batch", "batch_no"),
+    # One row per (warehouse, location label).
+    "storage-location": ("Storage Location", "location"),
 }
 
 # Auto-naming prefixes: masters created without an explicit `name` get a
@@ -98,11 +100,12 @@ MASTER_NAME_PREFIXES = {
     "item": "ITEM",
     "warehouse": "WH",
     "batch": "BATCH",
+    "storage-location": "LOC",
 }
 
 # Minimum numeric suffix width for sequential plugin master ids. Core masters
 # retain the historical three-digit form; plugins can opt into e.g. FIDX-0001.
-MASTER_NAME_DIGITS: dict[str, int] = {"batch": 5}
+MASTER_NAME_DIGITS: dict[str, int] = {"batch": 5, "storage-location": 5}
 
 # High-volume plugin masters can opt out of sequential ids. Sequential naming
 # must inspect existing suffixes after a process restart; opaque random ids keep

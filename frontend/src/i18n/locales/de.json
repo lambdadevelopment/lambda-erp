@@ -202,7 +202,8 @@
     "ap-aging": "Offene Posten Kreditoren",
     "analytics": "Analysen",
     "chart-of-accounts": "Kontenplan",
-    "batch-stock": "Chargenbestand"
+    "batch-stock": "Chargenbestand",
+    "stock-detail": "Bestand nach Lagerplatz & Charge"
   },
   "doctypes": {
     "quotation": {
@@ -363,7 +364,9 @@
       "Menu": "Menü",
       "PDF Templates": "PDF-Vorlagen",
       "Batch": "Charge",
-      "Batch Stock": "Chargenbestand"
+      "Batch Stock": "Chargenbestand",
+      "Storage Location": "Lagerplatz",
+      "Stock by Location & Batch": "Bestand nach Lagerplatz & Charge"
     }
   },
   "login": {
@@ -681,7 +684,11 @@
     "Has Expiry Date": "Mit Ablaufdatum",
     "Item starts with": "Artikel beginnt mit",
     "Expiring before": "Ablauf vor",
-    "Document": "Beleg"
+    "Document": "Beleg",
+    "Storage Location": "Lagerplatz",
+    "Storage Locations": "Lagerplätze",
+    "Source Location": "Von Lagerplatz",
+    "Target Location": "Nach Lagerplatz"
   },
   "tables": {
     "items": "Positionen",

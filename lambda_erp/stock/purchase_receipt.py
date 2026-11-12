@@ -181,6 +181,7 @@ class PurchaseReceipt(Document):
                 voucher_detail_no=item.get("name"),
                 batch_no=item.get("batch_no"),
                 expiry_date=item.get("expiry_date"),
+                location=item.get("location"),
                 posting_date=self.posting_date,
                 company=self.company,
             ))
@@ -312,6 +313,7 @@ def make_purchase_receipt_return(prec_name):
             rate=flt(item.get("rate")),
             warehouse=item.get("warehouse"),
             batch_no=item.get("batch_no"),
+            location=item.get("location"),
             against_purchase_order=item.get("against_purchase_order"),
             po_detail=item.get("po_detail"),
         ))

@@ -878,8 +878,8 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "batch-stock", "batch-movements", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
-                    "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse; for batch-stock also batch_no, item_prefix, expiring_before, include_empty; batch-movements requires batch_no. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
+                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-detail", "batch-stock", "batch-movements", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
+                    "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse; for batch-stock also batch_no, item_prefix, expiring_before, include_empty; for stock-detail also location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty; batch-movements requires batch_no. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
                 },
                 "required": ["report_type"],
             },
@@ -1974,6 +1974,12 @@ def _handle_get_report(args):
         return _batch_stock(db, filters.get("item_code"), filters.get("warehouse"), filters.get("batch_no"),
                             filters.get("item_prefix"), filters.get("expiring_before"),
                             bool(filters.get("include_empty")))
+    elif report_type == "stock-detail":
+        from api.routers.reports import _stock_detail
+        return _stock_detail(db, filters.get("item_code"), filters.get("warehouse"), filters.get("location"),
+                             filters.get("batch_no"), filters.get("item_prefix"), filters.get("item_group"),
+                             filters.get("expiring_before"), filters.get("expiring_after"),
+                             bool(filters.get("include_empty")))
     elif report_type == "batch-movements":
         from api.routers.reports import _batch_movements
         if not filters.get("batch_no"):
@@ -2909,6 +2915,14 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - **Material Transfer:** Moves stock between warehouses. No GL impact.
 - **Batch Assignment:** Gives stock that has no batch (from before the item was batch-tracked) its batch, in place: row = item_code, qty, t_warehouse, batch_no (+ expiry_date for a new batch). No GL impact, no quantity or value change.
 
+### Storage locations (places inside a warehouse)
+- A warehouse with `use_locations=1` has storage locations (master `storage-location`: warehouse + location label, e.g. "A12"). The same label may exist in several warehouses.
+- In such a warehouse every stock-moving line names its location: `location` on Delivery Note, Purchase Receipt and invoice lines (with update_stock=1); on Stock Entry lines `s_location` for the source side and `t_location` for the target side. Drafts may be saved without it; submit is refused. A warehouse without storage locations takes no location.
+- Stock is checked per location (and per batch within it). Find the location with the stock-detail report first; never guess one.
+- Moving stock between two locations of the SAME warehouse is a Material Transfer with s_warehouse = t_warehouse and different s_location / t_location (no GL, no value change). Leave s_location empty only to put away stock that has no location yet.
+- Moving EVERYTHING in one location: use the `prepare_location_move` action (warehouse, from_location, to_location); it creates a draft Stock Entry to review and submit.
+- A disabled location takes no new stock but can still be emptied.
+
 ### Batches (lot numbers)
 - An item with `has_batch_no=1` is batch-tracked; `has_expiry_date=1` additionally requires an expiry date on each batch. Switch these on the Item master.
 - Every stock-moving line of a tracked item needs `batch_no` (Stock Entry, Delivery Note, Purchase Receipt, and invoices with update_stock=1). One batch per line: a quantity from two batches is two lines. Drafts may be saved without it; submit is refused until every such line has one.
@@ -2972,6 +2986,7 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 - **ar-aging** — Outstanding receivables bucketed by overdue days (Current, 1-30, 31-60, 61-90, 90+). Filters: company, as_of_date.
 - **ap-aging** — Outstanding payables bucketed by overdue days. Filters: company, as_of_date.
 - **stock-balance** — Inventory quantities and valuations. Filters: item_code, warehouse.
+- **stock-detail** — Where stock is, in one view: item, warehouse, storage location, batch, expiry date, quantity. Filters: item_code, warehouse, location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty. Use this for "what is in location B4", "where is item X", "what expires in the next 3 months in warehouse Y".
 - **batch-stock** — Quantity per item × warehouse × batch with the batch's expiry date (batch-tracked items only). Filters: item_code, warehouse, batch_no, item_prefix (item codes starting with…), expiring_before (date), include_empty. A batch label is NOT unique: the same label can exist on several items, so a batch_no-only lookup can return several items — show them all, never pick one.
 - **batch-movements** — Every stock movement of a batch with document, line and customer/supplier: where it came from and who received it (recalls). Filters: batch_no (required), item_code, warehouse.
 - **dashboard-summary** — KPI overview (revenue, receivables, payables, stock value).

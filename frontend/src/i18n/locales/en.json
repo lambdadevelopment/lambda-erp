@@ -202,7 +202,8 @@
     "ap-aging": "Accounts Payable Aging",
     "analytics": "Analytics",
     "chart-of-accounts": "Chart of Accounts",
-    "batch-stock": "Batch Stock"
+    "batch-stock": "Batch Stock",
+    "stock-detail": "Stock by Location & Batch"
   },
   "doctypes": {
     "quotation": {
@@ -363,7 +364,9 @@
       "Menu": "Menu",
       "PDF Templates": "PDF Templates",
       "Batch": "Batch",
-      "Batch Stock": "Batch Stock"
+      "Batch Stock": "Batch Stock",
+      "Storage Location": "Storage Location",
+      "Stock by Location & Batch": "Stock by Location & Batch"
     }
   },
   "login": {
@@ -723,7 +726,11 @@
     "Has Expiry Date": "Has Expiry Date",
     "Item starts with": "Item starts with",
     "Expiring before": "Expiring before",
-    "Document": "Document"
+    "Document": "Document",
+    "Storage Location": "Storage Location",
+    "Storage Locations": "Storage Locations",
+    "Source Location": "Source Location",
+    "Target Location": "Target Location"
   },
   "tables": {
     "accounts": "accounts",

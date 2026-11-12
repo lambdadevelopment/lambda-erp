@@ -47,6 +47,7 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
             continue
 
         batch_no = resolve_entry_batch(sle)
+        location = resolve_entry_location(sle)
 
         # Create the SLE record
         sle_doc = _dict(
@@ -62,6 +63,7 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
             voucher_no=sle.get("voucher_no"),
             voucher_detail_no=sle.get("voucher_detail_no"),
             batch_no=batch_no or None,
+            location=location or None,
             serial_no=sle.get("serial_no"),
             company=sle.get("company"),
             is_cancelled=0,
@@ -81,7 +83,7 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
 
         # Update Bin (summary table) and the per-batch quantity under it
         update_bin(sle_doc)
-        update_stock_balance_detail(sle_doc, batch_no, allow_negative_stock)
+        update_stock_balance_detail(sle_doc, batch_no, allow_negative_stock, location)
 
     if not db._in_transaction:
         db.commit()
@@ -98,7 +100,11 @@ def make_cancel_sl_entries(sl_entries):
     # A voucher posted before its item became batch-tracked has no batch on
     # its lines; its reversal goes back to (or comes out of) stock without a
     # batch, never to an invented one.
-    sl_entries = [sle if sle.get("batch_no") else _dict({**sle, "allow_unassigned_batch": True})
+    # The same holds for storage locations, and a reversal may put stock back
+    # into a location that has been disabled since.
+    sl_entries = [_dict({**sle, "is_reversal": True,
+                         "allow_unassigned_batch": not sle.get("batch_no"),
+                         "allow_unassigned_location": not sle.get("location")})
                   for sle in sl_entries]
     try:
         make_sl_entries(sl_entries, allow_negative_stock=False)
@@ -188,37 +194,96 @@ def resolve_entry_batch(sle):
     return batch_no
 
 
-def update_stock_balance_detail(sle, batch_no, allow_negative_stock=False):
-    """Apply an entry to the quantity of its item x warehouse x batch.
+def get_storage_location(warehouse, location):
+    """The Storage Location master row for (warehouse, label), or None."""
+    return get_db().get_value(
+        "Storage Location", {"warehouse": warehouse, "location": location},
+        ["name", "location", "warehouse", "disabled"])
 
-    This is where a batch cannot be over-drawn: 2 of batch A and 8 of batch B
-    is 10 in the Bin, but an issue of 3 from A is refused. For stock without a
-    batch the row mirrors the Bin."""
+
+def resolve_entry_location(sle):
+    """Check one stock ledger entry's storage location against its warehouse
+    and return the label ('' when the entry carries none).
+
+    - a warehouse that does not use locations takes none;
+    - a warehouse that uses them needs one on every movement (the explicit
+      exceptions are the reversal of a voucher from before, and the source
+      side of a move within the warehouse: that is how stock without a
+      location is put away);
+    - the location must exist in that warehouse, and a disabled location
+      takes no new stock.
+    """
+    db = get_db()
+    warehouse = sle["warehouse"]
+    location = str(sle.get("location") or "").strip()
+    uses = flt(db.get_value("Warehouse", warehouse, "use_locations"))
+    if not uses:
+        if location:
+            raise ValidationError(
+                f"Warehouse {warehouse} does not use storage locations: remove location {location} "
+                f"from the line, or switch the warehouse to storage locations first")
+        return ""
+    if not location:
+        if sle.get("allow_unassigned_location"):
+            return ""
+        raise ValidationError(
+            f"Storage location is required in warehouse {warehouse} (item {sle['item_code']})")
+    row = get_storage_location(warehouse, location)
+    if not row:
+        raise ValidationError(f"Unknown storage location {location} in warehouse {warehouse}")
+    if flt(sle["actual_qty"]) > 0 and row.get("disabled") and not sle.get("is_reversal"):
+        raise ValidationError(f"Storage location {location} in warehouse {warehouse} is disabled: no stock can be put there")
+    return location
+
+
+def update_stock_balance_detail(sle, batch_no, allow_negative_stock=False, location=""):
+    """Apply an entry to the quantity of its item x warehouse x batch x location.
+
+    This is where a batch or a location cannot be over-drawn: 2 of batch A and
+    8 of batch B is 10 in the Bin, but an issue of 3 from A is refused. For
+    stock without a batch and location the row mirrors the Bin."""
     import uuid
 
     db = get_db()
-    key = [sle["item_code"], sle["warehouse"], batch_no]
-    db.sql('INSERT INTO "Stock Balance Detail" (name, item_code, warehouse, batch_no, actual_qty) '
-           'VALUES (?, ?, ?, ?, 0) ON CONFLICT DO NOTHING', [uuid.uuid4().hex, *key])
+    key = [sle["item_code"], sle["warehouse"], batch_no, location]
+    db.sql('INSERT INTO "Stock Balance Detail" (name, item_code, warehouse, batch_no, location, actual_qty) '
+           'VALUES (?, ?, ?, ?, ?, 0) ON CONFLICT DO NOTHING', [uuid.uuid4().hex, *key])
     lock = ' FOR UPDATE' if db.dialect == 'postgres' else ''
     row = db.sql('SELECT name, actual_qty FROM "Stock Balance Detail" '
-                 'WHERE item_code = ? AND warehouse = ? AND batch_no = ?' + lock, key)[0]
+                 'WHERE item_code = ? AND warehouse = ? AND batch_no = ? AND location = ?' + lock, key)[0]
     available = flt(row["actual_qty"])
     new_qty = available + flt(sle["actual_qty"])
     if new_qty < -1e-9 and not allow_negative_stock:
         what = f"batch {batch_no} of item" if batch_no else "stock without a batch of item"
+        where = f"warehouse {sle['warehouse']}"
+        if location:
+            where = f"storage location {location} of {where}"
+        elif flt(db.get_value("Warehouse", sle["warehouse"], "use_locations")):
+            where = f"{where} without a storage location"
         raise NegativeStockError(
-            f"Not enough of {what} {sle['item_code']} in warehouse {sle['warehouse']}. "
+            f"Not enough of {what} {sle['item_code']} in {where}. "
             f"Available: {available}, requested: {abs(flt(sle['actual_qty']))}")
     db.set_value("Stock Balance Detail", row["name"], "actual_qty", flt(new_qty))
 
 
-def get_batch_balances(item_code=None, warehouse=None, batch_no=None):
-    """Quantities per item x warehouse x batch (batch_no '' = without batch)."""
+def get_stock_details(item_code=None, warehouse=None, batch_no=None, location=None):
+    """Quantities per item x warehouse x batch x location ('' = without)."""
     filters = {key: value for key, value in
-               (("item_code", item_code), ("warehouse", warehouse), ("batch_no", batch_no)) if value is not None}
+               (("item_code", item_code), ("warehouse", warehouse), ("batch_no", batch_no), ("location", location))
+               if value is not None}
     return get_db().get_all("Stock Balance Detail", filters=filters or None,
-                            fields=["item_code", "warehouse", "batch_no", "actual_qty"])
+                            fields=["item_code", "warehouse", "batch_no", "location", "actual_qty"])
+
+
+def get_batch_balances(item_code=None, warehouse=None, batch_no=None):
+    """Quantities per item x warehouse x batch (batch_no '' = without batch),
+    added up over the storage locations of the warehouse."""
+    totals = {}
+    for row in get_stock_details(item_code, warehouse, batch_no):
+        key = (row["item_code"], row["warehouse"], row["batch_no"])
+        totals[key] = totals.get(key, 0) + flt(row["actual_qty"])
+    return [_dict(item_code=key[0], warehouse=key[1], batch_no=key[2], actual_qty=qty)
+            for key, qty in sorted(totals.items())]
 
 
 def stock_ledger_agreement():
@@ -230,17 +295,19 @@ def stock_ledger_agreement():
     db = get_db()
     problems = []
     ledger, detail = {}, {}
-    for row in db.sql('SELECT item_code, warehouse, COALESCE(batch_no, \'\') AS batch_no, SUM(actual_qty) AS qty '
-                      'FROM "Stock Ledger Entry" GROUP BY item_code, warehouse, COALESCE(batch_no, \'\')'):
-        ledger[(row["item_code"], row["warehouse"], row["batch_no"])] = flt(row["qty"])
-    for row in db.sql('SELECT item_code, warehouse, batch_no, actual_qty FROM "Stock Balance Detail"'):
-        detail[(row["item_code"], row["warehouse"], row["batch_no"])] = flt(row["actual_qty"])
+    for row in db.sql('SELECT item_code, warehouse, COALESCE(batch_no, \'\') AS batch_no, '
+                      'COALESCE(location, \'\') AS location, SUM(actual_qty) AS qty '
+                      'FROM "Stock Ledger Entry" '
+                      'GROUP BY item_code, warehouse, COALESCE(batch_no, \'\'), COALESCE(location, \'\')'):
+        ledger[(row["item_code"], row["warehouse"], row["batch_no"], row["location"])] = flt(row["qty"])
+    for row in db.sql('SELECT item_code, warehouse, batch_no, location, actual_qty FROM "Stock Balance Detail"'):
+        detail[(row["item_code"], row["warehouse"], row["batch_no"], row["location"])] = flt(row["actual_qty"])
     for key in sorted(set(ledger) | set(detail)):
         if abs(ledger.get(key, 0) - detail.get(key, 0)) > 1e-6:
-            problems.append({"item_code": key[0], "warehouse": key[1], "batch_no": key[2],
+            problems.append({"item_code": key[0], "warehouse": key[1], "batch_no": key[2], "location": key[3],
                              "ledger_qty": ledger.get(key, 0), "detail_qty": detail.get(key, 0)})
     totals = {}
-    for (item, warehouse, _), qty in detail.items():
+    for (item, warehouse, _, _), qty in detail.items():
         totals[(item, warehouse)] = totals.get((item, warehouse), 0) + qty
     bins = {(row["item_code"], row["warehouse"]): flt(row["actual_qty"])
             for row in db.sql('SELECT item_code, warehouse, actual_qty FROM "Bin"')}
@@ -401,6 +468,7 @@ def build_sell_side_sles(doc, items):
             voucher_no=doc.name,
             voucher_detail_no=item.get("name"),
             batch_no=item.get("batch_no"),
+            location=item.get("location"),
             posting_date=doc.posting_date,
             company=doc.company,
         ))
@@ -436,6 +504,7 @@ def build_buy_side_sles(doc, items):
             voucher_detail_no=item.get("name"),
             batch_no=item.get("batch_no"),
             expiry_date=item.get("expiry_date"),
+            location=item.get("location"),
             posting_date=doc.posting_date,
             company=doc.company,
         ))

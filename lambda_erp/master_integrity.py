@@ -8,6 +8,8 @@ STRUCTURAL_FIELDS = {
     'company': ('default_currency',),
     # A batch is identified by its item and label once stock has moved on it.
     'batch': ('item_code', 'batch_no'),
+    # A storage location is identified by its warehouse and label once stock has been in it.
+    'storage-location': ('warehouse', 'location'),
 }
 
 

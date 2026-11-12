@@ -100,7 +100,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "AP Aging", path: "/reports/ap-aging" },
       { label: "Analytics", path: "/reports/analytics" },
       { label: "Stock Balance", path: "/reports/stock-balance" },
-      { label: "Batch Stock", path: "/reports/batch-stock" },
+      { label: "Stock by Location & Batch", path: "/reports/stock-detail" },
     ],
   },
   {
@@ -121,6 +121,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Supplier", path: "/masters/supplier" },
       { label: "Item", path: "/masters/item" },
       { label: "Warehouse", path: "/masters/warehouse" },
+      { label: "Storage Location", path: "/masters/storage-location" },
       { label: "Batch", path: "/masters/batch" },
     ],
   },

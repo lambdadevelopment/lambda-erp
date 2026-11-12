@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { usePageTitle } from "@/lib/use-page-title";
 import { useTranslation } from "react-i18next";
-import { useBatchStock, useBatchMovements } from "@/hooks/use-report";
+import { useStockDetail, useBatchMovements } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,16 +13,18 @@ import { formatNumber } from "@/lib/utils";
 const slug = (doctype: string) => doctype.toLowerCase().replace(/ /g, "-");
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** Stock per item × warehouse × batch, with expiry. A batch label is not
- *  unique across items, so a search by label can list several items. */
+/** Where stock is, in one view: item × warehouse × storage location × batch,
+ *  with expiry. A batch label is not unique across items, so a search by
+ *  label can list several items. */
 export default function BatchStockPage() {
   const { t } = useTranslation();
-  usePageTitle(t("titles.batch-stock", { defaultValue: "Batch Stock" }));
+  usePageTitle(t("titles.stock-detail", { defaultValue: "Stock by Location & Batch" }));
   const [urlItemCode] = useUrlState<string>("item_code", "");
   const [urlWarehouse] = useUrlState<string>("warehouse", "");
   const [urlBatch] = useUrlState<string>("batch_no", "");
   const [urlPrefix] = useUrlState<string>("item_prefix", "");
   const [urlExpiring] = useUrlState<string>("expiring_before", "");
+  const [urlLocation] = useUrlState<string>("location", "");
   const patchUrl = useUrlPatch();
 
   const [itemCode, setItemCode] = useState(urlItemCode);
@@ -30,6 +32,7 @@ export default function BatchStockPage() {
   const [batch, setBatch] = useState(urlBatch);
   const [prefix, setPrefix] = useState(urlPrefix);
   const [expiring, setExpiring] = useState(urlExpiring);
+  const [location, setLocation] = useState(urlLocation);
   const [selected, setSelected] = useState<{ batch_no: string; item_code: string } | null>(null);
 
   const filters = useMemo(() => {
@@ -39,10 +42,11 @@ export default function BatchStockPage() {
     if (urlBatch) f.batch_no = urlBatch;
     if (urlPrefix) f.item_prefix = urlPrefix;
     if (urlExpiring) f.expiring_before = urlExpiring;
+    if (urlLocation) f.location = urlLocation;
     return f;
-  }, [urlItemCode, urlWarehouse, urlBatch, urlPrefix, urlExpiring]);
+  }, [urlItemCode, urlWarehouse, urlBatch, urlPrefix, urlExpiring, urlLocation]);
 
-  const { data, isLoading, refetch } = useBatchStock(filters);
+  const { data, isLoading, refetch } = useStockDetail(filters);
   const movements = useBatchMovements(selected);
 
   const handleApply = () => {
@@ -52,6 +56,7 @@ export default function BatchStockPage() {
       batch_no: batch.trim() || null,
       item_prefix: prefix.trim() || null,
       expiring_before: expiring || null,
+      location: location.trim() || null,
     });
     setSelected(null);
     refetch();
@@ -89,6 +94,12 @@ export default function BatchStockPage() {
           readOnly={false}
         />
         <Input
+          label={t("fields.Storage Location", { defaultValue: "Storage Location" })}
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleApply()}
+        />
+        <Input
           type="date"
           label={t("fields.Expiring before", { defaultValue: "Expiring before" })}
           value={expiring}
@@ -101,7 +112,7 @@ export default function BatchStockPage() {
         <p className="text-gray-500">{t("common.loading")}</p>
       ) : !data || !data.rows || data.rows.length === 0 ? (
         <p className="py-8 text-center text-gray-400">
-          {t("reports.noBatchStock", { defaultValue: "No batch stock found" })}
+          {t("reports.noStockData", { defaultValue: "No stock data found" })}
         </p>
       ) : (
         <Card>
@@ -112,6 +123,7 @@ export default function BatchStockPage() {
                   <th className={th}>{t("fields.Item Code", { defaultValue: "Item Code" })}</th>
                   <th className={th}>{t("fields.Item Name", { defaultValue: "Item Name" })}</th>
                   <th className={th}>{t("fields.Warehouse", { defaultValue: "Warehouse" })}</th>
+                  <th className={th}>{t("fields.Storage Location", { defaultValue: "Storage Location" })}</th>
                   <th className={th}>{t("fields.Batch", { defaultValue: "Batch" })}</th>
                   <th className={th}>{t("fields.Expiry Date", { defaultValue: "Expiry Date" })}</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">
@@ -128,13 +140,8 @@ export default function BatchStockPage() {
                       <td className="px-4 py-2 font-medium text-gray-900">{row.item_code}</td>
                       <td className="px-4 py-2 text-gray-700">{row.item_name}</td>
                       <td className="px-4 py-2 text-gray-700">{row.warehouse}</td>
-                      <td className="px-4 py-2 text-gray-700">
-                        {row.batch_no || (
-                          <span className="italic text-gray-400">
-                            {t("reports.withoutBatch", { defaultValue: "without batch" })}
-                          </span>
-                        )}
-                      </td>
+                      <td className="px-4 py-2 text-gray-700">{row.location || ""}</td>
+                      <td className="px-4 py-2 text-gray-700">{row.batch_no || ""}</td>
                       <td className={`px-4 py-2 ${expired ? "font-medium text-red-600" : "text-gray-700"}`}>
                         {row.expiry_date || ""}
                         {expired ? ` (${t("reports.expired", { defaultValue: "expired" })})` : ""}
@@ -180,6 +187,7 @@ export default function BatchStockPage() {
                     <th className={th}>{t("fields.Document", { defaultValue: "Document" })}</th>
                     <th className={th}>{t("fields.Party", { defaultValue: "Party" })}</th>
                     <th className={th}>{t("fields.Warehouse", { defaultValue: "Warehouse" })}</th>
+                    <th className={th}>{t("fields.Storage Location", { defaultValue: "Storage Location" })}</th>
                     <th className="px-4 py-3 text-right font-medium text-gray-500">
                       {t("fields.Qty", { defaultValue: "Qty" })}
                     </th>
@@ -196,6 +204,7 @@ export default function BatchStockPage() {
                       </td>
                       <td className="px-4 py-2 text-gray-700">{row.party || ""}</td>
                       <td className="px-4 py-2 text-gray-700">{row.warehouse}</td>
+                      <td className="px-4 py-2 text-gray-700">{row.location || ""}</td>
                       <td className="px-4 py-2 text-right">{formatNumber(row.actual_qty)}</td>
                     </tr>
                   ))}

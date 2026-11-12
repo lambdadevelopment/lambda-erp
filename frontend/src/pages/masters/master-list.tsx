@@ -29,6 +29,7 @@ const TYPE_LABELS: Record<string, string> = {
   warehouse: "Warehouse",
   company: "Company",
   batch: "Batch",
+  "storage-location": "Storage Location",
 };
 
 const humanizeCol = (key: string) =>
@@ -48,6 +49,7 @@ const MASTER_FILTERS: Record<string, MasterFilterDef[]> = {
   item: [{ field: "item_group", label: "Item Group" }, { field: "stock_uom", label: "Stock UOM" }],
   warehouse: [{ field: "parent_warehouse", label: "Parent Warehouse" }],
   batch: [{ field: "item_code", label: "Item" }],
+  "storage-location": [{ field: "warehouse", label: "Warehouse" }],
   account: [{ field: "root_type", label: "Root Type" }, { field: "account_type", label: "Account Type" }],
 };
 

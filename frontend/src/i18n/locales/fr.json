@@ -202,7 +202,8 @@
     "ap-aging": "Balance âgée fournisseurs",
     "analytics": "Analyses",
     "chart-of-accounts": "Plan comptable",
-    "batch-stock": "Stock par lot"
+    "batch-stock": "Stock par lot",
+    "stock-detail": "Stock par emplacement et lot"
   },
   "doctypes": {
     "quotation": {
@@ -363,7 +364,9 @@
       "Menu": "Menu",
       "PDF Templates": "Modèles PDF",
       "Batch": "Lot",
-      "Batch Stock": "Stock par lot"
+      "Batch Stock": "Stock par lot",
+      "Storage Location": "Emplacement",
+      "Stock by Location & Batch": "Stock par emplacement et lot"
     }
   },
   "login": {
@@ -681,7 +684,11 @@
     "Has Expiry Date": "Avec date de péremption",
     "Item starts with": "Article commençant par",
     "Expiring before": "Péremption avant",
-    "Document": "Document"
+    "Document": "Document",
+    "Storage Location": "Emplacement",
+    "Storage Locations": "Emplacements",
+    "Source Location": "Emplacement d'origine",
+    "Target Location": "Emplacement de destination"
   },
   "tables": {
     "items": "Lignes",

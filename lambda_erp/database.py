@@ -3271,6 +3271,50 @@ def _m051_batches(db: "Database") -> None:
     db.conn.commit()
 
 
+LOCATION_LINE_TABLES = ("Delivery Note Item", "Purchase Receipt Item", "Sales Invoice Item",
+                        "Purchase Invoice Item", "POS Invoice Item")
+
+
+def _m053_storage_locations(db: "Database") -> None:
+    """Storage locations inside a warehouse (see docs/storage-locations.md).
+
+    - Warehouse.use_locations switches them on per warehouse.
+    - "Storage Location" is the master: one row per (warehouse, location label).
+    - "Stock Balance Detail" and the stock ledger get a `location`; '' is stock
+      without a location (every warehouse that does not use them, and stock
+      that was there before a warehouse was switched). Existing rows keep ''.
+    """
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Storage Location" (
+            name TEXT PRIMARY KEY,
+            location TEXT NOT NULL,
+            warehouse TEXT NOT NULL,
+            description TEXT,
+            disabled INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ux_storage_location_warehouse_location" '
+        'ON "Storage Location" (warehouse, location)'))
+    db.conn.commit()
+    db._col_cache.pop("Storage Location", None)
+    db._text_col_cache.pop("Storage Location", None)
+    db.ensure_column("Warehouse", "use_locations", "INTEGER DEFAULT 0")
+    db.ensure_column("Stock Ledger Entry", "location", "TEXT")
+    db.ensure_column("Stock Balance Detail", "location", "TEXT NOT NULL DEFAULT ''")
+    for table in LOCATION_LINE_TABLES:
+        db.ensure_column(table, "location", "TEXT")
+    db.ensure_column("Stock Entry Detail", "s_location", "TEXT")
+    db.ensure_column("Stock Entry Detail", "t_location", "TEXT")
+    # The balance key grows by the location.
+    db.conn.execute(db._ddl('DROP INDEX IF EXISTS "ux_stock_balance_detail_key"'))
+    db.conn.execute(db._ddl(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ux_stock_balance_detail_location_key" '
+        'ON "Stock Balance Detail" (item_code, warehouse, batch_no, location)'))
+    db.conn.commit()
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3363,6 +3407,7 @@ Database.MIGRATIONS = [
     (50, "amount_only_returns", _m050_amount_only_returns),
     (51, "batches", _m051_batches),
     (52, "access_profiles", _m052_access_profiles),
+    (53, "storage_locations", _m053_storage_locations),
 ]
 
 
