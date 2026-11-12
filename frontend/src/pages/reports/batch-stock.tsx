@@ -25,6 +25,7 @@ export default function BatchStockPage() {
   const [urlPrefix] = useUrlState<string>("item_prefix", "");
   const [urlExpiring] = useUrlState<string>("expiring_before", "");
   const [urlLocation] = useUrlState<string>("location", "");
+  const [urlCustomer] = useUrlState<string>("consignment_customer", "");
   const patchUrl = useUrlPatch();
 
   const [itemCode, setItemCode] = useState(urlItemCode);
@@ -33,6 +34,7 @@ export default function BatchStockPage() {
   const [prefix, setPrefix] = useState(urlPrefix);
   const [expiring, setExpiring] = useState(urlExpiring);
   const [location, setLocation] = useState(urlLocation);
+  const [customer, setCustomer] = useState(urlCustomer);
   const [selected, setSelected] = useState<{ batch_no: string; item_code: string } | null>(null);
 
   const filters = useMemo(() => {
@@ -43,8 +45,9 @@ export default function BatchStockPage() {
     if (urlPrefix) f.item_prefix = urlPrefix;
     if (urlExpiring) f.expiring_before = urlExpiring;
     if (urlLocation) f.location = urlLocation;
+    if (urlCustomer) f.consignment_customer = urlCustomer;
     return f;
-  }, [urlItemCode, urlWarehouse, urlBatch, urlPrefix, urlExpiring, urlLocation]);
+  }, [urlItemCode, urlWarehouse, urlBatch, urlPrefix, urlExpiring, urlLocation, urlCustomer]);
 
   const { data, isLoading, refetch } = useStockDetail(filters);
   const movements = useBatchMovements(selected);
@@ -57,6 +60,7 @@ export default function BatchStockPage() {
       item_prefix: prefix.trim() || null,
       expiring_before: expiring || null,
       location: location.trim() || null,
+      consignment_customer: customer || null,
     });
     setSelected(null);
     refetch();
@@ -93,6 +97,13 @@ export default function BatchStockPage() {
           linkDoctype="warehouse"
           readOnly={false}
         />
+        <LinkField
+          label={t("fields.Consignment Customer", { defaultValue: "Consignment Customer" })}
+          value={customer}
+          onChange={setCustomer}
+          linkDoctype="customer"
+          readOnly={false}
+        />
         <Input
           label={t("fields.Storage Location", { defaultValue: "Storage Location" })}
           value={location}
@@ -123,6 +134,7 @@ export default function BatchStockPage() {
                   <th className={th}>{t("fields.Item Code", { defaultValue: "Item Code" })}</th>
                   <th className={th}>{t("fields.Item Name", { defaultValue: "Item Name" })}</th>
                   <th className={th}>{t("fields.Warehouse", { defaultValue: "Warehouse" })}</th>
+                  <th className={th}>{t("fields.Consignment Customer", { defaultValue: "Consignment Customer" })}</th>
                   <th className={th}>{t("fields.Storage Location", { defaultValue: "Storage Location" })}</th>
                   <th className={th}>{t("fields.Batch", { defaultValue: "Batch" })}</th>
                   <th className={th}>{t("fields.Expiry Date", { defaultValue: "Expiry Date" })}</th>
@@ -140,6 +152,7 @@ export default function BatchStockPage() {
                       <td className="px-4 py-2 font-medium text-gray-900">{row.item_code}</td>
                       <td className="px-4 py-2 text-gray-700">{row.item_name}</td>
                       <td className="px-4 py-2 text-gray-700">{row.warehouse}</td>
+                      <td className="px-4 py-2 text-gray-700">{row.consignment_customer || ""}</td>
                       <td className="px-4 py-2 text-gray-700">{row.location || ""}</td>
                       <td className="px-4 py-2 text-gray-700">{row.batch_no || ""}</td>
                       <td className={`px-4 py-2 ${expired ? "font-medium text-red-600" : "text-gray-700"}`}>

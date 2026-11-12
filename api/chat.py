@@ -1988,10 +1988,12 @@ def _handle_get_report(args):
         return _stock_availability(db, filters.get("item_code"), filters.get("warehouse"), filters.get("item_prefix"))
     elif report_type == "stock-detail":
         from api.routers.reports import _stock_detail
+        consignment = filters.get("consignment")
         return _stock_detail(db, filters.get("item_code"), filters.get("warehouse"), filters.get("location"),
                              filters.get("batch_no"), filters.get("item_prefix"), filters.get("item_group"),
                              filters.get("expiring_before"), filters.get("expiring_after"),
-                             bool(filters.get("include_empty")))
+                             bool(filters.get("include_empty")), filters.get("consignment_customer"),
+                             None if consignment is None else bool(consignment))
     elif report_type == "batch-movements":
         from api.routers.reports import _batch_movements
         if not filters.get("batch_no"):
@@ -2927,6 +2929,16 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - **Material Transfer:** Moves stock between warehouses. No GL impact.
 - **Batch Assignment:** Gives stock that has no batch (from before the item was batch-tracked) its batch, in place: row = item_code, qty, t_warehouse, batch_no (+ expiry_date for a new batch). No GL impact, no quantity or value change.
 
+### Consignment (own stock lying at a customer)
+- A **consignment warehouse** is a warehouse with `consignment_customer` set. The goods in it are still ours (in stock and stock value) until the customer uses them.
+- **Stocking** (sending goods to the customer's consignment stock) is NOT a sale and gets NO invoice: use the `prepare_consignment_stocking` action (warehouse, items) to draft the Material Transfer, review it, then submit it.
+- **Withdrawal** (the customer reports what they used, usually with lot numbers) is billed: use the `record_consignment_withdrawal` action with the consignment warehouse, the items (item_code, qty, batch_no as reported) and, when the report has a number, external_source + external_reference. It creates ONE Sales Invoice that also takes the goods out of stock. Never create a separate delivery note or invoice for the same goods. Sending the same report again returns the first result; the same report number with different content is refused (cancel the recorded withdrawal first).
+- **Withdrawal with replacement** (the customer wants the used goods restocked): pass replenish=true. The replacement is a separate draft Material Transfer with its own status; the withdrawal is billed even when the replacement cannot be shipped yet.
+- **Recall** (taking goods back) is a transfer, not a credit note: `prepare_consignment_recall` (warehouse, to_warehouse, optional items).
+- Goods in a consignment warehouse can only be sold to its customer. To give them to someone else, recall them first.
+- If a reported batch is not in that consignment warehouse (wrong or mistyped lot number), the withdrawal is refused: tell the user what the stock-detail report shows there and ask, do not substitute a batch.
+- If it is unclear whether an incoming order is a stocking request, a withdrawal or a normal order, ask.
+
 ### Partial deliveries, backorders and invoicing after delivery
 - Order progress is derived from the submitted documents, per order line: delivered_qty (net of returns), returned_qty, billed_qty. Never set them. Open = qty − delivered_qty.
 - A delivery for less than ordered leaves the rest of the line open; convert the order again later for the remainder. Converters only ever propose what is left, and submit rechecks, so a repeated conversion cannot deliver or bill twice.
@@ -3022,7 +3034,7 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 - **sales-backlog** — Open sales order lines (ordered > delivered): ordered_qty, delivered_qty (net of returns), returned_qty, billed_qty, open_qty, reserved_qty, deliverable_qty (what can be delivered NOW; stock is shared out in due-date order, so it is never promised twice), short_qty, on_purchase_order_qty, next_expected_date and the purchase orders behind it. Filters: customer, item_code, item_prefix, warehouse, sales_order, only_deliverable. Use only_deliverable=true after a goods receipt to see which open orders can now go out. Read-only: it books nothing.
 - **purchase-backlog** — Open purchase order lines with expected_date (the supplier's confirmed date, else the order's schedule date), confirmed, overdue and days_overdue. Filters: supplier, item_code, warehouse, overdue_only. Use overdue_only=true for "what should have arrived".
 - **stock-availability** — Per item × warehouse: physical_qty (in stock), blocked_qty (expired or blocked batches), reserved_qty (open Stock Reservations), available_qty (= physical − blocked − reserved), plus open_sales_order_qty (ordered by customers, not yet delivered) and on_purchase_order_qty (ordered from suppliers, not yet received). Filters: item_code, warehouse, item_prefix. Use this to answer "can we deliver X" and "is it already on order".
-- **stock-detail** — Where stock is, in one view: item, warehouse, storage location, batch, expiry date, quantity. Filters: item_code, warehouse, location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty. Use this for "what is in location B4", "where is item X", "what expires in the next 3 months in warehouse Y".
+- **stock-detail** — Where stock is, in one view: item, warehouse, consignment_customer (who it lies with, for consignment warehouses), storage location, batch, expiry date, quantity. Filters: item_code, warehouse, location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty, consignment_customer (one customer's consignment stock), consignment (true = only consignment, false = only own warehouses). Use this for "what is in location B4", "where is item X", "what expires in the next 3 months in warehouse Y".
 - **batch-stock** — Quantity per item × warehouse × batch with the batch's expiry date (batch-tracked items only). Filters: item_code, warehouse, batch_no, item_prefix (item codes starting with…), expiring_before (date), include_empty. A batch label is NOT unique: the same label can exist on several items, so a batch_no-only lookup can return several items — show them all, never pick one.
 - **batch-movements** — Every stock movement of a batch with document, line and customer/supplier: where it came from and who received it (recalls). Filters: batch_no (required), item_code, warehouse.
 - **dashboard-summary** — KPI overview (revenue, receivables, payables, stock value).

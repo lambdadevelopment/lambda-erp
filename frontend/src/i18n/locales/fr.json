@@ -373,7 +373,8 @@
       "Stock Reservation": "Réservation de stock",
       "Stock Availability": "Disponibilité du stock",
       "Sales Backlog": "Commandes en attente",
-      "Purchase Backlog": "Achats en attente"
+      "Purchase Backlog": "Achats en attente",
+      "Consignment Withdrawal": "Prélèvement en consignation"
     }
   },
   "login": {
@@ -724,7 +725,16 @@
     "Deliverable Now": "Livrable maintenant",
     "Expected": "Attendu",
     "Received": "Reçu",
-    "Days Overdue": "Jours de retard"
+    "Days Overdue": "Jours de retard",
+    "Consignment Customer": "Client en consignation",
+    "Replenished From": "Approvisionné depuis",
+    "Consignment Warehouse": "Dépôt en consignation",
+    "Report Source": "Source de la déclaration",
+    "Report Number": "Numéro de déclaration",
+    "Replenish": "Réapprovisionner",
+    "Replenish From": "Réapprovisionner depuis",
+    "Replacement Transfer": "Transfert de remplacement",
+    "Replenishment": "Réapprovisionnement"
   },
   "tables": {
     "items": "Lignes",

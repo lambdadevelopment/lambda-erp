@@ -34,6 +34,7 @@ from lambda_erp.accounting.bank_account import BankAccount
 from lambda_erp.assets.asset import Asset
 from lambda_erp.assets.reservation import Reservation
 from lambda_erp.stock.reservation import StockReservation
+from lambda_erp.stock.consignment import ConsignmentWithdrawal
 
 
 # --- Doctype registries ---
@@ -65,6 +66,8 @@ DOCUMENT_CLASSES = {
     "Reservation": Reservation,
     # Stock set aside for a sales order line (or with a reason); also status-driven.
     "Stock Reservation": StockReservation,
+    # What a customer reported as used from their consignment warehouse.
+    "Consignment Withdrawal": ConsignmentWithdrawal,
 }
 
 CONVERTERS = {

@@ -52,6 +52,75 @@ def suggest(args):
                          sales_order_item=data.sales_order_item, include_short_dated=data.include_short_dated)
 
 
+class ConsignmentLine(mentions.Input):
+    item_code: str = Field(min_length=1, max_length=200)
+    qty: float | None = Field(default=None, gt=0)
+    batch_no: str | None = Field(default=None, max_length=200)
+    location: str | None = Field(default=None, max_length=200)
+    rate: float | None = Field(default=None, ge=0)
+
+
+class RecordWithdrawal(mentions.Input):
+    warehouse: str = Field(min_length=1, max_length=200)
+    items: list[ConsignmentLine] = Field(min_length=1, max_length=500)
+    external_source: str | None = Field(default=None, max_length=200)
+    external_reference: str | None = Field(default=None, max_length=200)
+    posting_date: str | None = Field(default=None, max_length=10)
+    replenish: bool = False
+    replenish_from_warehouse: str | None = Field(default=None, max_length=200)
+    remarks: str | None = Field(default=None, max_length=2000)
+
+
+class PrepareStocking(mentions.Input):
+    warehouse: str = Field(min_length=1, max_length=200)
+    items: list[ConsignmentLine] = Field(min_length=1, max_length=500)
+    from_warehouse: str | None = Field(default=None, max_length=200)
+
+
+class PrepareRecall(mentions.Input):
+    warehouse: str = Field(min_length=1, max_length=200)
+    to_warehouse: str = Field(min_length=1, max_length=200)
+    to_location: str | None = Field(default=None, max_length=200)
+    items: list[ConsignmentLine] | None = Field(default=None, max_length=500)
+
+
+def record_consignment_withdrawal(args):
+    data = RecordWithdrawal.model_validate(args)
+    permissions.require_writable("Consignment Withdrawal", "create")
+    permissions.require("Consignment Withdrawal", "submit")
+    permissions.require_writable("Sales Invoice", "create")
+    from lambda_erp.stock.consignment import record_withdrawal
+    for line in data.items:
+        if line.qty is None:
+            raise ValueError("Every withdrawal line needs a qty")
+    return record_withdrawal(
+        data.warehouse, [line.model_dump(exclude_none=True) for line in data.items],
+        external_source=data.external_source, external_reference=data.external_reference,
+        posting_date=data.posting_date, replenish=data.replenish,
+        replenish_from_warehouse=data.replenish_from_warehouse, remarks=data.remarks)
+
+
+def prepare_consignment_stocking(args):
+    data = PrepareStocking.model_validate(args)
+    permissions.require_writable("Stock Entry", "create")
+    from lambda_erp.stock.consignment import make_consignment_stocking
+    entry = make_consignment_stocking(
+        data.warehouse, [line.model_dump(exclude_none=True) for line in data.items], from_warehouse=data.from_warehouse)
+    entry.save()
+    return services.load_document("stock-entry", entry.name)
+
+
+def prepare_consignment_recall(args):
+    data = PrepareRecall.model_validate(args)
+    permissions.require_writable("Stock Entry", "create")
+    from lambda_erp.stock.consignment import make_consignment_recall
+    entry = make_consignment_recall(
+        data.warehouse, data.to_warehouse, to_location=data.to_location,
+        items=[line.model_dump(exclude_none=True) for line in data.items] if data.items else None)
+    entry.save()
+    return services.load_document("stock-entry", entry.name)
+
+
 class ConfirmPurchaseOrder(mentions.Input):
     purchase_order: str = Field(min_length=1, max_length=200)
     confirmed_date: str = Field(min_length=8, max_length=10)
@@ -72,6 +141,30 @@ def confirm_purchase_order(args, user=None):
 
 
 def initialize_stock_actions():
+    services.register_action(
+        "record_consignment_withdrawal", record_consignment_withdrawal,
+        description=(
+            "Record what a customer reported as USED from their consignment warehouse and bill it: creates and "
+            "submits a Consignment Withdrawal and ONE Sales Invoice that also takes the goods out of that warehouse. "
+            "items: item_code, qty, batch_no as reported (and location if the warehouse uses storage locations). "
+            "Give external_source + external_reference (the customer's report / order number) whenever there is one: "
+            "the same report sent again then returns the first result (replayed=true) instead of billing twice, and "
+            "the same number with different content is refused. replenish=true also drafts a replacement stocking."),
+        parameters=RecordWithdrawal.model_json_schema(), minimum_role="manager")
+    services.register_action(
+        "prepare_consignment_stocking", prepare_consignment_stocking,
+        description=(
+            "Draft the stocking of a customer's consignment warehouse: a DRAFT Stock Entry (Material Transfer) from "
+            "from_warehouse (default: the warehouse's replenishment_warehouse) with batches proposed first-expired-"
+            "first-out. No sale and no invoice. Nothing moves until the draft is submitted."),
+        parameters=PrepareStocking.model_json_schema(), minimum_role="manager")
+    services.register_action(
+        "prepare_consignment_recall", prepare_consignment_recall,
+        description=(
+            "Draft bringing goods back from a customer's consignment warehouse to one of your own (to_warehouse): "
+            "everything in it, or the given items / batches. A DRAFT Stock Entry; no credit note, the goods were "
+            "never sold. Nothing moves until the draft is submitted."),
+        parameters=PrepareRecall.model_json_schema(), minimum_role="manager")
     services.register_action(
         "confirm_purchase_order", confirm_purchase_order,
         description=(

@@ -3383,6 +3383,59 @@ def _m056_order_progress(db: "Database") -> None:
         db.ensure_column("Purchase Order Item", column, definition)
 
 
+def _m057_consignment(db: "Database") -> None:
+    """Consignment warehouses and withdrawals (see docs/consignment.md). No
+    warehouse becomes a consignment warehouse by the migration."""
+    db.ensure_column("Warehouse", "consignment_customer", "TEXT")
+    db.ensure_column("Warehouse", "replenishment_warehouse", "TEXT")
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Consignment Withdrawal" (
+            name TEXT PRIMARY KEY,
+            company TEXT,
+            customer TEXT,
+            warehouse TEXT NOT NULL,
+            posting_date TEXT,
+            external_source TEXT,
+            external_reference TEXT,
+            content_hash TEXT,
+            replenish INTEGER DEFAULT 0,
+            replenish_from_warehouse TEXT,
+            sales_invoice TEXT,
+            replacement_stock_entry TEXT,
+            replenishment_status TEXT DEFAULT 'Not Requested',
+            remarks TEXT,
+            status TEXT DEFAULT 'Draft',
+            docstatus INTEGER DEFAULT 0,
+            discarded INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Consignment Withdrawal Item" (
+            name TEXT PRIMARY KEY,
+            parent TEXT NOT NULL,
+            idx INTEGER DEFAULT 0,
+            item_code TEXT,
+            item_name TEXT,
+            qty REAL DEFAULT 0,
+            uom TEXT,
+            batch_no TEXT,
+            location TEXT,
+            rate REAL
+        )"""))
+    # One active withdrawal per customer report; a cancelled one frees the reference.
+    db.conn.execute(db._ddl(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ux_consignment_withdrawal_external" '
+        'ON "Consignment Withdrawal" (external_source, external_reference) '
+        'WHERE external_reference IS NOT NULL AND docstatus < 2 AND COALESCE(discarded, 0) = 0'))
+    db.conn.execute(db._ddl(
+        'CREATE INDEX IF NOT EXISTS "ix_consignment_withdrawal_item_parent" ON "Consignment Withdrawal Item" (parent)'))
+    db.conn.commit()
+    for table in ("Consignment Withdrawal", "Consignment Withdrawal Item"):
+        db._col_cache.pop(table, None)
+        db._text_col_cache.pop(table, None)
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3479,6 +3532,7 @@ Database.MIGRATIONS = [
     (54, "reservations_and_shelf_life", _m054_reservations_and_shelf_life),
     (55, "price_decisions", _m055_price_decisions),
     (56, "order_progress", _m056_order_progress),
+    (57, "consignment", _m057_consignment),
 ]
 
 

@@ -220,7 +220,8 @@ MASTER_LINK_FIELDS = {
     'customer': {'default_price_list': 'Price List'},
     'company': {'default_price_list': 'Price List'},
     'item': {'default_warehouse': 'Warehouse'},
-    'warehouse': {'company': 'Company', 'account': 'Account', 'parent_warehouse': 'Warehouse'},
+    'warehouse': {'company': 'Company', 'account': 'Account', 'parent_warehouse': 'Warehouse',
+                  'consignment_customer': 'Customer', 'replenishment_warehouse': 'Warehouse'},
     'account': {'company': 'Company', 'parent_account': 'Account'},
     'cost-center': {'company': 'Company', 'parent_cost_center': 'Cost Center'},
     'batch': {'item_code': 'Item'},
@@ -322,6 +323,19 @@ def _validate_warehouse_locations(db, merged, name):
     off while stock lies in a location."""
     if flt(merged.get('use_locations')) and flt(merged.get('is_group')):
         raise ValidationError('Warehouse: a group warehouse holds no stock and cannot use storage locations')
+    customer = merged.get('consignment_customer') or None
+    if customer and flt(merged.get('is_group')):
+        raise ValidationError('Warehouse: a group warehouse holds no stock and cannot be a consignment warehouse')
+    if name:
+        stored = db.get_value('Warehouse', name, 'consignment_customer') or None
+        if stored != customer and db.sql(
+                'SELECT 1 FROM "Bin" WHERE warehouse = ? AND actual_qty <> 0 LIMIT 1', [name]):
+            raise ValidationError(
+                f'Warehouse {name}: the consignment customer cannot be changed while stock lies in it; recall the stock first')
+    origin = merged.get('replenishment_warehouse') or None
+    if origin:
+        if origin == name or db.get_value('Warehouse', origin, 'consignment_customer'):
+            raise ValidationError('Warehouse: the replenishment warehouse must be one of your own warehouses')
     if name and not flt(merged.get('use_locations')) and db.sql(
             'SELECT 1 FROM "Stock Balance Detail" WHERE warehouse = ? AND location <> \'\' '
             'AND actual_qty <> 0 LIMIT 1', [name]):

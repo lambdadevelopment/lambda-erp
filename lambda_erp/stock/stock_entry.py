@@ -226,6 +226,17 @@ class StockEntry(Document):
         entries = self._get_gl_entries()
         if entries:
             make_gl_entries(entries)
+        self._sync_consignment()
+
+    def _sync_consignment(self):
+        """A stock entry can be the replacement of a consignment withdrawal."""
+        from lambda_erp.stock.consignment import sync_replenishment
+        sync_replenishment(self.name)
+
+    def discard(self):
+        result = super().discard()
+        self._sync_consignment()
+        return result
 
     def on_cancel(self):
         # Reverse the actual posted cost, even if moving-average cost changed.
@@ -237,6 +248,7 @@ class StockEntry(Document):
             row['outgoing_rate_is_explicit'] = True
         make_cancel_sl_entries(reversals)
         make_reverse_gl_entries(voucher_type=self.DOCTYPE, voucher_no=self.name)
+        self._sync_consignment()
 
     def _get_gl_entries(self):
         """One stock leg per warehouse; all values come from posted SLEs."""

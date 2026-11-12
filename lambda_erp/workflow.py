@@ -324,6 +324,12 @@ def validate_order_quantities(doc, *, cancelling=False):
 
 def validate_cancellation(doc):
     db = get_db()
+    if doc.DOCTYPE == 'Sales Invoice' and not getattr(doc, '_cancelled_by_withdrawal', False) \
+            and db._get_table_columns('Consignment Withdrawal'):
+        owner = db.get_value('Consignment Withdrawal', {'sales_invoice': doc.name, 'docstatus': 1}, 'name')
+        if owner:
+            raise ValidationError(
+                f'{doc.name} bills Consignment Withdrawal {owner}: cancel the withdrawal, which cancels this invoice')
     from lambda_erp.accounting.settlement import INVOICE_TYPES
     if doc.DOCTYPE in INVOICE_TYPES:
         for kind, child in [('Journal Entry', 'Journal Entry Account'), ('Payment Entry', 'Payment Entry Reference')]:

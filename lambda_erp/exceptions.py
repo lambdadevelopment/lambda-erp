@@ -9,6 +9,10 @@ class MandatoryError(ValidationError):
     pass
 
 
+class ConflictError(ValidationError):
+    """The request conflicts with what is already recorded (HTTP 409)."""
+
+
 class PermissionDenied(ValidationError):
     """The caller's access profile does not allow this (HTTP 403)."""
 

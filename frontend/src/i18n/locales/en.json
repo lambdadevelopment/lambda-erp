@@ -373,7 +373,8 @@
       "Stock Reservation": "Stock Reservation",
       "Stock Availability": "Stock Availability",
       "Sales Backlog": "Sales Backlog",
-      "Purchase Backlog": "Purchase Backlog"
+      "Purchase Backlog": "Purchase Backlog",
+      "Consignment Withdrawal": "Consignment Withdrawal"
     }
   },
   "login": {
@@ -766,7 +767,16 @@
     "Deliverable Now": "Deliverable Now",
     "Expected": "Expected",
     "Received": "Received",
-    "Days Overdue": "Days Overdue"
+    "Days Overdue": "Days Overdue",
+    "Consignment Customer": "Consignment Customer",
+    "Replenished From": "Replenished From",
+    "Consignment Warehouse": "Consignment Warehouse",
+    "Report Source": "Report Source",
+    "Report Number": "Report Number",
+    "Replenish": "Replenish",
+    "Replenish From": "Replenish From",
+    "Replacement Transfer": "Replacement Transfer",
+    "Replenishment": "Replenishment"
   },
   "tables": {
     "accounts": "accounts",

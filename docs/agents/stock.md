@@ -85,6 +85,20 @@ Full description: [`docs/reservations-and-fefo.md`](../reservations-and-fefo.md)
 - FEFO (`suggest_picks`) never reads valuation, and nothing in valuation
   reads expiry dates.
 
+## Consignment
+
+Full description: [`docs/consignment.md`](../consignment.md).
+
+- A consignment warehouse is an own warehouse with `consignment_customer`.
+  Stocking and recall are plain Material Transfers.
+- A Consignment Withdrawal posts nothing itself: its `on_submit` creates one
+  Sales Invoice with `update_stock`, which is the only thing that moves stock
+  and books revenue. Never add a second movement for the same withdrawal.
+- Idempotency is `(external_source, external_reference)` among active
+  withdrawals plus `content_hash`; see `record_withdrawal`.
+- Sell-side documents call `validate_consignment_sale` (only the warehouse's
+  customer buys out of it).
+
 ## Moving-average cost
 
 - The `Bin` table holds current `valuation_rate` per item+warehouse.

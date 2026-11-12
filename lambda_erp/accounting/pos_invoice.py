@@ -174,6 +174,8 @@ class POSInvoice(Document):
         if flt(self._data.get("update_stock")):
             from lambda_erp.stock.reservation import validate_sellable
             validate_sellable(self)
+            from lambda_erp.stock.consignment import validate_consignment_sale
+            validate_consignment_sale(self)
             sl_entries = self._get_sl_entries()
             if sl_entries:
                 make_sl_entries(sl_entries)

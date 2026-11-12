@@ -849,6 +849,51 @@ const CONFIGS: Record<string, DoctypeConfig> = {
   },
 
   // --- Rentals: unit-level assets + date-ranged reservations (ADR-0002).
+  // What a customer reported as used from their consignment warehouse.
+  // Submitting bills it and takes the goods out, once. See docs/consignment.md.
+  "consignment-withdrawal": {
+    slug: "consignment-withdrawal",
+    label: "Consignment Withdrawal",
+    dateField: "posting_date",
+    partyField: "customer",
+    partyLabel: "Customer",
+    fields: [
+      { name: "warehouse", label: "Consignment Warehouse", type: "link", linkDoctype: "warehouse", required: true,
+        hint: "The customer's consignment warehouse. The customer is taken from it." },
+      { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", readOnly: true },
+      { name: "posting_date", label: "Posting Date", type: "date", required: true },
+      { name: "external_source", label: "Report Source", type: "text",
+        hint: "Where the customer's report came from, e.g. the customer's ordering system. Together with the report number it prevents the same report from being billed twice." },
+      { name: "external_reference", label: "Report Number", type: "text" },
+      { name: "replenish", label: "Replenish", type: "select",
+        options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0",
+        hint: "If Yes, submitting also drafts a transfer that restocks what was used. It is a separate document; the withdrawal is billed either way." },
+      { name: "replenish_from_warehouse", label: "Replenish From", type: "link", linkDoctype: "warehouse",
+        hint: "Defaults to the consignment warehouse's 'Replenished From'." },
+      { name: "sales_invoice", label: "Sales Invoice", type: "text", readOnly: true },
+      { name: "replacement_stock_entry", label: "Replacement Transfer", type: "text", readOnly: true },
+      { name: "replenishment_status", label: "Replenishment", type: "text", readOnly: true },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+    ],
+    childTables: [
+      {
+        key: "items", label: "Items", fields: [
+          { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
+          { name: "item_name", label: "Item Name", type: "text", readOnly: true },
+          { name: "qty", label: "Qty", type: "number", required: true },
+          { name: "batch_no", label: "Batch", type: "text", hint: "The batch the customer reported. It must lie in this consignment warehouse." },
+          { name: "location", label: "Storage Location", type: "text" },
+          { name: "rate", label: "Rate", type: "currency", default: null, hint: "Leave blank to bill the customer's price." },
+        ],
+      },
+    ],
+    listColumns: ["name", "customer", "warehouse", "posting_date", "external_reference", "status", "replenishment_status"],
+    searchFields: ["name", "customer", "warehouse", "external_reference", "sales_invoice"],
+    canSubmit: true,
+    canCancel: true,
+    conversions: [],
+  },
+
   // Stock set aside for a sales order line, or with a reason. Status-driven,
   // no submit. See docs/reservations-and-fefo.md.
   "stock-reservation": {

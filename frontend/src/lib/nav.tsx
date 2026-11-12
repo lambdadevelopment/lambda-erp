@@ -85,6 +85,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Stock Entry", path: "/app/stock-entry" },
       { label: "Stock Reservation", path: "/app/stock-reservation" },
+      { label: "Consignment Withdrawal", path: "/app/consignment-withdrawal" },
       { label: "Delivery Note", path: "/app/delivery-note" },
       { label: "Purchase Receipt", path: "/app/purchase-receipt" },
     ],

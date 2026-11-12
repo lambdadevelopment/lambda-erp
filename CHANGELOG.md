@@ -13,6 +13,31 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.11] - 2026-11-12
+
+Migration 57 runs on startup. No warehouse becomes a consignment warehouse by
+it. See `docs/consignment.md`.
+
+- **Consignment.** A warehouse with a `consignment_customer` is a consignment
+  warehouse: own stock lying at that customer, still in stock and stock value.
+  - **Stocking** and **recall** are Material Transfers, without an invoice or
+    credit note. Actions `prepare_consignment_stocking` (batches proposed
+    first-expired-first-out) and `prepare_consignment_recall` draft them.
+  - **Withdrawal:** new document Consignment Withdrawal records what the
+    customer reported as used. Submitting creates one Sales Invoice that bills
+    it and takes the reported batch out of that warehouse, once.
+  - **A report received twice is billed once.** Action
+    `record_consignment_withdrawal` takes the customer's report number: the
+    same report again returns the first result; the same number with other
+    content is refused (HTTP 409) until the recorded withdrawal is cancelled.
+  - **Replacement:** `replenish` drafts a linked restocking with its own
+    status; the withdrawal is billed whether or not it can be shipped.
+  - Goods in a consignment warehouse can only be sold to its customer.
+  - The invoice of a withdrawal is cancelled through the withdrawal; a paid
+    one is credited with a return invoice.
+  - `stock-detail` shows and filters by the customer consignment stock lies
+    with.
+
 ## [1.4.10] - 2026-11-12
 
 Migration 56 runs on startup. See `docs/order-progress-and-backlog.md`.

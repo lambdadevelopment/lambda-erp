@@ -387,10 +387,14 @@ def stock_balance(
 
 
 def _stock_detail_where(item_code=None, warehouse=None, batch_no=None, item_prefix=None, expiring_before=None,
-                        include_empty=False, location=None, item_group=None, expiring_after=None):
+                        include_empty=False, location=None, item_group=None, expiring_after=None,
+                        consignment_customer=None, consignment=None):
     where, params = [], []
+    if consignment is not None:
+        where.append("COALESCE(w.consignment_customer, '') " + ("<> ''" if consignment else "= ''"))
     for column, value in (("d.item_code", item_code), ("d.warehouse", warehouse), ("d.batch_no", batch_no),
-                          ("d.location", location), ("i.item_group", item_group)):
+                          ("d.location", location), ("i.item_group", item_group),
+                          ("w.consignment_customer", consignment_customer)):
         if value:
             where.append(f"{column} = ?")
             params.append(value)
@@ -411,6 +415,7 @@ def _stock_detail_where(item_code=None, warehouse=None, batch_no=None, item_pref
 _STOCK_DETAIL_FROM = (
     'FROM "Stock Balance Detail" d '
     'LEFT JOIN "Item" i ON i.name = d.item_code '
+    'LEFT JOIN "Warehouse" w ON w.name = d.warehouse '
     'LEFT JOIN "Batch" b ON b.item_code = d.item_code AND b.batch_no = d.batch_no ')
 
 
@@ -439,16 +444,20 @@ def _batch_stock(db, item_code=None, warehouse=None, batch_no=None, item_prefix=
 
 
 def _stock_detail(db, item_code=None, warehouse=None, location=None, batch_no=None, item_prefix=None,
-                  item_group=None, expiring_before=None, expiring_after=None, include_empty=False):
-    """Where stock is, in one view: item, warehouse, storage location, batch,
-    expiry date and quantity. Every stock item appears, with an empty batch_no
-    or location where it has none."""
+                  item_group=None, expiring_before=None, expiring_after=None, include_empty=False,
+                  consignment_customer=None, consignment=None):
+    """Where stock is, in one view: item, warehouse, the customer it lies
+    with (consignment), storage location, batch, expiry date and quantity.
+    Every stock item appears, with an empty batch_no or location where it has
+    none. `consignment_customer` shows one customer's consignment stock;
+    `consignment` true / false shows only consignment or only own warehouses."""
     permissions.require_artifact("report", "stock-detail")
     where, params = _stock_detail_where(item_code, warehouse, batch_no, item_prefix, expiring_before,
-                                        include_empty, location, item_group, expiring_after)
+                                        include_empty, location, item_group, expiring_after,
+                                        consignment_customer, consignment)
     rows = db.sql(
-        'SELECT d.item_code, i.item_name, i.item_group, d.warehouse, d.location, d.batch_no, b.expiry_date, '
-        'd.actual_qty '
+        'SELECT d.item_code, i.item_name, i.item_group, d.warehouse, w.consignment_customer, d.location, '
+        'd.batch_no, b.expiry_date, d.actual_qty '
         + _STOCK_DETAIL_FROM
         + (f"WHERE {' AND '.join(where)} " if where else "")
         + 'ORDER BY d.item_code, d.warehouse, d.location, b.expiry_date, d.batch_no', params)
@@ -536,9 +545,11 @@ def stock_detail(
     expiring_before: str | None = None,
     expiring_after: str | None = None,
     include_empty: bool = False,
+    consignment_customer: str | None = None,
+    consignment: bool | None = None,
 ):
     return _stock_detail(get_db(), item_code, warehouse, location, batch_no, item_prefix, item_group,
-                         expiring_before, expiring_after, include_empty)
+                         expiring_before, expiring_after, include_empty, consignment_customer, consignment)
 
 
 @router.get("/batch-stock")
