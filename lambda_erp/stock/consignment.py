@@ -52,12 +52,18 @@ def validate_consignment_sale(doc):
                 f"{owner}. Recall the goods to one of your own warehouses before selling them to someone else")
 
 
+def _serials(value):
+    from lambda_erp.stock.serial import parse_serials
+    return parse_serials(value)
+
+
 def content_hash(warehouse, items, replenish=False):
     """What a withdrawal report says, reduced to what matters: the same
     report gives the same hash whatever the order of its lines."""
     lines = sorted(
         (str(row.get("item_code") or ""), str(row.get("batch_no") or ""), str(row.get("location") or ""),
-         round(flt(row.get("qty")), 6), None if row.get("rate") in (None, "") else round(flt(row.get("rate")), 6))
+         round(flt(row.get("qty")), 6), None if row.get("rate") in (None, "") else round(flt(row.get("rate")), 6),
+         sorted(_serials(row.get("serial_no"))))
         for row in items or [])
     payload = json.dumps({"warehouse": warehouse, "lines": lines, "replenish": bool(flt(replenish))},
                          sort_keys=True, default=str)
@@ -172,7 +178,8 @@ class ConsignmentWithdrawal(Document):
                     + (f" ({self.external_reference})" if self._data.get("external_reference") else ""))
         for row in self.get("items"):
             line = _dict(item_code=row["item_code"], qty=flt(row["qty"]), warehouse=self.warehouse,
-                         batch_no=row.get("batch_no") or None, location=row.get("location") or None)
+                         batch_no=row.get("batch_no") or None, location=row.get("location") or None,
+                         serial_no=row.get("serial_no") or None)
             if row.get("rate") is not None:
                 line["rate"] = flt(row["rate"])
             invoice.append("items", line)
@@ -259,7 +266,7 @@ def record_withdrawal(warehouse, items, *, external_source=None, external_refere
         external_reference=external_reference or None, replenish=1 if replenish else 0,
         replenish_from_warehouse=replenish_from_warehouse, remarks=remarks)
     for row in items or []:
-        doc.append("items", _dict({key: row.get(key) for key in ("item_code", "qty", "batch_no", "location", "rate", "uom")
+        doc.append("items", _dict({key: row.get(key) for key in ("item_code", "qty", "batch_no", "location", "rate", "uom", "serial_no")
                                    if row.get(key) not in (None, "")}))
     doc.save()
     doc.submit()
@@ -328,7 +335,8 @@ def make_consignment_stocking(warehouse, items, *, from_warehouse=None):
         for pick in picks:
             entry.append("items", _dict(
                 item_code=row["item_code"], qty=flt(pick["qty"]), s_warehouse=origin, t_warehouse=warehouse,
-                batch_no=pick.get("batch_no"), s_location=pick.get("location"), **target))
+                batch_no=pick.get("batch_no"), s_location=pick.get("location"),
+                serial_no=pick.get("serial_no"), **target))
     if not entry.get("items"):
         raise ValidationError("Nothing to stock")
     return entry
@@ -352,9 +360,11 @@ def make_consignment_recall(warehouse, to_warehouse, *, items=None, to_location=
                        from_warehouse=warehouse, to_warehouse=to_warehouse)
 
     def add(row, qty):
+        from lambda_erp.stock.serial import propose_serials
         entry.append("items", _dict(
             item_code=row["item_code"], qty=qty, s_warehouse=warehouse, t_warehouse=to_warehouse,
-            batch_no=row["batch_no"] or None, s_location=row["location"] or None, t_location=to_location or None))
+            batch_no=row["batch_no"] or None, s_location=row["location"] or None, t_location=to_location or None,
+            serial_no=propose_serials(row["item_code"], warehouse, qty, row["batch_no"], row["location"])))
 
     if not items:
         for row in sorted(stock, key=lambda r: (r["item_code"], r["batch_no"], r["location"])):

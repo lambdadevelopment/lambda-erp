@@ -122,6 +122,10 @@ def validate_return(doc):
     for row in previous:
         if _row_batch(row):
             batch_returned[(*_return_key(row, rule), _row_batch(row))] += abs(flt(row.get('qty')))
+    from lambda_erp.stock.serial import parse_serials
+    original_units = defaultdict(set)
+    for row in original_rows:
+        original_units[_return_key(row, rule)].update(parse_serials(row.get('serial_no')))
     requested = defaultdict(float)
     for row in doc.get('items'):
         if flt(row.get('qty')) >= 0:
@@ -130,6 +134,11 @@ def validate_return(doc):
         if key not in quantities:
             raise ValidationError('Return item and order line must match an original document row; use the return converter')
         requested[key] += abs(flt(row.get('qty')))
+        strangers = [unit for unit in parse_serials(row.get('serial_no')) if unit not in original_units[key]]
+        if strangers and original_units[key] and not amount_only:
+            raise ValidationError(
+                f'Serial number(s) {", ".join(strangers)} of {key[0]} was not on {doc.DOCTYPE} {doc.return_against}; '
+                f'a return brings back units the original moved')
         batch = _row_batch(row)
         if batch and key in with_batches and not amount_only:
             if (*key, batch) not in batch_quantities:
@@ -249,6 +258,11 @@ def returnable_rows(original):
     flag = ', p.amount_only AS amount_only' if 'amount_only' in db._get_table_columns(original.DOCTYPE) else ''
     previous = db.sql(f'SELECT i.*{flag} FROM "{table}" i JOIN "{original.DOCTYPE}" p ON p.name = i.parent '
                       'WHERE p.return_against = ? AND p.is_return = 1 AND p.docstatus = 1', [original.name])
+    from lambda_erp.stock.serial import format_serials, parse_serials
+    returned_units = defaultdict(set)
+    for row in previous:
+        if not flt(row.get('amount_only')):
+            returned_units[_return_key(row, rule)].update(parse_serials(row.get('serial_no')))
     used = defaultdict(float)
     used_batch = defaultdict(float)  # returned per line identity and batch
     credited = defaultdict(float)  # value already credited per line identity
@@ -279,7 +293,12 @@ def returnable_rows(original):
         used[key] -= consumed
         remaining -= consumed
         if remaining > EPSILON:
-            result.append({**row, 'qty':remaining})
+            proposal = {**row, 'qty':remaining}
+            units = [unit for unit in parse_serials(row.get('serial_no')) if unit not in returned_units[key]]
+            if units:
+                # Propose the units that have not come back yet.
+                proposal['serial_no'] = format_serials(units[:int(round(remaining))] if len(units) > remaining else units)
+            result.append(proposal)
     if not result:
         raise ValidationError('No remaining returnable quantity on this document')
     # After a price correction the goods come back at what was left to pay

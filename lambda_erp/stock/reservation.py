@@ -534,9 +534,14 @@ def suggest_picks(item_code, warehouse, qty, *, customer=None, on_date=None, sal
         if remaining <= EPSILON:
             break
         take = min(remaining, candidate["available_qty"])
-        picks.append({"batch_no": candidate["batch_no"], "location": candidate["location"],
-                      "expiry_date": candidate["expiry_date"], "days_left": candidate["days_left"],
-                      "qty": take, "needs_exception": candidate["needs_exception"]})
+        pick = {"batch_no": candidate["batch_no"], "location": candidate["location"],
+                "expiry_date": candidate["expiry_date"], "days_left": candidate["days_left"],
+                "qty": take, "needs_exception": candidate["needs_exception"]}
+        from lambda_erp.stock.serial import propose_serials
+        units = propose_serials(item_code, warehouse, take, candidate["batch_no"], candidate["location"])
+        if units:
+            pick["serial_no"] = units
+        picks.append(pick)
         remaining -= take
     picked = sum(pick["qty"] for pick in picks)
     return {"item_code": item_code, "warehouse": warehouse, "strategy": "FEFO", "requested_qty": qty,

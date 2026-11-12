@@ -101,6 +101,8 @@ MASTER_TABLES = {
     "batch": ("Batch", "batch_no"),
     # One row per (warehouse, location label).
     "storage-location": ("Storage Location", "location"),
+    # One row per (item, serial number); written by the stock ledger.
+    "serial-no": ("Serial No", "serial_no"),
 }
 
 # Auto-naming prefixes: masters created without an explicit `name` get a

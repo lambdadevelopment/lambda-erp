@@ -129,6 +129,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Warehouse", path: "/masters/warehouse" },
       { label: "Storage Location", path: "/masters/storage-location" },
       { label: "Batch", path: "/masters/batch" },
+      { label: "Serial Number", path: "/masters/serial-no" },
     ],
   },
   {

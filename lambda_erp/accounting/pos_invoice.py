@@ -343,6 +343,7 @@ def make_pos_return(posi_name):
             warehouse=item.get("warehouse"),
             batch_no=item.get("batch_no"),
             location=item.get("location"),
+            serial_no=item.get("serial_no"),
         ))
 
     for tax in original.get("taxes") or []:

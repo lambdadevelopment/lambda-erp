@@ -476,6 +476,7 @@ def make_purchase_return(pinv_name):
             warehouse=item.get("warehouse"),
             batch_no=item.get("batch_no"),
             location=item.get("location"),
+            serial_no=item.get("serial_no"),
             purchase_order=item.get("purchase_order"),
             purchase_order_item=item.get("purchase_order_item"),
         ))

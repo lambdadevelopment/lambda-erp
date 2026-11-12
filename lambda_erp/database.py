@@ -3501,6 +3501,57 @@ def _m059_batch_change_log(db: "Database") -> None:
     db._text_col_cache.pop("Batch Change", None)
 
 
+def _m060_serial_numbers(db: "Database") -> None:
+    """Serial-tracked items: one number per unit (see docs/serial-numbers.md).
+    No item becomes serial-tracked and no serial number is invented."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Serial No" (
+            name TEXT PRIMARY KEY,
+            item_code TEXT NOT NULL,
+            serial_no TEXT NOT NULL,
+            warehouse TEXT,
+            location TEXT,
+            batch_no TEXT,
+            status TEXT,
+            customer TEXT,
+            description TEXT,
+            disabled INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ux_serial_no_item_serial" ON "Serial No" (item_code, serial_no)'))
+    db.conn.execute(db._ddl(
+        'CREATE INDEX IF NOT EXISTS "ix_serial_no_warehouse" ON "Serial No" (item_code, warehouse)'))
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Serial Movement" (
+            name TEXT PRIMARY KEY,
+            serial TEXT NOT NULL,
+            item_code TEXT,
+            serial_no TEXT,
+            stock_ledger_entry TEXT,
+            voucher_type TEXT,
+            voucher_no TEXT,
+            voucher_detail_no TEXT,
+            warehouse TEXT,
+            location TEXT,
+            batch_no TEXT,
+            actual_qty REAL DEFAULT 0,
+            posting_date TEXT,
+            creation TEXT
+        )"""))
+    db.conn.execute(db._ddl('CREATE INDEX IF NOT EXISTS "ix_serial_movement_serial" ON "Serial Movement" (serial)'))
+    db.conn.execute(db._ddl(
+        'CREATE INDEX IF NOT EXISTS "ix_serial_movement_voucher" ON "Serial Movement" (voucher_type, voucher_no)'))
+    db.conn.commit()
+    for table in ("Serial No", "Serial Movement"):
+        db._col_cache.pop(table, None)
+        db._text_col_cache.pop(table, None)
+    db.ensure_column("Item", "has_serial_no", "INTEGER DEFAULT 0")
+    for table in (*BATCH_LINE_TABLES, "Stock Count Item", "Consignment Withdrawal Item"):
+        db.ensure_column(table, "serial_no", "TEXT")
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3600,6 +3651,7 @@ Database.MIGRATIONS = [
     (57, "consignment", _m057_consignment),
     (58, "stock_count", _m058_stock_count),
     (59, "batch_change_log", _m059_batch_change_log),
+    (60, "serial_numbers", _m060_serial_numbers),
 ]
 
 

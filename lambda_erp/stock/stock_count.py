@@ -144,6 +144,9 @@ class StockCount(Document):
                 # Valued at what the item costs here now; a count knows quantities, not prices.
                 incoming_rate=0, outgoing_rate=0,
                 batch_no=row.get("batch_no"), location=row.get("location"), expiry_date=row.get("expiry_date"),
+                # For a serial-tracked item: the numbers found in addition, or missing.
+                serial_no=row.get("serial_no"),
+                allow_unassigned_serial=difference < 0 and not row.get("serial_no"),
                 # Stock without a batch / location (from before tracking) can be counted away, never added.
                 allow_unassigned_batch=difference < 0 and not row.get("batch_no"),
                 allow_unassigned_location=difference < 0 and not row.get("location"),

@@ -13,6 +13,29 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.13] - 2026-11-12
+
+Migration 60 runs on startup. See `docs/serial-numbers.md`.
+
+- **Serial numbers.** An item with `has_serial_no` is tracked per unit.
+  - Every stock-moving line of such an item lists `serial_no`: as many
+    numbers as its quantity, each once; the quantity is a whole number.
+  - A number is unique per item. A unit is in one place at a time: it can
+    only be received when it is not in stock, and only leave from the
+    warehouse (batch, storage location) it is in.
+  - New master `serial-no` (one row per unit: where it is, its status, the
+    customer it went to). Rows are written by the stock ledger; only the
+    description can be edited.
+  - Stock Entry type "Serial Assignment" gives units from before tracking
+    their numbers, in place, without changing quantity or value.
+  - Returns must name units the original document moved; return drafts
+    propose the units that have not come back. Pick proposals, storage
+    location moves, consignment stocking and recalls propose serials.
+  - Report `serial-trace`: where one unit is and every movement with its
+    document and party.
+  - Serial tracking cannot be switched off while the item has serial
+    numbers. No existing item becomes serial-tracked by the migration.
+
 ## [1.4.12] - 2026-11-12
 
 Migrations 58 and 59 run on startup. See `docs/stock-counts.md`.

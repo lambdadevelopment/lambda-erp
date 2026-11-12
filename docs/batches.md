@@ -4,7 +4,7 @@ Batch-tracked stock: every movement of a tracked item names its batch, and
 quantities are kept and checked per batch. Available from 1.4.5 (migration 51).
 Nothing changes for an item until it is switched to batch tracking.
 
-Not included: serial numbers. Added since: storage locations as a second
+Serial numbers came in 1.4.13 (`docs/serial-numbers.md`). Added since: storage locations as a second
 dimension next to the batch (1.4.7, `storage-locations.md`), blocking of
 batches and FEFO picking (1.4.8, `reservations-and-fefo.md`), stock counts
 with a reason (1.4.12, `stock-counts.md`).

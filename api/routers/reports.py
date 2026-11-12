@@ -695,6 +695,22 @@ def batch_changes(batch_no: str | None = None, item_code: str | None = None):
     return _batch_changes(get_db(), batch_no, item_code)
 
 
+def _serial_trace(db, serial_no=None, item_code=None):
+    """Where a serial-numbered unit is and everything that happened to it,
+    with documents and the customer or supplier. A number alone can belong
+    to several items: one row per item."""
+    permissions.require_artifact("report", "serial-trace")
+    if not serial_no:
+        raise HTTPException(status_code=422, detail="serial_no is required")
+    from lambda_erp.stock.serial import serial_trace
+    return {"rows": serial_trace(serial_no, item_code)}
+
+
+@router.get("/serial-trace")
+def serial_trace_report(serial_no: str, item_code: str | None = None):
+    return _serial_trace(get_db(), serial_no, item_code)
+
+
 @router.get("/batch-movements")
 def batch_movements(
     batch_no: str,

@@ -152,7 +152,8 @@ def _proposed_picks(so, item, qty):
         return plain
     tracked = flt(db.get_value("Item", item["item_code"], "has_batch_no"))
     located = flt(db.get_value("Warehouse", item["warehouse"], "use_locations"))
-    if not tracked and not located:
+    from lambda_erp.stock.serial import is_serial_item
+    if not tracked and not located and not is_serial_item(item["item_code"]):
         return plain
     from lambda_erp.stock.reservation import suggest_picks
     picks = suggest_picks(item["item_code"], item["warehouse"], qty, customer=so.customer,
@@ -195,6 +196,7 @@ def make_delivery_note(sales_order_name):
                 warehouse=item.get("warehouse"),
                 batch_no=pick.get("batch_no"),
                 location=pick.get("location"),
+                serial_no=pick.get("serial_no"),
                 against_sales_order=so.name,
                 so_detail=item.get("name"),
             ))
@@ -241,6 +243,7 @@ def make_delivery_return(dn_name):
             warehouse=item.get("warehouse"),
             batch_no=item.get("batch_no"),
             location=item.get("location"),
+            serial_no=item.get("serial_no"),
             against_sales_order=item.get("against_sales_order"),
             so_detail=item.get("so_detail"),
         ))

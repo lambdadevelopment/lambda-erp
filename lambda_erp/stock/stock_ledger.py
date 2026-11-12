@@ -48,6 +48,9 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
 
         batch_no = resolve_entry_batch(sle)
         location = resolve_entry_location(sle)
+        from lambda_erp.stock import serial as serial_numbers
+        serials = serial_numbers.resolve_entry_serials(sle)
+        serial_numbers.check_leaving_serials(sle, serials, batch_no, location)
 
         # Create the SLE record
         sle_doc = _dict(
@@ -64,7 +67,7 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
             voucher_detail_no=sle.get("voucher_detail_no"),
             batch_no=batch_no or None,
             location=location or None,
-            serial_no=sle.get("serial_no"),
+            serial_no=serial_numbers.format_serials(serials),
             company=sle.get("company"),
             is_cancelled=0,
             creation=now(),
@@ -84,6 +87,8 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
         # Update Bin (summary table) and the per-batch quantity under it
         update_bin(sle_doc)
         update_stock_balance_detail(sle_doc, batch_no, allow_negative_stock, location)
+        # Each serial-numbered unit moves with the entry (stock/serial.py).
+        serial_numbers.apply_entry_serials(sle_doc, serials, batch_no, location)
 
     if not db._in_transaction:
         db.commit()
@@ -104,7 +109,8 @@ def make_cancel_sl_entries(sl_entries):
     # into a location that has been disabled since.
     sl_entries = [_dict({**sle, "is_reversal": True,
                          "allow_unassigned_batch": not sle.get("batch_no"),
-                         "allow_unassigned_location": not sle.get("location")})
+                         "allow_unassigned_location": not sle.get("location"),
+                         "allow_unassigned_serial": not sle.get("serial_no")})
                   for sle in sl_entries]
     try:
         make_sl_entries(sl_entries, allow_negative_stock=False)
@@ -508,6 +514,7 @@ def build_sell_side_sles(doc, items):
             voucher_detail_no=item.get("name"),
             batch_no=item.get("batch_no"),
             location=item.get("location"),
+            serial_no=item.get("serial_no"),
             posting_date=doc.posting_date,
             company=doc.company,
         ))
@@ -544,6 +551,7 @@ def build_buy_side_sles(doc, items):
             batch_no=item.get("batch_no"),
             expiry_date=item.get("expiry_date"),
             location=item.get("location"),
+            serial_no=item.get("serial_no"),
             posting_date=doc.posting_date,
             company=doc.company,
         ))

@@ -878,7 +878,7 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "batch-stock", "batch-movements", "batch-recipients", "batch-changes", "sales-backlog", "purchase-backlog", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
+                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "batch-stock", "batch-movements", "batch-recipients", "batch-changes", "serial-trace", "sales-backlog", "purchase-backlog", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
                     "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse; for batch-stock also batch_no, item_prefix, expiring_before, include_empty; for stock-detail also location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty; batch-movements requires batch_no. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
                 },
                 "required": ["report_type"],
@@ -1994,6 +1994,11 @@ def _handle_get_report(args):
                              filters.get("expiring_before"), filters.get("expiring_after"),
                              bool(filters.get("include_empty")), filters.get("consignment_customer"),
                              None if consignment is None else bool(consignment))
+    elif report_type == "serial-trace":
+        from api.routers.reports import _serial_trace
+        if not filters.get("serial_no"):
+            return {"error": "serial-trace needs filters.serial_no"}
+        return _serial_trace(db, filters.get("serial_no"), filters.get("item_code"))
     elif report_type == "batch-recipients":
         from api.routers.reports import _batch_recipients
         if not filters.get("batch_no"):
@@ -2977,6 +2982,12 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - A sale never ships an expired or blocked batch. If the item has a minimum shelf life (`min_shelf_life_days`) and the batch has less left, the line needs `shelf_life_exception` with the approved reason; do not write one unless the user gives it.
 - Expired or blocked stock can still be moved, returned to the supplier or written off with a Stock Entry.
 
+### Serial numbers
+- An item with `has_serial_no=1` is serial-tracked: every stock-moving line lists `serial_no`, as many numbers as its qty (line breaks or commas), each once; qty is a whole number. A number is unique per item and one unit is in one place at a time.
+- Receipts create the units; a number already in stock is refused. A unit can only be delivered, issued or transferred from the warehouse it is in. Returns must name units of the original document.
+- Never invent or guess a serial number. If the user has not given them, ask; to see what is in stock use search_masters master_type="serial-no" (filter item_code, warehouse) or the serial-trace report for one number.
+- Units from before the item was serial-tracked have no number: give them one with a Stock Entry of type "Serial Assignment" (item_code, qty, t_warehouse, serial_no).
+
 ### Storage locations (places inside a warehouse)
 - A warehouse with `use_locations=1` has storage locations (master `storage-location`: warehouse + location label, e.g. "A12"). The same label may exist in several warehouses.
 - In such a warehouse every stock-moving line names its location: `location` on Delivery Note, Purchase Receipt and invoice lines (with update_stock=1); on Stock Entry lines `s_location` for the source side and `t_location` for the target side. Drafts may be saved without it; submit is refused. A warehouse without storage locations takes no location.
@@ -3053,6 +3064,7 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 - **stock-availability** — Per item × warehouse: physical_qty (in stock), blocked_qty (expired or blocked batches), reserved_qty (open Stock Reservations), available_qty (= physical − blocked − reserved), plus open_sales_order_qty (ordered by customers, not yet delivered) and on_purchase_order_qty (ordered from suppliers, not yet received). Filters: item_code, warehouse, item_prefix. Use this to answer "can we deliver X" and "is it already on order".
 - **stock-detail** — Where stock is, in one view: item, warehouse, consignment_customer (who it lies with, for consignment warehouses), storage location, batch, expiry date, quantity. Filters: item_code, warehouse, location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty, consignment_customer (one customer's consignment stock), consignment (true = only consignment, false = only own warehouses). Use this for "what is in location B4", "where is item X", "what expires in the next 3 months in warehouse Y".
 - **batch-stock** — Quantity per item × warehouse × batch with the batch's expiry date (batch-tracked items only). Filters: item_code, warehouse, batch_no, item_prefix (item codes starting with…), expiring_before (date), include_empty. A batch label is NOT unique: the same label can exist on several items, so a batch_no-only lookup can return several items — show them all, never pick one.
+- **serial-trace** — Where one serial-numbered unit is now (warehouse, location, batch, or gone and to which customer) and every movement with its document and party. Filters: serial_no (required), item_code. A number alone can match several items.
 - **batch-recipients** — Who has a batch (recall): one row per customer with delivered_qty, returned_qty, net_qty and the documents; `in_stock` says where the rest lies now (with the customer for consignment stock); `suppliers` where it came from. Filters: batch_no (required), item_code. Use this for "who received lot X" instead of adding up movements yourself.
 - **batch-changes** — Recorded changes of a batch's expiry date and block (old value, new value, who, when). Filters: batch_no and/or item_code.
 - **batch-movements** — Every stock movement of a batch with document, line and customer/supplier: where it came from and who received it (recalls). Filters: batch_no (required), item_code, warehouse.
@@ -3085,7 +3097,7 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 
 ## Stock Entry specifics
 When creating a stock-entry, the `data` object MUST include:
-- `stock_entry_type`: "Opening Stock", "Material Receipt", "Material Issue", "Material Transfer", or "Batch Assignment"
+- `stock_entry_type`: "Opening Stock", "Material Receipt", "Material Issue", "Material Transfer", "Batch Assignment", or "Serial Assignment"
 - `company`, `posting_date`
 - `items` array where each item uses `basic_rate` (NOT `rate`) and warehouse fields:
   - Opening Stock: items need `t_warehouse` (target). Set `to_warehouse` on the parent too.

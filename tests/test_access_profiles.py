@@ -195,6 +195,7 @@ def check_access_profiles():
                 get("/api/reports/batch-recipients", batch_no=batch)
                 get("/api/reports/batch-changes", batch_no=batch)
                 get("/api/reports/batch-movements", batch_no=batch)
+            get("/api/reports/serial-trace", serial_no="SN-NONE")
             get("/api/chat-doctypes")
             get("/api/reports/runtime/drafts")
             return seen

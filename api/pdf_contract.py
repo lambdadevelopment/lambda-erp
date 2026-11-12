@@ -200,7 +200,7 @@ def prepare(doctype, doc):
             if doctype == 'Stock Entry':
                 movement = doc['stock_entry_type']
                 if movement not in {'Material Receipt', 'Opening Stock', 'Material Issue', 'Material Transfer',
-                                    'Batch Assignment'}:
+                                    'Batch Assignment', 'Serial Assignment'}:
                     raise PDFError('PDF requires a supported stock_entry_type')
                 keys = ('s_warehouse', 't_warehouse') if movement == 'Material Transfer' else ('s_warehouse',) if movement == 'Material Issue' else ('t_warehouse',)
                 require(row, keys, f'items[{i}].')

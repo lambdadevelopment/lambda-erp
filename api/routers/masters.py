@@ -64,6 +64,9 @@ DELETE_REFERENCE_CHECKS = {
         ('SELECT 1 FROM "Stock Ledger Entry" s JOIN "Batch" b ON b.item_code = s.item_code '
          'AND b.batch_no = s.batch_no WHERE b.name = ? LIMIT 1', "stock ledger entry"),
     ],
+    "serial-no": [
+        ('SELECT 1 FROM "Serial Movement" WHERE serial = ? LIMIT 1', "stock movement"),
+    ],
     "storage-location": [
         ('SELECT 1 FROM "Stock Ledger Entry" s JOIN "Storage Location" l ON l.warehouse = s.warehouse '
          'AND l.location = s.location WHERE l.name = ? LIMIT 1', "stock ledger entry"),
@@ -226,6 +229,7 @@ MASTER_LINK_FIELDS = {
     'cost-center': {'company': 'Company', 'parent_cost_center': 'Cost Center'},
     'batch': {'item_code': 'Item'},
     'storage-location': {'warehouse': 'Warehouse'},
+    'serial-no': {'item_code': 'Item'},
 }
 
 
@@ -291,6 +295,8 @@ def _validate_master_input(master_type, doctype, data, name=None):
         _validate_item_batch_flags(db, merged, name)
     if master_type == 'batch':
         _validate_batch(db, merged, name)
+    if master_type == 'serial-no':
+        _validate_serial(db, data, name)
     if master_type == 'warehouse':
         _validate_warehouse_locations(db, merged, name)
     if master_type == 'storage-location':
@@ -311,10 +317,29 @@ def _validate_item_batch_flags(db, merged, name):
     stock_item = merged.get('is_stock_item')
     if tracked and stock_item is not None and not flt(stock_item):
         raise ValidationError('Item: only a stock item can be batch-tracked')
+    numbered = bool(flt(merged.get('has_serial_no')))
+    if numbered and stock_item is not None and not flt(stock_item):
+        raise ValidationError('Item: only a stock item can be serial-tracked')
+    if name and not numbered and db.sql(
+            'SELECT 1 FROM "Serial No" WHERE item_code = ? LIMIT 1', [name]):
+        raise ValidationError(f'Item {name}: serial tracking cannot be switched off, the item has serial numbers')
     if name and not tracked and db.sql(
             'SELECT 1 FROM "Stock Ledger Entry" WHERE item_code = ? AND batch_no IS NOT NULL '
             'AND batch_no <> \'\' LIMIT 1', [name]):
         raise ValidationError(f'Item {name}: batch tracking cannot be switched off, the stock ledger has batches of it')
+
+
+def _validate_serial(db, data, name):
+    """Where a unit is comes from the stock ledger. Only remarks about it can
+    be edited here."""
+    if not name:
+        raise ValidationError('Serial numbers are created by receiving stock (or a Serial Assignment), not here')
+    fixed = sorted(set(data) - {'name', 'description', 'disabled', 'modified'})
+    stored = db.get_value('Serial No', name, fixed) or {} if fixed else {}
+    changed = [field for field in fixed if (data.get(field) or None) != (stored.get(field) or None)]
+    if changed:
+        raise ValidationError(
+            f'Serial No: {", ".join(changed)} follow the stock movements of the unit and cannot be edited')
 
 
 def _validate_warehouse_locations(db, merged, name):
