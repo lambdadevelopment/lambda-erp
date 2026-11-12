@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate, useSearchParams, useLocation } from "reac
 import { type ChatMessage, type ChatAttachment, useChat, rememberSessionId } from "@/components/chat/chat-provider";
 import { api } from "@/api/client";
 import { usePageTitle } from "@/lib/use-page-title";
+import { type BackState, readBackState, sameOriginPath } from "@/lib/back-to";
 import { useTranslation } from "react-i18next";
 
 const MAX_ATTACHMENTS = 5;
@@ -1226,16 +1227,29 @@ function MarkdownContent({ content }: { content: string }) {
   return <div>{elements}</div>;
 }
 
+/** An in-app link from the chat: the opened page's back arrow returns here. */
+function ChatLink({ to, className, children }: { to: string; className: string; children: React.ReactNode }) {
+  const { pathname, search } = useLocation();
+  const state: BackState = { backTo: `${pathname}${search}`, backLabel: "chat" };
+  return (
+    <Link to={to} state={state} className={className}>
+      {children}
+    </Link>
+  );
+}
+
 function renderLink(href: string, label: React.ReactNode, key: number | string): React.ReactNode {
   // `/api/*` is a backend endpoint (PDFs, file downloads, attachments) —
-  // not a React Router route. Route client-side only for real SPA paths.
-  const isSpaRoute = href.startsWith("/") && !href.startsWith("/api/");
+  // not a React Router route. Route client-side only for real SPA paths,
+  // including full URLs of this same site (https://erp.example/masters/item/1).
+  const path = href.startsWith("/") && !href.startsWith("//") ? href : sameOriginPath(href);
+  const isSpaRoute = !!path && !path.startsWith("/api/");
   const baseClass = "font-medium text-brand underline decoration-brand/40 underline-offset-2 transition-colors hover:decoration-brand";
   if (isSpaRoute) {
     return (
-      <Link key={key} to={href} className={baseClass}>
+      <ChatLink key={key} to={path} className={baseClass}>
         {label}
-      </Link>
+      </ChatLink>
     );
   }
   return (

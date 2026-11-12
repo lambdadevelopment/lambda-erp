@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ArrowLeft } from "lucide-react";
+import { readBackState } from "@/lib/back-to";
 import { ChatProvider, useChat } from "@/components/chat/chat-provider";
 import { DialogProvider } from "@/components/ui/dialog";
 import { Sidebar, FLASH_STYLES } from "@/components/layout/sidebar";
@@ -79,7 +80,8 @@ export function AppShell() {
 }
 
 function AppShellContent() {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { navigationFlash } = useChat();
@@ -98,10 +100,17 @@ function AppShellContent() {
   }, [mySettings, i18n]);
 
   const pageTitle = deriveTitle(pathname, t);
-  const backPath = deriveBackPath(pathname);
+  // Opened from the chat (or another non-list place): back goes there.
+  const backState = readBackState(location.state);
+  const backPath = backState?.backTo || deriveBackPath(pathname);
+  const backLabel = backState?.backLabel === "chat" ? t("header.backToChat") : t("header.back");
 
   const handleBack = () => {
     if (!backPath) return;
+    if (backState?.backTo) {
+      navigate(backState.backTo);
+      return;
+    }
     // The large arrow means "back to the parent list". Browser history is
     // wrong after DocPager navigation because it merely opens the previous
     // record again. Restore the list's remembered filters deterministically;
@@ -156,7 +165,8 @@ function AppShellContent() {
               <button
                 onClick={handleBack}
                 className="-ml-1 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                aria-label={t("header.back")}
+                aria-label={backLabel}
+                title={backLabel}
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>

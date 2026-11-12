@@ -13,6 +13,14 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-11-12
+
+- A record opened from a link in the chat gets "Back to chat" on the header
+  arrow (also after paging through records with the small arrows; Escape/`u`
+  goes there too). Opened any other way, the arrow still goes up to the list.
+  Full URLs of the same site in chat answers now open in the app like
+  relative links, instead of in a new tab.
+
 ## [1.4.2] - 2026-11-12
 
 Bug fixes in the core. Migrations 47–49 run on startup.

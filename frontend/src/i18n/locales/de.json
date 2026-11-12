@@ -181,6 +181,7 @@
   },
   "header": {
     "back": "Zurück",
+    "backToChat": "Zurück zum Chat",
     "logout": "Abmelden",
     "openMenu": "Menü öffnen",
     "closeMenu": "Menü schließen",

@@ -7,7 +7,8 @@
 // typing in a field): k / ← = prev, j / → = next, Esc / u = back to the list.
 // Cmd/Ctrl+S = save (fires even while typing) when an onSave is provided.
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { readBackState } from "@/lib/back-to";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/api/client";
@@ -27,6 +28,10 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
   // "lead" doctype list don't clobber each other's stashed URL.
   const ctx = getListContext(isMaster ? `master:${slug}` : slug);
   const base = isMaster ? `/masters/${slug}` : `/app/${slug}`;
+  // Keep "back to where I came from" (e.g. the chat) while paging.
+  const location = useLocation();
+  const backState = readBackState(location.state);
+  const page = (target: string) => navigate(`${base}/${target}`, { state: backState });
 
   const { data } = useQuery({
     queryKey: ["adjacent", kind, slug, name, ctx?.filters ?? null],
@@ -39,9 +44,9 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
   const next = data?.next ?? null;
 
   useEffect(() => {
-    const goPrev = () => prev && navigate(`${base}/${prev}`);
-    const goNext = () => next && navigate(`${base}/${next}`);
-    const back = () => navigate(`${base}${ctx?.search || ""}`);
+    const goPrev = () => prev && page(prev);
+    const goNext = () => next && page(next);
+    const back = () => navigate(backState?.backTo || `${base}${ctx?.search || ""}`);
 
     const onKey = (e: KeyboardEvent) => {
       // Save works even mid-edit.
@@ -58,7 +63,7 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [prev, next, base, ctx?.search, onSave, navigate]);
+  }, [prev, next, base, ctx?.search, onSave, navigate, page, backState?.backTo]);
 
   const btn =
     "rounded-md border border-line bg-surface p-1.5 text-fg-muted transition hover:bg-surface-subtle hover:text-fg disabled:cursor-default disabled:opacity-40";
@@ -69,7 +74,7 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
         type="button"
         disabled={!prev}
         title="Previous record (k / ←)"
-        onClick={() => prev && navigate(`${base}/${prev}`)}
+        onClick={() => prev && page(prev)}
         className={btn}
       >
         <ChevronLeft className="h-4 w-4" />
@@ -78,7 +83,7 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
         type="button"
         disabled={!next}
         title="Next record (j / →)"
-        onClick={() => next && navigate(`${base}/${next}`)}
+        onClick={() => next && page(next)}
         className={btn}
       >
         <ChevronRight className="h-4 w-4" />

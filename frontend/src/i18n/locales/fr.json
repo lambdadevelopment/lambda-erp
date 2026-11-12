@@ -181,6 +181,7 @@
   },
   "header": {
     "back": "Retour",
+    "backToChat": "Retour au chat",
     "logout": "Déconnexion",
     "openMenu": "Ouvrir le menu",
     "closeMenu": "Fermer le menu",
