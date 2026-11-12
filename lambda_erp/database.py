@@ -3353,6 +3353,19 @@ def _m054_reservations_and_shelf_life(db: "Database") -> None:
         db.ensure_column(table, "shelf_life_exception_by", "TEXT")
 
 
+def _m055_price_decisions(db: "Database") -> None:
+    """Where a line's price came from, an explicit pricing date, and pricing
+    rules matched through deployment-defined dimensions
+    (see docs/pricing-and-external-sources.md). Existing lines keep an empty
+    price_source: nothing is guessed about history."""
+    for doc_table, item_table in _PRICED_DOCUMENTS:
+        db.ensure_column(doc_table, "pricing_date", "TEXT")
+        db.ensure_column(item_table, "price_source", "TEXT")
+        db.ensure_column(item_table, "price_reference", "TEXT")
+    for column in ("apply_on_value", "applicable_for_value", "supplier_group"):
+        db.ensure_column("Pricing Rule", column, "TEXT")
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3447,6 +3460,7 @@ Database.MIGRATIONS = [
     (52, "access_profiles", _m052_access_profiles),
     (53, "storage_locations", _m053_storage_locations),
     (54, "reservations_and_shelf_life", _m054_reservations_and_shelf_life),
+    (55, "price_decisions", _m055_price_decisions),
 ]
 
 

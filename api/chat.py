@@ -2918,6 +2918,13 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - **Material Transfer:** Moves stock between warehouses. No GL impact.
 - **Batch Assignment:** Gives stock that has no batch (from before the item was batch-tracked) its batch, in place: row = item_code, qty, t_warehouse, batch_no (+ expiry_date for a new batch). No GL impact, no quantity or value change.
 
+### Prices: how they are found, and explaining them
+- A line without a rate is priced when the document is saved: the Item Price of the document's price list (a row for this customer/supplier beats the list price; the highest min_qty reached; the narrower, then newer validity), else the item's standard rate. Then at most ONE Pricing Rule applies on top: highest priority, then the most specific match, then min_qty, validity and name.
+- Prices and rules are looked up for the document's date (`pricing_date` if set, else posting/transaction date). A price valid from next month does not apply to a document dated today.
+- Each line records where its price came from: `price_source` (Item Price, Standard Rate, Entered, Manual, None), `price_reference` (the Item Price) and `pricing_rule`. A rate the user changes on a saved line becomes Manual and is never repriced; converted lines keep the price of their source document.
+- Use the `explain_price` action to answer "what would X cost for customer Y" and "why is this price what it is" — do not work prices out yourself. If a `price_missing` warning comes back, tell the user there is no price for that item instead of presenting 0.
+- Deployments may add their own rule keys (for example a price family or a purchasing group); get_document_fields / the rule's `apply_on` and `applicable_for` show what is in use.
+
 ### Reservations, availability and picking (FEFO)
 - available = in stock − blocked (expired or blocked batches) − reserved. Check it with the stock-availability report before promising a delivery.
 - A **Stock Reservation** (doctype `stock-reservation`) sets stock aside: for a sales order line (use the `reserve_sales_order` action, or set `reserve_stock=1` on the Sales Order before submitting it), or free-standing with `remarks` saying what it is for. It is hard: a delivery, issue or transfer that would take reserved stock for someone else is refused with the orders it is reserved for. Deliveries against the order consume its reservation automatically; cancelling the order cancels it; set status Released to give stock back early.

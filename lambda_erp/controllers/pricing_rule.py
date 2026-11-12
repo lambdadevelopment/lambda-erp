@@ -36,10 +36,11 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, getdate, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.exceptions import ValidationError
-from lambda_erp.controllers.item_price import normalize_pricing_number
+from lambda_erp.controllers.item_price import normalize_pricing_number, pricing_date, _validity_rank
+from lambda_erp.controllers import price_resolution
 
 APPLY_ON = ("Item Code", "Item Group")
-APPLICABLE_FOR = ("Customer", "Customer Group", "Territory", "Supplier")
+APPLICABLE_FOR = ("Customer", "Customer Group", "Territory", "Supplier", "Supplier Group")
 
 # Which side of the business a document trades on. Derived from the document
 # type rather than from whether a party field happens to be populated.
@@ -83,36 +84,49 @@ class PricingRule(Document):
             raise ValidationError("Title is required")
         self._set_currency()
 
+        # Deployments add their own match keys (price families, purchasing
+        # groups, ...) with price_resolution.register_price_dimension.
+        item_dimensions = price_resolution.dimensions("item")
+        party_dimensions = price_resolution.dimensions("party")
+
         apply_on = self.apply_on or "Item Code"
-        if apply_on not in APPLY_ON:
+        if apply_on not in APPLY_ON and apply_on not in item_dimensions:
             raise ValidationError(
-                f"Apply On must be one of {', '.join(APPLY_ON)}")
+                f"Apply On must be one of {', '.join([*APPLY_ON, *item_dimensions])}")
         self._data["apply_on"] = apply_on
         if apply_on == "Item Code" and not self.item_code:
             raise ValidationError("Item Code is required when Apply On is Item Code")
         if apply_on == "Item Group" and not self.item_group:
             raise ValidationError("Item Group is required when Apply On is Item Group")
+        if apply_on in item_dimensions and not str(self._data.get("apply_on_value") or "").strip():
+            raise ValidationError(f"apply_on_value is required when Apply On is {apply_on}")
 
         applicable_for = self.applicable_for or None
-        if applicable_for is not None and applicable_for not in APPLICABLE_FOR:
+        if applicable_for is not None and applicable_for not in APPLICABLE_FOR and applicable_for not in party_dimensions:
             raise ValidationError(
-                f"Applicable For must be empty or one of {', '.join(APPLICABLE_FOR)}")
+                f"Applicable For must be empty or one of {', '.join([*APPLICABLE_FOR, *party_dimensions])}")
         required_for = {
             "Customer": "customer",
             "Customer Group": "customer_group",
             "Territory": "territory",
             "Supplier": "supplier",
+            "Supplier Group": "supplier_group",
         }
-        if applicable_for and not self._data.get(required_for[applicable_for]):
+        if applicable_for in required_for and not self._data.get(required_for[applicable_for]):
             raise ValidationError(
                 f"{required_for[applicable_for]} is required when Applicable For is {applicable_for}")
+        if applicable_for in party_dimensions and not str(self._data.get("applicable_for_value") or "").strip():
+            raise ValidationError(f"applicable_for_value is required when Applicable For is {applicable_for}")
 
         if not flt(self._data.get("selling")) and not flt(self._data.get("buying")):
             raise ValidationError("At least one of Selling or Buying must be enabled")
-        if applicable_for in ("Customer", "Customer Group", "Territory") and not flt(self._data.get("selling")):
+        party_type = party_dimensions[applicable_for].party_type if applicable_for in party_dimensions else None
+        if (applicable_for in ("Customer", "Customer Group", "Territory") or party_type == "Customer") \
+                and not flt(self._data.get("selling")):
             raise ValidationError(f"Applicable For {applicable_for} requires Selling")
-        if applicable_for == "Supplier" and not flt(self._data.get("buying")):
-            raise ValidationError("Applicable For Supplier requires Buying")
+        if (applicable_for in ("Supplier", "Supplier Group") or party_type == "Supplier") \
+                and not flt(self._data.get("buying")):
+            raise ValidationError(f"Applicable For {applicable_for} requires Buying")
 
         rtype = self.rate_or_discount or "Discount Percentage"
         if rtype == "Rate" and not flt(self.rate):
@@ -166,19 +180,21 @@ def _trade_side(doc):
 
 def _party_context(db, doc, is_selling):
     """The party dimensions a rule may match on, for this document."""
+    empty = {"customer": None, "customer_group": None, "territory": None, "supplier": None, "supplier_group": None}
     if is_selling:
         customer = doc._data.get("customer")
         if not customer:
-            return {"customer": None, "customer_group": None, "territory": None, "supplier": None}
+            return empty
         row = db.get_value("Customer", customer, ["customer_group", "territory"])
         return {
+            **empty,
             "customer": customer,
             "customer_group": row.customer_group if row else None,
             "territory": row.territory if row else None,
-            "supplier": None,
         }
     supplier = doc._data.get("supplier")
-    return {"customer": None, "customer_group": None, "territory": None, "supplier": supplier}
+    return {**empty, "supplier": supplier,
+            "supplier_group": db.get_value("Supplier", supplier, "supplier_group") if supplier else None}
 
 
 def _specificity(rule):
@@ -189,12 +205,41 @@ def _specificity(rule):
     group. Without this, two equally-prioritised rules would be separated by
     name, and nobody could explain the resulting price.
     """
+    applicable_for = rule.get("applicable_for") or None
     party = {
         "Customer": 3, "Supplier": 3,
-        "Customer Group": 2, "Territory": 2,
-    }.get(rule.get("applicable_for") or None, 0)
-    item = 2 if (rule.get("apply_on") or "Item Code") == "Item Code" else 1
+        "Customer Group": 2, "Territory": 2, "Supplier Group": 2,
+    }.get(applicable_for, 0)
+    party_dimensions = price_resolution.dimensions("party")
+    if applicable_for in party_dimensions:
+        party = party_dimensions[applicable_for].specificity
+    apply_on = rule.get("apply_on") or "Item Code"
+    item = 2 if apply_on == "Item Code" else 1
+    item_dimensions = price_resolution.dimensions("item")
+    if apply_on in item_dimensions:
+        item = item_dimensions[apply_on].specificity
     return party * 10 + item
+
+
+def _rule_order(rule):
+    """Which of several matching rules applies. In this order: the higher
+    priority; the more specific match; the higher min_qty; the narrower
+    validity window; the newer valid_from; the name."""
+    narrow, newest = _validity_rank(rule)
+    return (-int(rule.get("priority") or 0), -_specificity(rule), -flt(rule.get("min_qty")),
+            -narrow, -newest, str(rule.get("name")))
+
+
+def _dimension_clause(kind, column, value_column, context):
+    """SQL for rules that match through a registered dimension."""
+    clauses, params = [], []
+    for name, dimension in price_resolution.dimensions(kind).items():
+        values = sorted({str(v) for v in (dimension.resolve(context) or ()) if v not in (None, "")})
+        if not values:
+            continue
+        clauses.append(f" OR ({column} = ? AND {value_column} IN ({', '.join('?' for _ in values)}))")
+        params += [name, *values]
+    return "".join(clauses), params
 
 
 def apply_pricing_rules(doc):
@@ -211,7 +256,7 @@ def apply_pricing_rules(doc):
         return
 
     db = get_db()
-    on_date = doc._data.get("posting_date") or doc._data.get("transaction_date") or nowdate()
+    on_date = pricing_date(doc)
     is_selling, is_buying = _trade_side(doc)
     if not (is_selling or is_buying):
         return
@@ -219,12 +264,25 @@ def apply_pricing_rules(doc):
     company_currency = db.get_value("Company", doc.get("company"), "default_currency") if doc.get("company") else None
     doc_currency = doc._data.get("currency") or company_currency
     stored = _stored_lines(db, doc)
+    stamps = "price_source" in db._get_table_columns(doc.CHILD_TABLES["items"][0]) \
+        if "items" in getattr(doc, "CHILD_TABLES", {}) else False
+    strict = price_resolution.strict_conflicts()
 
     for item in doc.get("items") or []:
+        saved = stored.get(item.get("name"))
+        if stamps and not item.get("price_source"):
+            # A line saved again without its provenance keeps what it had; a
+            # rate that arrived with the line was entered by the caller.
+            if saved and saved.get("item_code") == item.get("item_code") and saved.get("price_source"):
+                item["price_source"], item["price_reference"] = saved["price_source"], saved.get("price_reference")
+            elif item.get("rate") is not None:
+                item["price_source"], item["price_reference"] = "Entered", None
         if flt(item.get("ignore_pricing_rule")):
             continue
-        if _rate_changed_by_user(item, stored.get(item.get("name"))):
+        if _rate_changed_by_user(item, saved):
             _keep_manual_rate(item)
+            if stamps:
+                item["price_source"], item["price_reference"] = "Manual", None
             continue
         # An explicit free line must not acquire a price from a rule.
         if item.get('rate') is not None and flt(item['rate']) == 0:
@@ -240,6 +298,10 @@ def apply_pricing_rules(doc):
         base_rate = flt(item.get("price_list_rate") or item.get("rate", 0))
         amount = flt(qty * base_rate, 2)
         item_group = db.get_value("Item", item_code, "item_group")
+        context = {**party, "item_code": item_code, "item_group": item_group, "company": doc.get("company"),
+                   "currency": doc_currency, "date": on_date, "side": "selling" if is_selling else "buying"}
+        item_sql, item_params = _dimension_clause("item", "apply_on", "apply_on_value", context)
+        party_sql, party_params = _dimension_clause("party", "applicable_for", "applicable_for_value", context)
 
         rules = db.sql(
             """
@@ -256,6 +318,7 @@ def apply_pricing_rules(doc):
               AND (
                     (COALESCE(apply_on, 'Item Code') = 'Item Code' AND item_code = ?)
                  OR (apply_on = 'Item Group' AND item_group IS NOT NULL AND item_group = ?)
+                 """ + item_sql + """
               )
               AND (
                     applicable_for IS NULL OR applicable_for = ''
@@ -263,6 +326,8 @@ def apply_pricing_rules(doc):
                  OR (applicable_for = 'Customer Group' AND customer_group = ?)
                  OR (applicable_for = 'Territory'      AND territory      = ?)
                  OR (applicable_for = 'Supplier'       AND supplier       = ?)
+                 OR (applicable_for = 'Supplier Group' AND supplier_group = ?)
+                 """ + party_sql + """
               )
             """,
             [
@@ -271,9 +336,9 @@ def apply_pricing_rules(doc):
                 on_date, on_date,
                 qty, qty,
                 amount, amount,
-                item_code, item_group,
+                item_code, item_group, *item_params,
                 party["customer"], party["customer_group"],
-                party["territory"], party["supplier"],
+                party["territory"], party["supplier"], party["supplier_group"], *party_params,
             ],
         )
 
@@ -283,19 +348,21 @@ def apply_pricing_rules(doc):
         if not rules:
             if item.get("pricing_rule"):
                 _drop_rule(item)
+            price_resolution.trace_rules(item, [], None, [])
             continue
 
         # Priority is the explicit override; specificity is the sensible
-        # default ordering underneath it.
-        rule = sorted(
-            rules,
-            key=lambda r: (
-                -int(r.get("priority") or 0),
-                -_specificity(r),
-                -flt(r.get("min_qty")),
-                str(r.get("name")),
-            ),
-        )[0]
+        # default ordering underneath it; the rest makes the choice between
+        # equals deterministic (see _rule_order).
+        rules = sorted(rules, key=_rule_order)
+        rule = rules[0]
+        tied = [r for r in rules[1:] if _rule_order(r)[:2] == _rule_order(rule)[:2]]
+        price_resolution.trace_rules(item, rules, rule, tied)
+        if strict and tied:
+            raise ValidationError(
+                f"Pricing rules {rule.get('name')} and {', '.join(str(r.get('name')) for r in tied)} apply to "
+                f"{item_code} with the same priority and the same specificity. Give one a higher priority "
+                f"(strict price conflicts are switched on)")
 
         rtype = rule.get("rate_or_discount", "Discount Percentage")
 
@@ -327,7 +394,10 @@ def _stored_lines(db, doc):
     if not getattr(doc, "name", None) or "items" not in getattr(doc, "CHILD_TABLES", {}):
         return {}
     table = doc.CHILD_TABLES["items"][0]
-    rows = db.sql(f'SELECT name, item_code, rate, price_list_rate FROM "{table}" WHERE parent = ?', [doc.name])
+    columns = "name, item_code, rate, price_list_rate"
+    if "price_source" in db._get_table_columns(table):
+        columns += ", price_source, price_reference"
+    rows = db.sql(f'SELECT {columns} FROM "{table}" WHERE parent = ?', [doc.name])
     return {r["name"]: r for r in rows}
 
 

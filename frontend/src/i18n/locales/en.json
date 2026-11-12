@@ -746,7 +746,10 @@
     "Reserved": "Reserved",
     "Available": "Available",
     "Open Sales Orders": "Open Sales Orders",
-    "On Purchase Order": "On Purchase Order"
+    "On Purchase Order": "On Purchase Order",
+    "Price Source": "Price Source",
+    "Apply On Value": "Apply On Value",
+    "Applicable For Value": "Applicable For Value"
   },
   "tables": {
     "accounts": "accounts",

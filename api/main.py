@@ -64,6 +64,8 @@ async def lifespan(app: FastAPI):
         initialize_record_notes()
         from api.stock_actions import initialize_stock_actions
         initialize_stock_actions()
+        from api.pricing_actions import initialize_pricing_actions
+        initialize_pricing_actions()
         from api.menu_layout import initialize_menu_layout
         initialize_menu_layout()
         from api.pdf_templates import initialize_pdf_templates

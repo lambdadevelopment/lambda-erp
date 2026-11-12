@@ -89,6 +89,8 @@ const ITEM_FIELDS: FieldDef[] = [
   { name: "qty", label: "Qty", type: "number", required: true },
   { name: "rate", label: "Rate", type: "currency", default: null, hint: "Leave blank to resolve the customer or company price on save. Enter 0 for a free line." },
   { name: "amount", label: "Amount", type: "currency", readOnly: true },
+  { name: "price_source", label: "Price Source", type: "text", readOnly: true,
+    hint: "Where the price came from: Item Price, Standard Rate, Entered, Manual (changed by hand; no longer repriced) or None (no price found)." },
 ];
 
 // Quotation lines additionally carry a billing frequency: one-time or a
@@ -672,11 +674,14 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "apply_on", label: "Apply On", type: "select", options: ["Item Code", "Item Group"], default: "Item Code", required: true },
       { name: "item_code", label: "Item", type: "link", linkDoctype: "item", hint: "Required when Apply On is Item Code." },
       { name: "item_group", label: "Item Group", type: "text", hint: "Required when Apply On is Item Group." },
-      { name: "applicable_for", label: "Applicable For", type: "select", options: ["Customer", "Customer Group", "Territory", "Supplier"], hint: "Leave blank to apply to everyone. Otherwise fill the matching field below." },
+      { name: "apply_on_value", label: "Apply On Value", type: "text", hint: "Only for an Apply On key added by your deployment (for example a price family): the value the rule is for." },
+      { name: "applicable_for", label: "Applicable For", type: "select", options: ["Customer", "Customer Group", "Territory", "Supplier", "Supplier Group"], hint: "Leave blank to apply to everyone. Otherwise fill the matching field below." },
       { name: "customer", label: "Customer", type: "link", linkDoctype: "customer" },
       { name: "customer_group", label: "Customer Group", type: "text" },
       { name: "territory", label: "Territory", type: "text" },
       { name: "supplier", label: "Supplier", type: "link", linkDoctype: "supplier" },
+      { name: "supplier_group", label: "Supplier Group", type: "text" },
+      { name: "applicable_for_value", label: "Applicable For Value", type: "text", hint: "Only for an Applicable For key added by your deployment (for example a purchasing group): the value the rule is for." },
       { name: "selling", label: "Selling", type: "select", options: ["1", "0"], default: "1" },
       { name: "buying", label: "Buying", type: "select", options: ["1", "0"], default: "0" },
       { name: "rate_or_discount", label: "Type", type: "select", options: ["Discount Percentage", "Discount Amount", "Rate"], default: "Discount Percentage" },
@@ -689,7 +694,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "max_amt", label: "Max Amount", type: "currency", hint: "Zero means no upper limit." },
       { name: "valid_from", label: "Valid From", type: "date" },
       { name: "valid_upto", label: "Valid Upto", type: "date" },
-      { name: "priority", label: "Priority", type: "number" },
+      { name: "priority", label: "Priority", type: "number", hint: "The rule with the highest priority applies. Among equals: the more specific match, the higher Min Qty, the narrower validity, the newer Valid From, then the name." },
       { name: "company", label: "Company", type: "link", linkDoctype: "company" },
       { name: "currency", label: "Currency", type: "select", optionsSource: "currency", hint: "Rate and Discount Amount apply only to documents in this currency. Defaults to the company currency." },
       { name: "enabled", label: "Enabled", type: "select", options: ["1", "0"], default: "1" },

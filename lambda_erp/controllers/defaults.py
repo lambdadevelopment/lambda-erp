@@ -114,7 +114,7 @@ def derived_line_pricing_fields(item):
     date or a newly added rule); lines added to the new document still get
     rules."""
     fields = {field: item.get(field) for field in (
-        "external_line_reference", "pricing_rule",
+        "external_line_reference", "pricing_rule", "price_source", "price_reference",
     )}
     fields["ignore_pricing_rule"] = 1
     return fields

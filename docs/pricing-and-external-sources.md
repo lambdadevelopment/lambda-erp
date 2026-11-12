@@ -14,11 +14,128 @@ later master-price changes do not automatically reprice an existing draft.
 
 Pricing Rules modify the base price. Match by item or item group and optionally
 customer, customer group, territory or supplier, with date, quantity and line
-amount limits. Highest priority wins, then specificity, then minimum quantity
-and name. One rule applies per line. A discount retains its base across repeated
+amount limits. Highest priority wins, then specificity, then the tie-breakers
+listed under "Resolution, in full" below. One rule applies per line. A discount retains its base across repeated
 saves. Use `ignore_pricing_rule=1` on a document or line to preserve agreed prices.
 Tax, explicit line discounts and document discounts still affect calculated
 amounts; this flag is not a guarantee that an imported total matches.
+
+## Resolution, in full (1.4.9)
+
+Every priced document (quotation, sales order, sales / POS invoice, purchase
+order, purchase invoice) runs the same two steps when it is saved, whatever
+created it: the form, REST, chat, MCP or an import.
+
+**1. Base price.** For a line without a rate: the Item Price of the
+document's price list, else `Item.standard_rate`. Among the Item Prices that
+apply, in this order: a row for this customer / supplier; a row for this unit;
+the highest `min_qty` reached; the narrower validity window; the newer
+`valid_from`; the name.
+
+**2. One pricing rule on top.** Among the rules that match, in this order:
+the higher `priority`; the more specific match (one customer beats a group
+beats everybody; an item beats an item group); the higher `min_qty`; the
+narrower validity window; the newer `valid_from`; the name. Rules do not
+stack. The same inputs always give the same result.
+
+With the setting `pricing_strict_conflicts` = 1, a line is refused when two
+rules of the same priority and specificity apply to it, instead of being
+decided by the remaining tie-breakers.
+
+### The pricing date
+
+Prices and rules are looked up for the document's `pricing_date` when set,
+else its posting / transaction date. A price or rule valid from next month
+does not apply to a document dated today, whenever it is saved, and a
+document dated before a change keeps the earlier price when it is saved again.
+
+### What is kept on the line
+
+| Field | |
+|---|---|
+| `price_source` | `Item Price`, `Standard Rate`, `Entered` (the rate came with the line), `Manual` (changed by hand on a saved line) or `None` (no Item Price and no standard rate: the line is priced at 0 and the document carries a `price_missing` warning). |
+| `price_reference` | The Item Price, when that is the source. |
+| `pricing_rule` | The rule applied on top, if any. |
+| `price_list_rate` | The base price the rule was applied to. |
+
+Lines created before 1.4.9 have an empty `price_source`.
+
+### When a price changes, and when it does not
+
+- On every save of a **draft**, the pricing rule of each line is chosen again
+  for the document's pricing date, so a changed, new or disabled rule reaches
+  the draft the next time it is saved (unless the line is manual or carried).
+  The base price is filled once: a later change of an Item Price does not
+  move it. Clear the line's rate to resolve it again.
+- A rate the user changes on a saved line is **Manual**: no rule touches it
+  again.
+- Lines **converted** from another document (quotation → order → invoice,
+  returns) keep the price agreed there, and its source.
+- **Submitted** documents are never repriced.
+- Delivery notes and purchase receipts do not run pricing rules: converted
+  lines carry the order's price, lines entered directly use the rate given or
+  the item's standard rate.
+
+### Explaining a price
+
+The action `explain_price` (REST `POST /api/actions/explain_price`, chat,
+MCP; `lambda_erp.controllers.price_resolution` in code) answers two questions
+without saving anything:
+
+- **What would it cost?** `{"item_code": ..., "customer": ..., "qty": ...,
+  "date": ...}` (or `supplier` with a purchase `doctype`). It builds the
+  document in memory and runs the two steps above, so the answer is what a
+  real document gets. It returns the rate, the base source, the rule applied,
+  every other rule that matched and `tied_with`.
+- **Why is this line priced like this?** `{"doctype": ..., "name": ...,
+  "line": ...}` returns the decision stored on the line, with the validity of
+  the Item Price and rule it names.
+
+Explanations of purchase prices are refused for a user whose access profile
+hides purchase prices.
+
+### Deployment-defined rule keys (price families, purchasing groups)
+
+A pricing rule matches an item by Item Code or Item Group, and a party by
+Customer, Customer Group, Territory, Supplier or Supplier Group. A deployment
+adds its own keys:
+
+```python
+from lambda_erp.controllers.price_resolution import register_price_dimension
+
+def price_family(ctx):          # ctx: item_code, item_group, customer, supplier, side, date, ...
+    column = "price_family" if ctx["side"] == "selling" else "buying_price_family"
+    value = get_db().get_value("Item", ctx["item_code"], column)
+    return [value] if value else []
+
+def purchasing_groups(ctx):
+    return [row["group_name"] for row in get_db().sql(
+        'SELECT group_name FROM "Purchasing Group Member" WHERE customer = ?', [ctx["customer"]])]
+
+register_price_dimension("Price Family", "item", price_family)
+register_price_dimension("Purchasing Group", "party", purchasing_groups, party_type="Customer")
+```
+
+A rule then uses `apply_on = "Price Family"` with `apply_on_value`, or
+`applicable_for = "Purchasing Group"` with `applicable_for_value`. The
+deployment only says which values an item or party has; matching, ranking and
+the price stay in the rule engine. Buying and selling can be assigned
+differently (`ctx["side"]`). `specificity` places a key between the built-in
+ones when priorities are equal (defaults: like Item Group, like Customer
+Group).
+
+Typical levels, lowest to highest, with default priorities:
+
+| Level | Rule |
+|---|---|
+| List price | Item Price (or a Rate rule on the family for everybody) |
+| Family price | `apply_on` = family |
+| Group price | family + `applicable_for` = purchasing group |
+| Customer price | family + `applicable_for` = Customer |
+| Individual exception | `apply_on` = Item Code + Customer |
+
+Each level beats the one above it by specificity alone; `priority` is there
+for the deliberate override (a campaign).
 
 ## External identities and recovery
 

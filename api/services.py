@@ -551,6 +551,13 @@ def _document_validation(doc):
     warnings = []
     for provider in DOCUMENT_WARNING_PROVIDERS:
         warnings.extend(provider(doc) or ())
+    if "items" in doc.CHILD_TABLES:
+        # "I have no list price": say so instead of quietly pricing at zero.
+        for idx, row in enumerate(doc.get('items') or [], 1):
+            if row.get('price_source') == 'None' and not row.get('rate'):
+                warnings.append({'code': 'price_missing', 'message': (
+                    f"Row {idx}: no price found for {row.get('item_code')} (no Item Price applies and the item "
+                    f"has no standard rate); the line is priced at 0.")})
     if doc.DOCTYPE == 'Proposal' and (not doc.get('customer') or not doc.get('company') or not doc.get('quotations')):
         warnings.append({'code': 'proposal_incomplete', 'message': 'Draft saved; PDF output requires Customer, Company and at least one Quotation.'})
     if doc.DOCTYPE == "Reservation" and not doc.get("asset") and doc.get("status") in {"Reserved", "Out"}:

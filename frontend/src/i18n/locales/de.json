@@ -704,7 +704,10 @@
     "Reserved": "Reserviert",
     "Available": "Verfügbar",
     "Open Sales Orders": "Offene Aufträge",
-    "On Purchase Order": "In Bestellung"
+    "On Purchase Order": "In Bestellung",
+    "Price Source": "Preisquelle",
+    "Apply On Value": "Wert zu „Anwenden auf“",
+    "Applicable For Value": "Wert zu „Gilt für“"
   },
   "tables": {
     "items": "Positionen",

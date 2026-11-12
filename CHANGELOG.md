@@ -13,6 +13,33 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.9] - 2026-11-12
+
+Migration 55 runs on startup. Existing documents are not repriced; their
+lines keep an empty `price_source`. See `docs/pricing-and-external-sources.md`.
+
+- **Price decisions are kept on the line.** `price_source` (Item Price,
+  Standard Rate, Entered, Manual, None) and `price_reference` next to the
+  existing `pricing_rule`. Conversions carry them. A line with no price source
+  is priced at 0 and the document now carries a `price_missing` warning.
+- **Explain a price.** New read-only action `explain_price` (REST, chat, MCP):
+  what a line would cost for a customer or supplier on a date and why (base
+  price, rule applied, other rules that matched, ties), or the decision stored
+  on a saved line. It runs the same steps a document runs. Purchase-side
+  explanations follow access profiles.
+- **Deployment-defined rule keys.** `register_price_dimension` lets a plugin
+  add match keys for pricing rules, such as a price family of items or a
+  purchasing group of customers, separately for buying and selling. Rules get
+  `apply_on_value` / `applicable_for_value`. Built in: rules for a Supplier
+  Group.
+- **Deterministic choice between equals.** Item Prices and pricing rules that
+  tie are now decided by the narrower validity window, then the newer
+  `valid_from`, before the name; an Item Price for the line's unit beats one
+  for any unit. Setting `pricing_strict_conflicts` refuses a line with two
+  rules of equal priority and specificity instead.
+- **Explicit pricing date.** Optional `pricing_date` on priced documents
+  overrides the document date for looking up prices and rules.
+
 ## [1.4.8] - 2026-11-12
 
 Migration 54 runs on startup. Nothing is reserved or blocked by it. See
