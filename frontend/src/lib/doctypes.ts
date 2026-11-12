@@ -646,6 +646,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "valid_upto", label: "Valid Upto", type: "date" },
       { name: "priority", label: "Priority", type: "number" },
       { name: "company", label: "Company", type: "link", linkDoctype: "company" },
+      { name: "currency", label: "Currency", type: "select", optionsSource: "currency", hint: "Rate and Discount Amount apply only to documents in this currency. Defaults to the company currency." },
       { name: "enabled", label: "Enabled", type: "select", options: ["1", "0"], default: "1" },
     ],
     childTables: [],

@@ -88,8 +88,9 @@ async def lifespan(app: FastAPI):
         # Seed a deterministic admin from the environment (if configured) before
         # anyone can register. On deployments whose DB is recreated each rollout
         # this stops the first visitor after a redeploy from grabbing admin.
-        from api.auth import ensure_seed_admin
+        from api.auth import disable_public_demo_if_switched_off, ensure_seed_admin
         ensure_seed_admin()
+        disable_public_demo_if_switched_off()
 
         # When packaged as a demo container, land visitors straight in demo mode.
         if os.environ.get("LAMBDA_ERP_AUTO_DEMO") == "1":

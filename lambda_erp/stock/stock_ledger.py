@@ -83,6 +83,27 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
     if not db._in_transaction:
         db.commit()
 
+def make_cancel_sl_entries(sl_entries):
+    """Post the reversal of a voucher's stock entries on cancel.
+
+    Unlike before 1.4.2 (every cancel passed allow_negative_stock=True), a
+    reversal may not take stock below zero: cancelling a receipt whose goods
+    have since been delivered or issued is refused, the caller's transaction
+    rolls back, and nothing is half-reversed. Reversals that put stock back
+    (cancelling a delivery or an issue) are never affected.
+    """
+    try:
+        make_sl_entries(sl_entries, allow_negative_stock=False)
+    except NegativeStockError as exc:
+        first = sl_entries[0] if sl_entries else {}
+        voucher = f"{first.get('voucher_type') or 'this document'} {first.get('voucher_no') or ''}".strip()
+        raise NegativeStockError(
+            f"Cannot cancel {voucher}: its goods have already left the warehouse "
+            f"(they were delivered, issued or moved since). Cancel or return those "
+            f"documents first. {exc}"
+        ) from exc
+
+
 def update_stock_values(sle, allow_negative_stock=False):
     """Calculate qty_after_transaction, valuation_rate, stock_value.
 
@@ -270,63 +291,74 @@ def build_buy_side_sles(doc, items):
         ))
     return sl_entries
 
+def stock_account_for(company, warehouse=None):
+    """The Stock account a warehouse's stock value is booked on.
+
+    The warehouse's own `account` if set, else the company's
+    `stock_in_hand_account`, else the company's first leaf account of type
+    Stock. Every stock-moving document resolves it here: before 1.4.2 Stock
+    Entry used the warehouse account (falling back to *any* Stock account)
+    while receipts, invoices and deliveries always used the company's
+    stock_in_hand_account, so the GL drifted from the warehouses' stock value
+    as soon as a warehouse had its own account (or a chart had several Stock
+    accounts).
+    """
+    from lambda_erp.exceptions import ValidationError
+
+    db = get_db()
+    account = db.get_value("Warehouse", warehouse, "account") if warehouse else None
+    if account:
+        info = db.get_value("Account", account, ["company", "is_group", "account_type"])
+        if not info or info.company != company or info.is_group or info.account_type != "Stock":
+            raise ValidationError(
+                f"Warehouse {warehouse}: its account {account} must be a Stock account belonging to {company}")
+        return account
+    return db.get_value("Company", company, "stock_in_hand_account") or db.get_value(
+        "Account", {"company": company, "account_type": "Stock", "is_group": 0}, "name")
+
+
 def build_cost_basis_gl(doc, *, remarks=None):
     """Dr COGS / Cr Stock In Hand at cost for a sell-side doc.
 
     Reads stock_value_difference from the SLEs already posted for this
     voucher, so call this AFTER make_sl_entries. Sign handles returns:
     stock_value_difference is negative for outgoing (Dr COGS/Cr SIH) and
-    positive for returns (Cr COGS/Dr SIH).
+    positive for returns (Cr COGS/Dr SIH). The stock side is booked per
+    warehouse on its stock account (stock_account_for).
     """
     db = get_db()
 
     default_expense = db.get_value("Company", doc.company, "default_expense_account")
-    stock_account = db.get_value("Company", doc.company, "stock_in_hand_account")
-    if not default_expense or not stock_account:
+    if not default_expense or not stock_account_for(doc.company):
         return []
 
-    cost_rows = db.sql(
-        'SELECT COALESCE(SUM(stock_value_difference), 0) as diff '
+    rows = db.sql(
+        'SELECT warehouse, COALESCE(SUM(stock_value_difference), 0) as diff '
         'FROM "Stock Ledger Entry" '
-        'WHERE voucher_type = ? AND voucher_no = ? AND is_cancelled = 0',
+        'WHERE voucher_type = ? AND voucher_no = ? AND is_cancelled = 0 GROUP BY warehouse',
         [doc.DOCTYPE, doc.name],
     )
-    cost_diff = flt(cost_rows[0]["diff"]) if cost_rows else 0
+    by_account = {}
+    for row in rows:
+        diff = flt(row["diff"])
+        if diff:
+            account = stock_account_for(doc.company, row["warehouse"])
+            by_account[account] = by_account.get(account, 0) + diff
+    cost_diff = sum(by_account.values())
     if not cost_diff:
         return []
 
-    cogs_debit = -cost_diff
-    sih_credit = -cost_diff
     cost_center = db.get_value("Company", doc.company, "default_cost_center")
     remark = remarks or f"{doc.DOCTYPE} {doc.name}"
+    common = dict(voucher_type=doc.DOCTYPE, voucher_no=doc.name, posting_date=doc.posting_date,
+                  company=doc.company, remarks=remark)
 
-    return [
-        _dict(
-            account=default_expense,
-            debit=flt(cogs_debit, 2),
-            debit_in_account_currency=flt(cogs_debit, 2),
-            credit=0,
-            credit_in_account_currency=0,
-            cost_center=cost_center,
-            voucher_type=doc.DOCTYPE,
-            voucher_no=doc.name,
-            posting_date=doc.posting_date,
-            company=doc.company,
-            remarks=remark,
-        ),
-        _dict(
-            account=stock_account,
-            debit=0,
-            debit_in_account_currency=0,
-            credit=flt(sih_credit, 2),
-            credit_in_account_currency=flt(sih_credit, 2),
-            voucher_type=doc.DOCTYPE,
-            voucher_no=doc.name,
-            posting_date=doc.posting_date,
-            company=doc.company,
-            remarks=remark,
-        ),
-    ]
+    gl = [_dict(account=default_expense, debit=flt(-cost_diff, 2), debit_in_account_currency=flt(-cost_diff, 2),
+                credit=0, credit_in_account_currency=0, cost_center=cost_center, **common)]
+    for account, diff in by_account.items():
+        gl.append(_dict(account=account, debit=0, debit_in_account_currency=0,
+                        credit=flt(-diff, 2), credit_in_account_currency=flt(-diff, 2), **common))
+    return gl
 
 def reverse_stock_sles(sl_entries):
     """Flip actual_qty and swap incoming/outgoing rates for cancel-time

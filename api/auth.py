@@ -762,6 +762,30 @@ def _setting_enabled(db, key: str) -> bool:
     return str(value) == "1"
 
 
+def disable_public_demo_if_switched_off() -> int:
+    """With LAMBDA_ERP_ENABLE_PUBLIC_DEMO explicitly "0", no public demo user
+    stays active.
+
+    Demo mode is the enabled ``public_manager`` user: requests without a
+    credential fall back to it (get_current_user, the chat WebSocket). It is
+    created by booting with the flag at 1 or from the admin UI, and survived
+    switching the flag back off, leaving anonymous write access on a
+    deployment that once ran the demo. Unset keeps today's behaviour (the
+    admin UI toggle decides). Returns the number of users disabled.
+    """
+    if os.environ.get("LAMBDA_ERP_ENABLE_PUBLIC_DEMO") != "0":
+        return 0
+    db = get_db()
+    active = db.sql('SELECT name FROM "User" WHERE role = \'public_manager\' AND enabled = 1')
+    for row in active:
+        db.set_value("User", row["name"], {"enabled": 0, "modified": now()})
+    if active:
+        db.commit()
+        print(f"[public-demo] LAMBDA_ERP_ENABLE_PUBLIC_DEMO=0: disabled {len(active)} public demo "
+              "user(s); requests without a credential are now refused", flush=True)
+    return len(active)
+
+
 def ensure_seed_admin() -> dict | None:
     """Idempotently provision an admin account from the environment.
 

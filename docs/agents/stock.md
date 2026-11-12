@@ -16,6 +16,20 @@ for the stock ledger but credits Stock Adjustment (an expense account),
 inflating Y1 profit by the full opening inventory value. Use the
 "Opening Stock" `stock_entry_type` instead.
 
+## Which Stock account
+
+The stock side of every stock GL entry goes through
+`stock_account_for(company, warehouse)`: the warehouse's own `account`
+(validated as a leaf Stock account of the company), else the company's
+`stock_in_hand_account`, else its first Stock account. Never read
+`stock_in_hand_account` directly in a new document; before 1.4.2 only Stock
+Entry honoured `Warehouse.account` and the GL drifted from the warehouses'
+stock value. Sell-side cost (`build_cost_basis_gl`) and Purchase Receipt are
+booked per warehouse.
+
+Cancels go through `make_cancel_sl_entries`, which refuses to drive stock
+negative ("goods have already left the warehouse").
+
 ## Moving-average cost
 
 - The `Bin` table holds current `valuation_rate` per item+warehouse.
@@ -63,9 +77,13 @@ If you swap 2 and 3, the cost-basis GL query returns 0 and GL is wrong.
   `PurchaseInvoice._validate_stock_warehouses` for the pattern (mirror on
   SI for any new flow).
 - **Exclusivity guards** prevent double-ship/double-receive:
-  `SalesInvoice._validate_no_double_shipment` blocks `update_stock=1`
-  when a DN already shipped from the same SO line;
-  `PurchaseInvoice._validate_no_double_receipt` mirrors for PR/PO.
+  `workflow.validate_order_quantities` lets DNs/PRs plus direct-stock
+  invoices move at most the ordered quantity per order line (the rest of a
+  partly delivered line can ship with an `update_stock` invoice).
+  `SalesInvoice._validate_no_double_shipment` /
+  `PurchaseInvoice._validate_no_double_receipt` additionally block
+  `update_stock=1` on lines that name the order but not the order line,
+  when a DN/PR exists for it.
 - Returns (`is_return=1`) are exempt from those guards — the return
   reverses its own original, not a separate DN/PR.
 

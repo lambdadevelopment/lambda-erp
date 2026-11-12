@@ -17,6 +17,19 @@ tightest quantity band, then name. Priority is the deliberate override — it is
 campaign beat a customer's standing rate without rewriting either.
 
 One rule applies per line. Rules do not stack.
+
+Rules match on the document's own date (posting_date / transaction_date), not
+on today. A Rate or Discount Amount rule is a number in one currency
+(`currency`, defaulting to the company's); it only applies to documents in
+that currency. A Discount Percentage rule applies in any currency.
+
+What the rules never override: a rate the user changed on a saved line (the
+line is then marked `ignore_pricing_rule`), lines carried over from a source
+document by a conversion (their price was agreed there), free lines and lines
+with a written deduction. A Rate rule sets the line rate but leaves
+`price_list_rate` at the list price, so the base stays honest when the rule is
+later disabled; a line whose rule no longer matches falls back to its list
+price.
 """
 
 from lambda_erp.model import Document
@@ -68,6 +81,7 @@ class PricingRule(Document):
             normalize_pricing_number(self, field, 1 if field == "enabled" else 0, integer=True)
         if not self.title:
             raise ValidationError("Title is required")
+        self._set_currency()
 
         apply_on = self.apply_on or "Item Code"
         if apply_on not in APPLY_ON:
@@ -115,6 +129,25 @@ class PricingRule(Document):
             raise ValidationError("Min Qty cannot be greater than Max Qty")
         if flt(self.max_amt) and flt(self.min_amt) > flt(self.max_amt):
             raise ValidationError("Min Amt cannot be greater than Max Amt")
+
+
+    def _set_currency(self):
+        """A Rate / Discount Amount is a number in a currency: default it to
+        the company's, or to the one currency all companies share. A global
+        rule across companies with different currencies stays empty and then
+        counts in each document's company currency."""
+        if self._data.get("currency"):
+            return
+        db = get_db()
+        if self.company:
+            self._data["currency"] = db.get_value("Company", self.company, "default_currency")
+            return
+        if (self.rate_or_discount or "Discount Percentage") == "Discount Percentage":
+            return
+        currencies = {r["default_currency"] for r in db.sql(
+            'SELECT DISTINCT default_currency FROM "Company" WHERE default_currency IS NOT NULL')}
+        if len(currencies) == 1:
+            self._data["currency"] = currencies.pop()
 
 
 def _trade_side(doc):
@@ -178,14 +211,20 @@ def apply_pricing_rules(doc):
         return
 
     db = get_db()
-    today = nowdate()
+    on_date = doc._data.get("posting_date") or doc._data.get("transaction_date") or nowdate()
     is_selling, is_buying = _trade_side(doc)
     if not (is_selling or is_buying):
         return
     party = _party_context(db, doc, is_selling)
+    company_currency = db.get_value("Company", doc.get("company"), "default_currency") if doc.get("company") else None
+    doc_currency = doc._data.get("currency") or company_currency
+    stored = _stored_lines(db, doc)
 
     for item in doc.get("items") or []:
         if flt(item.get("ignore_pricing_rule")):
+            continue
+        if _rate_changed_by_user(item, stored.get(item.get("name"))):
+            _keep_manual_rate(item)
             continue
         # An explicit free line must not acquire a price from a rule.
         if item.get('rate') is not None and flt(item['rate']) == 0:
@@ -229,7 +268,7 @@ def apply_pricing_rules(doc):
             [
                 doc.get('company'),
                 int(bool(is_selling)), int(bool(is_buying)),
-                today, today,
+                on_date, on_date,
                 qty, qty,
                 amount, amount,
                 item_code, item_group,
@@ -238,7 +277,12 @@ def apply_pricing_rules(doc):
             ],
         )
 
+        rules = [r for r in rules
+                 if (r.get("rate_or_discount") or "Discount Percentage") == "Discount Percentage"
+                 or (r.get("currency") or company_currency) == doc_currency]
         if not rules:
+            if item.get("pricing_rule"):
+                _drop_rule(item)
             continue
 
         # Priority is the explicit override; specificity is the sensible
@@ -257,7 +301,8 @@ def apply_pricing_rules(doc):
 
         if rtype == "Rate":
             item["rate"] = flt(rule["rate"])
-            item["price_list_rate"] = flt(rule["rate"])
+            if base_rate:
+                item["price_list_rate"] = base_rate
             item["discount_percentage"] = 0
             item["discount_amount"] = 0
         elif rtype == "Discount Percentage":
@@ -274,3 +319,47 @@ def apply_pricing_rules(doc):
             item["rate"] = flt(base_rate - amt, 2)
 
         item["pricing_rule"] = rule.get("name")
+
+
+def _stored_lines(db, doc):
+    """The saved state of this document's lines, by row name (empty for a new
+    document). Lets pricing tell a user's rate edit from a rule's output."""
+    if not getattr(doc, "name", None) or "items" not in getattr(doc, "CHILD_TABLES", {}):
+        return {}
+    table = doc.CHILD_TABLES["items"][0]
+    rows = db.sql(f'SELECT name, item_code, rate, price_list_rate FROM "{table}" WHERE parent = ?', [doc.name])
+    return {r["name"]: r for r in rows}
+
+
+def _rate_changed_by_user(item, saved):
+    """True when a saved line comes back with a different rate but the same
+    item and list price: the user typed a price and it must survive."""
+    if not saved or item.get("rate") is None:
+        return False
+    if item.get("item_code") != saved.get("item_code"):
+        return False
+    if flt(item.get("price_list_rate"), 2) != flt(saved.get("price_list_rate"), 2):
+        return False
+    return flt(item.get("rate"), 2) != flt(saved.get("rate"), 2)
+
+
+def _keep_manual_rate(item):
+    """Freeze a user-set rate: no rule applies to this line any more, and the
+    discount fields say how far it is below the list price (totals would
+    otherwise recompute the rate from a leftover discount percentage)."""
+    rate = flt(item.get("rate"))
+    list_rate = flt(item.get("price_list_rate"))
+    item["ignore_pricing_rule"] = 1
+    item["pricing_rule"] = None
+    item["discount_percentage"] = 0
+    item["discount_amount"] = flt(list_rate - rate, 2) if list_rate > rate else 0
+
+
+def _drop_rule(item):
+    """The line's rule no longer matches (disabled, expired, other currency,
+    quantity changed): back to the list price."""
+    item["pricing_rule"] = None
+    item["discount_percentage"] = 0
+    item["discount_amount"] = 0
+    if flt(item.get("price_list_rate")):
+        item["rate"] = flt(item["price_list_rate"])

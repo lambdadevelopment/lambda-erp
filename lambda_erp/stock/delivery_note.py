@@ -17,6 +17,7 @@ from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
 from lambda_erp.controllers.defaults import set_default_currency
 from lambda_erp.exceptions import ValidationError
 from lambda_erp.stock.stock_ledger import (
+    make_cancel_sl_entries,
     make_sl_entries,
     build_sell_side_sles,
     build_cost_basis_gl,
@@ -116,7 +117,7 @@ class DeliveryNote(Document):
     def on_cancel(self):
         reversed_sles = reverse_stock_sles(self._get_sl_entries())
         if reversed_sles:
-            make_sl_entries(reversed_sles, allow_negative_stock=True)
+            make_cancel_sl_entries(reversed_sles)
 
         make_reverse_gl_entries(
             voucher_type=self.DOCTYPE,

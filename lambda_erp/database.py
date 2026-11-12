@@ -484,7 +484,7 @@ class Database:
                 is_stock_item INTEGER DEFAULT 1,
                 is_fixed_asset INTEGER DEFAULT 0,
                 is_asset_tracked INTEGER DEFAULT 0,
-                valuation_method TEXT DEFAULT 'FIFO',
+                valuation_method TEXT DEFAULT 'Moving Average',
                 default_warehouse TEXT,
                 standard_rate REAL DEFAULT 0,
                 description TEXT
@@ -1318,6 +1318,7 @@ class Database:
                 valid_upto TEXT,
                 priority INTEGER DEFAULT 0,
                 company TEXT,
+                currency TEXT,
                 enabled INTEGER DEFAULT 1,
                 status TEXT DEFAULT 'Active',
                 docstatus INTEGER DEFAULT 0,
@@ -3163,6 +3164,42 @@ def _m046_pdf_templates_all_documents(db: "Database") -> None:
     db.conn.commit()
 
 
+def _m047_sales_order_status_left_to_do(db: "Database") -> None:
+    """Sales Order status says what is left to do. Before 1.4.2 a fully
+    delivered, unbilled order read "To Deliver and Bill" (and a fully billed,
+    undelivered one too); recompute submitted orders with the fixed rule."""
+    db.sql('UPDATE "Sales Order" SET status = CASE '
+           'WHEN COALESCE(per_delivered, 0) < 100 AND COALESCE(per_billed, 0) < 100 THEN \'To Deliver and Bill\' '
+           'WHEN COALESCE(per_delivered, 0) < 100 THEN \'To Deliver\' '
+           'WHEN COALESCE(per_billed, 0) < 100 THEN \'To Bill\' '
+           'ELSE \'Completed\' END WHERE docstatus = 1')
+
+
+def _m048_item_valuation_moving_average(db: "Database") -> None:
+    """Item.valuation_method defaulted to FIFO although the stock ledger only
+    implements moving average; make the stored value say what happens."""
+    db.sql('UPDATE "Item" SET valuation_method = \'Moving Average\' '
+           'WHERE valuation_method IS NULL OR valuation_method <> \'Moving Average\'')
+
+
+def _m049_pricing_rule_currency(db: "Database") -> None:
+    """A Rate / Discount Amount rule is a number in one currency. Backfill the
+    company's currency, and for global rules the one currency all companies
+    share (left empty when companies differ: such a rule then counts in each
+    document's company currency)."""
+    db.ensure_column("Pricing Rule", "currency", "TEXT")
+    for company in db.sql('SELECT name, default_currency FROM "Company" WHERE default_currency IS NOT NULL'):
+        db.sql('UPDATE "Pricing Rule" SET currency = ? '
+               'WHERE (currency IS NULL OR currency = \'\') AND company = ?',
+               [company["default_currency"], company["name"]])
+    currencies = [r["default_currency"] for r in db.sql(
+        'SELECT DISTINCT default_currency FROM "Company" WHERE default_currency IS NOT NULL')]
+    if len(currencies) == 1:
+        db.sql('UPDATE "Pricing Rule" SET currency = ? '
+               'WHERE (currency IS NULL OR currency = \'\') AND (company IS NULL OR company = \'\')',
+               [currencies[0]])
+
+
 def _m042_record_notes(db: "Database") -> None:
     """Internal team notes on any document or master (see api.record_notes)."""
     db.conn.execute(
@@ -3229,6 +3266,9 @@ Database.MIGRATIONS = [
     (44, "quotation_intro_text", _m044_quotation_intro_text),
     (45, "line_discount_label", _m045_line_discount_label),
     (46, "pdf_templates_all_documents", _m046_pdf_templates_all_documents),
+    (47, "sales_order_status_left_to_do", _m047_sales_order_status_left_to_do),
+    (48, "item_valuation_moving_average", _m048_item_valuation_moving_average),
+    (49, "pricing_rule_currency", _m049_pricing_rule_currency),
 ]
 
 

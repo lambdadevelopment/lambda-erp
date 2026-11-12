@@ -270,6 +270,8 @@ def _validate_master_input(master_type, doctype, data, name=None):
     for field, table in MASTER_LINK_FIELDS.get(master_type, {}).items():
         if merged.get(field) and not db.exists(table, merged[field]):
             raise ValidationError(f'{doctype}: {field} must reference an existing {table}')
+    if master_type == 'item' and data.get('valuation_method') not in (None, '', 'Moving Average'):
+        raise ValidationError('Item: valuation_method must be Moving Average; it is the only valuation the stock ledger implements')
     if master_type == 'company' and data.get('default_sales_tax_template'):
         template = db.get_value('Tax Template', data['default_sales_tax_template'], ['company', 'tax_type'])
         if not template or template['company'] != (name or data.get('name')) or template['tax_type'] != 'Sales':
@@ -300,6 +302,9 @@ def _create_master_record(master_type: str, data: dict) -> dict:
     doc = _normalize_master_data(data)
     doc.pop("creation", None)
     doc.pop("modified", None)
+    if master_type == "item" and not doc.get("valuation_method"):
+        # Databases created before 1.4.2 still carry the column default FIFO.
+        doc["valuation_method"] = "Moving Average"
 
     # Let callers set the code under its intuitive alias (item_code -> name).
     # Conflicting identities must never silently select one of the records.

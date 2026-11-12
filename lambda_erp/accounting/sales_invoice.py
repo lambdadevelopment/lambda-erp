@@ -25,6 +25,7 @@ from lambda_erp.controllers.defaults import (
 from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 from lambda_erp.stock.stock_ledger import (
+    make_cancel_sl_entries,
     make_sl_entries,
     build_sell_side_sles,
     build_cost_basis_gl,
@@ -167,7 +168,13 @@ class SalesInvoice(Document):
         """Block update_stock=1 when the referenced Sales Order already has a
         Delivery Note for the line. Otherwise stock ships twice: once via the
         DN and again when this invoice submits. Returns are exempt (they
-        reverse the SI's own earlier shipment, not a separate DN)."""
+        reverse the SI's own earlier shipment, not a separate DN).
+
+        A line linked to its order line (`sales_order_item`) is covered more
+        precisely by workflow.validate_order_quantities: delivery notes plus
+        direct-stock invoices may not move more than the line ordered, so the
+        rest of a partly delivered line can still ship with this invoice. The
+        coarse check stays for lines that only name the order."""
         if not flt(self.get("update_stock")) or self.is_return:
             return
         db = get_db()
@@ -176,6 +183,8 @@ class SalesInvoice(Document):
             so = item.get("sales_order")
             if not (so or so_item):
                 continue
+            if item.get("sales_order_item"):
+                continue  # order-line capacity check (validate_order_quantities)
             dn_rows = db.sql(
                 'SELECT dn.name AS dn_name '
                 'FROM "Delivery Note Item" dni '
@@ -305,7 +314,7 @@ class SalesInvoice(Document):
         if flt(self.get("update_stock")):
             reversed_sles = reverse_stock_sles(self._get_stock_sl_entries())
             if reversed_sles:
-                make_sl_entries(reversed_sles, allow_negative_stock=True)
+                make_cancel_sl_entries(reversed_sles)
 
         make_reverse_gl_entries(
             voucher_type=self.DOCTYPE,

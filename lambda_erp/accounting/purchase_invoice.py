@@ -21,9 +21,11 @@ from lambda_erp.controllers.defaults import (
 from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 from lambda_erp.stock.stock_ledger import (
+    make_cancel_sl_entries,
     make_sl_entries,
     build_buy_side_sles,
     reverse_stock_sles,
+    stock_account_for,
 )
 from lambda_erp.exceptions import ValidationError
 
@@ -123,9 +125,6 @@ class PurchaseInvoice(Document):
         stock_received_account = db.get_value(
             "Company", self.company, "stock_received_but_not_billed"
         )
-        stock_in_hand_account = db.get_value(
-            "Company", self.company, "stock_in_hand_account"
-        )
         default_cc = db.get_value("Company", self.company, "default_cost_center")
         directly_receiving = flt(self.get("update_stock")) == 1
 
@@ -134,8 +133,10 @@ class PurchaseInvoice(Document):
                 is_stock = 0
                 if item.get("item_code"):
                     is_stock = db.get_value("Item", item["item_code"], "is_stock_item") or 0
-                if is_stock and directly_receiving and stock_in_hand_account:
-                    item["expense_account"] = stock_in_hand_account
+                stock_account = (stock_account_for(self.company, item.get("warehouse"))
+                                 if is_stock and directly_receiving else None)
+                if stock_account:
+                    item["expense_account"] = stock_account
                 elif is_stock and stock_received_account:
                     item["expense_account"] = stock_received_account
                 else:
@@ -200,7 +201,12 @@ class PurchaseInvoice(Document):
     def _validate_no_double_receipt(self):
         """Block update_stock=1 when the referenced Purchase Order already has
         a Purchase Receipt for the line. Otherwise stock arrives twice: once
-        via the PR and again when this invoice submits. Returns are exempt."""
+        via the PR and again when this invoice submits. Returns are exempt.
+
+        A line linked to its order line (`purchase_order_item`) is covered more
+        precisely by workflow.validate_order_quantities (receipts plus
+        direct-stock invoices may not exceed the ordered quantity), so the rest
+        of a partly received line can still be received with this invoice."""
         if not flt(self.get("update_stock")) or self.is_return:
             return
         db = get_db()
@@ -209,6 +215,8 @@ class PurchaseInvoice(Document):
             po_item = item.get("purchase_order_item")
             if not (po or po_item):
                 continue
+            if po_item:
+                continue  # order-line capacity check (validate_order_quantities)
             pr_rows = db.sql(
                 'SELECT pr.name AS pr_name '
                 'FROM "Purchase Receipt Item" pri '
@@ -309,7 +317,7 @@ class PurchaseInvoice(Document):
         if flt(self.get("update_stock")):
             reversed_sles = reverse_stock_sles(self._get_stock_sl_entries())
             if reversed_sles:
-                make_sl_entries(reversed_sles, allow_negative_stock=True)
+                make_cancel_sl_entries(reversed_sles)
 
         make_reverse_gl_entries(
             voucher_type=self.DOCTYPE,

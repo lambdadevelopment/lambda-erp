@@ -96,17 +96,16 @@ class SalesOrder(Document):
         elif self.docstatus == 2:
             self._data["status"] = "Cancelled"
         elif self.docstatus == 1:
-            per_delivered = flt(self.per_delivered)
-            per_billed = flt(self.per_billed)
-
-            if per_delivered >= 100 and per_billed >= 100:
-                self._data["status"] = "Completed"
-            elif per_delivered > 0 and per_delivered < 100:
-                self._data["status"] = "To Deliver"
-            elif per_billed > 0 and per_billed < 100:
-                self._data["status"] = "To Bill"
-            else:
-                self._data["status"] = "To Deliver and Bill"
+            to_deliver = flt(self.per_delivered) < 100
+            to_bill = flt(self.per_billed) < 100
+            # What is still left to do (fully delivered but not billed is "To
+            # Bill", not "To Deliver and Bill").
+            self._data["status"] = (
+                "To Deliver and Bill" if to_deliver and to_bill
+                else "To Deliver" if to_deliver
+                else "To Bill" if to_bill
+                else "Completed"
+            )
 
     def _update_reserved_qty(self, direction=1):
         from lambda_erp.workflow import refresh_order_progress

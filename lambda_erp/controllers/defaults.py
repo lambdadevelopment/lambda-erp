@@ -109,6 +109,12 @@ def derived_pricing_fields(source, *, is_return=False):
 
 
 def derived_line_pricing_fields(item):
-    return {field: item.get(field) for field in (
-        "ignore_pricing_rule", "external_line_reference", "pricing_rule",
+    """Line pricing provenance for a converted line. The price was agreed in
+    the source document, so pricing rules must not re-run on it (with a later
+    date or a newly added rule); lines added to the new document still get
+    rules."""
+    fields = {field: item.get(field) for field in (
+        "external_line_reference", "pricing_rule",
     )}
+    fields["ignore_pricing_rule"] = 1
+    return fields

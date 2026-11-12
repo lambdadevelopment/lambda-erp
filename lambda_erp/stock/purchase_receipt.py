@@ -16,7 +16,7 @@ from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
 from lambda_erp.controllers.defaults import set_default_currency
 from lambda_erp.exceptions import ValidationError
-from lambda_erp.stock.stock_ledger import make_sl_entries, reverse_stock_sles
+from lambda_erp.stock.stock_ledger import make_cancel_sl_entries, make_sl_entries, reverse_stock_sles, stock_account_for
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries, to_base_currency
 
 class PurchaseReceipt(Document):
@@ -116,7 +116,7 @@ class PurchaseReceipt(Document):
         # rolls back. Cheap check first, expensive work after.
         self._check_no_linked_purchase_invoice()
 
-        make_sl_entries(reverse_stock_sles(self._get_sl_entries()), allow_negative_stock=True)
+        make_cancel_sl_entries(reverse_stock_sles(self._get_sl_entries()))
 
         make_reverse_gl_entries(
             voucher_type=self.DOCTYPE,
@@ -188,28 +188,34 @@ class PurchaseReceipt(Document):
         db = get_db()
         gl_entries = []
 
-        stock_account = db.get_value("Company", self.company, "stock_in_hand_account")
         srbnb_account = db.get_value("Company", self.company, "stock_received_but_not_billed")
 
-        if not stock_account or not srbnb_account:
+        if not stock_account_for(self.company) or not srbnb_account:
             return []
 
         total = sum(flt(item.get("amount", 0)) for item in self.get("items"))
         if not total:
             return []
 
-        # Dr: Stock In Hand
-        gl_entries.append(_dict(
-            account=stock_account,
-            debit=flt(total, 2),
-            debit_in_account_currency=flt(total, 2),
-            credit=0,
-            credit_in_account_currency=0,
-            voucher_type=self.DOCTYPE,
-            voucher_no=self.name,
-            posting_date=self.posting_date,
-            company=self.company,
-        ))
+        # Dr: each warehouse's stock account
+        by_account = {}
+        for item in self.get("items"):
+            account = stock_account_for(self.company, item.get("warehouse"))
+            by_account[account] = by_account.get(account, 0) + flt(item.get("amount", 0))
+        for account, amount in by_account.items():
+            if not flt(amount, 2):
+                continue
+            gl_entries.append(_dict(
+                account=account,
+                debit=flt(amount, 2),
+                debit_in_account_currency=flt(amount, 2),
+                credit=0,
+                credit_in_account_currency=0,
+                voucher_type=self.DOCTYPE,
+                voucher_no=self.name,
+                posting_date=self.posting_date,
+                company=self.company,
+            ))
 
         # Cr: Stock Received But Not Billed
         gl_entries.append(_dict(

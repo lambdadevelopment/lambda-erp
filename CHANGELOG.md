@@ -13,6 +13,41 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-11-12
+
+Bug fixes in the core. Migrations 47–49 run on startup.
+
+- Cancelling a stock-moving document (receipt, stock entry, delivery note,
+  direct-stock invoice, POS invoice) whose goods have already left the
+  warehouse is refused ("Cannot cancel …") instead of driving stock negative.
+- Stock value is booked on each warehouse's own `account` on every document,
+  not only on Stock Entries: receipts, purchase invoices with `update_stock`,
+  deliveries and direct-stock sales now use the same resolver (warehouse
+  account, else the company's `stock_in_hand_account`, else its first Stock
+  account), so the GL matches the warehouses' stock value.
+- A direct-stock invoice (`update_stock`) can ship or receive the rest of a
+  partly delivered / received order line; the order-line quantity check
+  decides, instead of refusing any line that has a delivery note / receipt.
+- Sales Order status says what is left to do: fully delivered but unbilled is
+  "To Bill", fully billed but undelivered "To Deliver" (existing orders are
+  recomputed by migration 47).
+- Pricing rules:
+  - match on the document's date, not today;
+  - never revert a rate the user changed on a saved line (the line is marked
+    `ignore_pricing_rule`);
+  - a Rate rule leaves `price_list_rate` at the list price; a line whose rule
+    no longer matches falls back to the list price and drops `pricing_rule`;
+  - converted lines (quotation → order/invoice, order → invoice, …) keep the
+    price agreed in the source document; new lines still get rules;
+  - Rate and Discount Amount rules carry a `currency` (default: the company's)
+    and apply only to documents in it; percentages apply in any currency.
+    Migration 49 backfills existing rules.
+- `Item.valuation_method` is "Moving Average", the only valuation the stock
+  ledger implements (it said FIFO); other values are rejected (migration 48).
+- With `LAMBDA_ERP_ENABLE_PUBLIC_DEMO=0`, startup disables any public demo
+  user, so requests without a credential no longer fall back to it after the
+  demo was switched off.
+
 ## [1.4.1] - 2026-11-10
 
 - Model calls can go through Lambda's gateway (lambda.dev) instead of OpenAI

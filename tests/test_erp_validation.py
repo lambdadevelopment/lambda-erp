@@ -1054,7 +1054,7 @@ def main():
         si_excl.save()
         raise AssertionError("Expected validation error for double-shipment")
     except Exception as err:
-        assert "already shipped" in str(err).lower() or "already shipped" in str(err), \
+        assert "already shipped" in str(err).lower() or "remaining order stock quantity" in str(err), \
             f"Expected double-shipment error, got: {err}"
         print(f"  Rejected with: {err}")
 
@@ -1099,7 +1099,7 @@ def main():
         pi_excl.save()
         raise AssertionError("Expected validation error for double-receipt")
     except Exception as err:
-        assert "already received" in str(err).lower() or "already received" in str(err), \
+        assert "already received" in str(err).lower() or "remaining order stock quantity" in str(err), \
             f"Expected double-receipt error, got: {err}"
         print(f"  Rejected with: {err}")
 

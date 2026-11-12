@@ -20,6 +20,7 @@ from lambda_erp.controllers.defaults import (
 from lambda_erp.controllers.item_price import set_item_defaults
 from lambda_erp.exceptions import ValidationError
 from lambda_erp.stock.stock_ledger import (
+    make_cancel_sl_entries,
     make_sl_entries,
     build_sell_side_sles,
     build_cost_basis_gl,
@@ -183,7 +184,7 @@ class POSInvoice(Document):
         if flt(self._data.get("update_stock")):
             reversed_sles = reverse_stock_sles(self._get_sl_entries())
             if reversed_sles:
-                make_sl_entries(reversed_sles, allow_negative_stock=True)
+                make_cancel_sl_entries(reversed_sles)
 
         make_reverse_gl_entries(
             voucher_type=self.DOCTYPE,

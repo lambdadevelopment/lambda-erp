@@ -13,7 +13,7 @@ GL entries for perpetual inventory.
 from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
-from lambda_erp.stock.stock_ledger import make_sl_entries, reverse_stock_sles
+from lambda_erp.stock.stock_ledger import make_cancel_sl_entries, make_sl_entries, reverse_stock_sles, stock_account_for
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
 from lambda_erp.exceptions import ValidationError
 import math
@@ -192,7 +192,7 @@ class StockEntry(Document):
         for row in reversals:
             row['incoming_rate_is_explicit'] = True
             row['outgoing_rate_is_explicit'] = True
-        make_sl_entries(reversals, allow_negative_stock=True)
+        make_cancel_sl_entries(reversals)
         make_reverse_gl_entries(voucher_type=self.DOCTYPE, voucher_no=self.name)
 
     def _get_gl_entries(self):
@@ -205,13 +205,9 @@ class StockEntry(Document):
             value = flt(row.value, 2)
             if not value:
                 continue
-            account = db.get_value('Warehouse', row.warehouse, 'account') or db.get_value(
-                'Account', {'company': self.company, 'account_type': 'Stock', 'is_group': 0}, 'name')
+            account = stock_account_for(self.company, row.warehouse)
             if not account:
                 raise ValidationError('Stock account is required before posting a valued stock movement')
-            info = db.get_value('Account', account, ['company', 'is_group', 'account_type'])
-            if not info or info.company != self.company or info.is_group or info.account_type != 'Stock':
-                raise ValidationError('Warehouse stock account must be a Stock account belonging to Company')
             amounts[account] = amounts.get(account, 0) + value
         if self.stock_entry_type != 'Material Transfer':
             total = sum(amounts.values())
