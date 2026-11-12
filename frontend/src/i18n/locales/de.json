@@ -1153,6 +1153,8 @@
     "next": "Weiter"
   },
   "attachments": {
+    "drop": "Dateien hier ablegen, um sie anzuhängen",
+    "dropHint": "Dateien hierher ziehen oder «Datei hinzufügen» verwenden.",
     "title": "Anhänge",
     "add": "Datei hinzufügen",
     "uploading": "Wird hochgeladen…",

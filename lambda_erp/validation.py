@@ -116,6 +116,34 @@ def validate_document_requirements(doc):
                 raise ValidationError(f'{prefix}: Warehouse is required for stock item {row["item_code"]}')
 
 
+# Documents whose taxes are posted to the ledger when they are submitted.
+TAX_POSTING_TYPES = {'Sales Invoice', 'Purchase Invoice', 'POS Invoice'}
+
+
+def tax_rows_without_account(doc):
+    """[(row number, description)] of tax rows that carry an amount but name
+    no account: they cannot be posted."""
+    if 'taxes' not in getattr(doc, 'CHILD_TABLES', {}):
+        return []
+    return [(idx, row.get('description') or row.get('charge_type') or 'tax')
+            for idx, row in enumerate(doc.get('taxes') or [], 1)
+            if missing(row.get('account_head')) and abs(flt(row.get('tax_amount')) or flt(row.get('rate'))) > 0]
+
+
+def validate_tax_accounts(doc):
+    """Before an invoice posts: every tax row with an amount names the account
+    it is booked on. Said here in words, instead of the ledger refusing an
+    entry without an account."""
+    if doc.DOCTYPE not in TAX_POSTING_TYPES:
+        return
+    rows = tax_rows_without_account(doc)
+    if rows:
+        named = '; '.join(f'row {idx} ({label})' for idx, label in rows)
+        raise ValidationError(
+            f'{doc.DOCTYPE}: Taxes {named}: Account is required. Set the tax account on the row in the Taxes '
+            f'table (for VAT: the VAT payable / input tax account) before submitting')
+
+
 def document_requirements(cls):
     """Machine-readable minimums plus conditional rules owned by the class."""
     required = list(getattr(cls, 'REQUIRED_FIELDS', ()))

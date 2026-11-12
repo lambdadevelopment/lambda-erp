@@ -1153,6 +1153,8 @@
     "next": "Next"
   },
   "attachments": {
+    "drop": "Drop the files to attach them",
+    "dropHint": "Drag files here or use Add file.",
     "title": "Attachments",
     "add": "Add file",
     "uploading": "Uploading…",

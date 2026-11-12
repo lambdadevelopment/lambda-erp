@@ -13,6 +13,13 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- Attachments: files can be dragged onto the *Attachments* card of a record
+  to add them.
+- A tax row without an account is named: submitting an invoice says
+  "Taxes row 1 (…): Account is required" instead of a bare "account is
+  required", and quotations, orders and draft invoices warn about such a row
+  when they are saved.
+
 ## [1.4.19] - 2026-11-12
 
 Migration 65 runs on startup. See `docs/attachments.md`.

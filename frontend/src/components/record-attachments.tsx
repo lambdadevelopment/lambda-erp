@@ -22,6 +22,9 @@ export function RecordAttachments({ recordType, recordId }: { recordType: string
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  // Files dragged over the card; a counter, since entering a child element
+  // fires another dragenter before the parent's dragleave.
+  const [dragDepth, setDragDepth] = useState(0);
   const enabled = !!user && user.role !== "public_manager";
   const canWrite = user?.role === "manager" || user?.role === "admin";
   const key = ["record-attachments", recordType, recordId];
@@ -50,8 +53,27 @@ export function RecordAttachments({ recordType, recordId }: { recordType: string
   const files: RecordAttachment[] = list.data?.attachments ?? [];
   if (!canWrite && files.length === 0) return null;
 
+  const carriesFiles = (e: React.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+  const dropping = canWrite && dragDepth > 0;
+  const dropHandlers = canWrite ? {
+    onDragEnter: (e: React.DragEvent) => { if (carriesFiles(e)) { e.preventDefault(); setDragDepth((d) => d + 1); } },
+    onDragOver: (e: React.DragEvent) => { if (carriesFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } },
+    onDragLeave: (e: React.DragEvent) => { if (carriesFiles(e)) setDragDepth((d) => Math.max(0, d - 1)); },
+    onDrop: (e: React.DragEvent) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      setDragDepth(0);
+      const dropped = Array.from(e.dataTransfer.files ?? []);
+      if (dropped.length && !upload.isPending) upload.mutate(dropped);
+    },
+  } : {};
+
   return (
-    <section id="attachments" className="rounded-xl bg-surface p-4 ring-1 ring-line">
+    <section
+      id="attachments"
+      {...dropHandlers}
+      className={`rounded-xl bg-surface p-4 ring-1 transition-colors ${dropping ? "bg-brand/5 ring-2 ring-brand" : "ring-line"}`}
+    >
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
           <Paperclip size={14} />
@@ -80,9 +102,15 @@ export function RecordAttachments({ recordType, recordId }: { recordType: string
         )}
       </div>
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {dropping && (
+        <p className="mb-2 rounded-lg border border-dashed border-brand px-3 py-4 text-center text-sm text-brand">
+          {t("attachments.drop", { defaultValue: "Drop the files to attach them" })}
+        </p>
+      )}
       {files.length === 0 ? (
         <p className="text-sm text-fg-muted">
           {t("attachments.empty", { defaultValue: "No files yet. Keep the order as it arrived, a signed slip or a certificate here." })}
+          {canWrite ? ` ${t("attachments.dropHint", { defaultValue: "Drag files here or use Add file." })}` : ""}
         </p>
       ) : (
         <ul className="divide-y divide-line">

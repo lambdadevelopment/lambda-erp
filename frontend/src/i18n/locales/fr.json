@@ -1153,6 +1153,8 @@
     "next": "Suivant"
   },
   "attachments": {
+    "drop": "Déposez les fichiers pour les joindre",
+    "dropHint": "Glissez des fichiers ici ou utilisez « Ajouter un fichier ».",
     "title": "Pièces jointes",
     "add": "Ajouter un fichier",
     "uploading": "Envoi…",

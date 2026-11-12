@@ -650,6 +650,15 @@ def _document_validation(doc):
                 warnings.append({'code': 'price_missing', 'message': (
                     f"Row {idx}: no price found for {row.get('item_code')} (no Item Price applies and the item "
                     f"has no standard rate); the line is priced at 0.")})
+    # A tax row without an account cannot be posted. Said on the draft, and
+    # on quotations and orders too, where it would otherwise travel unnoticed
+    # into the invoice.
+    from lambda_erp.validation import tax_rows_without_account
+    if doc.docstatus == 0:
+        for idx, label in tax_rows_without_account(doc):
+            warnings.append({'code': 'tax_account_missing', 'field': 'taxes', 'message': (
+                f"Taxes row {idx} ({label}) has no account. An invoice with this tax row cannot be submitted "
+                f"until the tax account is set on the row.")})
     if doc.DOCTYPE == 'Proposal' and (not doc.get('customer') or not doc.get('company') or not doc.get('quotations')):
         warnings.append({'code': 'proposal_incomplete', 'message': 'Draft saved; PDF output requires Customer, Company and at least one Quotation.'})
     if doc.DOCTYPE == "Reservation" and not doc.get("asset") and doc.get("status") in {"Reserved", "Out"}:

@@ -123,6 +123,27 @@ class RequirementsTest(unittest.TestCase):
         # Intentional free-text service lines and explicit zero-price lines remain valid.
         Quotation(customer='C',company='Test Co',items=[{'description':'Free service','qty':1,'rate':0}]).save()
 
+    def test_tax_row_without_account_is_named_before_posting(self):
+        tax = {'charge_type': 'On Net Total', 'description': 'VAT 8.1 %', 'rate': 8.1}
+        data = {'company': 'Test Co', 'customer': 'C', 'items': [{'item_code': 'S', 'qty': 1, 'rate': 100, 'warehouse': 'A'}],
+                'taxes': [tax]}
+        # A quotation and a draft invoice can be saved, and say what is missing.
+        quotation = services.create_document('quotation', {**data, 'transaction_date': '2026-11-12'})
+        self.assertEqual([w['code'] for w in quotation['_validation']['warnings']], ['tax_account_missing'])
+        invoice = services.create_document('sales-invoice', {**data, 'posting_date': '2026-11-12'})
+        self.assertIn('Taxes row 1 (VAT 8.1 %) has no account', invoice['_validation']['warnings'][0]['message'])
+        # Submitting names the row instead of the ledger refusing an entry.
+        with self.assertRaisesRegex(ValidationError, r'Taxes row 1 \(VAT 8.1 %\): Account is required'):
+            services.submit_document('sales-invoice', invoice['name'])
+        self.assertEqual(self.db.get_value('Sales Invoice', invoice['name'], 'docstatus'), 0)
+        self.assertFalse(self.db.sql('SELECT 1 FROM "GL Entry" WHERE voucher_no = ?', [invoice['name']]))
+        # With the account it posts, and the warning is gone.
+        account = self.db.sql('SELECT name FROM "Account" WHERE company = ? AND account_type = ? AND COALESCE(is_group, 0) = 0 LIMIT 1',
+                              ['Test Co', 'Tax'])[0]['name']
+        fixed = services.update_document('sales-invoice', invoice['name'], {'taxes': [{**tax, 'account_head': account}]})
+        self.assertEqual(fixed['_validation']['warnings'], [])
+        self.assertEqual(services.submit_document('sales-invoice', invoice['name'])['docstatus'], 1)
+
     def test_stock_writes_fail_before_posting(self):
         for cls in [DeliveryNote, SalesInvoice]:
             doc=cls(customer='C',company='Test Co',update_stock=1,

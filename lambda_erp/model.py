@@ -419,6 +419,8 @@ class Document:
                 self._require_in_scope()
                 from lambda_erp.validation import validate_document_requirements
                 validate_document_requirements(self)
+                from lambda_erp.validation import validate_tax_accounts
+                validate_tax_accounts(self)
                 self._validate_links()
                 self.before_submit()
                 self._data["docstatus"] = SUBMITTED
