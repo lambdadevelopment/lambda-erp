@@ -77,6 +77,15 @@ app, the REST API, the chat (before anything reaches the model), MCP and PDFs.
   aggregated either.
 - **PDFs** (also archived or previously generated ones, and PDF template
   previews) are refused for a document type with hidden fields.
+- **Files and internal notes** kept with a record are free content that
+  cannot be redacted, so they are hidden as a whole by class: by default the
+  class of the record type they are kept with (purchasing documents and
+  suppliers: purchase prices), per file whatever was set on it
+  (`docs/attachments.md`). The mention inbox shows a note only while its
+  record and its notes are open to the reader.
+- **Currency revaluation** lists open receivables and payables and posts to
+  the ledger: refused for a user who does not see the ledger, and for a user
+  restricted to assigned records.
 - **Writes:** a restricted user can create and edit documents that have
   fields hidden from them; they just never supply those fields.
   - A value sent for a hidden field is refused (403). Blank values, as a
@@ -196,6 +205,9 @@ written without restrictions.
 
 ## Limits to know
 
+- Free text that users type into visible fields (remarks, descriptions) is
+  shown as it is. A purchase price written into the remarks of a purchase
+  order is visible to everyone who can open the order.
 - Sales prices are not a sensitivity class.
 - The `payments` dataset is refused as a whole under `supplier_terms`,
   including customer payments.

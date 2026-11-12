@@ -130,6 +130,12 @@ def run_period_revaluation(company, date=None, *, post=True):
     breakdown only, nothing posted. Raises if a foreign balance exists but no
     Unrealized Exchange Gain/Loss account is configured.
     """
+    # It lists open receivables and payables and posts to the ledger: closed
+    # to a user whose access profile hides the ledger, or who is restricted
+    # to assigned records (lambda_erp.permissions).
+    from lambda_erp import permissions
+    permissions.require("Journal Entry", "create" if post else "read")
+    permissions.require_no_record_scope("the currency revaluation")
     db = get_db()
     on_date = date or nowdate()
     base_ccy = db.get_value("Company", company, "default_currency") or "USD"

@@ -1153,6 +1153,12 @@
     "next": "Suivant"
   },
   "attachments": {
+    "defaultHidden": "Par défaut : {{name}}",
+    "defaultOpen": "Par défaut : non sensible",
+    "notSensitive": "Non sensible",
+    "hiddenWith": "masqué avec {{name}}",
+    "classifyHint": "Qui ne voit pas ce type de données ne reçoit pas le fichier.",
+    "class": {"purchase_price": "prix d'achat", "cost": "coûts", "supplier_terms": "conditions fournisseurs", "margin": "données financières"},
     "drop": "Déposez les fichiers pour les joindre",
     "dropHint": "Glissez des fichiers ici ou utilisez « Ajouter un fichier ».",
     "title": "Pièces jointes",

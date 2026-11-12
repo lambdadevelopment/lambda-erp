@@ -43,6 +43,12 @@ export function RecordAttachments({ recordType, recordId }: { recordType: string
     onSuccess: () => { setError(null); refresh(); },
     onError: (err) => { setError((err as Error).message); refresh(); },
   });
+  const classify = useMutation({
+    mutationFn: ({ id, sensitivity }: { id: string; sensitivity: string | null }) =>
+      api.classifyRecordAttachment(id, sensitivity),
+    onSuccess: () => { setError(null); refresh(); },
+    onError: (err) => setError((err as Error).message),
+  });
   const remove = useMutation({
     mutationFn: (id: string) => api.deleteRecordAttachment(id),
     onSuccess: refresh,
@@ -52,6 +58,17 @@ export function RecordAttachments({ recordType, recordId }: { recordType: string
   if (!enabled || list.isError) return null;
   const files: RecordAttachment[] = list.data?.attachments ?? [];
   if (!canWrite && files.length === 0) return null;
+
+  // A file's content cannot be hidden field by field, so the whole file counts
+  // as a class of sensitive data: by default the one of the record it is kept
+  // with. Someone who sees everything can say otherwise per file.
+  const classes = list.data?.sensitivity_classes ?? {};
+  const defaultClass = list.data?.default_class ?? null;
+  const canClassify = canWrite && !user?.restrictions;
+  const className = (cls: string) => t(`attachments.class.${cls}`, { defaultValue: cls.replace(/_/g, " ") });
+  const defaultLabel = defaultClass
+    ? t("attachments.defaultHidden", { defaultValue: "Default: {{name}}", name: className(defaultClass) })
+    : t("attachments.defaultOpen", { defaultValue: "Default: not sensitive" });
 
   const carriesFiles = (e: React.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
   const dropping = canWrite && dragDepth > 0;
@@ -124,8 +141,26 @@ export function RecordAttachments({ recordType, recordId }: { recordType: string
                   {size(file.size)}
                   {file.uploaded_by ? ` · ${file.uploaded_by}` : ""}
                   {file.created_at ? ` · ${String(file.created_at).slice(0, 10)}` : ""}
+                  {file.sensitivity_class && !canClassify
+                    ? ` · ${t("attachments.hiddenWith", { defaultValue: "hidden with {{name}}", name: className(file.sensitivity_class) })}`
+                    : ""}
                 </div>
               </div>
+              {canClassify && (
+                <select
+                  className="rounded border border-line bg-surface px-2 py-1 text-xs text-fg"
+                  title={t("attachments.classifyHint", { defaultValue: "Who does not see this kind of data does not get the file." })}
+                  value={file.sensitivity ?? ""}
+                  disabled={classify.isPending}
+                  onChange={(e) => classify.mutate({ id: file.id, sensitivity: e.target.value || null })}
+                >
+                  <option value="">{defaultLabel}</option>
+                  <option value="none">{t("attachments.notSensitive", { defaultValue: "Not sensitive" })}</option>
+                  {Object.keys(classes).map((cls) => (
+                    <option key={cls} value={cls}>{className(cls)}</option>
+                  ))}
+                </select>
+              )}
               {canWrite && (
                 <ConfirmButton onConfirm={() => remove.mutate(file.id)}>
                   {t("attachments.remove", { defaultValue: "Remove" })}

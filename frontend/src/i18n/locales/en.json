@@ -1153,6 +1153,12 @@
     "next": "Next"
   },
   "attachments": {
+    "defaultHidden": "Default: {{name}}",
+    "defaultOpen": "Default: not sensitive",
+    "notSensitive": "Not sensitive",
+    "hiddenWith": "hidden with {{name}}",
+    "classifyHint": "Who does not see this kind of data does not get the file.",
+    "class": {"purchase_price": "purchase prices", "cost": "cost", "supplier_terms": "supplier terms", "margin": "financials"},
     "drop": "Drop the files to attach them",
     "dropHint": "Drag files here or use Add file.",
     "title": "Attachments",

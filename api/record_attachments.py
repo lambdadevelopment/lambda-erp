@@ -8,6 +8,12 @@ too) and is never printed with it.
 Whoever may read the record may list and download its files; adding and
 removing them needs the manager role. The demo user gets neither.
 
+A file's content cannot be redacted like a field, so each file carries a
+sensitivity class as a whole (lambda_erp.permissions, free content): its own
+when one was set, else the class of the record type it is kept with. A file
+on a purchase order or a supplier counts as purchase prices and does not
+exist for a user who does not see those.
+
 REST:
     GET    /api/record-attachments?record_type=sales-order&record_id=SO-0001
     POST   /api/record-attachments          (multipart: record_type, record_id, file, description)
@@ -87,25 +93,68 @@ def safe_filename(filename):
     return name or "attachment"
 
 
+def effective_class(row):
+    """The sensitivity class of a stored file: its own, else its record type's."""
+    from lambda_erp import permissions
+    own = row.get("sensitivity")
+    if own:
+        return None if own == permissions.HARMLESS else own
+    return permissions.content_class(_target(row["record_type"]))
+
+
+def _hidden_from(row, user):
+    from lambda_erp import permissions
+    with permissions.acting_as(user):
+        return permissions.content_hidden(effective_class(row))
+
+
+def _check_sensitivity(value, record_type, user, current=None):
+    """A sensitivity setting a caller may give: empty (the record type's
+    class), 'none' (nothing sensitive) or a class. Only someone who sees the
+    classes involved can set or lift one."""
+    from lambda_erp import permissions
+    value = (str(value).strip() or None) if value is not None else None
+    if value not in (None, permissions.HARMLESS) and value not in permissions.SENSITIVITY_CLASSES:
+        raise HTTPException(422, f"sensitivity must be empty, '{permissions.HARMLESS}' or one of "
+                                 f"{', '.join(sorted(permissions.SENSITIVITY_CLASSES))}")
+    default = permissions.content_class(_target(record_type))
+    with permissions.acting_as(user):
+        involved = {default, current, value} - {None, permissions.HARMLESS}
+        blind = sorted(cls for cls in involved if permissions.content_hidden(cls))
+    if blind and (value is not None or current is not None):
+        raise HTTPException(403, "Your access profile hides this kind of content, so you cannot classify files "
+                                 "kept with this record")
+    return value
+
+
 def _public(row):
     return {"id": row["name"], "record_type": row["record_type"], "record_id": row["record_id"],
             "filename": row["filename"], "content_type": row["content_type"], "size": row["size"],
+            "sensitivity": row.get("sensitivity") or None, "sensitivity_class": effective_class(row),
             "description": row.get("description"), "uploaded_by": row.get("uploaded_by_name") or row.get("uploaded_by"),
             "created_at": row.get("creation"), "url": f"/api/record-attachments/{row['name']}"}
 
 
 def list_attachments(record_type, record_id, user):
     _require_record(record_type, record_id, user)
+    from lambda_erp import permissions
     rows = get_db().sql(
         f'SELECT name, record_type, record_id, filename, content_type, size, description, uploaded_by, '
-        f'uploaded_by_name, creation FROM "{TABLE}" WHERE record_type = ? AND record_id = ? ORDER BY creation, name',
-        [record_type, record_id])
-    return {"attachments": [_public(row) for row in rows]}
+        f'uploaded_by_name, creation, sensitivity FROM "{TABLE}" WHERE record_type = ? AND record_id = ? '
+        f'ORDER BY creation, name', [record_type, record_id])
+    # Files of a class hidden from the caller are not there for them, name included.
+    return {"attachments": [_public(row) for row in rows if not _hidden_from(row, user)],
+            "default_class": permissions.content_class(_target(record_type)),
+            "sensitivity_classes": dict(permissions.SENSITIVITY_CLASSES)}
 
 
-def add_attachment(record_type, record_id, filename, data, user, description=None):
-    """Keep a file with a record. Returns its public description."""
+def add_attachment(record_type, record_id, filename, data, user, description=None, sensitivity=None):
+    """Keep a file with a record. Returns its public description.
+
+    `sensitivity`: empty for the record type's class, 'none' for "nothing
+    sensitive in here", or a sensitivity class."""
     _require_record(record_type, record_id, user, write=True)
+    sensitivity = _check_sensitivity(sensitivity, record_type, user)
     filename = safe_filename(filename)
     extension = os.path.splitext(filename)[1].lower()
     if extension not in ALLOWED:
@@ -123,13 +172,13 @@ def add_attachment(record_type, record_id, filename, data, user, description=Non
     name = uuid.uuid4().hex
     db.sql(
         f'INSERT INTO "{TABLE}" (name, record_type, record_id, filename, content_type, size, sha256, data, '
-        f'description, uploaded_by, uploaded_by_name, creation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        f'description, uploaded_by, uploaded_by_name, creation, sensitivity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [name, record_type, record_id, filename, ALLOWED[extension], len(data), hashlib.sha256(data).hexdigest(),
          data, (str(description).strip()[:500] or None) if description else None,
-         user.get("user_id") or user.get("name"), user.get("full_name") or user.get("email"), now()])
+         user.get("user_id") or user.get("name"), user.get("full_name") or user.get("email"), now(), sensitivity])
     db.commit()
     row = db.sql(f'SELECT name, record_type, record_id, filename, content_type, size, description, uploaded_by, '
-                 f'uploaded_by_name, creation FROM "{TABLE}" WHERE name = ?', [name])[0]
+                 f'uploaded_by_name, creation, sensitivity FROM "{TABLE}" WHERE name = ?', [name])[0]
     return _public(row)
 
 
@@ -138,6 +187,8 @@ def _load(attachment_id, user, write=False):
     if not rows:
         raise HTTPException(404, "Attachment not found")
     _require_record(rows[0]["record_type"], rows[0]["record_id"], user, write=write)
+    if _hidden_from(rows[0], user):
+        raise HTTPException(404, "Attachment not found")
     return rows[0]
 
 
@@ -155,11 +206,29 @@ def list_route(record_type: str, record_id: str, user: dict = Depends(get_curren
 
 @router.post("")
 async def upload_route(record_type: str = Form(...), record_id: str = Form(...), file: UploadFile = File(...),
-                       description: str | None = Form(None), user: dict = Depends(get_current_user)):
+                       description: str | None = Form(None), sensitivity: str | None = Form(None),
+                       user: dict = Depends(get_current_user)):
     # Check access before reading the body into memory.
     _require_record(record_type, record_id, user, write=True)
+    _check_sensitivity(sensitivity, record_type, user)
     data = await file.read(MAX_SIZE + 1)
-    return add_attachment(record_type, record_id, file.filename, data, user, description)
+    return add_attachment(record_type, record_id, file.filename, data, user, description, sensitivity)
+
+
+class Classify(mentions.Input):
+    sensitivity: str | None = Field(default=None, max_length=40)
+
+
+@router.put("/{attachment_id}")
+def classify_route(attachment_id: str, body: Classify, user: dict = Depends(get_current_user)):
+    """Change what a file counts as: empty (the record type's class), 'none'
+    or a sensitivity class."""
+    row = _load(attachment_id, user, write=True)
+    value = _check_sensitivity(body.sensitivity, row["record_type"], user, current=row.get("sensitivity") or "default")
+    db = get_db()
+    db.sql(f'UPDATE "{TABLE}" SET sensitivity = ? WHERE name = ?', [value, row["name"]])
+    db.commit()
+    return _public({**row, "sensitivity": value})
 
 
 @router.get("/{attachment_id}")
@@ -198,6 +267,7 @@ class AttachChatFile(mentions.Input):
     record_id: str = Field(min_length=1, max_length=200)
     attachment_id: str = Field(min_length=1, max_length=100)
     description: str | None = Field(default=None, max_length=500)
+    sensitivity: str | None = Field(default=None, max_length=40)
 
 
 def _list_action(args, user):
@@ -212,7 +282,7 @@ def _attach_chat_file(args, user):
     if not found:
         raise HTTPException(404, "That file was not uploaded to one of your conversations")
     return add_attachment(data.record_type, data.record_id, found[0]["filename"], found[0]["data"], user,
-                          data.description)
+                          data.description, data.sensitivity)
 
 
 def initialize_record_attachments():
@@ -227,4 +297,7 @@ def initialize_record_attachments():
         parameters=AttachChatFile.model_json_schema(),
         description="Keep a file the user uploaded to this conversation with a document or master record, e.g. "
                     "the customer's order e-mail or PDF with the sales order made from it. attachment_id is the "
-                    "id of the uploaded file. It does not change the record and is never printed.")
+                    "id of the uploaded file. It does not change the record and is never printed. Leave sensitivity "
+                    "empty: the file then counts as what its record type is about (a file on a purchase order or "
+                    "supplier is hidden from users who do not see purchase prices). Set a sensitivity class only "
+                    "when the user says what the file contains.")

@@ -1153,6 +1153,12 @@
     "next": "Weiter"
   },
   "attachments": {
+    "defaultHidden": "Standard: {{name}}",
+    "defaultOpen": "Standard: nicht sensibel",
+    "notSensitive": "Nicht sensibel",
+    "hiddenWith": "verborgen mit {{name}}",
+    "classifyHint": "Wer diese Art von Daten nicht sieht, erhält die Datei nicht.",
+    "class": {"purchase_price": "Einkaufspreise", "cost": "Einstandswerte", "supplier_terms": "Lieferantenkonditionen", "margin": "Finanzzahlen"},
     "drop": "Dateien hier ablegen, um sie anzuhängen",
     "dropHint": "Dateien hierher ziehen oder «Datei hinzufügen» verwenden.",
     "title": "Anhänge",

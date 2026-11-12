@@ -3687,6 +3687,14 @@ def _m065_record_attachments(db: "Database") -> None:
     db.ensure_column("Delivery Note", "tracking_reference", "TEXT")
 
 
+def _m066_attachment_sensitivity(db: "Database") -> None:
+    """A sensitivity class per attachment (see docs/attachments.md). Files
+    that exist get none of their own and so take the class of the record
+    type they are kept with: what hangs on a purchase order or a supplier is
+    hidden from users who do not see purchase prices."""
+    db.ensure_column("Record Attachment", "sensitivity", "TEXT")
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3792,6 +3800,7 @@ Database.MIGRATIONS = [
     (63, "addresses", _m063_addresses),
     (64, "item_bundles", _m064_item_bundles),
     (65, "record_attachments", _m065_record_attachments),
+    (66, "attachment_sensitivity", _m066_attachment_sensitivity),
 ]
 
 

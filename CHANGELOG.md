@@ -13,6 +13,30 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.20] - 2026-11-12
+
+Migration 66 runs on startup.
+
+- **Fixed: hidden data could be read from attachments and internal notes.**
+  A user whose access profile hides purchase prices could download a file
+  kept with a purchase order or supplier, and read internal notes on them.
+  Files and notes are free content that cannot be redacted, so they are now
+  hidden as a whole by sensitivity class: by default the class of the record
+  type they are kept with, per file whatever is set on it (new: *Not
+  sensitive* or a class, in the Attachments card or over REST). Existing
+  files take their record type's class. **Changed:** restricted users no
+  longer see files and notes on purchasing documents, suppliers and stock
+  entries unless a file is marked not sensitive.
+- **Fixed: the mention inbox showed notes on records the reader may not
+  open** (title and excerpt), for users with an access profile or a record
+  scope.
+- **Fixed: currency revaluation ignored access profiles.** It is refused for
+  a user who does not see the ledger or is restricted to assigned records.
+- The chat's system prompt no longer tells a restricted user how many
+  purchase invoices and payments exist and from when; the chat history tool
+  refuses to run outside a conversation instead of reading all conversations.
+- `permissions.register_content_class`, `content_class`, `content_hidden`.
+
 - Attachments: files can be dragged onto the *Attachments* card of a record
   to add them.
 - A tax row without an account is named: submitting an invoice says

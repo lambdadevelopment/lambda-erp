@@ -164,6 +164,44 @@ def register_sensitive_artifact(kind, name, cls=None, fields=None):
         SENSITIVE_ARTIFACT_FIELDS.setdefault(kind, {}).setdefault(name, {}).update(fields)
 
 
+# -- free content kept with a record ------------------------------------------
+#
+# Fields can be left out of a record. A file attached to it, or an internal
+# note written on it, cannot: nobody knows what is in a supplier's quotation
+# or in "agreed 73.91 with them". So free content carries a sensitivity class
+# as a whole. By default it is the class of the record type it hangs on: what
+# is kept with a purchase order or a supplier counts as purchase prices.
+
+# doctype -> class, for types whose fields carry no class themselves.
+RECORD_CONTENT_CLASSES = {"Supplier": "purchase_price"}
+HARMLESS = "none"
+
+
+def register_content_class(doctype, cls):
+    """Plugin seam: files and internal notes kept with records of this type
+    are hidden with class `cls` (None: they are open, whatever the fields)."""
+    if cls is not None:
+        _check_class(cls)
+    RECORD_CONTENT_CLASSES[doctype] = cls
+
+
+def content_class(doctype):
+    """The sensitivity class of free content kept with a record of this type,
+    or None: registered explicitly, else the class that hides the type, else
+    the first class among its sensitive fields."""
+    if doctype in RECORD_CONTENT_CLASSES:
+        return RECORD_CONTENT_CLASSES[doctype]
+    if doctype in SENSITIVE_DOCTYPES:
+        return SENSITIVE_DOCTYPES[doctype]
+    present = {cls for fields in SENSITIVE_FIELDS.get(doctype, {}).values() for cls in fields.values()}
+    return next((cls for cls in SENSITIVITY_CLASSES if cls in present), None)
+
+
+def content_hidden(cls):
+    """Is free content of this class hidden from the current principal?"""
+    return bool(cls) and cls != HARMLESS and cls in hidden_classes()
+
+
 # -- record scope -------------------------------------------------------------
 #
 # A user can be restricted to assigned records of a dimension (customers,

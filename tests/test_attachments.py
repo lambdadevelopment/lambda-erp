@@ -152,6 +152,109 @@ def check_attachments():
             assert "not uploaded" in str(getattr(exc, "detail", exc)), exc
         os.remove(path)
 
+        # ---- a file cannot be redacted, so it is hidden as a whole ---------------
+        # (also internal notes: both are free content on a record)
+        db.insert("Supplier", {"name": "SUP", "supplier_name": "Supplier", "default_currency": "USD"})
+        db.commit()
+        purchase = services.create_document("purchase-order", {
+            "company": "Test Co", "supplier": "SUP", "transaction_date": "2026-11-12",
+            "items": [{"item_code": "S", "qty": 1, "rate": 73.91, "warehouse": "A"}]})
+        assert admin.post("/api/auth/access-profiles", json={"name": "Blind", "hidden_classes": ["purchase_price"]}).status_code == 200
+        blind_id, blind = make_user("blind@example.com", "manager", access_profile="Blind")
+        quote = b"Supplier quotation: unit price 73.91"
+        kept = {}
+        for record_type, record_id in (("purchase-order", purchase["name"]), ("supplier", "SUP"), ("item", "S"),
+                                       ("sales-order", mine["name"])):
+            r = upload(admin, record_type, record_id, "supplier quotation.txt", quote)
+            assert r.status_code == 200, r.text
+            kept[record_type] = r.json()
+            r = admin.post("/api/actions/add_record_note", json={
+                "doctype": record_type, "record_id": record_id, "body": "Agreed 73.91 with the supplier @blind@example.com",
+                "request_id": f"req-{record_type}-0001"})
+            assert r.status_code == 200, r.text
+        assert kept["purchase-order"]["sensitivity_class"] == kept["supplier"]["sensitivity_class"] == "purchase_price"
+        assert kept["item"]["sensitivity_class"] is None and kept["sales-order"]["sensitivity_class"] is None
+        # The record itself stays readable (without its prices); what hangs on it is gone.
+        assert blind.get(f"/api/documents/purchase-order/{purchase['name']}").status_code == 200
+
+        def reads(client, record_type, record_id):
+            listing = client.get("/api/record-attachments", params={"record_type": record_type, "record_id": record_id})
+            notes = client.post("/api/actions/list_record_notes", json={"record_type": record_type, "record_id": record_id})
+            return listing, notes
+
+        for record_type, record_id in (("purchase-order", purchase["name"]), ("supplier", "SUP")):
+            listing, notes = reads(blind, record_type, record_id)
+            assert listing.status_code == 200 and listing.json()["attachments"] == [], listing.text
+            assert "quotation" not in listing.text and "73.91" not in notes.text, (listing.text, notes.text)
+            r = blind.get(kept[record_type]["url"])
+            assert r.status_code == 404 and quote not in r.content, (record_type, r.status_code)
+            assert blind.delete(kept[record_type]["url"]).status_code == 404
+            assert len(reads(admin, record_type, record_id)[0].json()["attachments"]) == 1
+        inbox = blind.post("/api/actions/list_my_mentions", json={"view": "all"})
+        assert inbox.status_code == 200 and "73.91" in inbox.text, inbox.text  # the open records' notes ...
+        assert purchase["name"] not in inbox.text and '"record_id": "SUP"' not in inbox.text, inbox.text  # ... only those
+        blind_principal = auth.make_auth_principal(
+            dict(db.get_value("User", blind_id, ["name", "email", "full_name", "role", "enabled"])), auth.SESSION_CREDENTIAL)
+        seen = mcp._call("list_record_attachments", {"record_type": "supplier", "record_id": "SUP"}, blind_principal)
+        assert seen["attachments"] == [], seen
+        # Files on records that are not about purchasing stay open, until someone says what is in one.
+        assert blind.get(kept["item"]["url"]).content == quote
+        r = admin.put(kept["item"]["url"], json={"sensitivity": "purchase_price"})
+        assert r.status_code == 200 and r.json()["sensitivity_class"] == "purchase_price", r.text
+        assert blind.get(kept["item"]["url"]).status_code == 404
+        assert reads(blind, "item", "S")[0].json()["attachments"][0]["filename"] == "certificate.pdf"
+        # A file on a purchase order that holds nothing sensitive can be opened up, by someone who sees prices.
+        slip = upload(admin, "purchase-order", purchase["name"], "delivery slip.pdf", sensitivity="none")
+        assert slip.status_code == 200 and slip.json()["sensitivity_class"] is None, slip.text
+        assert blind.get(slip.json()["url"]).content == PDF
+        assert [a["filename"] for a in reads(blind, "purchase-order", purchase["name"])[0].json()["attachments"]] == ["delivery slip.pdf"]
+        # The restricted user can add a file there, but not decide what it counts as, nor reopen a hidden one.
+        own = upload(blind, "purchase-order", purchase["name"], "signed slip.pdf")
+        assert own.status_code == 200, own.text
+        assert blind.get(own.json()["url"]).status_code == 404  # it counts as purchasing content like the rest
+        assert upload(blind, "purchase-order", purchase["name"], "x.pdf", sensitivity="none").status_code == 403
+        assert blind.put(slip.json()["url"], json={"sensitivity": "purchase_price"}).status_code == 403
+        assert upload(admin, "purchase-order", purchase["name"], "x.pdf", sensitivity="secret").status_code == 422
+        # A type a plugin registers says what hangs on it.
+        from lambda_erp import permissions
+        permissions.register_content_class("Sales Order", "purchase_price")
+        try:
+            assert blind.get(kept["sales-order"]["url"]).status_code == 404
+            assert "73.91" not in reads(blind, "sales-order", mine["name"])[1].text
+        finally:
+            permissions.RECORD_CONTENT_CLASSES.pop("Sales Order", None)
+        assert blind.get(kept["sales-order"]["url"]).status_code == 200
+
+        # A mention does not open a record: a note on another customer's order stays out of the inbox.
+        for target, request in ((other["name"], "req-scope-other-01"), (mine["name"], "req-scope-mine-001")):
+            r = admin.post("/api/actions/add_record_note", json={
+                "doctype": "sales-order", "record_id": target, "body": f"Please look at {target} @rep@example.com",
+                "request_id": request})
+            assert r.status_code == 200, r.text
+        inbox = rep.post("/api/actions/list_my_mentions", json={"view": "all"}).json()
+        assert [row["record_id"] for row in inbox["rows"]] == [mine["name"]] and inbox["unread_count"] == 1, inbox
+        # The currency revaluation lists open balances and posts to the ledger.
+        for client in (blind, rep):
+            r = client.post("/api/accounting/revaluation", json={"company": "Test Co"})
+            assert r.status_code == 403, (r.status_code, r.text)
+        assert admin.post("/api/accounting/revaluation", json={"company": "Test Co"}).status_code == 200
+        revalued = mcp._call("revalue_currencies", {"company": "Test Co"}, blind_principal)
+        assert "error" in revalued and "access profile" in revalued["error"], revalued
+
+        # What reaches the model is data too: the prompt of a restricted user says nothing
+        # about what is hidden from them, and the history tool only knows its own conversation.
+        from api import chat as chat_module
+        services.submit_document("purchase-invoice", services.create_document("purchase-invoice", {
+            "company": "Test Co", "supplier": "SUP", "posting_date": "2026-11-12",
+            "items": [{"item_code": "S", "qty": 1, "rate": 73.91, "warehouse": "A"}]})["name"])
+        assert "purchase invoices: 1 submitted" in chat_module.build_system_prompt(admin_principal)
+        for restricted in (blind_principal, principal):
+            prompt = chat_module.build_system_prompt(restricted)
+            assert "purchase invoices:" not in prompt and "73.91" not in prompt, prompt[-600:]
+        assert "sales invoices:" in chat_module.build_system_prompt(blind_principal)
+        assert "error" in chat_module._handle_retrieve_chat_history({})
+        assert "error" in chat_module.TOOL_HANDLERS["retrieve_chat_history"]({"num_messages": 50})
+
         # ---- removing ---------------------------------------------------------
         assert admin.delete(first["url"]).status_code == 200
         assert admin.get(first["url"]).status_code == 404

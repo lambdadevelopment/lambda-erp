@@ -1960,6 +1960,10 @@ def _handle_get_current_time(args):
 
 
 def _handle_retrieve_chat_history(args, session_id=None):
+    # Only ever the conversation the caller is in; without one there is
+    # nothing to retrieve (and never other people's conversations).
+    if not session_id:
+        return {"error": "retrieve_chat_history is only available inside a chat conversation."}
     db = get_db()
     date_from = args.get("date_from")
     date_to = args.get("date_to")
@@ -2582,13 +2586,25 @@ def _prompt_company_context() -> str:
     )
 
 
-def _prompt_analytics_context() -> str:
+def _prompt_analytics_context(user_info: dict | None = None) -> str:
     db = get_db()
     datasets = [
         ("sales invoices", "Sales Invoice", "posting_date", "docstatus = 1"),
         ("purchase invoices", "Purchase Invoice", "posting_date", "docstatus = 1"),
         ("payments", "Payment Entry", "posting_date", "docstatus = 1"),
     ]
+    # The prompt is data that reaches the model: a restricted user gets no
+    # counts or date ranges of what their access profile or record scope hides.
+    from lambda_erp import permissions
+    restrictions = (user_info or {}).get("restrictions")
+    if restrictions:
+        if restrictions.get("scope"):
+            datasets = []
+        else:
+            names = {"Sales Invoice": "sales_invoices", "Purchase Invoice": "purchase_invoices", "Payment Entry": "payments"}
+            with permissions.acting_as(user_info):
+                datasets = [entry for entry in datasets
+                            if permissions.can(entry[1], "read") and not permissions.artifact_denied("dataset", names[entry[1]])]
     lines: list[str] = []
     for label, table, date_field, where in datasets:
         try:
@@ -2667,7 +2683,7 @@ def build_system_prompt(user_info: dict | None = None, channel: str = "web"):
     user_name = user_info.get("full_name", "User") if user_info else "User"
     user_role = user_info.get("role", "viewer") if user_info else "viewer"
     company_context = _prompt_company_context()
-    analytics_context = _prompt_analytics_context()
+    analytics_context = _prompt_analytics_context(user_info)
     uom_context = _prompt_uom_context()
     validation_context = _prompt_validation_context()
 

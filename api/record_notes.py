@@ -82,6 +82,10 @@ def _can_access(record_type, record_id, user):
     try:
         with permissions.acting_as(user):
             permissions.require_readable(target[0], record_id)
+            # A note is free text: what colleagues write on a purchase order or
+            # a supplier counts as what those records are about.
+            if permissions.content_hidden(permissions.content_class(target[0])):
+                return False
     except PermissionDenied:
         return False
     return True
@@ -103,6 +107,11 @@ def _resolve(record_type, note_ids, user):
     rows = get_db().sql(f'SELECT name, record_id, body FROM "{TABLE}" WHERE record_type = ? AND name IN ('
                         + ','.join('?' for _ in note_ids) + ')', [record_type, *note_ids])
     records = _existing(target[0], {row["record_id"] for row in rows})
+    # A mention does not open a record: a note on a record the reader may not
+    # see (access profile, record scope, hidden content) stays out of their
+    # inbox, excerpt and title included.
+    records = {record_id: record for record_id, record in records.items()
+               if _can_access(record_type, record_id, user)}
     return {row["name"]: {
         "record_id": row["record_id"], "title": _title(record_type, records[row["record_id"]]),
         "body": row["body"], "view_url": view_url(record_type, row["record_id"], row["name"]),

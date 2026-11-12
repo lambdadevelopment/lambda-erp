@@ -268,6 +268,10 @@ export interface RecordAttachment {
   description?: string | null;
   uploaded_by?: string | null;
   created_at?: string | null;
+  // What the file counts as: its own setting ("none" = nothing sensitive, a
+  // class, or null for the record type's class) and the class that results.
+  sensitivity?: string | null;
+  sensitivity_class?: string | null;
 }
 
 export interface AccessProfile {
@@ -819,7 +823,12 @@ export const api = {
     request<any>(`/auth/access-profiles/${encodeURIComponent(name)}`, { method: "DELETE" }),
   // Files kept with a document or master record.
   listRecordAttachments: (recordType: string, recordId: string) =>
-    request<{ attachments: RecordAttachment[] }>(`/record-attachments${qs({ record_type: recordType, record_id: recordId })}`),
+    request<{ attachments: RecordAttachment[]; default_class?: string | null; sensitivity_classes?: Record<string, string> }>(
+      `/record-attachments${qs({ record_type: recordType, record_id: recordId })}`),
+  classifyRecordAttachment: (id: string, sensitivity: string | null) =>
+    request<RecordAttachment>(`/record-attachments/${encodeURIComponent(id)}`, {
+      method: "PUT", body: JSON.stringify({ sensitivity }),
+    }),
   uploadRecordAttachment: (recordType: string, recordId: string, file: File, description?: string) => {
     const form = new FormData();
     form.append("record_type", recordType);
