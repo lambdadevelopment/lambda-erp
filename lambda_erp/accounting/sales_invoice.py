@@ -89,6 +89,8 @@ class SalesInvoice(Document):
             self.posting_date = nowdate()
 
         apply_external_source_defaults(self)
+        from lambda_erp.workflow import apply_amount_only
+        apply_amount_only(self)
         self._set_customer_name()
         self._set_missing_accounts()
         set_default_currency(self, "Customer", "customer")

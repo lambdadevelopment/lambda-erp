@@ -13,6 +13,25 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-11-12
+
+Migration 50 runs on startup.
+
+- Credit and debit notes for a price correction: a return Sales Invoice or
+  Purchase Invoice with `amount_only` ("Amount only") corrects money and
+  nothing else.
+  - The order stays billed: before, a credit note for a price difference
+    lowered the billed quantity, so the order could be invoiced in full again.
+  - The goods stay returnable: before, the correction used up the returnable
+    quantity and a later real return was refused. The return converter now
+    proposes the price left after earlier corrections.
+  - No stock moves, also when the original invoice had `update_stock`: before,
+    such a credit note had to put the goods back into stock.
+  - On the purchase side the credit goes to the company's stock adjustment
+    account (else the default expense account) instead of Stock In Hand or
+    Stock Received But Not Billed, so the GL keeps matching the stock value.
+  - Plain returns behave as before.
+
 ## [1.4.3] - 2026-11-12
 
 - A record opened from a link in the chat gets "Back to chat" on the header

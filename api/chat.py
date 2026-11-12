@@ -2865,6 +2865,8 @@ Returns use the SAME document type with negative quantities and `is_return=1`. C
 - **Delivery Note Return:** Convert a submitted Delivery Note. Stock comes back into the warehouse, reverses COGS entries.
 - **Purchase Receipt Return:** Convert a submitted Purchase Receipt. Stock goes back out, reverses stock-in-hand entries.
 
+- **Price correction / goodwill credit (no goods come back):** convert the invoice to a return as above, then on the draft set `amount_only=1` and set each line's `rate` to the amount credited per unit (qty stays negative: the units the credit is for). An amount-only credit or debit note never moves stock (also when the original had update_stock=1) and leaves billed and returnable quantities alone, so the goods can still be returned later. Sales Invoice and Purchase Invoice only. Do NOT use a plain return for a price correction.
+
 To create a return: use convert_document with the SAME doctype as both source and target.
   Example: convert_document(doctype="sales-invoice", name="SINV-0001", target_doctype="Sales Invoice")
 

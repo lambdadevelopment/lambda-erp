@@ -41,6 +41,27 @@ def _return_key(row, rule):
     return (identity, row.get(rule[2]) if rule else None)
 
 
+def apply_amount_only(doc):
+    """A return invoice that corrects money only (a price correction, a
+    goodwill credit). No goods come back: it never moves stock and leaves the
+    billed and returnable quantities of its original alone. Its lines still
+    name the original rows with a negative qty (the units the credit is for)
+    so tax and totals work like on any other return."""
+    if not flt(doc.get('amount_only')):
+        return False
+    if not flt(doc.get('is_return')):
+        raise ValidationError('Amount only is for returns (credit / debit notes): set is_return and return_against')
+    doc._data['update_stock'] = 0
+    return True
+
+
+def _goods_returns(doctype, alias='p'):
+    """SQL filter: leave amount-only returns out of quantity sums."""
+    if 'amount_only' not in get_db()._get_table_columns(doctype):
+        return ''
+    return f' AND COALESCE({alias}.amount_only, 0) = 0'
+
+
 def validate_return(doc):
     if not doc.get('return_against'):
         raise ValidationError(f'Return Against is required for a return {doc.DOCTYPE}')
@@ -58,17 +79,19 @@ def validate_return(doc):
         raise ValidationError('Return currency must match the original document')
     if not doc.get('currency'):
         doc.currency = original.currency
-    if doc.DOCTYPE.endswith('Invoice') and bool(flt(doc.get('update_stock'))) != bool(flt(original.update_stock)):
-        raise ValidationError('Return update_stock must match the original invoice')
+    amount_only = bool(flt(doc.get('amount_only')))
+    if not amount_only and doc.DOCTYPE.endswith('Invoice') and bool(flt(doc.get('update_stock'))) != bool(flt(original.update_stock)):
+        raise ValidationError('Return update_stock must match the original invoice; for a price correction without goods set amount_only')
     rule = ORDER_REFERENCES.get(doc.DOCTYPE)
     table = doc.CHILD_TABLES['items'][0]
     original_rows = db.get_all(table, filters={'parent': doc.return_against}, fields=['*'])
     quantities = defaultdict(float)
     for row in original_rows:
         quantities[_return_key(row, rule)] += flt(row.get('qty'))
-    previous = db.sql(
+    previous = [] if amount_only else db.sql(
         f'SELECT i.* FROM "{table}" i JOIN "{doc.DOCTYPE}" p ON p.name = i.parent '
-        'WHERE p.return_against = ? AND p.is_return = 1 AND p.docstatus = 1 AND p.name != ?',
+        'WHERE p.return_against = ? AND p.is_return = 1 AND p.docstatus = 1 AND p.name != ?'
+        + _goods_returns(doc.DOCTYPE),
         [doc.return_against, doc.name])
     returned = defaultdict(float)
     for row in previous:
@@ -82,6 +105,12 @@ def validate_return(doc):
             raise ValidationError('Return item and order line must match an original document row; use the return converter')
         requested[key] += abs(flt(row.get('qty')))
     for key, qty in requested.items():
+        if amount_only:
+            # Money only: bounded by what was invoiced (and by the value cap
+            # on the invoice), not by what is still returnable.
+            if qty > quantities[key] + EPSILON:
+                raise ValidationError(f'Amount-only qty ({qty}) for {key[0]} exceeds the invoiced qty ({quantities[key]})')
+            continue
         remaining = max(0, quantities[key] - returned[key])
         if qty > remaining + EPSILON:
             raise ValidationError(f'Return qty ({qty}) for {key[0]} exceeds remaining returnable qty ({remaining}; already returned {returned[key]})')
@@ -92,7 +121,8 @@ def _sum_line(doctype, line_field, line, *, exclude=None, stock_only=False):
     return flt(db.sql(
         f'SELECT COALESCE(SUM(i.qty), 0) AS qty FROM "{doctype} Item" i '
         f'JOIN "{doctype}" p ON p.name = i.parent WHERE i."{line_field}" = ? '
-        'AND p.docstatus = 1 AND p.name != ?' + (' AND p.update_stock = 1' if stock_only else ''),
+        'AND p.docstatus = 1 AND p.name != ?' + (' AND p.update_stock = 1' if stock_only else '')
+        + _goods_returns(doctype),
         [line, exclude or ''])[0]['qty'])
 
 
@@ -101,11 +131,22 @@ def returnable_rows(original):
     db = get_db()
     rule = ORDER_REFERENCES.get(original.DOCTYPE)
     table = original.CHILD_TABLES['items'][0]
-    previous = db.sql(f'SELECT i.* FROM "{table}" i JOIN "{original.DOCTYPE}" p ON p.name = i.parent '
+    flag = ', p.amount_only AS amount_only' if 'amount_only' in db._get_table_columns(original.DOCTYPE) else ''
+    previous = db.sql(f'SELECT i.*{flag} FROM "{table}" i JOIN "{original.DOCTYPE}" p ON p.name = i.parent '
                       'WHERE p.return_against = ? AND p.is_return = 1 AND p.docstatus = 1', [original.name])
     used = defaultdict(float)
+    credited = defaultdict(float)  # value already credited per line identity
+    corrected = set()
     for row in previous:
-        used[_return_key(row, rule)] += abs(flt(row.qty))
+        key = _return_key(row, rule)
+        credited[key] += abs(flt(row.qty)) * flt(row.get('rate'))
+        if flt(row.get('amount_only')):
+            corrected.add(key)
+        else:
+            used[key] += abs(flt(row.qty))
+    invoiced = defaultdict(float)
+    for row in original.get('items'):
+        invoiced[_return_key(row, rule)] += flt(row.get('qty')) * flt(row.get('rate'))
     result = []
     for row in original.get('items'):
         key = _return_key(row, rule)
@@ -116,6 +157,15 @@ def returnable_rows(original):
             result.append({**row, 'qty':remaining})
     if not result:
         raise ValidationError('No remaining returnable quantity on this document')
+    # After a price correction the goods come back at what was left to pay
+    # for them, not at the original price (which would exceed the value cap).
+    for key in corrected:
+        rows = [row for row in result if _return_key(row, rule) == key]
+        at_original = sum(flt(row['qty']) * flt(row.get('rate')) for row in rows)
+        left = max(0, invoiced[key] - credited[key])
+        if at_original > left + EPSILON:
+            for row in rows:
+                row['rate'] = flt(row.get('rate')) * left / at_original
     return result
 
 
@@ -123,6 +173,8 @@ def validate_order_quantities(doc, *, cancelling=False):
     rule = ORDER_REFERENCES.get(doc.DOCTYPE)
     if not rule:
         return
+    if flt(doc.get('amount_only')):
+        return  # money only: order quantities are untouched
     order_type, _, line_field, _ = rule
     quantities = defaultdict(float)
     for row in doc.get('items'):

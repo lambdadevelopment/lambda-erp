@@ -72,6 +72,8 @@ class PurchaseInvoice(Document):
             self.posting_date = nowdate()
 
         apply_external_source_defaults(self)
+        from lambda_erp.workflow import apply_amount_only
+        apply_amount_only(self)
         self._set_supplier_name()
         self._set_missing_accounts()
         set_default_currency(self, "Supplier", "supplier")
@@ -143,6 +145,20 @@ class PurchaseInvoice(Document):
                     item["expense_account"] = default_expense
             if not item.get("cost_center"):
                 item["cost_center"] = default_cc
+
+        if flt(self.get("amount_only")):
+            # A price correction moves no goods, so it must not touch the
+            # stock accounts (Stock In Hand would drift from the stock ledger;
+            # SRBNB would keep a balance no receipt clears). The difference is
+            # a purchase price variance: stock adjustment, else expense.
+            variance = db.get_value("Company", self.company, "stock_adjustment_account") or default_expense
+            for item in self.get("items"):
+                account = item.get("expense_account")
+                if account and variance and (
+                    account == stock_received_account
+                    or db.get_value("Account", account, "account_type") == "Stock"
+                ):
+                    item["expense_account"] = variance
 
     def _validate_stock_warehouses(self):
         """When update_stock=1, every stock-item line needs a warehouse so

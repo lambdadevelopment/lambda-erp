@@ -48,6 +48,18 @@ use it, don't reimplement.
 - **`make_pos_return(posi)`** — relaxed payments requirement (refund is
   optional; user can post a separate PE later).
 
+- **Amount-only returns (`amount_only=1`, SI and PI).** A price correction
+  or goodwill credit: money only. `workflow.apply_amount_only` forces
+  `update_stock=0`; quantity sums (`_sum_line`, `validate_return`,
+  `returnable_rows`) leave these documents out, so billed and returnable
+  quantities stay as they were. The value cap still counts them. Lines keep
+  a negative qty (the units credited) so totals and tax work unchanged. On a
+  PI the line is rerouted away from Stock In Hand / SRBNB to
+  `stock_adjustment_account` (else default expense): no goods moved, so the
+  stock accounts must not. After a correction `returnable_rows` proposes the
+  remaining value per unit as the rate. Any new quantity sum over invoices
+  must go through `_goods_returns`.
+
 Each submit calls `_update_original_outstanding` to reduce the original's
 `outstanding_amount` by the return's grand_total (floored at 0).
 Return-value guard (`_validate_return_value`) caps the return's total at

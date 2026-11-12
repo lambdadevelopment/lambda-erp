@@ -862,6 +862,7 @@ class Database:
                 is_return INTEGER DEFAULT 0,
                 return_against TEXT,
                 update_stock INTEGER DEFAULT 0,
+                amount_only INTEGER DEFAULT 0,
                 is_pos INTEGER DEFAULT 0,
                 paid_amount REAL DEFAULT 0,
                 against_income_account TEXT,
@@ -937,6 +938,7 @@ class Database:
                 is_return INTEGER DEFAULT 0,
                 return_against TEXT,
                 update_stock INTEGER DEFAULT 0,
+                amount_only INTEGER DEFAULT 0,
                 against_expense_account TEXT,
                 purchase_order TEXT,
                 status TEXT DEFAULT 'Draft',
@@ -3200,6 +3202,13 @@ def _m049_pricing_rule_currency(db: "Database") -> None:
                [currencies[0]])
 
 
+def _m050_amount_only_returns(db: "Database") -> None:
+    """A credit / debit note that corrects money only (price correction): no
+    quantity returned, no stock moved. See workflow.apply_amount_only."""
+    for table in ("Sales Invoice", "Purchase Invoice"):
+        db.ensure_column(table, "amount_only", "INTEGER DEFAULT 0")
+
+
 def _m042_record_notes(db: "Database") -> None:
     """Internal team notes on any document or master (see api.record_notes)."""
     db.conn.execute(
@@ -3269,6 +3278,7 @@ Database.MIGRATIONS = [
     (47, "sales_order_status_left_to_do", _m047_sales_order_status_left_to_do),
     (48, "item_valuation_moving_average", _m048_item_valuation_moving_average),
     (49, "pricing_rule_currency", _m049_pricing_rule_currency),
+    (50, "amount_only_returns", _m050_amount_only_returns),
 ]
 
 

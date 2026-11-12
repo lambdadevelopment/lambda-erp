@@ -134,6 +134,8 @@ def document_requirements(cls):
     from lambda_erp.workflow import RETURN_TYPES
     if cls.DOCTYPE in RETURN_TYPES:
         rules.append('Returns require a submitted non-return original with matching company and party, negative quantities, original order-line references and quantities within the remaining returnable amount across all rows and previous returns. Use the return converter.')
+    if cls.DOCTYPE in {'Sales Invoice', 'Purchase Invoice'}:
+        rules.append('amount_only=1 on a return makes it a price correction: money only, no stock movement (update_stock is forced to 0), billed and returnable quantities of the original unchanged. Lines name original rows with negative qty (at most the invoiced qty) and the credited amount per unit as rate. Not allowed on non-returns.')
     if cls.DOCTYPE in TRANSACTION_TYPES:
         rules.append('Supplied warehouse, account and cost-center links must belong to company. Explicit rate=0 means free and is preserved; only absent/blank prices use defaults. Prices must be finite and non-negative.')
         required += ['company', 'items']
