@@ -204,7 +204,9 @@
     "chart-of-accounts": "Kontenplan",
     "batch-stock": "Chargenbestand",
     "stock-detail": "Bestand nach Lagerplatz & Charge",
-    "stock-availability": "Verfügbarkeit"
+    "stock-availability": "Verfügbarkeit",
+    "sales-backlog": "Auftragsrückstand",
+    "purchase-backlog": "Bestellrückstand"
   },
   "doctypes": {
     "quotation": {
@@ -369,7 +371,9 @@
       "Storage Location": "Lagerplatz",
       "Stock by Location & Batch": "Bestand nach Lagerplatz & Charge",
       "Stock Reservation": "Bestandsreservierung",
-      "Stock Availability": "Verfügbarkeit"
+      "Stock Availability": "Verfügbarkeit",
+      "Sales Backlog": "Auftragsrückstand",
+      "Purchase Backlog": "Bestellrückstand"
     }
   },
   "login": {
@@ -530,7 +534,11 @@
     "batchMovements": "Bewegungen der Charge {{batch}} ({{item}})",
     "withoutBatch": "ohne Charge",
     "showMovements": "Bewegungen",
-    "expired": "abgelaufen"
+    "expired": "abgelaufen",
+    "onlyDeliverable": "Nur jetzt Lieferbares",
+    "onlyOverdue": "Nur Überfälliges",
+    "noBacklog": "Nichts offen",
+    "unconfirmedNote": "* vom Lieferanten nicht bestätigt: Wunschtermin der Bestellung"
   },
   "masterForm": {
     "required": "Erforderlich: {{fields}}",
@@ -707,7 +715,16 @@
     "On Purchase Order": "In Bestellung",
     "Price Source": "Preisquelle",
     "Apply On Value": "Wert zu „Anwenden auf“",
-    "Applicable For Value": "Wert zu „Gilt für“"
+    "Applicable For Value": "Wert zu „Gilt für“",
+    "Confirmed Date": "Bestätigter Termin",
+    "Confirmation Ref.": "Bestätigungsnr.",
+    "Ordered": "Bestellt",
+    "Delivered": "Geliefert",
+    "Open": "Offen",
+    "Deliverable Now": "Jetzt lieferbar",
+    "Expected": "Erwartet",
+    "Received": "Erhalten",
+    "Days Overdue": "Tage überfällig"
   },
   "tables": {
     "items": "Positionen",

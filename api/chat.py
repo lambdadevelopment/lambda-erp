@@ -878,7 +878,7 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "batch-stock", "batch-movements", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
+                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "batch-stock", "batch-movements", "sales-backlog", "purchase-backlog", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
                     "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse; for batch-stock also batch_no, item_prefix, expiring_before, include_empty; for stock-detail also location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty; batch-movements requires batch_no. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
                 },
                 "required": ["report_type"],
@@ -1974,6 +1974,15 @@ def _handle_get_report(args):
         return _batch_stock(db, filters.get("item_code"), filters.get("warehouse"), filters.get("batch_no"),
                             filters.get("item_prefix"), filters.get("expiring_before"),
                             bool(filters.get("include_empty")))
+    elif report_type == "sales-backlog":
+        from api.routers.reports import _sales_backlog
+        return _sales_backlog(db, filters.get("customer"), filters.get("item_code"), filters.get("warehouse"),
+                              filters.get("sales_order"), filters.get("item_prefix"),
+                              bool(filters.get("only_deliverable")))
+    elif report_type == "purchase-backlog":
+        from api.routers.reports import _purchase_backlog
+        return _purchase_backlog(db, filters.get("supplier"), filters.get("item_code"), filters.get("warehouse"),
+                                 bool(filters.get("overdue_only")))
     elif report_type == "stock-availability":
         from api.routers.reports import _stock_availability
         return _stock_availability(db, filters.get("item_code"), filters.get("warehouse"), filters.get("item_prefix"))
@@ -2918,6 +2927,13 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - **Material Transfer:** Moves stock between warehouses. No GL impact.
 - **Batch Assignment:** Gives stock that has no batch (from before the item was batch-tracked) its batch, in place: row = item_code, qty, t_warehouse, batch_no (+ expiry_date for a new batch). No GL impact, no quantity or value change.
 
+### Partial deliveries, backorders and invoicing after delivery
+- Order progress is derived from the submitted documents, per order line: delivered_qty (net of returns), returned_qty, billed_qty. Never set them. Open = qty − delivered_qty.
+- A delivery for less than ordered leaves the rest of the line open; convert the order again later for the remainder. Converters only ever propose what is left, and submit rechecks, so a repeated conversion cannot deliver or bill twice.
+- Deliver first, invoice after: convert the submitted **Delivery Note** to a Sales Invoice (convert_document doctype="delivery-note", target_doctype="Sales Invoice"). It bills what that delivery delivered and has not been billed, and does not move stock again. Converting the Sales Order to a Sales Invoice instead bills the ordered quantity regardless of delivery.
+- "What is still open / on backorder / can go out now" → sales-backlog report. "Is it on order, and when does it come" → the same report's purchase order columns, or purchase-backlog.
+- When a supplier's order confirmation arrives, record its date with the `confirm_purchase_order` action.
+
 ### Prices: how they are found, and explaining them
 - A line without a rate is priced when the document is saved: the Item Price of the document's price list (a row for this customer/supplier beats the list price; the highest min_qty reached; the narrower, then newer validity), else the item's standard rate. Then at most ONE Pricing Rule applies on top: highest priority, then the most specific match, then min_qty, validity and name.
 - Prices and rules are looked up for the document's date (`pricing_date` if set, else posting/transaction date). A price valid from next month does not apply to a document dated today.
@@ -3003,6 +3019,8 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 - **ar-aging** — Outstanding receivables bucketed by overdue days (Current, 1-30, 31-60, 61-90, 90+). Filters: company, as_of_date.
 - **ap-aging** — Outstanding payables bucketed by overdue days. Filters: company, as_of_date.
 - **stock-balance** — Inventory quantities and valuations. Filters: item_code, warehouse.
+- **sales-backlog** — Open sales order lines (ordered > delivered): ordered_qty, delivered_qty (net of returns), returned_qty, billed_qty, open_qty, reserved_qty, deliverable_qty (what can be delivered NOW; stock is shared out in due-date order, so it is never promised twice), short_qty, on_purchase_order_qty, next_expected_date and the purchase orders behind it. Filters: customer, item_code, item_prefix, warehouse, sales_order, only_deliverable. Use only_deliverable=true after a goods receipt to see which open orders can now go out. Read-only: it books nothing.
+- **purchase-backlog** — Open purchase order lines with expected_date (the supplier's confirmed date, else the order's schedule date), confirmed, overdue and days_overdue. Filters: supplier, item_code, warehouse, overdue_only. Use overdue_only=true for "what should have arrived".
 - **stock-availability** — Per item × warehouse: physical_qty (in stock), blocked_qty (expired or blocked batches), reserved_qty (open Stock Reservations), available_qty (= physical − blocked − reserved), plus open_sales_order_qty (ordered by customers, not yet delivered) and on_purchase_order_qty (ordered from suppliers, not yet received). Filters: item_code, warehouse, item_prefix. Use this to answer "can we deliver X" and "is it already on order".
 - **stock-detail** — Where stock is, in one view: item, warehouse, storage location, batch, expiry date, quantity. Filters: item_code, warehouse, location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty. Use this for "what is in location B4", "where is item X", "what expires in the next 3 months in warehouse Y".
 - **batch-stock** — Quantity per item × warehouse × batch with the batch's expiry date (batch-tracked items only). Filters: item_code, warehouse, batch_no, item_prefix (item codes starting with…), expiring_before (date), include_empty. A batch label is NOT unique: the same label can exist on several items, so a batch_no-only lookup can return several items — show them all, never pick one.

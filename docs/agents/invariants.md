@@ -73,6 +73,10 @@ before touching any accounting, stock, or lifecycle path.
   `update_stock=1` → Stock In Hand. For stock items with `update_stock=0`
   → SRBNB (to clear a prior PR). For non-stock → default_expense_account.
   If you touch `_set_missing_accounts`, preserve all three branches.
+- **Delivery billing is derived too.** `Delivery Note Item.billed_qty`, the
+  note's `per_billed` and status come from `workflow.refresh_delivery_billing`
+  (submitted invoices with `dn_detail`). `returned_qty` on order lines comes
+  from the same recalculation as `delivered_qty`.
 - **Order progress is derived.** `workflow.refresh_order_progress` recalculates
   billing and fulfillment from submitted vouchers on both sales and purchase
   paths. Direct-stock invoices count toward fulfillment. Bin planning is the

@@ -16,6 +16,14 @@ ORDER_REFERENCES = {
     'Purchase Invoice': ('Purchase Order', 'purchase_order', 'purchase_order_item', 'supplier'),
 }
 
+def register_order_reference(doctype, order_type, parent_field, line_field, party_field):
+    """Plugin seam: a document type whose lines fulfil or bill order lines.
+    Its lines name the order in `parent_field` and the order line in
+    `line_field`; quantities are then checked against the order line like
+    those of the built-in documents."""
+    ORDER_REFERENCES[doctype] = (order_type, parent_field, line_field, party_field)
+
+
 CUSTOMER_BUSINESS_TYPES = {'Quotation', 'Proposal', 'Sales Order', 'Sales Invoice',
                            'Delivery Note', 'POS Invoice', 'Reservation', 'Subscription'}
 
@@ -83,8 +91,9 @@ def validate_document_requirements(doc):
         if missing(doc.get(field)):
             raise ValidationError(f"{doc.DOCTYPE}: {field.replace('_', ' ').title()} is required")
     validate_order_references(doc)
-    from lambda_erp.workflow import validate_order_quantities
+    from lambda_erp.workflow import validate_order_quantities, validate_delivery_billing
     validate_order_quantities(doc)
+    validate_delivery_billing(doc)
     if doc.DOCTYPE not in TRANSACTION_TYPES:
         return
     if missing(doc.get('company')):

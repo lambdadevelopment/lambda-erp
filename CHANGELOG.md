@@ -13,6 +13,30 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.10] - 2026-11-12
+
+Migration 56 runs on startup. See `docs/order-progress-and-backlog.md`.
+
+- **Invoice after delivery.** A submitted Delivery Note converts to a Sales
+  Invoice (*Create Invoice*) that bills what was delivered and not yet billed,
+  without moving stock again. Delivery note lines keep `billed_qty`; the
+  note's `per_billed` and status follow (Submitted → To Bill → Completed;
+  before, `per_billed` was never set). A delivery cannot be billed for more
+  than it delivered.
+- **Returned quantity on order lines.** Sales and purchase order lines get
+  `returned_qty`, recalculated with the other progress quantities.
+- **Supplier-confirmed dates.** Purchase order lines carry `confirmed_date`,
+  `confirmed_qty` and `confirmation_reference`; the action
+  `confirm_purchase_order` records them on a submitted order.
+- **Backlog reports.** `sales-backlog`: open order lines with what can be
+  delivered now (stock shared out in due-date order, own reservations first),
+  quantity on purchase order and the expected date. `purchase-backlog`: open
+  purchase order lines with expected date and overdue flag. Read-only; in the
+  UI under Reports.
+- **In-transaction hooks.** `<DocType>:on_submit` and `:on_cancel` run after
+  posting, inside the document's transaction.
+- Plugin seams `register_order_reference` and `register_return_type`.
+
 ## [1.4.9] - 2026-11-12
 
 Migration 55 runs on startup. Existing documents are not repriced; their

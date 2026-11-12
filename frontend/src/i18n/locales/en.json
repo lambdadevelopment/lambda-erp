@@ -204,7 +204,9 @@
     "chart-of-accounts": "Chart of Accounts",
     "batch-stock": "Batch Stock",
     "stock-detail": "Stock by Location & Batch",
-    "stock-availability": "Stock Availability"
+    "stock-availability": "Stock Availability",
+    "sales-backlog": "Sales Backlog",
+    "purchase-backlog": "Purchase Backlog"
   },
   "doctypes": {
     "quotation": {
@@ -369,7 +371,9 @@
       "Storage Location": "Storage Location",
       "Stock by Location & Batch": "Stock by Location & Batch",
       "Stock Reservation": "Stock Reservation",
-      "Stock Availability": "Stock Availability"
+      "Stock Availability": "Stock Availability",
+      "Sales Backlog": "Sales Backlog",
+      "Purchase Backlog": "Purchase Backlog"
     }
   },
   "login": {
@@ -530,7 +534,11 @@
     "batchMovements": "Movements of batch {{batch}} ({{item}})",
     "withoutBatch": "without batch",
     "showMovements": "Movements",
-    "expired": "expired"
+    "expired": "expired",
+    "onlyDeliverable": "Only what can be delivered now",
+    "onlyOverdue": "Only overdue",
+    "noBacklog": "Nothing open",
+    "unconfirmedNote": "* not confirmed by the supplier: the order's schedule date"
   },
   "masterForm": {
     "required": "Required: {{fields}}",
@@ -749,7 +757,16 @@
     "On Purchase Order": "On Purchase Order",
     "Price Source": "Price Source",
     "Apply On Value": "Apply On Value",
-    "Applicable For Value": "Applicable For Value"
+    "Applicable For Value": "Applicable For Value",
+    "Confirmed Date": "Confirmed Date",
+    "Confirmation Ref.": "Confirmation Ref.",
+    "Ordered": "Ordered",
+    "Delivered": "Delivered",
+    "Open": "Open",
+    "Deliverable Now": "Deliverable Now",
+    "Expected": "Expected",
+    "Received": "Received",
+    "Days Overdue": "Days Overdue"
   },
   "tables": {
     "accounts": "accounts",

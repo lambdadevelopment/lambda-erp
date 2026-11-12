@@ -52,7 +52,35 @@ def suggest(args):
                          sales_order_item=data.sales_order_item, include_short_dated=data.include_short_dated)
 
 
+class ConfirmPurchaseOrder(mentions.Input):
+    purchase_order: str = Field(min_length=1, max_length=200)
+    confirmed_date: str = Field(min_length=8, max_length=10)
+    lines: list[str] | None = Field(default=None, max_length=500)
+    confirmed_qty: float | None = Field(default=None, gt=0)
+    confirmation_reference: str | None = Field(default=None, max_length=200)
+
+
+def confirm_purchase_order(args, user=None):
+    data = ConfirmPurchaseOrder.model_validate(args)
+    permissions.require_readable("Purchase Order", data.purchase_order)
+    permissions.require("Purchase Order", "update")
+    from lambda_erp.backlog import confirm_purchase_order_lines
+    return confirm_purchase_order_lines(
+        data.purchase_order, data.confirmed_date, lines=data.lines, confirmed_qty=data.confirmed_qty,
+        confirmation_reference=data.confirmation_reference,
+        confirmed_by=(user or {}).get("user_id") or (user or {}).get("name"))
+
+
 def initialize_stock_actions():
+    services.register_action(
+        "confirm_purchase_order", confirm_purchase_order,
+        description=(
+            "Record the supplier's confirmed delivery date on a SUBMITTED purchase order: on all open lines, or on "
+            "`lines` (row names or positions). Optional confirmation_reference (the supplier's confirmation number) "
+            "and, for one line, confirmed_qty. Use it when an order confirmation arrives; the date then shows in the "
+            "sales-backlog and purchase-backlog reports. Only assign a confirmation to an order when the order number "
+            "is stated or the user confirms which order it belongs to."),
+        parameters=ConfirmPurchaseOrder.model_json_schema(), minimum_role="manager", pass_user=True)
     services.register_action(
         "reserve_sales_order", reserve_order,
         description=(

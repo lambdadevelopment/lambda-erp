@@ -410,6 +410,9 @@ class Document:
                 from lambda_erp.workflow import refresh_order_progress
                 refresh_order_progress(self)
                 reservation.finish_guard(self, reserved)
+                # Posted, progress recalculated, still inside the transaction:
+                # a raising handler rolls the whole submit back.
+                run_hooks(f"{self.DOCTYPE}:on_submit", self)
         except Exception:
             self._data, self._children, self._persisted, self._loaded_modified = snapshot
             raise
@@ -441,6 +444,7 @@ class Document:
                 self.on_cancel()
                 refresh_order_progress(self)
                 reservation.finish_guard(self, reserved, cancelling=True)
+                run_hooks(f"{self.DOCTYPE}:on_cancel", self)
         except Exception:
             self._data, self._children, self._persisted, self._loaded_modified = snapshot
             raise

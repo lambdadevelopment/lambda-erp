@@ -204,7 +204,9 @@
     "chart-of-accounts": "Plan comptable",
     "batch-stock": "Stock par lot",
     "stock-detail": "Stock par emplacement et lot",
-    "stock-availability": "Disponibilité du stock"
+    "stock-availability": "Disponibilité du stock",
+    "sales-backlog": "Commandes en attente",
+    "purchase-backlog": "Achats en attente"
   },
   "doctypes": {
     "quotation": {
@@ -369,7 +371,9 @@
       "Storage Location": "Emplacement",
       "Stock by Location & Batch": "Stock par emplacement et lot",
       "Stock Reservation": "Réservation de stock",
-      "Stock Availability": "Disponibilité du stock"
+      "Stock Availability": "Disponibilité du stock",
+      "Sales Backlog": "Commandes en attente",
+      "Purchase Backlog": "Achats en attente"
     }
   },
   "login": {
@@ -530,7 +534,11 @@
     "batchMovements": "Mouvements du lot {{batch}} ({{item}})",
     "withoutBatch": "sans lot",
     "showMovements": "Mouvements",
-    "expired": "périmé"
+    "expired": "périmé",
+    "onlyDeliverable": "Seulement ce qui est livrable",
+    "onlyOverdue": "Seulement en retard",
+    "noBacklog": "Rien en attente",
+    "unconfirmedNote": "* non confirmé par le fournisseur : date prévue de la commande"
   },
   "masterForm": {
     "required": "Requis : {{fields}}",
@@ -707,7 +715,16 @@
     "On Purchase Order": "En commande",
     "Price Source": "Origine du prix",
     "Apply On Value": "Valeur de « Appliquer à »",
-    "Applicable For Value": "Valeur de « Valable pour »"
+    "Applicable For Value": "Valeur de « Valable pour »",
+    "Confirmed Date": "Date confirmée",
+    "Confirmation Ref.": "N° de confirmation",
+    "Ordered": "Commandé",
+    "Delivered": "Livré",
+    "Open": "Ouvert",
+    "Deliverable Now": "Livrable maintenant",
+    "Expected": "Attendu",
+    "Received": "Reçu",
+    "Days Overdue": "Jours de retard"
   },
   "tables": {
     "items": "Lignes",

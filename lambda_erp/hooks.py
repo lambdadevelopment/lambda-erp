@@ -5,12 +5,16 @@ handlers for document lifecycle events without editing core files. Events are
 named ``"<DocType>:<phase>"`` where phase is one of:
 
     before_save / after_save
-    before_submit / after_submit
-    before_cancel / after_cancel
+    before_submit / on_submit / after_submit
+    before_cancel / on_cancel / after_cancel
 
 Semantics (see docs/core-extension-architecture.md):
 - ``before_*`` fire inside the document's transaction — a raising handler
   aborts and rolls back the operation (use for extra validation / guards).
+- ``on_submit`` / ``on_cancel`` fire inside the transaction too, after the
+  document has posted (or reversed) its ledgers and order progress has been
+  recalculated — the place for a follow-up step that must succeed or fail
+  together with the document. A raising handler rolls everything back.
 - ``after_*`` fire after the change is committed and durable — use for
   side-effects (notifications, external sync). A raising ``after_*`` handler
   propagates but does NOT undo the committed voucher.

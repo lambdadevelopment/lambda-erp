@@ -102,6 +102,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Analytics", path: "/reports/analytics" },
       { label: "Stock Balance", path: "/reports/stock-balance" },
       { label: "Stock Availability", path: "/reports/stock-availability" },
+      { label: "Sales Backlog", path: "/reports/sales-backlog" },
+      { label: "Purchase Backlog", path: "/reports/purchase-backlog" },
       { label: "Stock by Location & Batch", path: "/reports/stock-detail" },
     ],
   },

@@ -41,6 +41,22 @@ export function useBatchStock(params?: Record<string, string>) {
   return { data, isLoading, error, refetch };
 }
 
+export function useSalesBacklog(params?: Record<string, string>) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["report", "sales-backlog", params],
+    queryFn: () => api.salesBacklog(params),
+  });
+  return { data, isLoading, error, refetch };
+}
+
+export function usePurchaseBacklog(params?: Record<string, string>) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["report", "purchase-backlog", params],
+    queryFn: () => api.purchaseBacklog(params),
+  });
+  return { data, isLoading, error, refetch };
+}
+
 export function useStockAvailability(params?: Record<string, string>) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["report", "stock-availability", params],

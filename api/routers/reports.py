@@ -481,6 +481,50 @@ def stock_availability(
     return _stock_availability(get_db(), item_code, warehouse, item_prefix)
 
 
+def _sales_backlog(db, customer=None, item_code=None, warehouse=None, sales_order=None, item_prefix=None,
+                   only_deliverable=False):
+    """Open sales order lines: ordered, delivered, returned, billed, open,
+    reserved, what can be delivered now, and what is on purchase order with
+    its expected date."""
+    permissions.require_artifact("report", "sales-backlog")
+    permissions.require("Sales Order", "read")
+    from lambda_erp.backlog import sales_backlog
+    # Purchase orders behind a shortage are shown to those who may read them.
+    return {"rows": sales_backlog(customer, item_code, warehouse, sales_order, item_prefix, only_deliverable,
+                                  with_purchase_orders=permissions.can("Purchase Order", "read"))}
+
+
+@router.get("/sales-backlog")
+def sales_backlog_report(
+    customer: str | None = None,
+    item_code: str | None = None,
+    warehouse: str | None = None,
+    sales_order: str | None = None,
+    item_prefix: str | None = None,
+    only_deliverable: bool = False,
+):
+    return _sales_backlog(get_db(), customer, item_code, warehouse, sales_order, item_prefix, only_deliverable)
+
+
+def _purchase_backlog(db, supplier=None, item_code=None, warehouse=None, overdue_only=False):
+    """Open purchase order lines with the supplier's confirmed date and
+    whether they are overdue. Quantities and dates only, no prices."""
+    permissions.require_artifact("report", "purchase-backlog")
+    permissions.require("Purchase Order", "read")
+    from lambda_erp.backlog import purchase_backlog
+    return {"rows": purchase_backlog(supplier, item_code, warehouse, overdue_only)}
+
+
+@router.get("/purchase-backlog")
+def purchase_backlog_report(
+    supplier: str | None = None,
+    item_code: str | None = None,
+    warehouse: str | None = None,
+    overdue_only: bool = False,
+):
+    return _purchase_backlog(get_db(), supplier, item_code, warehouse, overdue_only)
+
+
 @router.get("/stock-detail")
 def stock_detail(
     item_code: str | None = None,

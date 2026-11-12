@@ -293,7 +293,10 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
-      { key: "items", label: "Items", fields: [...ITEM_FIELDS, { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse" }] },
+      { key: "items", label: "Items", fields: [...ITEM_FIELDS, { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse" },
+        { name: "confirmed_date", label: "Confirmed Date", type: "date",
+          hint: "The delivery date the supplier confirmed for this line. After the order is submitted, record it with the confirm_purchase_order action (or ask the assistant)." },
+        { name: "confirmation_reference", label: "Confirmation Ref.", type: "text", hint: "The supplier's order confirmation number." }] },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "supplier", "transaction_date", "grand_total", "status"],
@@ -536,6 +539,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     canSubmit: true,
     canCancel: true,
     conversions: [
+      { label: "Create Invoice", targetDoctype: "Sales Invoice" },
       { label: "Create Return", targetDoctype: "Delivery Note" },
     ],
   },

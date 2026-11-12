@@ -3366,6 +3366,23 @@ def _m055_price_decisions(db: "Database") -> None:
         db.ensure_column("Pricing Rule", column, "TEXT")
 
 
+def _m056_order_progress(db: "Database") -> None:
+    """Returned quantities on order lines, billing of delivery notes, and
+    supplier-confirmed dates on purchase order lines
+    (see docs/order-progress-and-backlog.md). Existing lines get their
+    returned / billed quantity the next time their order is touched; nothing
+    is confirmed by the migration."""
+    db.ensure_column("Sales Order Item", "returned_qty", "REAL DEFAULT 0")
+    db.ensure_column("Purchase Order Item", "returned_qty", "REAL DEFAULT 0")
+    db.ensure_column("Delivery Note Item", "billed_qty", "REAL DEFAULT 0")
+    db.ensure_column("Sales Invoice Item", "delivery_note", "TEXT")
+    db.ensure_column("Sales Invoice Item", "dn_detail", "TEXT")
+    for column, definition in (("confirmed_date", "TEXT"), ("confirmed_qty", "REAL"),
+                               ("confirmation_reference", "TEXT"), ("confirmed_at", "TEXT"),
+                               ("confirmed_by", "TEXT")):
+        db.ensure_column("Purchase Order Item", column, definition)
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3461,6 +3478,7 @@ Database.MIGRATIONS = [
     (53, "storage_locations", _m053_storage_locations),
     (54, "reservations_and_shelf_life", _m054_reservations_and_shelf_life),
     (55, "price_decisions", _m055_price_decisions),
+    (56, "order_progress", _m056_order_progress),
 ]
 
 

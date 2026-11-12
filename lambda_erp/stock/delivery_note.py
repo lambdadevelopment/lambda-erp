@@ -244,3 +244,61 @@ def make_delivery_return(dn_name):
         ))
 
     return return_dn
+
+
+def make_sales_invoice_from_delivery_note(dn_name):
+    """Bill what a delivery note delivered and has not been billed yet.
+
+    Deliver first, invoice afterwards: the invoice lines point back to the
+    delivery note lines (and to the order lines behind them), carry the
+    delivered price, and do not move stock again."""
+    from lambda_erp.accounting.sales_invoice import SalesInvoice
+    from lambda_erp.controllers.defaults import derived_line_pricing_fields
+
+    note = DeliveryNote.load(dn_name)
+    if note.docstatus != 1:
+        raise ValidationError("Delivery Note must be submitted before creating a Sales Invoice")
+    if note.is_return:
+        raise ValidationError("A return delivery is credited from the original invoice, not invoiced")
+
+    invoice = SalesInvoice(
+        customer=note.customer,
+        customer_name=note.customer_name,
+        company=note.company,
+        currency=note.currency,
+        conversion_rate=note.conversion_rate,
+        posting_date=nowdate(),
+        update_stock=0,
+    )
+    for item in note.get("items"):
+        unbilled = flt(item.get("qty")) - flt(item.get("billed_qty"))
+        if unbilled <= 0:
+            continue
+        invoice.append("items", _dict(
+            **derived_line_pricing_fields(item),
+            item_code=item.get("item_code"),
+            item_name=item.get("item_name"),
+            description=item.get("description"),
+            qty=unbilled,
+            uom=item.get("uom"),
+            rate=item.get("rate"),
+            price_list_rate=item.get("price_list_rate"),
+            discount_percentage=item.get("discount_percentage"),
+            discount_amount=item.get("discount_amount"),
+            warehouse=item.get("warehouse"),
+            sales_order=item.get("against_sales_order"),
+            sales_order_item=item.get("so_detail"),
+            delivery_note=note.name,
+            dn_detail=item.get("name"),
+        ))
+    if not invoice.get("items"):
+        raise ValidationError(f"Delivery Note {note.name} is already billed in full")
+    for tax in note.get("taxes") or []:
+        invoice.append("taxes", _dict(
+            charge_type=tax.get("charge_type"),
+            account_head=tax.get("account_head"),
+            description=tax.get("description"),
+            rate=tax.get("rate"),
+            tax_amount=0,
+        ))
+    return invoice

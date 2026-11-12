@@ -10,6 +10,12 @@ RETURN_TYPES = {'Delivery Note', 'Purchase Receipt', 'Sales Invoice', 'Purchase 
 EPSILON = 1e-9
 
 
+def register_return_type(doctype):
+    """Plugin seam: a document type that supports returns (is_return /
+    return_against with negative quantities), checked like the built-in ones."""
+    RETURN_TYPES.add(doctype)
+
+
 def lock_workflow_references(doc):
     """Serialize checks against the same original/order, including cancel."""
     db = get_db()
@@ -25,6 +31,9 @@ def lock_workflow_references(doc):
     if rule:
         table, parent, _, _ = rule
         refs.update((table, row[parent]) for row in doc.get('items') if row.get(parent))
+    if doc.DOCTYPE == 'Sales Invoice':
+        # Invoices that bill a delivery note are checked against it.
+        refs.update(('Delivery Note', row['delivery_note']) for row in doc.get('items') if row.get('delivery_note'))
     for table, name in sorted(refs):
         if db.dialect == 'postgres':
             db.sql(f'SELECT name FROM "{table}" WHERE name = ? FOR UPDATE', [name])
@@ -147,6 +156,81 @@ def validate_return(doc):
             raise ValidationError(f'Return qty ({qty}) for {key[0]} exceeds remaining returnable qty ({remaining}; already returned {returned[key]})')
 
 
+def _sum_returned(doctype, line_field, line, *, stock_only=False):
+    """Quantity that came back on returns (positive number)."""
+    db = get_db()
+    return -flt(db.sql(
+        f'SELECT COALESCE(SUM(i.qty), 0) AS qty FROM "{doctype} Item" i '
+        f'JOIN "{doctype}" p ON p.name = i.parent WHERE i."{line_field}" = ? '
+        'AND p.docstatus = 1 AND COALESCE(p.is_return, 0) = 1 AND i.qty < 0'
+        + (' AND p.update_stock = 1' if stock_only else '') + _goods_returns(doctype),
+        [line])[0]['qty'])
+
+
+def validate_delivery_billing(doc):
+    """A Sales Invoice line that bills a delivery note line (delivery_note /
+    dn_detail): the delivery exists and matches, the invoice does not move
+    the goods a second time, and no more is billed than was delivered."""
+    if doc.DOCTYPE != 'Sales Invoice':
+        return
+    db = get_db()
+    if 'dn_detail' not in db._get_table_columns('Sales Invoice Item'):
+        return
+    requested = defaultdict(float)
+    for idx, row in enumerate(doc.get('items') or [], 1):
+        note, line = row.get('delivery_note'), row.get('dn_detail')
+        if not note and not line:
+            continue
+        if not note or not line:
+            raise ValidationError(f'Sales Invoice row {idx}: delivery_note and dn_detail must be supplied together')
+        if flt(doc.get('update_stock')):
+            raise ValidationError(
+                'A Sales Invoice that bills a delivery note cannot update stock: the delivery already moved the goods')
+        if flt(doc.get('is_return')):
+            continue  # a credit note is checked against its original invoice
+        parent = db.get_value('Delivery Note', note, ['docstatus', 'customer', 'company', 'is_return'])
+        detail = db.get_value('Delivery Note Item', line, ['parent', 'item_code', 'qty'])
+        if not parent or parent.get('docstatus') != 1 or flt(parent.get('is_return')):
+            raise ValidationError(f'Sales Invoice row {idx}: Delivery Note {note} must be a submitted delivery')
+        if not detail or detail.get('parent') != note or detail.get('item_code') != row.get('item_code'):
+            raise ValidationError(f'Sales Invoice row {idx}: the delivery note line must belong to {note} and carry the same item')
+        if parent.get('customer') != doc.get('customer') or parent.get('company') != doc.get('company'):
+            raise ValidationError(f'Sales Invoice row {idx}: Customer and Company must match Delivery Note {note}')
+        requested[line] += flt(row.get('qty'))
+    for line, qty in requested.items():
+        delivered = flt(db.get_value('Delivery Note Item', line, 'qty'))
+        billed = _sum_line('Sales Invoice', 'dn_detail', line, exclude=doc.name)
+        if billed + qty > delivered + EPSILON:
+            raise ValidationError(
+                f'Sales Invoice: Qty exceeds what is left to bill of the delivery ({max(0, delivered - billed):g}); '
+                f'already billed {billed:g} of {delivered:g} delivered')
+
+
+def refresh_delivery_billing(doc):
+    """billed_qty per delivery note line and the note's per_billed / status,
+    recalculated from the submitted invoices that bill it."""
+    if doc.DOCTYPE != 'Sales Invoice':
+        return
+    db = get_db()
+    if 'dn_detail' not in db._get_table_columns('Sales Invoice Item'):
+        return
+    for note in sorted({row['delivery_note'] for row in doc.get('items') or [] if row.get('delivery_note')}):
+        if db.dialect == 'postgres':
+            db.sql('SELECT name FROM "Delivery Note" WHERE name = ? FOR UPDATE', [note])
+        total = billed = 0
+        for line in db.get_all('Delivery Note Item', filters={'parent': note}, fields=['name', 'qty']):
+            done = _sum_line('Sales Invoice', 'dn_detail', line.name)
+            db.set_value('Delivery Note Item', line.name, 'billed_qty', done)
+            total += flt(line.qty)
+            billed += min(done, flt(line.qty))
+        per_billed = flt(billed / total * 100, 2) if total else 0
+        values = {'per_billed': per_billed}
+        if db.get_value('Delivery Note', note, 'docstatus') == 1:
+            # Submitted until an invoice bills it; then what is left to do.
+            values['status'] = 'Completed' if per_billed >= 100 else 'To Bill' if billed > EPSILON else 'Submitted'
+        db.set_value('Delivery Note', note, values)
+
+
 def _sum_line(doctype, line_field, line, *, exclude=None, stock_only=False):
     db = get_db()
     return flt(db.sql(
@@ -265,6 +349,7 @@ def refresh_order_progress(doc):
     if not db._in_transaction:
         with db.atomic():
             return refresh_order_progress(doc)
+    refresh_delivery_billing(doc)
     if doc.DOCTYPE in {'Sales Order', 'Purchase Order'}:
         orders = {(doc.DOCTYPE, doc.name)}
     elif doc.DOCTYPE in ORDER_REFERENCES:
@@ -284,7 +369,12 @@ def refresh_order_progress(doc):
         for row in lines:
             delivered = _sum_line(movement, move_line, row.name) + _sum_line(invoice, invoice_line, row.name, stock_only=True)
             invoiced = _sum_line(invoice, invoice_line, row.name)
-            db.set_value(kind + ' Item', row.name, {progress: delivered, 'billed_qty': invoiced})
+            values = {progress: delivered, 'billed_qty': invoiced}
+            if 'returned_qty' in row:
+                # Net of returns already; this says how much of it came back.
+                values['returned_qty'] = (_sum_returned(movement, move_line, row.name)
+                                          + _sum_returned(invoice, invoice_line, row.name, stock_only=True))
+            db.set_value(kind + ' Item', row.name, values)
             total += flt(row.qty)
             moved += delivered
             billed += invoiced
