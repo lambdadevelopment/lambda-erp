@@ -82,6 +82,24 @@ export function useBatchMovements(params: Record<string, string> | null) {
   return { data, isLoading, error };
 }
 
+export function useBatchRecipients(params: Record<string, string> | null) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["report", "batch-recipients", params],
+    queryFn: () => api.batchRecipients(params as Record<string, string>),
+    enabled: !!params,
+  });
+  return { data, isLoading };
+}
+
+export function useBatchChanges(params: Record<string, string> | null) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["report", "batch-changes", params],
+    queryFn: () => api.batchChanges(params as Record<string, string>),
+    enabled: !!params,
+  });
+  return { data, isLoading };
+}
+
 export function useProfitAndLoss(params?: Record<string, string>) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["report", "profit-and-loss", params],

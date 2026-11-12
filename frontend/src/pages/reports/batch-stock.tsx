@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { usePageTitle } from "@/lib/use-page-title";
 import { useTranslation } from "react-i18next";
-import { useStockDetail, useBatchMovements } from "@/hooks/use-report";
+import { useStockDetail, useBatchMovements, useBatchRecipients, useBatchChanges } from "@/hooks/use-report";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,8 @@ export default function BatchStockPage() {
 
   const { data, isLoading, refetch } = useStockDetail(filters);
   const movements = useBatchMovements(selected);
+  const recipients = useBatchRecipients(selected);
+  const changes = useBatchChanges(selected);
 
   const handleApply = () => {
     patchUrl({
@@ -179,6 +181,58 @@ export default function BatchStockPage() {
           </div>
         </Card>
       )}
+
+      {selected && (recipients.data?.rows?.length ?? 0) > 0 ? (
+        <Card>
+          <div className="border-b border-gray-200 px-4 py-3 text-sm font-medium text-gray-900">
+            {t("reports.batchRecipients", {
+              defaultValue: "Who received batch {{batch}}",
+              batch: selected.batch_no,
+            })}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className={th}>{t("fields.Customer", { defaultValue: "Customer" })}</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500">{t("fields.Delivered", { defaultValue: "Delivered" })}</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500">{t("fields.Returned", { defaultValue: "Returned" })}</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500">{t("fields.Still With Them", { defaultValue: "Still With Them" })}</th>
+                  <th className={th}>{t("fields.Last Delivery", { defaultValue: "Last Delivery" })}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {(recipients.data?.rows ?? []).map((row: any) => (
+                  <tr key={`${row.item_code}-${row.customer}`} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 text-gray-900">{row.customer_name} <span className="text-gray-400">{row.customer}</span></td>
+                    <td className="px-4 py-2 text-right">{formatNumber(row.delivered_qty)}</td>
+                    <td className="px-4 py-2 text-right">{formatNumber(row.returned_qty)}</td>
+                    <td className="px-4 py-2 text-right font-medium">{formatNumber(row.net_qty)}</td>
+                    <td className="px-4 py-2 text-gray-700">{row.last_date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
+
+      {selected && (changes.data?.rows?.length ?? 0) > 0 ? (
+        <Card>
+          <div className="border-b border-gray-200 px-4 py-3 text-sm font-medium text-gray-900">
+            {t("reports.batchChanges", { defaultValue: "Changes to batch {{batch}}", batch: selected.batch_no })}
+          </div>
+          <ul className="divide-y divide-gray-100 text-sm">
+            {(changes.data?.rows ?? []).map((row: any, idx: number) => (
+              <li key={idx} className="px-4 py-2 text-gray-700">
+                <span className="text-gray-500">{String(row.changed_at ?? "").slice(0, 16).replace("T", " ")}</span>{" "}
+                <span className="font-mono text-xs">{row.field}</span>: {row.old_value ?? "–"} → {row.new_value ?? "–"}
+                <span className="text-gray-500"> · {row.changed_by ?? "system"} · {row.source}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       {selected ? (
         <Card>

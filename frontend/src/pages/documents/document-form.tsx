@@ -6,6 +6,7 @@ import { api } from "@/api/client";
 import { getDoctypeConfig, type FieldDef, type ChildTableDef } from "@/lib/doctypes";
 import { usePageTitle } from "@/lib/use-page-title";
 import { PdfButton } from "@/components/document/pdf-button";
+import { StockSuggestInput } from "@/components/document/stock-suggest-input";
 import { StatusBadge } from "@/components/document/status-badge";
 import { DocPager } from "@/components/document/doc-pager";
 import { SaveButton } from "@/components/ui/save-button";
@@ -193,6 +194,7 @@ function FieldRenderer({
   hideLabel,
   currency = "USD",
   doctype,
+  parentData,
 }: {
   field: FieldDef;
   value: any;
@@ -208,6 +210,8 @@ function FieldRenderer({
   /** The document's currency, so amounts render with the right symbol
    *  (€/£/¥…) instead of always $. */
   currency?: string;
+  /** The document a line belongs to (its warehouse, for line suggestions). */
+  parentData?: Record<string, any>;
 }) {
   const { t } = useTranslation();
   const isDisabled = readOnly || !!field.readOnly;
@@ -377,6 +381,25 @@ function FieldRenderer({
     );
   }
 
+  if (field.suggest && rowData) {
+    const warehouse =
+      (field.suggestWarehouse ?? ["warehouse"]).map((name) => rowData[name]).find(Boolean) ??
+      parentData?.warehouse;
+    return (
+      <div>
+        <Label />
+        <StockSuggestInput
+          kind={field.suggest}
+          value={value ?? ""}
+          onChange={onChange}
+          itemCode={rowData.item_code}
+          warehouse={warehouse}
+          batchNo={rowData.batch_no}
+        />
+      </div>
+    );
+  }
+
   const inputType =
     field.type === "number" || field.type === "currency"
       ? "number"
@@ -425,12 +448,14 @@ function ChildTableEditor({
   onChange,
   readOnly,
   currency = "USD",
+  parentData,
 }: {
   tableDef: ChildTableDef;
   rows: any[];
   onChange: (rows: any[]) => void;
   readOnly: boolean;
   currency?: string;
+  parentData?: Record<string, any>;
 }) {
   const { t } = useTranslation();
   const updateRow = (idx: number, fieldName: string, value: any) => {
@@ -518,6 +543,7 @@ function ChildTableEditor({
                         rowData={row}
                         hideLabel
                         currency={currency}
+                        parentData={parentData}
                       />
                     </td>
                   );
@@ -1191,6 +1217,7 @@ export default function DocumentFormPage() {
           onChange={(rows) => setChildTable(ct.key, rows)}
           readOnly={readOnly}
           currency={docCurrency}
+          parentData={formData}
         />
       ))}
 

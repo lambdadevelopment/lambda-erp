@@ -12,8 +12,9 @@ individual users:
 A user without a profile is not affected by any of this. No profile exists
 after an upgrade and none is assigned (migration 52).
 
-Not in this release: restricting a user to assigned customers or warehouses
-(record scope), a stock count document, and plugin registration of roles.
+Not included: restricting a user to assigned customers or warehouses (record
+scope) and plugin registration of roles. A user who may count but not post is
+set up with the Stock Count document (1.4.12, `stock-counts.md`).
 
 ## Setting it up
 

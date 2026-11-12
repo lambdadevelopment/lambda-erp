@@ -4,9 +4,10 @@ Batch-tracked stock: every movement of a tracked item names its batch, and
 quantities are kept and checked per batch. Available from 1.4.5 (migration 51).
 Nothing changes for an item until it is switched to batch tracking.
 
-Not included: serial numbers, a stock count / reconciliation document,
-blocking of batches, picking suggestions (FEFO). Storage locations (1.4.7)
-are a second dimension next to the batch: see `docs/storage-locations.md`.
+Not included: serial numbers. Added since: storage locations as a second
+dimension next to the batch (1.4.7, `storage-locations.md`), blocking of
+batches and FEFO picking (1.4.8, `reservations-and-fefo.md`), stock counts
+with a reason (1.4.12, `stock-counts.md`).
 
 ## Data model
 
@@ -50,6 +51,11 @@ plugins alike.
   original moved, less earlier returns. The return converters carry the batch.
 - **Cancel** reverses the document's batches and is refused when a received
   batch has since left the warehouse.
+- **Changes are kept (1.4.12).** A batch's expiry date and block can be
+  corrected in the Batch master. Each change of `expiry_date`, `blocked`,
+  `blocked_reason` or `disabled` is recorded with the old and new value, who
+  changed it and when, also when a receipt supplies an expiry date the batch
+  did not have. Changes from before 1.4.12 are not known.
 - **Master:** `item_code` and `batch_no` of a batch cannot be changed once the
   stock ledger has it. Batch tracking cannot be switched off for an item with
   batches in the ledger. Only stock items can be tracked.
@@ -79,6 +85,8 @@ their reversal goes to stock without a batch.
 
 | Report | REST | Chat / MCP `get_report` |
 |---|---|---|
+| Who has a batch: per customer delivered, returned and net; where the rest lies; which suppliers it came from (1.4.12) | `GET /api/reports/batch-recipients?batch_no=…` | `batch-recipients` |
+| Recorded changes of a batch's expiry date and block (1.4.12) | `GET /api/reports/batch-changes?batch_no=…` | `batch-changes` |
 | Stock per item × warehouse × batch with expiry | `GET /api/reports/batch-stock` | `batch-stock` |
 | Movements of a batch with document, line and customer / supplier | `GET /api/reports/batch-movements?batch_no=…` | `batch-movements` |
 

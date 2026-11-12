@@ -13,6 +13,39 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.12] - 2026-11-12
+
+Migrations 58 and 59 run on startup. See `docs/stock-counts.md`.
+
+- **Stock Count.** New document for counting one warehouse and correcting
+  the difference with a reason.
+  - Action `prepare_stock_count` drafts it with a line per item, batch and
+    storage location and the quantity the system expects, for the whole
+    warehouse, one storage location, one item or an item-code prefix. The
+    draft prints as a count sheet.
+  - Saving a draft changes no stock. Submitting posts counted minus system
+    quantity per counted line, requires a reason, and keeps the count as the
+    document behind every movement it makes.
+  - Counting and posting are separate permissions: with an access profile a
+    user can hand in a count without being able to correct stock.
+  - Refused when stock on a counted line moved since the count was prepared
+    (refresh it), and for stock reserved for a sales order.
+  - Quantities only: differences are valued at current cost; a correction
+    between two batches or locations of an item posts no ledger value.
+- **Who received a batch.** New report `batch-recipients`: per customer the
+  delivered, returned and net quantity of a batch, where the rest lies now
+  (with the customer for consignment stock) and the suppliers it came from.
+  Shown in the UI when a batch's movements are opened.
+- **Batch changes are recorded.** Changes of a batch's expiry date and block
+  are kept with the old and new value, who and when (report `batch-changes`;
+  migration 59). Before, only the modified timestamp changed.
+- Batch Assignment stock entries can be printed.
+- **Batch and storage location pickers.** On document lines the Batch field
+  proposes the batches of the line's item in its warehouse, earliest expiry
+  first with the quantity there; the Storage Location fields propose the
+  warehouse's locations with how much of the item lies in each. Typing a
+  value that is not listed stays possible (a receipt names a new batch).
+
 ## [1.4.11] - 2026-11-12
 
 Migration 57 runs on startup. No warehouse becomes a consignment warehouse by

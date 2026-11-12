@@ -602,6 +602,99 @@ def _batch_movements(db, batch_no=None, item_code=None, warehouse=None):
     return {"rows": result}
 
 
+def _batch_recipients(db, batch_no=None, item_code=None):
+    """Who has a batch: one row per customer it was delivered to (delivered,
+    returned and what they still have of it), where the rest lies now
+    (`in_stock`, with the customer for consignment stock) and which suppliers
+    it came from (`suppliers`). The first thing a recall needs."""
+    permissions.require_artifact("report", "batch-recipients")
+    if not batch_no:
+        raise HTTPException(status_code=422, detail="batch_no is required")
+    where, params = ["s.batch_no = ?"], [batch_no]
+    if item_code:
+        where.append("s.item_code = ?")
+        params.append(item_code)
+    rows = db.sql(
+        'SELECT s.item_code, s.posting_date, s.actual_qty, s.voucher_type, s.voucher_no '
+        f'FROM "Stock Ledger Entry" s WHERE {" AND ".join(where)} ORDER BY s.posting_date, s.creation, s.name', params)
+    parties, recipients, suppliers = {}, {}, {}
+    for row in rows:
+        field = _BATCH_PARTY.get(row["voucher_type"])
+        if not field:
+            continue
+        key = (row["voucher_type"], row["voucher_no"])
+        if key not in parties:
+            parties[key] = db.get_value(row["voucher_type"], row["voucher_no"], field[0])
+        party, qty = parties[key], flt(row["actual_qty"])
+        if not party:
+            continue
+        target = recipients if field[1] == "Customer" else suppliers
+        entry = target.setdefault((row["item_code"], party), {
+            "item_code": row["item_code"], field[0]: party, "out_qty": 0.0, "in_qty": 0.0,
+            "first_date": row["posting_date"], "last_date": row["posting_date"], "documents": []})
+        if qty < 0:
+            entry["out_qty"] += -qty
+        else:
+            entry["in_qty"] += qty
+        entry["last_date"] = row["posting_date"]
+        if row["voucher_no"] not in entry["documents"]:
+            entry["documents"].append(row["voucher_no"])
+
+    def named(table, field, party):
+        return db.get_value(table, party, field) or party
+
+    delivered = [{
+        "item_code": e["item_code"], "customer": e["customer"],
+        "customer_name": named("Customer", "customer_name", e["customer"]),
+        "delivered_qty": e["out_qty"], "returned_qty": e["in_qty"], "net_qty": e["out_qty"] - e["in_qty"],
+        "first_date": e["first_date"], "last_date": e["last_date"], "documents": e["documents"]}
+        for e in recipients.values()]
+    delivered.sort(key=lambda r: (r["item_code"], -r["net_qty"], r["customer"]))
+    result = {"rows": delivered}
+    stock_where, stock_params = ["d.batch_no = ?", "d.actual_qty <> 0"], [batch_no]
+    if item_code:
+        stock_where.append("d.item_code = ?")
+        stock_params.append(item_code)
+    result["in_stock"] = [{**dict(r), "actual_qty": flt(r["actual_qty"])} for r in db.sql(
+        'SELECT d.item_code, d.warehouse, w.consignment_customer, d.location, d.actual_qty '
+        'FROM "Stock Balance Detail" d LEFT JOIN "Warehouse" w ON w.name = d.warehouse '
+        f'WHERE {" AND ".join(stock_where)} ORDER BY d.item_code, d.warehouse, d.location', stock_params)]
+    if permissions.can("Supplier", "read"):
+        result["suppliers"] = [{
+            "item_code": e["item_code"], "supplier": e["supplier"],
+            "supplier_name": named("Supplier", "supplier_name", e["supplier"]),
+            "received_qty": e["in_qty"], "returned_qty": e["out_qty"], "documents": e["documents"]}
+            for e in suppliers.values()]
+    return result
+
+
+@router.get("/batch-recipients")
+def batch_recipients(batch_no: str, item_code: str | None = None):
+    return _batch_recipients(get_db(), batch_no, item_code)
+
+
+def _batch_changes(db, batch_no=None, item_code=None):
+    """The recorded changes of a batch's expiry date and block: what it was,
+    what it became, who changed it and when."""
+    permissions.require_artifact("report", "batch-changes")
+    where, params = [], []
+    for column, value in (("batch_no", batch_no), ("item_code", item_code)):
+        if value:
+            where.append(f"{column} = ?")
+            params.append(value)
+    if not where:
+        raise HTTPException(status_code=422, detail="batch_no or item_code is required")
+    rows = db.sql(
+        'SELECT batch, item_code, batch_no, field, old_value, new_value, changed_by, changed_at, source '
+        f'FROM "Batch Change" WHERE {" AND ".join(where)} ORDER BY changed_at, name', params)
+    return {"rows": [dict(row) for row in rows]}
+
+
+@router.get("/batch-changes")
+def batch_changes(batch_no: str | None = None, item_code: str | None = None):
+    return _batch_changes(get_db(), batch_no, item_code)
+
+
 @router.get("/batch-movements")
 def batch_movements(
     batch_no: str,

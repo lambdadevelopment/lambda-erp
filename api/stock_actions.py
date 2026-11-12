@@ -52,6 +52,28 @@ def suggest(args):
                          sales_order_item=data.sales_order_item, include_short_dated=data.include_short_dated)
 
 
+class PrepareCount(mentions.Input):
+    warehouse: str = Field(min_length=1, max_length=200)
+    location: str | None = Field(default=None, max_length=200)
+    item_code: str | None = Field(default=None, max_length=200)
+    item_prefix: str | None = Field(default=None, max_length=200)
+    stock_count: str | None = Field(default=None, max_length=200)
+
+
+def prepare_count(args):
+    data = PrepareCount.model_validate(args)
+    from lambda_erp.stock.stock_count import prepare_stock_count
+    if data.stock_count:
+        permissions.require_writable("Stock Count", "update")
+        permissions.require_readable("Stock Count", data.stock_count)
+    else:
+        permissions.require_writable("Stock Count", "create")
+    doc = prepare_stock_count(data.warehouse, location=data.location, item_code=data.item_code,
+                              item_prefix=data.item_prefix, stock_count=data.stock_count)
+    doc.save()
+    return services.load_document("stock-count", doc.name)
+
+
 class ConsignmentLine(mentions.Input):
     item_code: str = Field(min_length=1, max_length=200)
     qty: float | None = Field(default=None, gt=0)
@@ -141,6 +163,15 @@ def confirm_purchase_order(args, user=None):
 
 
 def initialize_stock_actions():
+    services.register_action(
+        "prepare_stock_count", prepare_count,
+        description=(
+            "Create a DRAFT Stock Count for a warehouse (an own one or a customer's consignment warehouse) with one "
+            "line per item, batch and storage location and the quantity the system expects (system_qty); optionally "
+            "only one location, one item_code or an item_prefix. The counter then enters counted_qty per line with "
+            "update_document. Saving changes no stock; submitting posts the differences and needs a reason. With "
+            "stock_count (an existing draft) it refreshes the system quantities instead and keeps what was counted."),
+        parameters=PrepareCount.model_json_schema(), minimum_role="manager")
     services.register_action(
         "record_consignment_withdrawal", record_consignment_withdrawal,
         description=(

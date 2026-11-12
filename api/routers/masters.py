@@ -509,6 +509,10 @@ def _update_master_record(master_type: str, name: str, data: dict) -> dict:
         update_fields["modified"] = now()
     if update_fields:
         db.set_value(doctype, name, update_fields)
+    if master_type == 'batch':
+        # A batch's expiry date and block decide what may be sold: keep the trail.
+        from lambda_erp.stock.stock_ledger import log_batch_changes
+        log_batch_changes(name, stored, update_fields, 'Batch master')
 
     rows = db.get_all(doctype, filters={"name": name}, fields=["*"])
     if not rows:

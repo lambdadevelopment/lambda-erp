@@ -84,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: <Package className="h-4 w-4" />,
     items: [
       { label: "Stock Entry", path: "/app/stock-entry" },
+      { label: "Stock Count", path: "/app/stock-count" },
       { label: "Stock Reservation", path: "/app/stock-reservation" },
       { label: "Consignment Withdrawal", path: "/app/consignment-withdrawal" },
       { label: "Delivery Note", path: "/app/delivery-note" },

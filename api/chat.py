@@ -878,7 +878,7 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "batch-stock", "batch-movements", "sales-backlog", "purchase-backlog", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
+                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "batch-stock", "batch-movements", "batch-recipients", "batch-changes", "sales-backlog", "purchase-backlog", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
                     "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse; for batch-stock also batch_no, item_prefix, expiring_before, include_empty; for stock-detail also location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty; batch-movements requires batch_no. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
                 },
                 "required": ["report_type"],
@@ -1994,6 +1994,16 @@ def _handle_get_report(args):
                              filters.get("expiring_before"), filters.get("expiring_after"),
                              bool(filters.get("include_empty")), filters.get("consignment_customer"),
                              None if consignment is None else bool(consignment))
+    elif report_type == "batch-recipients":
+        from api.routers.reports import _batch_recipients
+        if not filters.get("batch_no"):
+            return {"error": "batch-recipients needs filters.batch_no"}
+        return _batch_recipients(db, filters.get("batch_no"), filters.get("item_code"))
+    elif report_type == "batch-changes":
+        from api.routers.reports import _batch_changes
+        if not filters.get("batch_no") and not filters.get("item_code"):
+            return {"error": "batch-changes needs filters.batch_no or filters.item_code"}
+        return _batch_changes(db, filters.get("batch_no"), filters.get("item_code"))
     elif report_type == "batch-movements":
         from api.routers.reports import _batch_movements
         if not filters.get("batch_no"):
@@ -2929,6 +2939,13 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - **Material Transfer:** Moves stock between warehouses. No GL impact.
 - **Batch Assignment:** Gives stock that has no batch (from before the item was batch-tracked) its batch, in place: row = item_code, qty, t_warehouse, batch_no (+ expiry_date for a new batch). No GL impact, no quantity or value change.
 
+### Stock counts (inventory)
+- A **Stock Count** (doctype `stock-count`) covers one warehouse. Create the draft with the `prepare_stock_count` action; it lists system_qty per item, batch and storage location. Enter `counted_qty` on the lines that were counted (leave it empty on lines that were not) with update_document; add a line for stock the system does not list.
+- Saving a draft changes NO stock. Submitting posts counted_qty − system_qty per line and requires `reason`. If stock moved since the count was prepared, submitting is refused: refresh with prepare_stock_count(stock_count=…) and have the lines checked again.
+- When someone tells you what they counted, put it on the draft and report the differences (difference_qty). Do not submit a count unless the user explicitly asks to post it and may do so.
+- A count corrects quantities from now on. It never changes earlier delivery notes or invoices; do not use it to record where goods are believed to have gone.
+- Use a Stock Count, not Material Receipt / Issue, when the reason is "what is there differs from what the system says".
+
 ### Consignment (own stock lying at a customer)
 - A **consignment warehouse** is a warehouse with `consignment_customer` set. The goods in it are still ours (in stock and stock value) until the customer uses them.
 - **Stocking** (sending goods to the customer's consignment stock) is NOT a sale and gets NO invoice: use the `prepare_consignment_stocking` action (warehouse, items) to draft the Material Transfer, review it, then submit it.
@@ -3036,6 +3053,8 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 - **stock-availability** — Per item × warehouse: physical_qty (in stock), blocked_qty (expired or blocked batches), reserved_qty (open Stock Reservations), available_qty (= physical − blocked − reserved), plus open_sales_order_qty (ordered by customers, not yet delivered) and on_purchase_order_qty (ordered from suppliers, not yet received). Filters: item_code, warehouse, item_prefix. Use this to answer "can we deliver X" and "is it already on order".
 - **stock-detail** — Where stock is, in one view: item, warehouse, consignment_customer (who it lies with, for consignment warehouses), storage location, batch, expiry date, quantity. Filters: item_code, warehouse, location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty, consignment_customer (one customer's consignment stock), consignment (true = only consignment, false = only own warehouses). Use this for "what is in location B4", "where is item X", "what expires in the next 3 months in warehouse Y".
 - **batch-stock** — Quantity per item × warehouse × batch with the batch's expiry date (batch-tracked items only). Filters: item_code, warehouse, batch_no, item_prefix (item codes starting with…), expiring_before (date), include_empty. A batch label is NOT unique: the same label can exist on several items, so a batch_no-only lookup can return several items — show them all, never pick one.
+- **batch-recipients** — Who has a batch (recall): one row per customer with delivered_qty, returned_qty, net_qty and the documents; `in_stock` says where the rest lies now (with the customer for consignment stock); `suppliers` where it came from. Filters: batch_no (required), item_code. Use this for "who received lot X" instead of adding up movements yourself.
+- **batch-changes** — Recorded changes of a batch's expiry date and block (old value, new value, who, when). Filters: batch_no and/or item_code.
 - **batch-movements** — Every stock movement of a batch with document, line and customer/supplier: where it came from and who received it (recalls). Filters: batch_no (required), item_code, warehouse.
 - **dashboard-summary** — KPI overview (revenue, receivables, payables, stock value).
 - **Custom analytics drafts** — reserved for when the user **explicitly asks

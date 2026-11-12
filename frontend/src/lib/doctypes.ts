@@ -23,6 +23,12 @@ export interface FieldDef {
   optionsSource?: "currency" | "pdfTemplate";
   default?: any;
   hint?: string; // tooltip text shown via a help icon next to the label
+  // For a line's batch or storage location: propose what exists for the
+  // line's item in its warehouse (typing something else stays possible).
+  suggest?: "batch" | "location";
+  // Row fields that hold the warehouse, first non-empty wins (default
+  // ["warehouse"]); falls back to the document's own `warehouse`.
+  suggestWarehouse?: string[];
 }
 
 export interface ChildTableDef {
@@ -258,8 +264,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     ],
     childTables: [
       { key: "items", label: "Items", fields: [...ITEM_FIELDS, { name: "income_account", label: "Income Account", type: "link", linkDoctype: "account" },
-        { name: "location", label: "Storage Location", type: "text", hint: "Only when this invoice also moves stock (Update Stock) and the warehouse uses storage locations." },
-        { name: "batch_no", label: "Batch", type: "text", hint: "Only when this invoice also moves stock (Update Stock) and the item is batch-tracked." },
+        { name: "location", label: "Storage Location", type: "text", suggest: "location", hint: "Only when this invoice also moves stock (Update Stock) and the warehouse uses storage locations." },
+        { name: "batch_no", label: "Batch", type: "text", suggest: "batch", hint: "Only when this invoice also moves stock (Update Stock) and the item is batch-tracked." },
         { name: "shelf_life_exception", label: "Shelf Life Exception", type: "text", hint: "Only when the batch has less shelf life left than the item requires: the approved reason for shipping it anyway." }], lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
@@ -344,9 +350,9 @@ const CONFIGS: Record<string, DoctypeConfig> = {
           { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse",
             hint: "Required when Update Stock is Yes — the received goods land in this warehouse.",
           },
-          { name: "location", label: "Storage Location", type: "text",
+          { name: "location", label: "Storage Location", type: "text", suggest: "location",
             hint: "Required when the warehouse uses storage locations: the place the goods are taken from or put." },
-          { name: "batch_no", label: "Batch", type: "text",
+          { name: "batch_no", label: "Batch", type: "text", suggest: "batch",
             hint: "Required on batch-tracked items when stock moves. One batch per line: split a quantity from two batches into two lines." },
           { name: "expiry_date", label: "Expiry Date", type: "date",
             hint: "Only needed for a batch that is new: it is stored on the batch." },
@@ -478,11 +484,11 @@ const CONFIGS: Record<string, DoctypeConfig> = {
           { name: "qty", label: "Qty", type: "number", required: true },
           { name: "s_warehouse", label: "Source", type: "link", linkDoctype: "warehouse" },
           { name: "t_warehouse", label: "Target", type: "link", linkDoctype: "warehouse" },
-          { name: "s_location", label: "Source Location", type: "text",
+          { name: "s_location", label: "Source Location", type: "text", suggest: "location", suggestWarehouse: ["s_warehouse"],
             hint: "The storage location the goods are taken from (warehouses with storage locations). Leave empty in a move inside one warehouse to put away stock that has no location yet." },
-          { name: "t_location", label: "Target Location", type: "text",
+          { name: "t_location", label: "Target Location", type: "text", suggest: "location", suggestWarehouse: ["t_warehouse"],
             hint: "The storage location the goods are put into (warehouses with storage locations)." },
-          { name: "batch_no", label: "Batch", type: "text",
+          { name: "batch_no", label: "Batch", type: "text", suggest: "batch", suggestWarehouse: ["s_warehouse", "t_warehouse"],
             hint: "Required on batch-tracked items when stock moves. One batch per line: split a quantity from two batches into two lines." },
           { name: "expiry_date", label: "Expiry Date", type: "date",
             hint: "Only needed for a batch that is new: it is stored on the batch." },
@@ -524,9 +530,9 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         key: "items", label: "Items", fields: [
           ...ITEM_FIELDS,
           { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse", required: true },
-          { name: "location", label: "Storage Location", type: "text",
+          { name: "location", label: "Storage Location", type: "text", suggest: "location",
             hint: "Required when the warehouse uses storage locations: the place the goods are taken from or put." },
-          { name: "batch_no", label: "Batch", type: "text",
+          { name: "batch_no", label: "Batch", type: "text", suggest: "batch",
             hint: "Required on batch-tracked items when stock moves. One batch per line: split a quantity from two batches into two lines." },
           { name: "shelf_life_exception", label: "Shelf Life Exception", type: "text",
             hint: "Only when the batch has less shelf life left than the item requires: the approved reason for shipping it anyway." },
@@ -566,9 +572,9 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         key: "items", label: "Items", fields: [
           ...ITEM_FIELDS,
           { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse", required: true },
-          { name: "location", label: "Storage Location", type: "text",
+          { name: "location", label: "Storage Location", type: "text", suggest: "location",
             hint: "Required when the warehouse uses storage locations: the place the goods are taken from or put." },
-          { name: "batch_no", label: "Batch", type: "text",
+          { name: "batch_no", label: "Batch", type: "text", suggest: "batch",
             hint: "Required on batch-tracked items when stock moves. One batch per line: split a quantity from two batches into two lines." },
           { name: "expiry_date", label: "Expiry Date", type: "date",
             hint: "Only needed for a batch that is new: it is stored on the batch." },
@@ -614,9 +620,9 @@ const CONFIGS: Record<string, DoctypeConfig> = {
           { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse",
             hint: "Required when Update Stock is Yes — this is where stock is drawn from.",
           },
-          { name: "location", label: "Storage Location", type: "text",
+          { name: "location", label: "Storage Location", type: "text", suggest: "location",
             hint: "Required when the warehouse uses storage locations: the place the goods are taken from or put." },
-          { name: "batch_no", label: "Batch", type: "text",
+          { name: "batch_no", label: "Batch", type: "text", suggest: "batch",
             hint: "Required on batch-tracked items when stock moves. One batch per line: split a quantity from two batches into two lines." },
         ],
       },
@@ -849,6 +855,43 @@ const CONFIGS: Record<string, DoctypeConfig> = {
   },
 
   // --- Rentals: unit-level assets + date-ranged reservations (ADR-0002).
+  // Counted quantities per item, batch and storage location. Saving a draft
+  // changes no stock; submitting posts the differences. See docs/stock-counts.md.
+  "stock-count": {
+    slug: "stock-count",
+    label: "Stock Count",
+    dateField: "posting_date",
+    fields: [
+      { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse", required: true },
+      { name: "posting_date", label: "Posting Date", type: "date", required: true },
+      { name: "reason", label: "Reason", type: "text",
+        hint: "Why stock is corrected. Required to post the count; kept with every movement it makes." },
+      { name: "counted_lines", label: "Counted Lines", type: "number", readOnly: true },
+      { name: "difference_lines", label: "Lines With Difference", type: "number", readOnly: true },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+    ],
+    childTables: [
+      {
+        key: "items", label: "Items", fields: [
+          { name: "location", label: "Storage Location", type: "text", suggest: "location" },
+          { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
+          { name: "item_name", label: "Item Name", type: "text", readOnly: true },
+          { name: "batch_no", label: "Batch", type: "text", suggest: "batch" },
+          { name: "expiry_date", label: "Expiry Date", type: "date", hint: "Needed for a batch the system does not know yet." },
+          { name: "system_qty", label: "System Qty", type: "number", readOnly: true },
+          { name: "counted_qty", label: "Counted Qty", type: "number", default: null,
+            hint: "Leave empty for a line that was not counted; it is then left alone. Enter 0 if nothing is there." },
+          { name: "difference_qty", label: "Difference", type: "number", readOnly: true },
+        ],
+      },
+    ],
+    listColumns: ["name", "warehouse", "posting_date", "counted_lines", "difference_lines", "reason", "status"],
+    searchFields: ["name", "warehouse", "reason"],
+    canSubmit: true,
+    canCancel: true,
+    conversions: [],
+  },
+
   // What a customer reported as used from their consignment warehouse.
   // Submitting bills it and takes the goods out, once. See docs/consignment.md.
   "consignment-withdrawal": {
@@ -881,8 +924,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
           { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
           { name: "item_name", label: "Item Name", type: "text", readOnly: true },
           { name: "qty", label: "Qty", type: "number", required: true },
-          { name: "batch_no", label: "Batch", type: "text", hint: "The batch the customer reported. It must lie in this consignment warehouse." },
-          { name: "location", label: "Storage Location", type: "text" },
+          { name: "batch_no", label: "Batch", type: "text", suggest: "batch", hint: "The batch the customer reported. It must lie in this consignment warehouse." },
+          { name: "location", label: "Storage Location", type: "text", suggest: "location" },
           { name: "rate", label: "Rate", type: "currency", default: null, hint: "Leave blank to bill the customer's price." },
         ],
       },

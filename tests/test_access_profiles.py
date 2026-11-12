@@ -191,6 +191,10 @@ def check_access_profiles():
             for dataset in analytics.SEMANTIC_DATASETS:
                 r = client.post("/api/reports/runtime/data", json={"requests": [{"dataset": dataset, "limit": 500}]})
                 seen.append((f"POST runtime/data {dataset}", r.status_code, r.text))
+            for batch in ("LOT-NONE",):
+                get("/api/reports/batch-recipients", batch_no=batch)
+                get("/api/reports/batch-changes", batch_no=batch)
+                get("/api/reports/batch-movements", batch_no=batch)
             get("/api/chat-doctypes")
             get("/api/reports/runtime/drafts")
             return seen

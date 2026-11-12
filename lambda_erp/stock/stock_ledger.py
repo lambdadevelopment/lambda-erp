@@ -135,6 +135,43 @@ def get_batch(item_code, batch_no):
         ["name", "batch_no", "item_code", "expiry_date", "disabled"])
 
 
+AUDITED_BATCH_FIELDS = ("expiry_date", "blocked", "blocked_reason", "disabled")
+
+
+def log_batch_changes(batch_name, before, after, source):
+    """Keep who changed a batch's expiry date or block, when, and from what.
+    `before` / `after` are the batch's values; only audited fields that
+    differ are recorded."""
+    import uuid
+
+    db = get_db()
+    if not db._get_table_columns("Batch Change"):
+        return
+    from lambda_erp.permissions import current_principal
+    principal = current_principal() or {}
+    who = principal.get("user_id") or principal.get("name")
+
+    def text(field, value):
+        if value in (None, ""):
+            return None
+        if field in ("blocked", "disabled"):
+            return "1" if flt(value) else "0"
+        return str(value)[:10] if field == "expiry_date" else str(value)
+
+    for field in AUDITED_BATCH_FIELDS:
+        if field not in after:
+            continue
+        old, new = text(field, (before or {}).get(field)), text(field, after.get(field))
+        if field in ("blocked", "disabled"):
+            old, new = old or "0", new or "0"
+        if old == new:
+            continue
+        db.insert("Batch Change", _dict(
+            name=uuid.uuid4().hex, batch=batch_name, item_code=(before or {}).get("item_code") or after.get("item_code"),
+            batch_no=(before or {}).get("batch_no") or after.get("batch_no"), field=field,
+            old_value=old, new_value=new, changed_by=who, changed_at=now(), source=source))
+
+
 def _date_text(value):
     return str(value)[:10] if value not in (None, "") else None
 
@@ -181,6 +218,8 @@ def resolve_entry_batch(sle):
                 f"Correct the line or the batch")
         if expiry and not known:
             db.set_value("Batch", batch["name"], {"expiry_date": expiry, "modified": now()})
+            log_batch_changes(batch["name"], batch, {"expiry_date": expiry},
+                              f"{sle.get('voucher_type') or 'Stock'} {sle.get('voucher_no') or ''}".strip())
         return batch_no
     if flt(item.get("has_expiry_date")) and not expiry:
         raise ValidationError(

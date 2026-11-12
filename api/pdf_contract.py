@@ -190,13 +190,17 @@ def prepare(doctype, doc):
                     number(row[key], f'{table.key}[{i}].{key}')
             if table.key in {'items', 'plans'}:
                 _item(row, tokens, i)
-                _quantity(row, f'{table.key}[{i}].qty', bool(doc.get('is_return')))
+                # A count sheet has an expected and a counted quantity (which
+                # may be empty or zero), not a line quantity.
+                if doctype != 'Stock Count':
+                    _quantity(row, f'{table.key}[{i}].qty', bool(doc.get('is_return')))
             if doctype in {'Delivery Note', 'Purchase Receipt'}:
                 if row.get('item_code') and get_db().get_value('Item', row['item_code'], 'is_stock_item'):
                     require(row, ('warehouse',), f'{table.key}[{i}].')
             if doctype == 'Stock Entry':
                 movement = doc['stock_entry_type']
-                if movement not in {'Material Receipt', 'Opening Stock', 'Material Issue', 'Material Transfer'}:
+                if movement not in {'Material Receipt', 'Opening Stock', 'Material Issue', 'Material Transfer',
+                                    'Batch Assignment'}:
                     raise PDFError('PDF requires a supported stock_entry_type')
                 keys = ('s_warehouse', 't_warehouse') if movement == 'Material Transfer' else ('s_warehouse',) if movement == 'Material Issue' else ('t_warehouse',)
                 require(row, keys, f'items[{i}].')

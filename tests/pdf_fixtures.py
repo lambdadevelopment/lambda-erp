@@ -23,6 +23,8 @@ def seed_pdf_documents():
                             items=[dict(item_code='M-PDF',item_name='Excavator Example',qty=3,uom='Nos',s_warehouse='W-PDF',t_warehouse='W-PDF-2')]),
         'Asset': dict(item_code='M-PDF', asset_name='Machine unit', asset_tag='SG-123', warehouse='W-PDF', status='Available'),
         'Reservation': dict(company='PDF Co', party_type='Customer',party='C-PDF',allocation_mode='Unit',asset='PDF-Asset',item_code='M-PDF',warehouse='W-PDF',qty=1,from_datetime='2026-09-16 08:00:00',to_datetime='2026-09-18 08:00:00',status='Reserved'),
+        'Stock Count': dict(company='PDF Co', warehouse='W-PDF', posting_date='2026-09-16', status='Draft', docstatus=0,
+                            items=[dict(item_code='M-PDF', item_name='Excavator Example', batch_no='LOT-1', system_qty=3, counted_qty=2)]),
         'Consignment Withdrawal': dict(company='PDF Co', customer='C-PDF', warehouse='W-PDF', posting_date='2026-09-16', status='Draft', docstatus=0,
                                        items=[dict(item_code='M-PDF', item_name='Excavator Example', qty=2, uom='Nos', batch_no='LOT-1')]),
         'Stock Reservation': dict(company='PDF Co', item_code='M-PDF', warehouse='W-PDF', reserved_qty=2, status='Reserved', remarks='Set aside for a demonstration', docstatus=0),

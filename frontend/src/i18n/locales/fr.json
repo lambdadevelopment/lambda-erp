@@ -374,7 +374,8 @@
       "Stock Availability": "Disponibilité du stock",
       "Sales Backlog": "Commandes en attente",
       "Purchase Backlog": "Achats en attente",
-      "Consignment Withdrawal": "Prélèvement en consignation"
+      "Consignment Withdrawal": "Prélèvement en consignation",
+      "Stock Count": "Inventaire"
     }
   },
   "login": {
@@ -539,7 +540,9 @@
     "onlyDeliverable": "Seulement ce qui est livrable",
     "onlyOverdue": "Seulement en retard",
     "noBacklog": "Rien en attente",
-    "unconfirmedNote": "* non confirmé par le fournisseur : date prévue de la commande"
+    "unconfirmedNote": "* non confirmé par le fournisseur : date prévue de la commande",
+    "batchRecipients": "Destinataires du lot {{batch}}",
+    "batchChanges": "Modifications du lot {{batch}}"
   },
   "masterForm": {
     "required": "Requis : {{fields}}",
@@ -734,7 +737,16 @@
     "Replenish": "Réapprovisionner",
     "Replenish From": "Réapprovisionner depuis",
     "Replacement Transfer": "Transfert de remplacement",
-    "Replenishment": "Réapprovisionnement"
+    "Replenishment": "Réapprovisionnement",
+    "Reason": "Motif",
+    "Counted Lines": "Lignes comptées",
+    "Lines With Difference": "Lignes avec écart",
+    "System Qty": "Quantité système",
+    "Counted Qty": "Quantité comptée",
+    "Difference": "Écart",
+    "Returned": "Retourné",
+    "Still With Them": "Encore chez le client",
+    "Last Delivery": "Dernière livraison"
   },
   "tables": {
     "items": "Lignes",

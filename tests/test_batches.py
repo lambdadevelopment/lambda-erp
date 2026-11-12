@@ -261,6 +261,54 @@ class Batches(unittest.TestCase):
         for table in BATCH_LINE_TABLES:
             self.assertIn('batch_no', self.db._get_table_columns(table), table)
 
+    # -- who has a batch, and who changed it --------------------------------------
+    def test_recipient_summary_for_a_recall(self):
+        self.db.insert('Customer', {'name': 'D', 'customer_name': 'Second customer', 'default_currency': 'USD'})
+        self.post('purchase-receipt', {
+            'company': 'Test Co', 'supplier': 'SUP', 'posting_date': '2026-11-12',
+            'items': [{'item_code': 'B', 'qty': 10, 'rate': 10, 'warehouse': 'A', 'batch_no': 'LOT-R',
+                       'expiry_date': '2027-06-30'}]})
+
+        def deliver(customer, qty):
+            return self.post('delivery-note', {**self.delivery([{'qty': qty, 'batch_no': 'LOT-R'}]), 'customer': customer})
+
+        first = deliver('C', 4)
+        deliver('C', 1)
+        deliver('D', 2)
+        self.post('delivery-note', {**self.delivery([{'qty': -1, 'batch_no': 'LOT-R'}], is_return=1,
+                                                      return_against=first['name'])})
+        from api.routers.reports import _batch_recipients
+        got = _batch_recipients(self.db, batch_no='LOT-R')
+        self.assertEqual([(r['customer'], r['customer_name'], r['delivered_qty'], r['returned_qty'], r['net_qty'],
+                           len(r['documents'])) for r in got['rows']],
+                         [('C', 'Customer', 5.0, 1.0, 4.0, 3), ('D', 'Second customer', 2.0, 0.0, 2.0, 1)])
+        self.assertEqual([(r['warehouse'], r['actual_qty']) for r in got['in_stock']], [('A', 4.0)])
+        self.assertEqual([(r['supplier'], r['received_qty']) for r in got['suppliers']], [('SUP', 10.0)])
+        # Delivered + in stock accounts for everything that was received.
+        self.assertEqual(sum(r['net_qty'] for r in got['rows']) + sum(r['actual_qty'] for r in got['in_stock']), 10)
+
+    def test_changes_of_expiry_and_block_are_recorded(self):
+        from api.routers.reports import _batch_changes
+        from lambda_erp import permissions
+        self.receive('LOT-A', 2)
+        name = get_batch('B', 'LOT-A')['name']
+        with permissions.acting_as({'name': 'quality', 'user_id': 'quality', 'role': 'manager'}):
+            update_master_record('batch', name, {'expiry_date': '2028-01-31'})
+            update_master_record('batch', name, {'blocked': 1, 'blocked_reason': 'recall check'})
+            update_master_record('batch', name, {'description': 'not audited', 'expiry_date': '2028-01-31'})
+        rows = _batch_changes(self.db, batch_no='LOT-A')['rows']
+        self.assertEqual([(r['field'], r['old_value'], r['new_value'], r['changed_by'], r['source']) for r in rows], [
+            ('expiry_date', '2027-12-31', '2028-01-31', 'quality', 'Batch master'),
+            ('blocked', '0', '1', 'quality', 'Batch master'),
+            ('blocked_reason', None, 'recall check', 'quality', 'Batch master')])
+        self.assertTrue(all(r['changed_at'] and r['item_code'] == 'B' for r in rows))
+        # An expiry date first learned from a receipt is recorded too, with the document.
+        create_master_record('batch', {'item_code': 'T', 'batch_no': 'LOT-T'})
+        entry = self.receive('LOT-T', 1, item='T', expiry='2029-03-31')
+        rows = _batch_changes(self.db, batch_no='LOT-T')['rows']
+        self.assertEqual([(r['field'], r['old_value'], r['new_value'], r['source']) for r in rows],
+                         [('expiry_date', None, '2029-03-31', f"Stock Entry {entry['name']}")])
+
     # -- upgrading a database that already has stock ---------------------------
     def test_migration_backfills_existing_stock_without_inventing_batches(self):
         from unittest.mock import patch

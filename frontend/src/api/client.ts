@@ -583,6 +583,12 @@ export const api = {
   batchMovements: (params: Record<string, string>) =>
     request<{ rows: any[] }>(`/reports/batch-movements${qs(params)}`),
 
+  batchRecipients: (params: Record<string, string>) =>
+    request<{ rows: any[]; in_stock: any[]; suppliers?: any[] }>(`/reports/batch-recipients${qs(params)}`),
+
+  batchChanges: (params: Record<string, string>) =>
+    request<{ rows: any[] }>(`/reports/batch-changes${qs(params)}`),
+
   // --- Rentals: availability + fleet calendar ---
   availability: (params: { item_code: string; from: string; to: string; warehouse?: string; exclude?: string }) =>
     request<AvailabilityResult>(`/availability${qs(params)}`),

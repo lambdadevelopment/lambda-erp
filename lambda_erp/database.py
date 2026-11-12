@@ -3436,6 +3436,71 @@ def _m057_consignment(db: "Database") -> None:
         db._text_col_cache.pop(table, None)
 
 
+def _m058_stock_count(db: "Database") -> None:
+    """Stock Count: counted quantities per item, batch and storage location,
+    posted as a correction with a reason (see docs/stock-counts.md)."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Stock Count" (
+            name TEXT PRIMARY KEY,
+            company TEXT,
+            warehouse TEXT NOT NULL,
+            posting_date TEXT,
+            reason TEXT,
+            remarks TEXT,
+            counted_lines INTEGER DEFAULT 0,
+            difference_lines INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'Draft',
+            docstatus INTEGER DEFAULT 0,
+            discarded INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Stock Count Item" (
+            name TEXT PRIMARY KEY,
+            parent TEXT NOT NULL,
+            idx INTEGER DEFAULT 0,
+            item_code TEXT,
+            item_name TEXT,
+            warehouse TEXT,
+            location TEXT,
+            batch_no TEXT,
+            expiry_date TEXT,
+            system_qty REAL DEFAULT 0,
+            counted_qty REAL,
+            difference_qty REAL,
+            remarks TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        'CREATE INDEX IF NOT EXISTS "ix_stock_count_item_parent" ON "Stock Count Item" (parent)'))
+    db.conn.commit()
+    for table in ("Stock Count", "Stock Count Item"):
+        db._col_cache.pop(table, None)
+        db._text_col_cache.pop(table, None)
+
+
+def _m059_batch_change_log(db: "Database") -> None:
+    """Who changed a batch's expiry date or block, when, and from what
+    (see docs/batches.md). Changes made before this migration are not known."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Batch Change" (
+            name TEXT PRIMARY KEY,
+            batch TEXT NOT NULL,
+            item_code TEXT,
+            batch_no TEXT,
+            field TEXT NOT NULL,
+            old_value TEXT,
+            new_value TEXT,
+            changed_by TEXT,
+            changed_at TEXT,
+            source TEXT
+        )"""))
+    db.conn.execute(db._ddl('CREATE INDEX IF NOT EXISTS "ix_batch_change_batch" ON "Batch Change" (batch)'))
+    db.conn.commit()
+    db._col_cache.pop("Batch Change", None)
+    db._text_col_cache.pop("Batch Change", None)
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3533,6 +3598,8 @@ Database.MIGRATIONS = [
     (55, "price_decisions", _m055_price_decisions),
     (56, "order_progress", _m056_order_progress),
     (57, "consignment", _m057_consignment),
+    (58, "stock_count", _m058_stock_count),
+    (59, "batch_change_log", _m059_batch_change_log),
 ]
 
 

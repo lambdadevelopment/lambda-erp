@@ -35,6 +35,7 @@ from lambda_erp.assets.asset import Asset
 from lambda_erp.assets.reservation import Reservation
 from lambda_erp.stock.reservation import StockReservation
 from lambda_erp.stock.consignment import ConsignmentWithdrawal
+from lambda_erp.stock.stock_count import StockCount
 
 
 # --- Doctype registries ---
@@ -68,6 +69,8 @@ DOCUMENT_CLASSES = {
     "Stock Reservation": StockReservation,
     # What a customer reported as used from their consignment warehouse.
     "Consignment Withdrawal": ConsignmentWithdrawal,
+    # Counted quantities; submitting books the differences with a reason.
+    "Stock Count": StockCount,
 }
 
 CONVERTERS = {

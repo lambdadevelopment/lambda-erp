@@ -374,7 +374,8 @@
       "Stock Availability": "Stock Availability",
       "Sales Backlog": "Sales Backlog",
       "Purchase Backlog": "Purchase Backlog",
-      "Consignment Withdrawal": "Consignment Withdrawal"
+      "Consignment Withdrawal": "Consignment Withdrawal",
+      "Stock Count": "Stock Count"
     }
   },
   "login": {
@@ -539,7 +540,9 @@
     "onlyDeliverable": "Only what can be delivered now",
     "onlyOverdue": "Only overdue",
     "noBacklog": "Nothing open",
-    "unconfirmedNote": "* not confirmed by the supplier: the order's schedule date"
+    "unconfirmedNote": "* not confirmed by the supplier: the order's schedule date",
+    "batchRecipients": "Who received batch {{batch}}",
+    "batchChanges": "Changes to batch {{batch}}"
   },
   "masterForm": {
     "required": "Required: {{fields}}",
@@ -776,7 +779,16 @@
     "Replenish": "Replenish",
     "Replenish From": "Replenish From",
     "Replacement Transfer": "Replacement Transfer",
-    "Replenishment": "Replenishment"
+    "Replenishment": "Replenishment",
+    "Reason": "Reason",
+    "Counted Lines": "Counted Lines",
+    "Lines With Difference": "Lines With Difference",
+    "System Qty": "System Qty",
+    "Counted Qty": "Counted Qty",
+    "Difference": "Difference",
+    "Returned": "Returned",
+    "Still With Them": "Still With Them",
+    "Last Delivery": "Last Delivery"
   },
   "tables": {
     "accounts": "accounts",
