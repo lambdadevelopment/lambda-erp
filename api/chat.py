@@ -1568,7 +1568,8 @@ def build_tools(user_info: dict | None = None, *, native_chat: bool = False):
             tool["function"]["name"] for tool in TOOLS
             if not tool_allowed(tool["function"]["name"], role)
         }
-    if not extra_docs and not extra_masters and not action_tools and not hidden_tools:
+    extra_reports = list(services.REGISTERED_REPORTS)
+    if not extra_docs and not extra_masters and not action_tools and not hidden_tools and not extra_reports:
         return TOOLS
     tools = copy.deepcopy(TOOLS)
     if hidden_tools:
@@ -1580,6 +1581,12 @@ def build_tools(user_info: dict | None = None, *, native_chat: bool = False):
                 schema["enum"] = DOCUMENT_SLUGS + extra_docs
             elif schema.get("enum") == MASTER_TYPES:
                 schema["enum"] = MASTER_TYPES + extra_masters
+        if extra_reports and tool["function"]["name"] == "get_report":
+            props["report_type"]["enum"] = props["report_type"]["enum"] + extra_reports
+            tool["function"]["description"] += " Reports of this deployment: " + "; ".join(
+                f"{name}: {meta['description']}"
+                + (f" Filters: {', '.join(f'{k} ({v})' for k, v in meta['filters'].items())}." if meta["filters"] else "")
+                for name, meta in services.REGISTERED_REPORTS.items())
     existing_names = {tool["function"]["name"] for tool in tools}
     tools.extend(tool for tool in action_tools if tool["function"]["name"] not in existing_names)
     return tools
@@ -2065,6 +2072,9 @@ def _handle_get_report(args):
     elif report_type == "ap-aging":
         from api.routers.reports import _ap_aging
         return _ap_aging(db, filters.get("company"), filters.get("as_of_date"))
+    if report_type in services.REGISTERED_REPORTS:
+        from lambda_erp import permissions
+        return services.run_registered_report(report_type, filters, permissions.current_principal())
     return {"error": f"Unknown report type: {report_type}"}
 
 

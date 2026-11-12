@@ -25,6 +25,7 @@ The flow:
 
 from lambda_erp.utils import _dict, flt, new_name, now, nowdate
 from lambda_erp.database import get_db
+from lambda_erp.hooks import run_hooks
 from lambda_erp.exceptions import NegativeStockError, ValidationError
 
 def make_sl_entries(sl_entries, allow_negative_stock=False):
@@ -51,6 +52,11 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
         from lambda_erp.stock import serial as serial_numbers
         serials = serial_numbers.resolve_entry_serials(sle)
         serial_numbers.check_leaving_serials(sle, serials, batch_no, location)
+        # A deployment's own stock rule: sees the movement with its resolved
+        # batch, storage location and serial numbers before anything is
+        # posted; raising refuses it and rolls the document back.
+        run_hooks("Stock Ledger Entry:before_post", _dict({
+            **sle, "batch_no": batch_no or None, "location": location or None, "serial_numbers": list(serials)}))
 
         # Create the SLE record
         sle_doc = _dict(
@@ -89,6 +95,7 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
         update_stock_balance_detail(sle_doc, batch_no, allow_negative_stock, location)
         # Each serial-numbered unit moves with the entry (stock/serial.py).
         serial_numbers.apply_entry_serials(sle_doc, serials, batch_no, location)
+        run_hooks("Stock Ledger Entry:after_post", sle_doc)
 
     if not db._in_transaction:
         db.commit()
@@ -236,6 +243,9 @@ def resolve_entry_batch(sle):
             break
     db.insert("Batch", _dict(name=name, batch_no=batch_no, item_code=item_code, expiry_date=expiry,
                              disabled=0, creation=now(), modified=now()))
+    # A deployment with its own batch attributes (columns it added to Batch)
+    # fills them here from the receiving entry.
+    run_hooks("Batch:created", db.get_all("Batch", filters={"name": name}, fields=["*"])[0], sle)
     return batch_no
 
 

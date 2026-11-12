@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LinkField } from "@/components/document/link-field";
 import { formatNumber } from "@/lib/utils";
+import { getStockColumns } from "@/lib/stock-columns";
 
 const slug = (doctype: string) => doctype.toLowerCase().replace(/ /g, "-");
 const today = () => new Date().toISOString().slice(0, 10);
@@ -140,6 +141,9 @@ export default function BatchStockPage() {
                   <th className={th}>{t("fields.Storage Location", { defaultValue: "Storage Location" })}</th>
                   <th className={th}>{t("fields.Batch", { defaultValue: "Batch" })}</th>
                   <th className={th}>{t("fields.Expiry Date", { defaultValue: "Expiry Date" })}</th>
+                  {getStockColumns().map((column) => (
+                    <th key={column.key} className={th}>{t(`fields.${column.label}`, { defaultValue: column.label })}</th>
+                  ))}
                   <th className="px-4 py-3 text-right font-medium text-gray-500">
                     {t("fields.Qty", { defaultValue: "Qty" })}
                   </th>
@@ -161,6 +165,11 @@ export default function BatchStockPage() {
                         {row.expiry_date || ""}
                         {expired ? ` (${t("reports.expired", { defaultValue: "expired" })})` : ""}
                       </td>
+                      {getStockColumns().map((column) => (
+                        <td key={column.key} className="px-4 py-2 text-gray-700">
+                          {column.render ? column.render(row) : (row[column.key] ?? "")}
+                        </td>
+                      ))}
                       <td className="px-4 py-2 text-right">{formatNumber(row.actual_qty)}</td>
                       <td className="px-4 py-2 text-right">
                         {row.batch_no ? (

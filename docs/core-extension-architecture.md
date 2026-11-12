@@ -45,7 +45,36 @@ class AcmeSalesInvoice(SalesInvoice):
 from lambda_erp.hooks import register_hook
 register_hook("Sales Invoice:after_submit", push_to_external_system)
 ```
-Hook events: `<DocType>:{before,after}_{save,submit,cancel}`.
+Hook events: `<DocType>:{before,after}_{save,submit,cancel}`; inside the
+transaction, after posting: `<DocType>:on_submit` and `<DocType>:on_cancel`
+(a handler that raises rolls the whole submit or cancel back).
+
+Stock and reports have their own events:
+
+| Event | Arguments | Use |
+|---|---|---|
+| `Stock Ledger Entry:before_post` | the movement: item, warehouse, signed `actual_qty`, voucher, and the resolved `batch_no`, `location`, `serial_numbers` | A deployment's own stock rule. Raising refuses the movement and rolls the document back. Runs for every stock-moving document, including reversals on cancel. |
+| `Stock Ledger Entry:after_post` | the posted ledger row | Follow-up bookkeeping in the same transaction. |
+| `Batch:created` | the new batch row, the receiving movement | Fill the deployment's own batch attributes when the stock ledger creates a batch. |
+| `Report:stock-detail` | the report rows (a list to change in place) | Add own values to the stock view; the rows are already limited to what the caller may see. |
+
+```python
+def no_receipts_into_blocked_zone(entry):
+    if entry["actual_qty"] > 0 and entry["location"] == "BLOCKED":
+        raise ValidationError("Nothing is put into the blocked zone")
+
+register_hook("Stock Ledger Entry:before_post", no_receipts_into_blocked_zone)
+```
+
+### Own batch attributes
+A batch is a master record; a column added to it is an ordinary field of the
+`batch` master (REST, chat, forms). Add it with a migration, fill it on
+receipt with `Batch:created`, show it in the stock view with
+`Report:stock-detail` and `registerStockColumn` in the frontend.
+```python
+register_migration("acme:0007_batch_certificate",
+                   lambda db: db.ensure_column("Batch", "certificate_no", "TEXT"), required=True)
+```
 
 ### Add a new master type — chat + REST discovery included
 ```python
@@ -162,8 +191,70 @@ is bounded by `lock_timeout` + retry, so a schema change during a rolling deploy
 catches a gap in the live old revision's traffic instead of blocking the boot
 (an unbounded `ALTER` on a hot table hangs the new revision's startup probe and
 crash-loops it). Migrations run in registration order after tables exist; a
-failing one is rolled back and left unrecorded so it retries next boot (it never
-aborts startup). Must be idempotent and self-contained.
+failing one is rolled back and left unrecorded so it retries next boot, and the
+server starts anyway. With `required=True` a failure stops the start instead
+and no later migration runs: use it for a migration the plugin's code cannot
+work without. Plugin tables and migrations run under the same startup lock as
+the core's, so replicas starting together do not race through them. Must be
+idempotent and self-contained.
+
+### Add a report — REST + chat + MCP
+```python
+from api.services import register_report
+from lambda_erp import permissions
+
+def visits_per_customer(filters):
+    where, params = ["1 = 1"], []
+    assigned = permissions.scope_sql("customer", "v.customer")   # None when not restricted
+    if assigned:
+        where.append(assigned)
+    ...
+    return {"rows": rows}
+
+register_report(
+    "visits-per-customer", visits_per_customer,
+    description="Service visits per customer.",
+    filters={"customer": "one customer", "from_date": "first day"},
+    sensitivity=None,                                # or a sensitivity class
+    scope={"customer": "customer", "warehouse": None},
+)
+```
+It is served at `GET /api/reports/registered/visits-per-customer` (filters as
+query parameters; unknown ones are refused), listed at
+`GET /api/reports/registered`, and offered to chat and MCP through the same
+`get_report` tool as the core reports. `sensitivity` has to be given: the
+class that hides the report, or `None`. A report that does not declare `scope`
+is refused for a user restricted to assigned records; one that does applies
+the limit itself in its handler, as above (`docs/access-profiles.md`).
+
+### Add a dataset to the report runtime
+```python
+from api.routers.analytics import register_dataset
+
+register_dataset("service_visits", {
+    "label": "Service visits", "description": "One row per visit.",
+    "sql_from": 'FROM "Service Visit" sv',
+    "fields": {"customer": "string", "visit_date": "date", "hours": "number", "cost": "number"},
+    "field_sql": {"customer": "sv.customer", "visit_date": "sv.visit_date", "hours": "sv.hours", "cost": "sv.cost"},
+    "filter_fields": {"customer", "visit_date"},
+}, sensitivity=None, hidden_fields={"cost": "cost"},
+   scope={"customer": "sv.customer", "warehouse": None})
+```
+The dataset is then available to custom reports and the `query_dataset` tool.
+Hidden columns cannot be selected, filtered, grouped or aggregated by a user
+they are hidden from, and the record scope is applied before anything is
+aggregated.
+
+### Ship an access profile
+```python
+from lambda_erp import permissions
+permissions.ensure_access_profile(
+    "Counter", description="Counts stock, posts nothing", hidden_classes=["cost"],
+    permissions={"default": ["read"], "doctypes": {"Stock Count": ["read", "create", "update"]}})
+```
+Creates the profile when it is missing and never changes an existing one, so
+what the admins adjust survives the next start. Call it from a migration.
+Assigning it to users stays with the admins.
 
 ### Filter a document list by any field
 `GET /api/documents/{slug}` accepts any query param that names a real column of
@@ -234,6 +325,14 @@ masters, routes, navigation groups and whole components, plus runtime branding,
 a configurable API base and a Tailwind preset. A customer frontend registers
 its overrides before calling `bootstrap()`. See the corresponding example in
 the repository README and the working `lambda-erp-example` deployment.
+
+- `useAccess()` tells a page what the signed-in user may open
+  (`canOpenType("purchase-order")`, `canOpenReport("general-ledger")`,
+  `recordScope`), for leaving out links and buttons. The server enforces the
+  rules regardless.
+- `registerStockColumn({ key, label, render? })` adds a column to the stock
+  view (Stock by Location & Batch) for a value the deployment puts on the rows
+  with the `Report:stock-detail` hook.
 
 ## Relevant code
 

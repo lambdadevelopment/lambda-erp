@@ -14,6 +14,8 @@ import { api } from "@/api/client";
 import { useDocumentList } from "@/hooks/use-document-list";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
+import { useAuth } from "@/contexts/auth-context";
+import { visibleDoctypeConfig } from "@/lib/access";
 import { getDoctypeConfig } from "@/lib/doctypes";
 import { usePageTitle } from "@/lib/use-page-title";
 import { linkRefHref } from "@/pages/documents/document-form";
@@ -86,7 +88,11 @@ export default function DocumentListPage() {
   // values — format them with the company currency, not a hardcoded USD.
   const baseCurrency = useBaseCurrency();
   const { doctype } = useParams<{ doctype: string }>();
-  const config = getDoctypeConfig(doctype ?? "");
+  const { user: accessUser } = useAuth();
+  const config = useMemo(
+    () => visibleDoctypeConfig(getDoctypeConfig(doctype ?? ""), accessUser?.restrictions),
+    [doctype, accessUser?.restrictions],
+  );
   const location = useLocation();
   usePageTitle(config?.label ?? doctype ?? null);
 

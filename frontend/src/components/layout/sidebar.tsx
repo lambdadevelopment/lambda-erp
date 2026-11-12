@@ -58,20 +58,8 @@ import { useChat } from "@/components/chat/chat-provider";
 import { getNavGroups, type NavGroup } from "@/lib/nav";
 import { MENU_SETTINGS_PATH, buildCatalog, ordered, parseLayout } from "@/lib/nav-layout";
 import { useMySettings } from "@/hooks/use-my-settings";
-import { useAuth, type User } from "@/contexts/auth-context";
-
-// Menu entries a restricted user (access profile or record scope) cannot open.
-// Only for a tidy menu: the server refuses these whatever the menu shows.
-function restrictedPath(path: string, restrictions: User["restrictions"]): boolean {
-  if (!restrictions) return false;
-  const unreadable = new Set(restrictions.unreadable_types ?? []);
-  const [, section, name] = path.split("/");
-  if ((section === "app" || section === "masters") && name) return unreadable.has(name);
-  if (section === "reports" && name) return (restrictions.denied_reports ?? []).includes(name);
-  if (section === "accounting" && name?.startsWith("bank-")) return unreadable.has("bank-transaction");
-  if (section === "rentals") return Object.keys(restrictions.record_scope ?? {}).length > 0;
-  return false;
-}
+import { useAuth } from "@/contexts/auth-context";
+import { restrictedPath } from "@/lib/access";
 import { getBranding } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 

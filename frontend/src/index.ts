@@ -85,6 +85,13 @@ export { api, request, ApiError, configureApiBase } from "./api/client";
 // Auth
 export { AuthProvider, useAuth } from "./contexts/auth-context";
 export type { User } from "./contexts/auth-context";
+// What a restricted user (access profile, record scope) may open: for leaving
+// out links and buttons. The server enforces it regardless.
+export { useAccess, accessOf } from "./lib/access";
+export type { Access } from "./lib/access";
+// Extra columns in the stock view (Stock by Location & Batch).
+export { registerStockColumn, getStockColumns } from "./lib/stock-columns";
+export type { StockColumn } from "./lib/stock-columns";
 
 // i18n
 export {

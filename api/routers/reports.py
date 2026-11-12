@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt, nowdate
 from lambda_erp.controllers.currency import get_exchange_rate
@@ -462,8 +462,13 @@ def _stock_detail(db, item_code=None, warehouse=None, location=None, batch_no=No
         + _STOCK_DETAIL_FROM
         + (f"WHERE {' AND '.join(where)} " if where else "")
         + 'ORDER BY d.item_code, d.warehouse, d.location, b.expiry_date, d.batch_no', params)
-    return {"rows": permissions.scope_rows(
-        "report", "stock-detail", [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows])}
+    rows = permissions.scope_rows(
+        "report", "stock-detail", [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows])
+    # A deployment adds its own values per row here (a batch attribute, say);
+    # the rows are already limited to what the caller may see.
+    from lambda_erp.hooks import run_hooks
+    run_hooks("Report:stock-detail", rows)
+    return {"rows": rows}
 
 
 def _stock_availability(db, item_code=None, warehouse=None, item_prefix=None):
@@ -1219,3 +1224,26 @@ def ap_aging(
     as_of_date: str | None = None,
 ):
     return _ap_aging(get_db(), company, as_of_date)
+
+
+@router.get("/registered")
+def registered_reports():
+    """The reports a deployment has registered that the caller may open."""
+    from api import services
+    return {"reports": [{"name": name, "description": meta["description"], "filters": meta["filters"]}
+                        for name, meta in services.REGISTERED_REPORTS.items()
+                        if not permissions.artifact_denied("report", name)]}
+
+
+@router.get("/registered/{name}")
+def registered_report(name: str, request: Request, user: dict = Depends(require_role("viewer"))):
+    from api import services
+    if name not in services.REGISTERED_REPORTS:
+        raise HTTPException(status_code=404, detail=f"Unknown report: {name}")
+    try:
+        return services.run_registered_report(name, dict(request.query_params), user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+

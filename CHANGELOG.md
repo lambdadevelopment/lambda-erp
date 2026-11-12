@@ -13,6 +13,27 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.15] - 2026-11-12
+
+Extension points for deployments. No migration. See
+`docs/core-extension-architecture.md`.
+
+- `register_migration(..., required=True)`: a failing required plugin
+  migration stops the start instead of being retried on the next one.
+- `register_report`: a deployment's own report over REST
+  (`/api/reports/registered/{name}`), chat and MCP, with its sensitivity and
+  record scope declared at registration.
+- `register_dataset`: a deployment's own dataset in the report runtime and
+  the `query_dataset` tool, redacted and limited like the core ones.
+- Hooks `Stock Ledger Entry:before_post` / `:after_post` (own stock rules,
+  with the resolved batch, storage location and serial numbers),
+  `Batch:created` (own batch attributes) and `Report:stock-detail` (own
+  values in the stock view).
+- `permissions.ensure_access_profile`: ship an access profile with a
+  deployment without overwriting what admins changed.
+- Frontend: `useAccess()` (what the signed-in user may open) and
+  `registerStockColumn` (extra columns in the stock view).
+
 ## [1.4.14] - 2026-11-12
 
 Migration 61 runs on startup; it restricts nobody. See `docs/access-profiles.md`.

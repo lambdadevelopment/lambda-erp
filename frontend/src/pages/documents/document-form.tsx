@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { useAuth } from "@/contexts/auth-context";
+import { visibleDoctypeConfig } from "@/lib/access";
 import { getDoctypeConfig, type FieldDef, type ChildTableDef } from "@/lib/doctypes";
 import { usePageTitle } from "@/lib/use-page-title";
 import { PdfButton } from "@/components/document/pdf-button";
@@ -840,7 +842,12 @@ export default function DocumentFormPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
-  const config = getDoctypeConfig(doctype ?? "");
+  const { user: accessUser } = useAuth();
+  // Fields the user's access profile hides are neither shown nor sent.
+  const config = useMemo(
+    () => visibleDoctypeConfig(getDoctypeConfig(doctype ?? ""), accessUser?.restrictions),
+    [doctype, accessUser?.restrictions],
+  );
   const isNew = !name;
   usePageTitle(isNew ? (config?.label ?? null) : (name ?? config?.label ?? null));
 

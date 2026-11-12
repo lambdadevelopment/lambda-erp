@@ -16,6 +16,9 @@ export interface User {
     unreadable_types?: string[];
     denied_reports?: string[];
     record_scope?: Record<string, string[]>;
+    // Per document type slug: fields hidden from the user, on the document
+    // itself ("") and per child table key.
+    hidden_fields?: Record<string, Record<string, string[]>>;
   } | null;
 }
 

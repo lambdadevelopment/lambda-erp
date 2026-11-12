@@ -198,14 +198,19 @@ def register_table(ddl: str) -> None:
     _PLUGIN_TABLES.append(ddl)
 
 
-def register_migration(migration_id: str, fn) -> None:
+def register_migration(migration_id: str, fn, *, required: bool = False) -> None:
     """Register a one-shot migration run exactly once per database, recorded in
     _PluginMigrations by `migration_id` (namespace it, e.g. "internal:0001_x").
     `fn(db)` receives the DB; use db.ensure_column(...) for idempotent ALTERs
     and plain db.sql(...) for backfills. Runs after registered tables exist, in
     registration order. Must be idempotent and self-contained (single logical
-    unit — it commits on success)."""
-    _PLUGIN_MIGRATIONS.append((migration_id, fn))
+    unit — it commits on success).
+
+    A failing migration is rolled back and retried on the next start; the
+    server starts anyway. With ``required=True`` it stops the start instead,
+    and no later migration runs: use it for a migration the plugin's code
+    cannot work without (a column it reads, a table it writes)."""
+    _PLUGIN_MIGRATIONS.append((migration_id, fn, bool(required)))
 
 
 def apply_plugin_schema() -> None:
@@ -230,7 +235,7 @@ def apply_plugin_schema() -> None:
     db.conn.commit()
     applied = {r["migration_id"] for r in db.sql('SELECT migration_id FROM "_PluginMigrations"')}
 
-    for migration_id, fn in _PLUGIN_MIGRATIONS:
+    for migration_id, fn, required in _PLUGIN_MIGRATIONS:
         if migration_id in applied:
             continue
         try:
@@ -243,6 +248,11 @@ def apply_plugin_schema() -> None:
             print(f"[plugin-migration] applied {migration_id}", flush=True)
         except Exception as e:
             db.conn.rollback()
+            if required:
+                print(f"[plugin-migration] FAILED {migration_id}: {e!r} — required, stopping startup", flush=True)
+                raise RuntimeError(
+                    f"Required plugin migration {migration_id} failed: {e!r}. Nothing of it was applied; "
+                    f"fix the cause and start again") from e
             print(f"[plugin-migration] FAILED {migration_id}: {e!r} — will retry next boot", flush=True)
 
     db._ensure_list_indexes()
@@ -306,6 +316,67 @@ def register_master(slug: str, table: str, name_field: str, *,
         }
     if reference_checks is not None:
         MASTER_REFERENCE_CHECKS[slug] = list(reference_checks)
+
+
+# --- Registered reports ----------------------------------------------------
+#
+# A deployment's own report: registered once, served at
+# GET /api/reports/registered/{name} and through the get_report chat / MCP
+# tool, with the access rules applied before the handler runs.
+
+REGISTERED_REPORTS: dict[str, dict] = {}
+_REPORT_NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+_UNSET = object()
+
+
+def register_report(name: str, handler, *, description: str, filters: dict | None = None,
+                    sensitivity=_UNSET, scope: dict | None = None, minimum_role: str = "viewer") -> None:
+    """Register a report across REST, chat and MCP.
+
+    ``handler(filters: dict)`` returns a JSON-compatible dict, by convention
+    ``{"rows": [...]}``. ``filters`` describes the accepted filter keys
+    ({key: description}) for the chat prompt; unknown keys are refused.
+
+    ``sensitivity`` must be given: a sensitivity class (the report is refused
+    for a user it is hidden from) or None when it shows nothing of them.
+    ``scope`` says how the report relates to record scope, per dimension
+    (see permissions.register_scoped_artifact); a report that does not say is
+    refused for a user restricted to assigned records. The handler applies
+    the row limits itself (permissions.scope_rows / scope_sql).
+    """
+    if not _REPORT_NAME_RE.fullmatch(name):
+        raise ValueError(f"Invalid report name: {name!r} (lowercase letters, digits and hyphens)")
+    if sensitivity is _UNSET:
+        raise ValueError(f"register_report({name!r}): say sensitivity=<class> or sensitivity=None")
+    if minimum_role not in _ROLE_LEVEL:
+        raise ValueError(f"Invalid minimum report role: {minimum_role!r}")
+    from api.routers import reports as core_reports
+    taken = {route.path.rsplit("/", 1)[-1] for route in core_reports.router.routes
+             if "{" not in getattr(route, "path", "")}
+    if name in taken:
+        raise ValueError(f"Report name {name!r} is a core report")
+    if sensitivity is not None:
+        permissions.register_sensitive_artifact("report", name, sensitivity)
+    if scope:
+        permissions.register_scoped_artifact("report", name, **scope)
+    REGISTERED_REPORTS[name] = {"handler": handler, "description": description,
+                                "filters": dict(filters or {}), "minimum_role": minimum_role}
+
+
+def run_registered_report(name: str, filters: dict | None = None, user_info: dict | None = None):
+    meta = REGISTERED_REPORTS.get(name)
+    if not meta:
+        raise ValueError(f"Unknown report: {name}")
+    role = (user_info or {}).get("role")
+    if user_info is not None and _ROLE_LEVEL.get(role or "", 0) < _ROLE_LEVEL[meta["minimum_role"]]:
+        raise PermissionError(f"Report {name} requires {meta['minimum_role']} role or higher")
+    permissions.require_artifact("report", name)
+    filters = {key: value for key, value in (filters or {}).items() if value not in (None, "")}
+    unknown = sorted(set(filters) - set(meta["filters"]))
+    if unknown:
+        raise ValueError(f"Report {name} has no filter {', '.join(unknown)}. "
+                         f"Filters: {', '.join(sorted(meta['filters'])) or 'none'}")
+    return meta["handler"](filters)
 
 
 # --- Registered actions ----------------------------------------------------

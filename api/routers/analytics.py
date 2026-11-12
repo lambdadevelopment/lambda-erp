@@ -252,6 +252,43 @@ METRICS: dict[str, dict[str, Any]] = {
 }
 
 
+_UNSET = object()
+
+
+def register_dataset(name: str, spec: dict, *, sensitivity=_UNSET, hidden_fields: dict | None = None,
+                     scope: dict | None = None) -> None:
+    """Plugin seam: add a dataset to the report runtime and the query_dataset
+    tool. ``spec`` has the shape of the entries of SEMANTIC_DATASETS (label,
+    description, sql_from, fields, field_sql, default_where, filter_fields,
+    default_limit, max_limit, default_order_by).
+
+    ``sensitivity`` must be given: a sensitivity class (the whole dataset is
+    refused for a user it is hidden from) or None. ``hidden_fields``
+    ({field: class}) hides single columns. ``scope`` gives, per record scope
+    dimension, the SQL expression of the field that carries it, a condition
+    with ``{values}``, or None when the dataset has nothing to do with it; a
+    dataset that does not say is refused for a user restricted to assigned
+    records.
+    """
+    if sensitivity is _UNSET:
+        raise ValueError(f"register_dataset({name!r}): say sensitivity=<class> or sensitivity=None")
+    missing = [key for key in ("label", "sql_from", "fields", "field_sql") if not spec.get(key)]
+    if missing:
+        raise ValueError(f"Dataset {name}: spec lacks {', '.join(missing)}")
+    if set(spec["fields"]) != set(spec["field_sql"]):
+        raise ValueError(f"Dataset {name}: fields and field_sql must name the same fields")
+    if name in SEMANTIC_DATASETS and not SEMANTIC_DATASETS[name].get("registered"):
+        raise ValueError(f"Dataset name {name!r} is a core dataset")
+    if sensitivity is not None or hidden_fields:
+        permissions.register_sensitive_artifact("dataset", name, sensitivity, hidden_fields)
+    if scope:
+        permissions.register_scoped_artifact("dataset", name, **scope)
+    SEMANTIC_DATASETS[name] = {
+        "description": "", "default_where": [], "default_limit": 500, "max_limit": 5000,
+        "default_order_by": f"{next(iter(spec['field_sql'].values()))} ASC",
+        **spec, "filter_fields": set(spec.get("filter_fields") or ()), "registered": True}
+
+
 def visible_dataset(name: str):
     """The dataset as the current caller may use it: None if unknown, refused
     if their access profile denies it, and without the columns it hides (so

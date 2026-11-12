@@ -533,6 +533,24 @@ def load_restrictions(profile_name, record_scope=None):
     return {"profile": profile_name, "hidden": expand_classes(classes), "permissions": permissions, "scope": scope}
 
 
+def ensure_access_profile(name, *, description=None, hidden_classes=(), permissions=None):
+    """Plugin seam: make sure an access profile exists, for a deployment that
+    ships its own (a "Field sales", a "Counter"). Creates it when missing and
+    returns True; an existing profile is left exactly as the admins have it.
+    Call it from a registered migration or at startup after the schema."""
+    from lambda_erp.database import get_db
+    from lambda_erp.utils import now
+
+    db = get_db()
+    if db.exists("Access Profile", name):
+        return False
+    classes, rules = validate_profile(list(hidden_classes), permissions)
+    db.insert("Access Profile", {"name": name, "description": description, "hidden_classes": json.dumps(classes),
+                                 "permissions": json.dumps(rules), "disabled": 0,
+                                 "creation": now(), "modified": now()})
+    return True
+
+
 # -- checks -------------------------------------------------------------------
 
 def _hidden(cls, restrictions):

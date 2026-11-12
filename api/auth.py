@@ -583,6 +583,7 @@ def _describe_restrictions(user):
                                                if not permissions.can(doctype, "read"))
         names = {route.path.rsplit("/", 1)[-1] for route in reports.router.routes
                  if getattr(route, "path", "").startswith("/reports/") and "{" not in route.path}
+        names |= set(services.REGISTERED_REPORTS)
         described["denied_reports"] = sorted(name for name in names if permissions.artifact_denied("report", name))
     return described
 

@@ -150,6 +150,14 @@ jobs:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_record_scope
 
+      - name: Extension points — SQLite
+        run: python -m tests.test_extension_points
+
+      - name: Extension points — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_extension_points
+
       - name: Consignment — SQLite
         run: python -m tests.test_consignment
 
