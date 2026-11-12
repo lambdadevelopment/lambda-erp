@@ -14,7 +14,7 @@ from lambda_erp.model import Document
 from lambda_erp.utils import _dict, flt, nowdate
 from lambda_erp.database import get_db
 from lambda_erp.controllers.taxes_and_totals import calculate_taxes_and_totals
-from lambda_erp.controllers.defaults import set_default_currency
+from lambda_erp.controllers.defaults import set_default_currency, derived_line_pricing_fields as agreed_line_price
 from lambda_erp.exceptions import ValidationError
 from lambda_erp.stock.stock_ledger import (
     make_cancel_sl_entries,
@@ -60,12 +60,13 @@ class DeliveryNote(Document):
             self.posting_date = nowdate()
 
         self._set_customer_name()
+        # The price list is chosen by currency, so the currency comes first.
+        set_default_currency(self, "Customer", "customer")
         self._set_item_defaults()
 
         if self.is_return:
             self._validate_return()
 
-        set_default_currency(self, "Customer", "customer")
         calculate_taxes_and_totals(self)
         self._set_status()
 
@@ -75,19 +76,13 @@ class DeliveryNote(Document):
             self.customer_name = db.get_value("Customer", self.customer, "customer_name")
 
     def _set_item_defaults(self):
-        db = get_db()
-        for item in self.get("items"):
-            if item.get("item_code") and not item.get("item_name"):
-                item_data = db.get_value(
-                    "Item", item["item_code"],
-                    ["item_name", "description", "stock_uom", "standard_rate"]
-                )
-                if item_data:
-                    item["item_name"] = item_data.item_name
-                    item["description"] = item.get("description") or item_data.description
-                    item["uom"] = item.get("uom") or item_data.stock_uom
-                    if item.get("rate") is None and item.get("price_list_rate") is None:
-                        item["rate"] = flt(item_data.standard_rate)
+        # The same price resolution as orders and invoices: price list,
+        # customer-specific prices, then pricing rules. Lines that come from
+        # an order carry its price and are left alone.
+        from lambda_erp.controllers.item_price import set_item_defaults
+        from lambda_erp.controllers.pricing_rule import apply_pricing_rules
+        set_item_defaults(self, "Customer", "customer")
+        apply_pricing_rules(self)
 
     def _validate_return(self):
         from lambda_erp.workflow import validate_return
@@ -187,6 +182,8 @@ def make_delivery_note(sales_order_name):
         # is a proposal on a draft; nothing is reserved or moved by it.
         for pick in _proposed_picks(so, item, undelivered):
             dn.append("items", _dict(
+                # The price was agreed in the source document: pricing rules do not run again.
+                **agreed_line_price(item),
                 item_code=item.get("item_code"),
                 item_name=item.get("item_name"),
                 description=item.get("description"),
@@ -234,6 +231,8 @@ def make_delivery_return(dn_name):
     from lambda_erp.workflow import returnable_rows
     for item in returnable_rows(original):
         return_dn.append("items", _dict(
+            # The price was agreed in the source document: pricing rules do not run again.
+            **agreed_line_price(item),
             item_code=item.get("item_code"),
             item_name=item.get("item_name"),
             description=item.get("description"),

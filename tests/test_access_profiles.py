@@ -283,6 +283,20 @@ def check_access_profiles():
         assert r.status_code == 403 and "no value on record" in r.text, r.text
         assert db.get_value("Purchase Order Item", {"parent": draft["name"]}, ["item_code", "rate"]) == \
             {"item_code": "S", "rate": 73.91}
+        # The client is told which fields to leave out of its forms.
+        hidden = clerk.get("/api/auth/me").json()["restrictions"]["hidden_fields"]
+        assert "rate" in hidden["purchase-order"]["items"] and "grand_total" in hidden["purchase-order"][""], hidden
+        assert "basic_rate" in hidden["stock-entry"]["items"] and "sales-order" not in hidden, sorted(hidden)
+        # A receipt typed in by hand is priced from the buying list like an order.
+        r = clerk.post("/api/documents/purchase-receipt", json={
+            "company": "Test Co", "supplier": "SUP", "posting_date": "2026-11-12",
+            "items": [{**line, "qty": 1}]})
+        assert r.status_code == 200 and "73.91" not in r.text, r.text
+        assert db.get_value("Purchase Receipt Item", {"parent": r.json()["name"]}, "rate") == 73.91
+        r = clerk.post("/api/documents/purchase-receipt", json={
+            "company": "Test Co", "supplier": "SUP", "posting_date": "2026-11-12",
+            "items": [{"item_code": "N", "warehouse": "A", "qty": 1}]})
+        assert r.status_code == 403 and "no value on record" in r.text, r.text
         # Receiving against the order takes the order's prices.
         r = clerk.post(f"/api/documents/purchase-order/{created['name']}/submit")
         assert r.status_code == 200, r.text

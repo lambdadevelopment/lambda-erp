@@ -56,8 +56,23 @@ Document type `stock-reservation`. It has no submit; it lives by its status.
 - **Giving stock back:** set status to Released, or lower `reserved_qty`.
   Cancelling the sales order cancels its reservations.
 
-Reservations are per item and warehouse, not per batch or storage location:
-which batch goes out is decided when picking.
+### Holding one batch or one storage location (1.4.16)
+
+A reservation holds a quantity in a warehouse; which batch goes out is then
+decided when picking. It can also name `batch_no` and / or `location`: then
+exactly that stock is held.
+
+- The named batch (and place) must hold the quantity next to what other
+  reservations already hold there. A blocked or expired batch cannot be
+  reserved.
+- Nobody else can take stock out of that batch or storage location below
+  what is held there, even when the warehouse as a whole has enough. That
+  includes moving it to another storage location.
+- Pick suggestions leave out what others hold in a batch or place, and
+  propose an order line's own held stock first.
+- One reservation holds one batch. An order line that needs two batches is
+  split into two lines. `reserve_sales_order` reserves without naming a
+  batch; set the batch on the reservation afterwards where it matters.
 
 ## Blocked batches and shelf life
 
@@ -114,7 +129,6 @@ per item and warehouse.
 
 ## Limits to know
 
-- Reservations do not name a batch or storage location.
 - A batch that expires while it backs a reservation makes the reservation
   uncovered; the availability report then shows `available_qty` 0 and
   documents that would make it worse are refused, but nothing is released

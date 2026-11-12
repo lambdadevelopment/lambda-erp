@@ -3561,6 +3561,31 @@ def _m061_record_scope(db: "Database") -> None:
     db.ensure_column("Report Draft", "access_stamp", "TEXT")
 
 
+def _m062_stock_document_pricing(db: "Database") -> None:
+    """Delivery notes and purchase receipts price their lines like orders and
+    invoices do; a purchase invoice can bill a receipt line; a stock
+    reservation can name a batch and a storage location.
+
+    Lines that exist keep their price: they are marked so that pricing rules
+    do not run on them when a draft is saved again."""
+    for doc_table, item_table in (("Delivery Note", "Delivery Note Item"), ("Purchase Receipt", "Purchase Receipt Item")):
+        db.ensure_column(doc_table, "pricing_date", "TEXT")
+        fresh = "ignore_pricing_rule" not in db._get_table_columns(item_table)
+        db.ensure_column(item_table, "pricing_rule", "TEXT")
+        db.ensure_column(item_table, "ignore_pricing_rule", "INTEGER DEFAULT 0")
+        db.ensure_column(item_table, "price_source", "TEXT")
+        db.ensure_column(item_table, "price_reference", "TEXT")
+        if fresh:
+            db.sql(f'UPDATE "{item_table}" SET ignore_pricing_rule = 1')
+    db.ensure_column("Purchase Receipt Item", "billed_qty", "REAL DEFAULT 0")
+    db.ensure_column("Purchase Invoice Item", "purchase_receipt", "TEXT")
+    db.ensure_column("Purchase Invoice Item", "pr_detail", "TEXT")
+    db.ensure_column("Stock Reservation", "batch_no", "TEXT")
+    db.ensure_column("Stock Reservation", "location", "TEXT")
+    # A supplier's own buying price list, as a customer has a selling one.
+    db.ensure_column("Supplier", "default_price_list", "TEXT")
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3662,6 +3687,7 @@ Database.MIGRATIONS = [
     (59, "batch_change_log", _m059_batch_change_log),
     (60, "serial_numbers", _m060_serial_numbers),
     (61, "record_scope", _m061_record_scope),
+    (62, "stock_document_pricing", _m062_stock_document_pricing),
 ]
 
 

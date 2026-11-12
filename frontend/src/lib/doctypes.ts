@@ -148,6 +148,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [
       { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", required: true },
       { name: "transaction_date", label: "Date", type: "date", required: true },
+      { name: "pricing_date", label: "Pricing Date", type: "date",
+        hint: "Prices and pricing rules valid on this date apply. Empty: the document date." },
       { name: "valid_till", label: "Valid Till", type: "date" },
       { name: "pdf_template", label: "PDF Layout", type: "select", optionsSource: "pdfTemplate",
         hint: "How the offer's PDF looks. Fixed when the offer is submitted." },
@@ -204,6 +206,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [
       { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", required: true },
       { name: "transaction_date", label: "Date", type: "date", required: true },
+      { name: "pricing_date", label: "Pricing Date", type: "date",
+        hint: "Prices and pricing rules valid on this date apply. Empty: the document date." },
       { name: "delivery_date", label: "Delivery Date", type: "date" },
       { name: "pdf_template", label: "PDF Layout", type: "select", optionsSource: "pdfTemplate",
         hint: "How the PDF looks. Fixed when the document is submitted." },
@@ -245,6 +249,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [
       { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", required: true },
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
+      { name: "pricing_date", label: "Pricing Date", type: "date",
+        hint: "Prices and pricing rules valid on this date apply. Empty: the document date." },
       { name: "due_date", label: "Due Date", type: "date" },
       { name: "pdf_template", label: "PDF Layout", type: "select", optionsSource: "pdfTemplate",
         hint: "How the PDF looks. Fixed when the document is submitted." },
@@ -290,6 +296,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [
       { name: "supplier", label: "Supplier", type: "link", linkDoctype: "supplier", required: true },
       { name: "transaction_date", label: "Date", type: "date", required: true },
+      { name: "pricing_date", label: "Pricing Date", type: "date",
+        hint: "Prices and pricing rules valid on this date apply. Empty: the document date." },
       { name: "pdf_template", label: "PDF Layout", type: "select", optionsSource: "pdfTemplate",
         hint: "How the PDF looks. Fixed when the document is submitted." },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
@@ -327,6 +335,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [
       { name: "supplier", label: "Supplier", type: "link", linkDoctype: "supplier", required: true },
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
+      { name: "pricing_date", label: "Pricing Date", type: "date",
+        hint: "Prices and pricing rules valid on this date apply. Empty: the document date." },
       { name: "due_date", label: "Due Date", type: "date" },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
       CURRENCY_FIELD,
@@ -520,6 +530,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [
       { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", required: true },
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
+      { name: "pricing_date", label: "Pricing Date", type: "date",
+        hint: "Prices and pricing rules valid on this date apply. Empty: the document date." },
       { name: "pdf_template", label: "PDF Layout", type: "select", optionsSource: "pdfTemplate",
         hint: "How the PDF looks. Fixed when the document is submitted." },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
@@ -568,6 +580,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [
       { name: "supplier", label: "Supplier", type: "link", linkDoctype: "supplier", required: true },
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
+      { name: "pricing_date", label: "Pricing Date", type: "date",
+        hint: "Prices and pricing rules valid on this date apply. Empty: the document date." },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
       CURRENCY_FIELD,
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
@@ -597,6 +611,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     canSubmit: true,
     canCancel: true,
     conversions: [
+      { label: "Create Invoice", targetDoctype: "Purchase Invoice" },
       { label: "Create Return", targetDoctype: "Purchase Receipt" },
     ],
   },
@@ -611,6 +626,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [
       { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", required: true },
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
+      { name: "pricing_date", label: "Pricing Date", type: "date",
+        hint: "Prices and pricing rules valid on this date apply. Empty: the document date." },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
       CURRENCY_FIELD,
       { name: "update_stock", label: "Update Stock", type: "select",
@@ -964,6 +981,10 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     fields: [
       { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
       { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse", required: true },
+      { name: "batch_no", label: "Batch", type: "text",
+        hint: "Optional: hold exactly this batch. Nobody else can then take it out of the batch." },
+      { name: "location", label: "Storage Location", type: "text",
+        hint: "Optional: hold the stock in exactly this storage location." },
       { name: "reserved_qty", label: "Reserved Qty", type: "number", required: true,
         hint: "For a sales order line: the total reserved for the line. What is still held goes down as the line is delivered." },
       { name: "status", label: "Status", type: "select",

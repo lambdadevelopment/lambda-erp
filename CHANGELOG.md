@@ -13,6 +13,29 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.16] - 2026-11-12
+
+Migration 62 runs on startup. Existing delivery note and receipt lines keep
+their prices.
+
+- **Delivery notes and purchase receipts price like orders.** A line entered
+  by hand now gets its price from the price list, party-specific prices and
+  pricing rules, with `price_source` on the line, instead of the item's
+  standard rate only. **Fixed:** such a line sent with an item name got no
+  rate at all. Lines converted from an order keep the order's price.
+- A supplier has a `default_price_list` (a buying list), used before the
+  company's.
+- The pricing date is a field in the forms of all priced documents.
+- **Purchase Receipt → Purchase Invoice** converter: bills what was received
+  and not billed yet, without moving stock again; `billed_qty` per receipt
+  line, `per_billed` and status on the receipt.
+- **Stock reservations can name a batch and / or a storage location.** That
+  stock is then held: nobody else can take it from the batch or place, pick
+  suggestions leave it out for others and propose it first for its own order
+  line.
+- Forms and lists leave out fields the user's access profile hides;
+  `GET /api/auth/me` lists them as `restrictions.hidden_fields`.
+
 ## [1.4.15] - 2026-11-12
 
 Extension points for deployments. No migration. See

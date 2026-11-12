@@ -26,6 +26,8 @@ export const BUILTIN_MASTER_FIELDS: Record<string, FieldDef[]> = {
     { name: "name", label: "ID", type: "text", required: true },
     { name: "supplier_name", label: "Supplier Name", type: "text", required: true },
     { name: "supplier_group", label: "Supplier Group", type: "select", options: ["Local", "Distributor", "Services", "Raw Materials"] },
+    { name: "default_price_list", label: "Default Price List", type: "link", linkDoctype: "price-list",
+      hint: "A buying price list. Purchase documents for this supplier take their prices from it." },
     { name: "default_currency", label: "Currency", type: "select", options: ["", "USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY", "INR"] },
     { name: "email", label: "Email", type: "text" },
     { name: "phone", label: "Phone", type: "text" },

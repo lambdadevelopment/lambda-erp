@@ -57,6 +57,55 @@ class OrderProgress(unittest.TestCase):
         note.save()
         return note.submit()
 
+    # -- receive first, invoice afterwards -------------------------------------
+    def test_invoice_after_receipt_bills_what_was_received_once(self):
+        from lambda_erp.stock.purchase_receipt import make_purchase_invoice_from_purchase_receipt as bill
+        order = self.purchase(25)
+        receipt = make_purchase_receipt(order['name'])
+        receipt.get('items')[0]['qty'] = 15
+        receipt.save()
+        receipt.submit()
+        self.assertEqual(self.db.get_value('Purchase Receipt', receipt.name, 'status'), 'Submitted')
+        stock_before = self.db.get_value('Bin', {'item_code': 'S', 'warehouse': 'A'}, 'actual_qty')
+
+        invoice = bill(receipt.name)
+        row = invoice.get('items')[0]
+        self.assertEqual((row['qty'], row['rate'], row['purchase_receipt'], bool(row['pr_detail']),
+                          bool(row['purchase_order_item']), invoice.get('update_stock')), (15, 10, receipt.name, True, True, 0))
+        row['qty'] = 10
+        invoice.save()
+        invoice.submit()
+        line = self.db.get_value('Purchase Receipt Item', {'parent': receipt.name}, ['billed_qty'])
+        head = self.db.get_value('Purchase Receipt', receipt.name, ['per_billed', 'status'])
+        self.assertEqual((line['billed_qty'], round(head['per_billed'], 2), head['status']), (10, 66.67, 'To Bill'))
+        # The invoice moved no stock, and the order knows what was billed.
+        self.assertEqual(self.db.get_value('Bin', {'item_code': 'S', 'warehouse': 'A'}, 'actual_qty'), stock_before)
+        self.assertEqual(self.db.get_value('Purchase Order Item', {'parent': order['name']}, 'billed_qty'), 10)
+
+        rest = bill(receipt.name)
+        self.assertEqual(rest.get('items')[0]['qty'], 5)
+        rest.get('items')[0]['qty'] = 6
+        with self.assertRaisesRegex(ValidationError, 'left to bill of the receipt \\(5\\)'):
+            rest.save()
+        rest.get('items')[0]['qty'] = 5
+        rest.save()
+        rest.submit()
+        self.assertEqual(self.db.get_value('Purchase Receipt', receipt.name, 'status'), 'Completed')
+        with self.assertRaisesRegex(ValidationError, 'already billed in full'):
+            bill(receipt.name)
+        # An invoice that bills a receipt cannot receive the goods again.
+        doubled = bill.__globals__['PurchaseReceipt'].load(receipt.name)
+        with self.assertRaisesRegex(ValidationError, 'cannot update stock'):
+            services.create_document('purchase-invoice', {
+                'company': 'Test Co', 'supplier': 'SUP', 'posting_date': '2026-11-12', 'update_stock': 1,
+                'items': [{'item_code': 'S', 'qty': 1, 'rate': 10, 'warehouse': 'A',
+                           'purchase_receipt': receipt.name, 'pr_detail': doubled.get('items')[0]['name']}]})
+        # Cancelling an invoice gives the quantity back; through the converter registry it is the same function.
+        services.cancel_document('purchase-invoice', rest.name)
+        self.assertEqual(self.db.get_value('Purchase Receipt', receipt.name, 'status'), 'To Bill')
+        again = services.convert_document('purchase-receipt', receipt.name, 'Purchase Invoice')
+        self.assertEqual(again['items'][0]['qty'], 5)
+
     def line(self, order):
         return self.db.get_value('Sales Order Item', order['items'][0]['name'],
                                  ['qty', 'delivered_qty', 'returned_qty', 'billed_qty'])

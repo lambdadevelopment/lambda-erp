@@ -45,6 +45,13 @@ REST / chat / MCP: convert `delivery-note` to `Sales Invoice`).
   line keeps `billed_qty`; the note's `per_billed` and status follow
   (Submitted → To Bill → Completed).
 
+The purchasing side works the same way (1.4.16): a submitted Purchase Receipt
+converts to a Purchase Invoice (*Create Invoice*; convert `purchase-receipt`
+to `Purchase Invoice`). It bills what was received and not billed yet, at the
+received price, carries `purchase_receipt` / `pr_detail` and the order line,
+never moves stock, and the receipt line keeps `billed_qty` with the receipt's
+`per_billed` and status following.
+
 Whether an invoice is created right after packing, at month end or by a
 person is the deployment's choice. For a step that must happen together with
 a document, use the in-transaction hooks:

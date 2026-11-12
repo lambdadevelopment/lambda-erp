@@ -61,6 +61,74 @@ class PriceResolution(unittest.TestCase):
         row = self.order(customer, item, **kw)['items'][0]
         return (row['rate'], row['price_source'], row.get('pricing_rule'))
 
+    # -- delivery notes and receipts price like orders -------------------------
+    def test_stock_documents_use_the_same_prices(self):
+        from lambda_erp.stock.delivery_note import make_delivery_note
+        from lambda_erp.stock.purchase_receipt import make_purchase_receipt
+        self.list_price('F1', 100)
+        self.list_price('F1', 85, customer='H1')
+        rule = self.rule('Hospital Two', 60, apply_on='Item Code', item_code='F1', applicable_for='Customer',
+                         customer='H2')['name']
+
+        def note(customer, **line):
+            # A display name on the line must not switch pricing off.
+            row = services.create_document('delivery-note', {
+                'company': 'Test Co', 'customer': customer, 'posting_date': '2026-11-12',
+                'items': [{'item_code': 'F1', 'item_name': 'F1', 'qty': 1, 'warehouse': 'A', **line}]})['items'][0]
+            return (row['rate'], row['price_source'], row.get('pricing_rule'))
+
+        self.assertEqual(note('C'), (100, 'Item Price', None))          # list price
+        self.assertEqual(note('H1'), (85, 'Item Price', None))          # the customer's own price
+        self.assertEqual(note('H2'), (60, 'Item Price', rule))          # a pricing rule
+        self.assertEqual(note('C', rate=77)[0], 77)                     # a rate that was entered stays
+        # The pricing date decides, as on an order.
+        self.list_price('F2', 50, valid_upto='2026-10-31')
+        self.list_price('F2', 55, valid_from='2026-11-01')
+        dated = services.create_document('delivery-note', {
+            'company': 'Test Co', 'customer': 'C', 'posting_date': '2026-11-12', 'pricing_date': '2026-10-15',
+            'items': [{'item_code': 'F2', 'qty': 1, 'warehouse': 'A'}]})
+        self.assertEqual(dated['items'][0]['rate'], 50)
+        # A delivery made from an order keeps the order's price, whatever rules say now.
+        services.submit_document('stock-entry', services.create_document('stock-entry', {
+            'company': 'Test Co', 'stock_entry_type': 'Material Receipt',
+            'items': [{'item_code': 'F1', 'qty': 5, 'basic_rate': 10, 't_warehouse': 'A'}]})['name'])
+        order = self.order('C', 'F1', rate=91)
+        services.submit_document('sales-order', order['name'])
+        self.rule('Everyone, later', 50, apply_on='Item Code', item_code='F1')
+        self.assertEqual(note('C')[0], 50)
+        delivery = make_delivery_note(order['name'])
+        delivery.save()
+        self.assertEqual((delivery.get('items')[0]['rate'], delivery.get('items')[0]['ignore_pricing_rule']), (91, 1))
+        delivery.get('items')[0]['qty'] = 1
+        delivery.save()
+        self.assertEqual(delivery.get('items')[0]['rate'], 91)
+
+        # Buying side: the supplier's own price list, else the company's.
+        buying = services.create_document('price-list', {
+            'price_list_name': 'Supplier list', 'currency': 'USD', 'selling': 0, 'buying': 1})['name']
+        services.create_document('item-price', {'item_code': 'F1', 'price_list': buying, 'rate': 42})
+        self.db.set_value('Supplier', 'SUP', {'default_price_list': buying})
+        self.db.commit()
+
+        def receipt(item):
+            row = services.create_document('purchase-receipt', {
+                'company': 'Test Co', 'supplier': 'SUP', 'posting_date': '2026-11-12',
+                'items': [{'item_code': item, 'item_name': item, 'qty': 1, 'warehouse': 'A'}]})['items'][0]
+            return (row['rate'], row['price_source'])
+
+        self.assertEqual(receipt('F1'), (42, 'Item Price'))
+        self.assertEqual(receipt('X'), (0, 'None'))                     # nothing on record: said so, not guessed
+        purchase = services.create_document('purchase-order', {
+            'company': 'Test Co', 'supplier': 'SUP', 'transaction_date': '2026-11-12',
+            'items': [{'item_code': 'F1', 'qty': 3, 'rate': 39, 'warehouse': 'A'}]})
+        self.assertEqual(services.create_document('purchase-order', {
+            'company': 'Test Co', 'supplier': 'SUP', 'transaction_date': '2026-11-12',
+            'items': [{'item_code': 'F1', 'qty': 1, 'warehouse': 'A'}]})['items'][0]['rate'], 42)
+        services.submit_document('purchase-order', purchase['name'])
+        received = make_purchase_receipt(purchase['name'])
+        received.save()
+        self.assertEqual(received.get('items')[0]['rate'], 39)
+
     # -- acceptance: general, family, customer, group, individual exception ---
     def test_price_levels(self):
         for code in ('F1', 'F2', 'F3'):

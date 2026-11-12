@@ -158,7 +158,7 @@ _CLASSES = {
     "Purchase Order": ("lambda_erp.buying.purchase_order", "PurchaseOrder"),
     "Purchase Invoice": ("lambda_erp.accounting.purchase_invoice", "PurchaseInvoice"),
 }
-_BUYING = ("Purchase Order", "Purchase Invoice")
+_BUYING = ("Purchase Order", "Purchase Invoice", "Purchase Receipt")
 
 
 def _document_class(doctype):

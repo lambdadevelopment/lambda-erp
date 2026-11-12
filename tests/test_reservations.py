@@ -260,6 +260,85 @@ class Reservations(unittest.TestCase):
         self.assertEqual(self.buckets('B'), (9, 5, 4, 0))
         self.assertEqual(stock_ledger_agreement(), [])
 
+    # -- a reservation can hold one batch or one storage location -------------
+    def test_reservation_of_a_batch_holds_that_batch(self):
+        self.receive('B', 5, batch_no='EARLY', expiry_date=day(200))
+        self.receive('B', 5, batch_no='LATE', expiry_date=day(400))
+        mine = services.create_document('stock-reservation', {
+            'item_code': 'B', 'warehouse': 'A', 'reserved_qty': 4, 'batch_no': 'LATE', 'remarks': 'Trial for a clinic'})
+        self.assertEqual(self.buckets('B'), (10, 0, 4, 6))
+        for fields, message in (({'batch_no': 'NOPE'}, 'has no batch NOPE'),
+                                ({'batch_no': 'LATE', 'reserved_qty': 2}, '5 in stock there, 4 of it reserved for others'),
+                                ({'location': 'R-01'}, 'has no storage location R-01')):
+            with self.assertRaisesRegex(ValidationError, message):
+                services.create_document('stock-reservation', {
+                    'item_code': 'B', 'warehouse': 'A', 'reserved_qty': 1, 'remarks': 'x', **fields})
+
+        def sell(batch, qty):
+            return self.post('sales-invoice', {
+                'company': 'Test Co', 'customer': 'C', 'posting_date': day(0), 'update_stock': 1,
+                'items': [{'item_code': 'B', 'qty': qty, 'rate': 20, 'warehouse': 'A', 'batch_no': batch}]})
+
+        # The warehouse still has 6 free, but only 1 of them is in LATE.
+        with self.assertRaisesRegex(ValidationError, 'batch LATE\\) that is reserved \\(1 short\\)'):
+            sell('LATE', 2)
+        sell('LATE', 1)
+        sell('EARLY', 5)
+        self.assertEqual(self.buckets('B'), (4, 0, 4, 0))
+        # Picks do not offer what is held in the batch.
+        self.receive('B', 3, batch_no='EARLY', expiry_date=day(200))
+        picks = suggest({'item_code': 'B', 'warehouse': 'A', 'qty': 5})
+        self.assertEqual([(p['batch_no'], p['qty']) for p in picks['picks']], [('EARLY', 3)])
+        self.assertEqual(picks['shortfall_qty'], 2)
+        # Moving the reservation to the other batch needs that batch to hold it.
+        with self.assertRaisesRegex(ValidationError, 'batch EARLY'):
+            services.update_document('stock-reservation', mine['name'], {'batch_no': 'EARLY'})
+        services.update_document('stock-reservation', mine['name'], {'batch_no': 'EARLY', 'reserved_qty': 3})
+        sell('LATE', 4)
+        services.update_document('stock-reservation', mine['name'], {'status': 'Released'})
+        sell('EARLY', 3)
+        self.assertEqual(stock_ledger_agreement(), [])
+
+    def test_order_reservation_with_a_batch_is_picked_first(self):
+        self.receive('B', 5, batch_no='EARLY', expiry_date=day(200))
+        self.receive('B', 5, batch_no='LATE', expiry_date=day(400))
+        order = self.order(4, item='B')
+        reserve_order({'sales_order': order['name']})
+        held = self.reservation_of(order)
+        services.update_document('stock-reservation', held['name'], {'batch_no': 'LATE'})
+        line = self.db.get_value('Sales Order Item', {'parent': order['name']}, 'name')
+        picks = suggest({'item_code': 'B', 'warehouse': 'A', 'qty': 4, 'sales_order_item': line})
+        self.assertEqual([(p['batch_no'], p['qty']) for p in picks['picks']], [('LATE', 4)])
+        # The delivery draft proposes the held batch, and delivering it uses the reservation up.
+        note = self.deliver(order, submit=False)
+        self.assertEqual([(row['batch_no'], row['qty']) for row in note.get('items')], [('LATE', 4)])
+        note.submit()
+        self.assertEqual(self.reservation_of(order)['status'], 'Delivered')
+        self.assertEqual(self.buckets('B'), (6, 0, 0, 6))
+
+    def test_reservation_of_a_storage_location(self):
+        self.db.set_value('Warehouse', 'A', {'use_locations': 1})
+        for label in ('R-01', 'R-02'):
+            services_location = {'warehouse': 'A', 'location': label}
+            from api.routers.masters import create_master_record
+            create_master_record('storage-location', services_location)
+        self.db.commit()
+        self.receive('S', 4, t_location='R-01')
+        self.receive('S', 4, t_location='R-02')
+        services.create_document('stock-reservation', {
+            'item_code': 'S', 'warehouse': 'A', 'reserved_qty': 3, 'location': 'R-01', 'remarks': 'Prepared for pick-up'})
+
+        def move(qty, source, target):
+            return self.post('stock-entry', {'company': 'Test Co', 'stock_entry_type': 'Material Transfer', 'items': [
+                {'item_code': 'S', 'qty': qty, 's_warehouse': 'A', 't_warehouse': 'A',
+                 's_location': source, 't_location': target}]})
+
+        with self.assertRaisesRegex(ValidationError, 'storage location R-01\\) that is reserved'):
+            move(2, 'R-01', 'R-02')
+        move(1, 'R-01', 'R-02')
+        move(2, 'R-02', 'R-01')
+        self.assertEqual(stock_ledger_agreement(), [])
+
     def test_untracked_items_convert_as_before(self):
         self.receive('S', 3)
         order = self.order(5)

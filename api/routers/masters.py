@@ -221,6 +221,7 @@ def _normalize_master_data(data: dict) -> dict:
 
 MASTER_LINK_FIELDS = {
     'customer': {'default_price_list': 'Price List'},
+    'supplier': {'default_price_list': 'Price List'},
     'company': {'default_price_list': 'Price List'},
     'item': {'default_warehouse': 'Warehouse'},
     'warehouse': {'company': 'Company', 'account': 'Account', 'parent_warehouse': 'Warehouse',

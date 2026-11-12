@@ -22,9 +22,16 @@ amounts; this flag is not a guarantee that an imported total matches.
 
 ## Resolution, in full (1.4.9)
 
-Every priced document (quotation, sales order, sales / POS invoice, purchase
-order, purchase invoice) runs the same two steps when it is saved, whatever
-created it: the form, REST, chat, MCP or an import.
+Every priced document (quotation, sales order, delivery note, sales / POS
+invoice, purchase order, purchase receipt, purchase invoice) runs the same two
+steps when it is saved, whatever created it: the form, REST, chat, MCP or an
+import. Delivery notes and purchase receipts do so since 1.4.16; before, a
+line typed in by hand took the item's standard rate only. Lines that come
+from an order keep the order's price.
+
+The price list is the customer's or supplier's `default_price_list` (a
+supplier has one since 1.4.16), else the company's, and it must be marked for
+the right side (selling / buying) and quoted in the document's currency.
 
 **1. Base price.** For a line without a rate: the Item Price of the
 document's price list, else `Item.standard_rate`. Among the Item Prices that
@@ -48,6 +55,7 @@ Prices and rules are looked up for the document's `pricing_date` when set,
 else its posting / transaction date. A price or rule valid from next month
 does not apply to a document dated today, whenever it is saved, and a
 document dated before a change keeps the earlier price when it is saved again.
+The forms show it as *Pricing Date*.
 
 ### What is kept on the line
 

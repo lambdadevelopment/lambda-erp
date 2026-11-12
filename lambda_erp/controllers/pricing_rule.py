@@ -52,8 +52,8 @@ APPLICABLE_FOR = ("Customer", "Customer Group", "Territory", "Supplier", "Suppli
 # schema, so relaxing that check — for a till that rings up anonymous sales —
 # would make both flags false, match no rule, and silently price at base rate
 # instead of raising. Trade side is a property of the document type; say so.
-SELLING_DOCTYPES = {"Quotation", "Sales Order", "Sales Invoice", "POS Invoice"}
-BUYING_DOCTYPES = {"Purchase Order", "Purchase Invoice"}
+SELLING_DOCTYPES = {"Quotation", "Sales Order", "Sales Invoice", "POS Invoice", "Delivery Note"}
+BUYING_DOCTYPES = {"Purchase Order", "Purchase Invoice", "Purchase Receipt"}
 
 
 class PricingRule(Document):

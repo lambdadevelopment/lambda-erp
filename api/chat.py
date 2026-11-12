@@ -3009,6 +3009,8 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - Order progress is derived from the submitted documents, per order line: delivered_qty (net of returns), returned_qty, billed_qty. Never set them. Open = qty − delivered_qty.
 - A delivery for less than ordered leaves the rest of the line open; convert the order again later for the remainder. Converters only ever propose what is left, and submit rechecks, so a repeated conversion cannot deliver or bill twice.
 - Deliver first, invoice after: convert the submitted **Delivery Note** to a Sales Invoice (convert_document doctype="delivery-note", target_doctype="Sales Invoice"). It bills what that delivery delivered and has not been billed, and does not move stock again. Converting the Sales Order to a Sales Invoice instead bills the ordered quantity regardless of delivery.
+- Receive first, invoice after works the same on the purchasing side: convert the submitted **Purchase Receipt** to a Purchase Invoice (convert_document doctype="purchase-receipt", target_doctype="Purchase Invoice"). It bills what was received and not billed, at the received price, and does not move stock again.
+- A Stock Reservation can name `batch_no` and / or `location` to hold exactly that stock; without them it holds a quantity in the warehouse and the batch is decided when picking.
 - "What is still open / on backorder / can go out now" → sales-backlog report. "Is it on order, and when does it come" → the same report's purchase order columns, or purchase-backlog.
 - When a supplier's order confirmation arrives, record its date with the `confirm_purchase_order` action.
 

@@ -14,6 +14,11 @@ A reservation is hard: no stock movement may take what is reserved for
 someone else. What is still open on an order-linked reservation is derived
 from the order line's delivered quantity, never counted separately.
 
+A reservation holds a quantity in a warehouse. It can also name a batch
+and / or a storage location: then that stock is held, and nobody else can
+take it out of that batch or place, even when the warehouse as a whole
+still has enough.
+
 Picking follows FEFO (first expired, first out). That is a physical picking
 strategy; it has nothing to do with valuation, which stays moving average.
 
@@ -125,10 +130,73 @@ def open_reserved(item_code, warehouse, *, exclude=None, exclude_order_item=None
     return flt(get_db().sql(sql, params)[0]["qty"])
 
 
+def _pin_filter(batch_no="", location=""):
+    sql, params = "", []
+    if batch_no:
+        sql += " AND r.batch_no = ?"
+        params.append(batch_no)
+    if location:
+        sql += " AND r.location = ?"
+        params.append(location)
+    return sql, params
+
+
+def pinned_reserved(item_code, warehouse, batch_no="", location="", *, exclude=None, exclude_order_item=None):
+    """Open quantity of the reservations that name this batch and / or this
+    storage location (a reservation naming both counts for each)."""
+    if not batch_no and not location:
+        return 0.0
+    pin, pin_params = _pin_filter(batch_no, location)
+    sql = (f"SELECT COALESCE(SUM({_OPEN_QTY}), 0) AS qty {_OPEN_FROM} AND r.item_code = ? AND r.warehouse = ?" + pin)
+    params = [item_code, warehouse, *pin_params]
+    if exclude:
+        sql += " AND r.name <> ?"
+        params.append(exclude)
+    if exclude_order_item:
+        sql += " AND (r.sales_order_item IS NULL OR r.sales_order_item <> ?)"
+        params.append(exclude_order_item)
+    return flt(get_db().sql(sql, params)[0]["qty"])
+
+
+def place_stock(item_code, warehouse, batch_no="", location=""):
+    """What lies in a batch and / or a storage location of a warehouse."""
+    sql = 'SELECT COALESCE(SUM(actual_qty), 0) AS qty FROM "Stock Balance Detail" WHERE item_code = ? AND warehouse = ?'
+    params = [item_code, warehouse]
+    if batch_no:
+        sql += " AND batch_no = ?"
+        params.append(batch_no)
+    if location:
+        sql += " AND location = ?"
+        params.append(location)
+    return flt(get_db().sql(sql, params)[0]["qty"])
+
+
+def _pins(item_code, warehouse):
+    """The (batch, location) combinations open reservations of an item in a
+    warehouse name, as the three kinds of place that have to stay covered."""
+    places = set()
+    for row in get_db().sql(
+            f"SELECT DISTINCT r.batch_no, r.location {_OPEN_FROM} AND r.item_code = ? AND r.warehouse = ? "
+            "AND (COALESCE(r.batch_no, '') <> '' OR COALESCE(r.location, '') <> '')", [item_code, warehouse]):
+        batch, location = str(row["batch_no"] or ""), str(row["location"] or "")
+        if batch:
+            places.add((batch, ""))
+        if location:
+            places.add(("", location))
+        if batch and location:
+            places.add((batch, location))
+    return places
+
+
+def _place_label(batch_no, location):
+    return " ".join(part for part in (f"batch {batch_no}" if batch_no else "",
+                                      f"storage location {location}" if location else "") if part)
+
+
 def reservations_for(item_code, warehouse):
     """Open reservations of an item in a warehouse, for messages."""
     return get_db().sql(
-        f"SELECT r.name, r.sales_order, r.customer, {_OPEN_QTY} AS open_qty {_OPEN_FROM} "
+        f"SELECT r.name, r.sales_order, r.customer, r.batch_no, r.location, {_OPEN_QTY} AS open_qty {_OPEN_FROM} "
         "AND r.item_code = ? AND r.warehouse = ? ORDER BY r.creation, r.name", [item_code, warehouse])
 
 
@@ -147,6 +215,9 @@ class StockReservation(Document):
         "total reserved for the line, at most its ordered qty). What is still open follows the line's delivered "
         "quantity automatically. Use the reserve_sales_order action to reserve a whole order.",
         "Without a sales order, remarks must say what the stock is set aside for.",
+        "Optionally name batch_no and / or location (a storage location of the warehouse): then exactly that stock "
+        "is held and nobody else can take it from that batch or place. One reservation holds one batch; an order "
+        "line that needs two batches is split into two lines.",
         "Submit/cancel are unsupported. To give stock back, update status to Released. "
         "Partially Delivered, Delivered and Cancelled are set by the system.",
     )
@@ -161,7 +232,8 @@ class StockReservation(Document):
     def validate(self):
         db = get_db()
         stored = db.get_value(self.DOCTYPE, self.name, ["status", "reserved_qty", "item_code", "warehouse",
-                                                        "sales_order_item"]) if self._persisted else None
+                                                        "sales_order_item", "batch_no", "location"]) \
+            if self._persisted else None
         try:
             qty = float(self._data.get("reserved_qty"))
         except (TypeError, ValueError):
@@ -178,6 +250,7 @@ class StockReservation(Document):
             raise ValidationError("Stock Reservation: Warehouse must be a warehouse that holds stock")
         if not self._data.get("company"):
             self._data["company"] = warehouse.get("company")
+        batch_no, location = self._validate_place(db)
 
         requested = self._data.get("status") or RESERVED
         previous = (stored or {}).get("status")
@@ -205,10 +278,24 @@ class StockReservation(Document):
         if self._data["status"] in OPEN_STATUSES:
             mine = max(0.0, qty - delivered) if self._data.get("sales_order_item") else qty
             before = 0.0
-            if stored and stored.get("status") in OPEN_STATUSES and stored.get("item_code") == self.item_code \
-                    and stored.get("warehouse") == self.warehouse:
+            same_stock = bool(stored) and stored.get("status") in OPEN_STATUSES \
+                and stored.get("item_code") == self.item_code and stored.get("warehouse") == self.warehouse
+            if same_stock:
                 before = max(0.0, flt(stored.get("reserved_qty")) - delivered) \
                     if stored.get("sales_order_item") else flt(stored.get("reserved_qty"))
+            same_place = same_stock and (str(stored.get("batch_no") or ""), str(stored.get("location") or "")) \
+                == (batch_no, location)
+            if (batch_no or location) and (mine > before + EPSILON or not same_place):
+                # The named batch / place must hold it, next to what others hold there.
+                _lock_item(self.item_code)
+                for batch, place in {(batch_no, ""), ("", location), (batch_no, location)} - {("", "")}:
+                    there = place_stock(self.item_code, self.warehouse, batch, place)
+                    others = pinned_reserved(self.item_code, self.warehouse, batch, place,
+                                             exclude=self.name if self._persisted else None)
+                    if mine > there - others + EPSILON:
+                        raise ValidationError(
+                            f"Cannot reserve {mine:g} of {self.item_code} in {_place_label(batch, place)} of "
+                            f"warehouse {self.warehouse}: {there:g} in stock there, {others:g} of it reserved for others")
             if mine > before + EPSILON:
                 # Only what is new has to be available: a reservation that
                 # already holds its stock can always be saved again.
@@ -227,6 +314,29 @@ class StockReservation(Document):
             from lambda_erp.permissions import current_principal
             principal = current_principal() or {}
             self._data["reserved_by"] = principal.get("user_id") or principal.get("name")
+
+    def _validate_place(self, db):
+        """The batch and storage location a reservation names, checked."""
+        batch_no = str(self._data.get("batch_no") or "").strip()
+        location = str(self._data.get("location") or "").strip()
+        self._data["batch_no"], self._data["location"] = batch_no or None, location or None
+        if self._data.get("status") in (RELEASED, CANCELLED, DELIVERED):
+            return batch_no, location
+        if batch_no:
+            batch = db.get_value("Batch", {"item_code": self.item_code, "batch_no": batch_no},
+                                 ["name", "expiry_date", "blocked"])
+            if not batch:
+                raise ValidationError(f"Stock Reservation: {self.item_code} has no batch {batch_no}")
+            state = batch_state(batch)
+            if state:
+                raise ValidationError(f"Stock Reservation: batch {batch_no} of {self.item_code} is {state} "
+                                      f"and cannot be reserved")
+        if location:
+            from lambda_erp.stock.stock_ledger import get_storage_location
+            if not get_storage_location(self.warehouse, location):
+                raise ValidationError(
+                    f"Stock Reservation: warehouse {self.warehouse} has no storage location {location}")
+        return batch_no, location
 
     def _validate_order_line(self, db):
         line_name = self._data.get("sales_order_item")
@@ -358,8 +468,15 @@ def _touched_pairs(doc):
 
 
 def _coverage(item_code, warehouse):
+    """How much more than the reserved quantity is there: for the warehouse
+    as a whole (key None) and for every batch / storage location that a
+    reservation names."""
     buckets = stock_buckets(item_code, warehouse)
-    return buckets.physical_qty - buckets.blocked_qty - buckets.reserved_qty
+    cover = {None: buckets.physical_qty - buckets.blocked_qty - buckets.reserved_qty}
+    for batch_no, location in _pins(item_code, warehouse):
+        cover[(batch_no, location)] = (place_stock(item_code, warehouse, batch_no, location)
+                                       - pinned_reserved(item_code, warehouse, batch_no, location))
+    return cover
 
 
 def begin_guard(doc):
@@ -388,17 +505,24 @@ def finish_guard(doc, guard, *, cancelling=False):
     the whole document back."""
     if not guard:
         return
-    for (item_code, warehouse), before in guard.items():
-        after = _coverage(item_code, warehouse)
-        if after < -EPSILON and after < before - EPSILON:
-            holders = ", ".join(
-                f"{row['sales_order'] or row['name']} ({flt(row['open_qty']):g})"
-                for row in reservations_for(item_code, warehouse) if flt(row["open_qty"]) > EPSILON)
-            action = "cancel" if cancelling else "post"
-            raise ValidationError(
-                f"Cannot {action} {doc.DOCTYPE} {doc.name}: it would take {item_code} in warehouse {warehouse} "
-                f"that is reserved ({-after:g} short). Reserved for: {holders}. "
-                f"Deliver against those orders, or release a reservation first")
+    for (item_code, warehouse), covered in guard.items():
+        now_covered = _coverage(item_code, warehouse)
+        for place, after in now_covered.items():
+            # A place nobody had named before starts from what is there now.
+            before = covered.get(place, 0.0)
+            if after < -EPSILON and after < before - EPSILON:
+                where = f" ({_place_label(*place)})" if place else ""
+                holders = ", ".join(
+                    f"{row['sales_order'] or row['name']} ({flt(row['open_qty']):g})"
+                    for row in reservations_for(item_code, warehouse)
+                    if flt(row["open_qty"]) > EPSILON and (
+                        not place or ((not place[0] or (row["batch_no"] or "") == place[0])
+                                      and (not place[1] or (row["location"] or "") == place[1]))))
+                action = "cancel" if cancelling else "post"
+                raise ValidationError(
+                    f"Cannot {action} {doc.DOCTYPE} {doc.name}: it would take {item_code} in warehouse {warehouse}"
+                    f"{where} that is reserved ({-after:g} short). Reserved for: {holders}. "
+                    f"Deliver against those orders, or release a reservation first")
 
 
 # -- shelf life ---------------------------------------------------------------
@@ -529,11 +653,37 @@ def suggest_picks(item_code, warehouse, qty, *, customer=None, on_date=None, sal
         else buckets.reserved_qty
     limit = max(0.0, buckets.physical_qty - buckets.blocked_qty - others)
     remaining = min(qty, limit)
+    # Batches and storage locations that reservations name: what others hold
+    # there is not offered, and the order line's own named stock comes first.
+    own = db.sql('SELECT batch_no, location FROM "Stock Reservation" WHERE sales_order_item = ? '
+                 "AND status IN ('Reserved', 'Partially Delivered') AND COALESCE(discarded, 0) = 0",
+                 [sales_order_item]) if sales_order_item else []
+    own_batch, own_location = (str(own[0]["batch_no"] or ""), str(own[0]["location"] or "")) if own else ("", "")
+    if own_batch or own_location:
+        candidates.sort(key=lambda c: not ((not own_batch or (c["batch_no"] or "") == own_batch)
+                                           and (not own_location or (c["location"] or "") == own_location)))
+    free = {}
+
+    def room(batch_no, location):
+        """What others leave free in a batch / storage location, shrinking as picks are taken."""
+        key = (batch_no, location)
+        if key not in free:
+            free[key] = (place_stock(item_code, warehouse, batch_no, location)
+                         - pinned_reserved(item_code, warehouse, batch_no, location,
+                                           exclude_order_item=sales_order_item))
+        return free[key]
+
     picks = []
     for candidate in candidates:
         if remaining <= EPSILON:
             break
-        take = min(remaining, candidate["available_qty"])
+        batch, place = candidate["batch_no"] or "", candidate["location"] or ""
+        places = [key for key in ((batch, ""), ("", place), (batch, place)) if key != ("", "")]
+        take = min([remaining, candidate["available_qty"], *(max(0.0, room(*key)) for key in places)])
+        if take <= EPSILON:
+            continue
+        for key in set(places):
+            free[key] -= take
         pick = {"batch_no": candidate["batch_no"], "location": candidate["location"],
                 "expiry_date": candidate["expiry_date"], "days_left": candidate["days_left"],
                 "qty": take, "needs_exception": candidate["needs_exception"]}

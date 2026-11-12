@@ -31,9 +31,10 @@ def lock_workflow_references(doc):
     if rule:
         table, parent, _, _ = rule
         refs.update((table, row[parent]) for row in doc.get('items') if row.get(parent))
-    if doc.DOCTYPE == 'Sales Invoice':
-        # Invoices that bill a delivery note are checked against it.
-        refs.update(('Delivery Note', row['delivery_note']) for row in doc.get('items') if row.get('delivery_note'))
+    if doc.DOCTYPE in BILLED_MOVEMENTS:
+        # Invoices that bill a delivery note or a purchase receipt are checked against it.
+        movement, parent_field = BILLED_MOVEMENTS[doc.DOCTYPE][:2]
+        refs.update((movement, row[parent_field]) for row in doc.get('items') if row.get(parent_field))
     for table, name in sorted(refs):
         if db.dialect == 'postgres':
             db.sql(f'SELECT name FROM "{table}" WHERE name = ? FOR UPDATE', [name])
@@ -176,68 +177,88 @@ def _sum_returned(doctype, line_field, line, *, stock_only=False):
         [line])[0]['qty'])
 
 
+# An invoice line can bill a line of the stock document that moved the goods:
+# invoice type -> (stock document, link field, line field, party field).
+BILLED_MOVEMENTS = {
+    'Sales Invoice': ('Delivery Note', 'delivery_note', 'dn_detail', 'customer'),
+    'Purchase Invoice': ('Purchase Receipt', 'purchase_receipt', 'pr_detail', 'supplier'),
+}
+
+
 def validate_delivery_billing(doc):
-    """A Sales Invoice line that bills a delivery note line (delivery_note /
-    dn_detail): the delivery exists and matches, the invoice does not move
-    the goods a second time, and no more is billed than was delivered."""
-    if doc.DOCTYPE != 'Sales Invoice':
+    """An invoice line that bills a delivery note line (Sales Invoice:
+    delivery_note / dn_detail) or a purchase receipt line (Purchase Invoice:
+    purchase_receipt / pr_detail): the stock document exists and matches, the
+    invoice does not move the goods a second time, and no more is billed
+    than was delivered or received."""
+    link = BILLED_MOVEMENTS.get(doc.DOCTYPE)
+    if not link:
         return
+    movement, parent_field, line_field, party_field = link
     db = get_db()
-    if 'dn_detail' not in db._get_table_columns('Sales Invoice Item'):
+    if line_field not in db._get_table_columns(f'{doc.DOCTYPE} Item'):
         return
+    short = 'delivery' if movement == 'Delivery Note' else 'receipt'
     requested = defaultdict(float)
     for idx, row in enumerate(doc.get('items') or [], 1):
-        note, line = row.get('delivery_note'), row.get('dn_detail')
+        note, line = row.get(parent_field), row.get(line_field)
         if not note and not line:
             continue
         if not note or not line:
-            raise ValidationError(f'Sales Invoice row {idx}: delivery_note and dn_detail must be supplied together')
+            raise ValidationError(f'{doc.DOCTYPE} row {idx}: {parent_field} and {line_field} must be supplied together')
         if flt(doc.get('update_stock')):
             raise ValidationError(
-                'A Sales Invoice that bills a delivery note cannot update stock: the delivery already moved the goods')
+                f'A {doc.DOCTYPE} that bills a {movement.lower()} cannot update stock: '
+                f'the {short} already moved the goods')
         if flt(doc.get('is_return')):
             continue  # a credit note is checked against its original invoice
-        parent = db.get_value('Delivery Note', note, ['docstatus', 'customer', 'company', 'is_return'])
-        detail = db.get_value('Delivery Note Item', line, ['parent', 'item_code', 'qty'])
+        parent = db.get_value(movement, note, ['docstatus', party_field, 'company', 'is_return'])
+        detail = db.get_value(f'{movement} Item', line, ['parent', 'item_code', 'qty'])
         if not parent or parent.get('docstatus') != 1 or flt(parent.get('is_return')):
-            raise ValidationError(f'Sales Invoice row {idx}: Delivery Note {note} must be a submitted delivery')
+            raise ValidationError(f'{doc.DOCTYPE} row {idx}: {movement} {note} must be a submitted {short}')
         if not detail or detail.get('parent') != note or detail.get('item_code') != row.get('item_code'):
-            raise ValidationError(f'Sales Invoice row {idx}: the delivery note line must belong to {note} and carry the same item')
-        if parent.get('customer') != doc.get('customer') or parent.get('company') != doc.get('company'):
-            raise ValidationError(f'Sales Invoice row {idx}: Customer and Company must match Delivery Note {note}')
+            raise ValidationError(
+                f'{doc.DOCTYPE} row {idx}: the {movement.lower()} line must belong to {note} and carry the same item')
+        if parent.get(party_field) != doc.get(party_field) or parent.get('company') != doc.get('company'):
+            raise ValidationError(
+                f'{doc.DOCTYPE} row {idx}: {party_field.title()} and Company must match {movement} {note}')
         requested[line] += flt(row.get('qty'))
     for line, qty in requested.items():
-        delivered = flt(db.get_value('Delivery Note Item', line, 'qty'))
-        billed = _sum_line('Sales Invoice', 'dn_detail', line, exclude=doc.name)
-        if billed + qty > delivered + EPSILON:
+        moved = flt(db.get_value(f'{movement} Item', line, 'qty'))
+        billed = _sum_line(doc.DOCTYPE, line_field, line, exclude=doc.name)
+        if billed + qty > moved + EPSILON:
+            done = 'delivered' if movement == 'Delivery Note' else 'received'
             raise ValidationError(
-                f'Sales Invoice: Qty exceeds what is left to bill of the delivery ({max(0, delivered - billed):g}); '
-                f'already billed {billed:g} of {delivered:g} delivered')
+                f'{doc.DOCTYPE}: Qty exceeds what is left to bill of the {short} ({max(0, moved - billed):g}); '
+                f'already billed {billed:g} of {moved:g} {done}')
 
 
 def refresh_delivery_billing(doc):
-    """billed_qty per delivery note line and the note's per_billed / status,
-    recalculated from the submitted invoices that bill it."""
-    if doc.DOCTYPE != 'Sales Invoice':
+    """billed_qty per delivery note / purchase receipt line and the stock
+    document's per_billed / status, recalculated from the submitted invoices
+    that bill it."""
+    link = BILLED_MOVEMENTS.get(doc.DOCTYPE)
+    if not link:
         return
+    movement, parent_field, line_field, _ = link
     db = get_db()
-    if 'dn_detail' not in db._get_table_columns('Sales Invoice Item'):
+    if line_field not in db._get_table_columns(f'{doc.DOCTYPE} Item'):
         return
-    for note in sorted({row['delivery_note'] for row in doc.get('items') or [] if row.get('delivery_note')}):
+    for note in sorted({row[parent_field] for row in doc.get('items') or [] if row.get(parent_field)}):
         if db.dialect == 'postgres':
-            db.sql('SELECT name FROM "Delivery Note" WHERE name = ? FOR UPDATE', [note])
+            db.sql(f'SELECT name FROM "{movement}" WHERE name = ? FOR UPDATE', [note])
         total = billed = 0
-        for line in db.get_all('Delivery Note Item', filters={'parent': note}, fields=['name', 'qty']):
-            done = _sum_line('Sales Invoice', 'dn_detail', line.name)
-            db.set_value('Delivery Note Item', line.name, 'billed_qty', done)
+        for line in db.get_all(f'{movement} Item', filters={'parent': note}, fields=['name', 'qty']):
+            done = _sum_line(doc.DOCTYPE, line_field, line.name)
+            db.set_value(f'{movement} Item', line.name, 'billed_qty', done)
             total += flt(line.qty)
             billed += min(done, flt(line.qty))
         per_billed = flt(billed / total * 100, 2) if total else 0
         values = {'per_billed': per_billed}
-        if db.get_value('Delivery Note', note, 'docstatus') == 1:
+        if db.get_value(movement, note, 'docstatus') == 1:
             # Submitted until an invoice bills it; then what is left to do.
             values['status'] = 'Completed' if per_billed >= 100 else 'To Bill' if billed > EPSILON else 'Submitted'
-        db.set_value('Delivery Note', note, values)
+        db.set_value(movement, note, values)
 
 
 def _sum_line(doctype, line_field, line, *, exclude=None, stock_only=False):

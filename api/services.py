@@ -23,7 +23,9 @@ from lambda_erp.stock.stock_entry import StockEntry
 from lambda_erp.stock.delivery_note import (
     DeliveryNote, make_delivery_note, make_delivery_return, make_sales_invoice_from_delivery_note,
 )
-from lambda_erp.stock.purchase_receipt import PurchaseReceipt, make_purchase_receipt, make_purchase_receipt_return
+from lambda_erp.stock.purchase_receipt import (
+    PurchaseReceipt, make_purchase_receipt, make_purchase_receipt_return, make_purchase_invoice_from_purchase_receipt,
+)
 from lambda_erp.accounting.pos_invoice import POSInvoice
 from lambda_erp.controllers.pricing_rule import PricingRule
 from lambda_erp.controllers.item_price import PriceList, ItemPrice
@@ -82,6 +84,7 @@ CONVERTERS = {
     ("Delivery Note", "Sales Invoice"): make_sales_invoice_from_delivery_note,
     ("Purchase Order", "Purchase Invoice"): make_purchase_invoice,
     ("Purchase Order", "Purchase Receipt"): make_purchase_receipt,
+    ("Purchase Receipt", "Purchase Invoice"): make_purchase_invoice_from_purchase_receipt,
     # Returns (same-to-same conversion creates a return document)
     ("Sales Invoice", "Sales Invoice"): make_sales_return,
     ("Purchase Invoice", "Purchase Invoice"): make_purchase_return,

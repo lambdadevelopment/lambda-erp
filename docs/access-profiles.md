@@ -199,14 +199,15 @@ written without restrictions.
 - Sales prices are not a sensitivity class.
 - The `payments` dataset is refused as a whole under `supplier_terms`,
   including customer payments.
-- A buying price list applies only as the company's default price list, so
-  that is where a user who cannot see purchase prices gets them from.
+- A user who cannot see purchase prices gets them from the supplier's buying
+  price list (`Supplier.default_price_list`), else the company's default one,
+  when that is a buying list.
 - An item's default warehouse is shown with the item, also to a user who is
   not assigned that warehouse.
 - Record scope is by customer and by warehouse. Other kinds are added by a
   plugin (`register_scope_dimension`).
-- The menu hides what a restricted user cannot open; forms still show the
-  inputs of hidden fields, empty.
+- The menu hides what a restricted user cannot open, and forms and lists
+  leave out hidden fields (`restrictions.hidden_fields` of `/api/auth/me`).
 
 ## For plugins
 

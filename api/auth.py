@@ -584,6 +584,14 @@ def _describe_restrictions(user):
         names = {route.path.rsplit("/", 1)[-1] for route in reports.router.routes
                  if getattr(route, "path", "").startswith("/reports/") and "{" not in route.path}
         names |= set(services.REGISTERED_REPORTS)
+        # Fields hidden on document types the user can open, so a form does
+        # not show inputs for them: {slug: {"" | child key: [field, ...]}}.
+        hidden = {}
+        for slug, doctype in services.SLUG_TO_DOCTYPE.items():
+            plan = permissions.hidden_write_plan(doctype)
+            if plan and permissions.can(doctype, "read"):
+                hidden[slug] = {child: sorted(fields) for child, fields in plan.items()}
+        described["hidden_fields"] = hidden
         described["denied_reports"] = sorted(name for name in names if permissions.artifact_denied("report", name))
     return described
 
