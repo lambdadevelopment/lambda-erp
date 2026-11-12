@@ -45,6 +45,8 @@ export const BUILTIN_MASTER_FIELDS: Record<string, FieldDef[]> = {
       hint: "If Yes, every stock movement of this item names its batch and stock is checked per batch. Stock already there stays without a batch until a Batch Assignment." },
     { name: "has_expiry_date", label: "Has Expiry Date", type: "select", options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0",
       hint: "If Yes, every batch of this item needs an expiry date. Requires batch tracking." },
+    { name: "min_shelf_life_days", label: "Min. Shelf Life (days)", type: "number",
+      hint: "A sale needs a batch with at least this many days left before expiry, or an exception on the line. 0 = it only must not be expired." },
     { name: "description", label: "Description", type: "textarea" },
   ],
   batch: [
@@ -53,6 +55,10 @@ export const BUILTIN_MASTER_FIELDS: Record<string, FieldDef[]> = {
       hint: "The label as printed on the goods. The same label may exist on several items." },
     { name: "expiry_date", label: "Expiry Date", type: "date" },
     { name: "manufacturing_date", label: "Manufacturing Date", type: "date" },
+    { name: "blocked", label: "Blocked", type: "select",
+      options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0",
+      hint: "A blocked batch cannot be sold and does not count as available. It can still be moved, returned or written off." },
+    { name: "blocked_reason", label: "Blocked Reason", type: "text" },
     { name: "description", label: "Description", type: "textarea" },
   ],
   warehouse: [

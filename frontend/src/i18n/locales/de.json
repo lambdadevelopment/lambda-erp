@@ -203,7 +203,8 @@
     "analytics": "Analysen",
     "chart-of-accounts": "Kontenplan",
     "batch-stock": "Chargenbestand",
-    "stock-detail": "Bestand nach Lagerplatz & Charge"
+    "stock-detail": "Bestand nach Lagerplatz & Charge",
+    "stock-availability": "Verfügbarkeit"
   },
   "doctypes": {
     "quotation": {
@@ -366,7 +367,9 @@
       "Batch": "Charge",
       "Batch Stock": "Chargenbestand",
       "Storage Location": "Lagerplatz",
-      "Stock by Location & Batch": "Bestand nach Lagerplatz & Charge"
+      "Stock by Location & Batch": "Bestand nach Lagerplatz & Charge",
+      "Stock Reservation": "Bestandsreservierung",
+      "Stock Availability": "Verfügbarkeit"
     }
   },
   "login": {
@@ -688,7 +691,20 @@
     "Storage Location": "Lagerplatz",
     "Storage Locations": "Lagerplätze",
     "Source Location": "Von Lagerplatz",
-    "Target Location": "Nach Lagerplatz"
+    "Target Location": "Nach Lagerplatz",
+    "Reserve Stock": "Bestand reservieren",
+    "Shelf Life Exception": "Ausnahme Restlaufzeit",
+    "Reserved Qty": "Reservierte Menge",
+    "Sales Order Line": "Auftragsposition",
+    "Reserved By": "Reserviert von",
+    "Min. Shelf Life (days)": "Mindestrestlaufzeit (Tage)",
+    "Blocked": "Gesperrt",
+    "Blocked Reason": "Sperrgrund",
+    "In Stock": "Am Lager",
+    "Reserved": "Reserviert",
+    "Available": "Verfügbar",
+    "Open Sales Orders": "Offene Aufträge",
+    "On Purchase Order": "In Bestellung"
   },
   "tables": {
     "items": "Positionen",

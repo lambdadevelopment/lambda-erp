@@ -84,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: <Package className="h-4 w-4" />,
     items: [
       { label: "Stock Entry", path: "/app/stock-entry" },
+      { label: "Stock Reservation", path: "/app/stock-reservation" },
       { label: "Delivery Note", path: "/app/delivery-note" },
       { label: "Purchase Receipt", path: "/app/purchase-receipt" },
     ],
@@ -100,6 +101,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "AP Aging", path: "/reports/ap-aging" },
       { label: "Analytics", path: "/reports/analytics" },
       { label: "Stock Balance", path: "/reports/stock-balance" },
+      { label: "Stock Availability", path: "/reports/stock-availability" },
       { label: "Stock by Location & Batch", path: "/reports/stock-detail" },
     ],
   },

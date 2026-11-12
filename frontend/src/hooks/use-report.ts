@@ -41,6 +41,14 @@ export function useBatchStock(params?: Record<string, string>) {
   return { data, isLoading, error, refetch };
 }
 
+export function useStockAvailability(params?: Record<string, string>) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["report", "stock-availability", params],
+    queryFn: () => api.stockAvailability(params),
+  });
+  return { data, isLoading, error, refetch };
+}
+
 export function useStockDetail(params?: Record<string, string>) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["report", "stock-detail", params],

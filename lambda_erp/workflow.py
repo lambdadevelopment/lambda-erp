@@ -297,6 +297,10 @@ def refresh_order_progress(doc):
             order = SalesOrder.load(name)
             order._set_status()
             db.set_value(kind, name, 'status', order.status)
+            # Reservations follow the order: created on request at submit,
+            # consumed by deliveries, cancelled with the order.
+            from lambda_erp.stock.reservation import sync_sales_order
+            sync_sales_order(name)
         refresh_planning(kind, lines)
 
 

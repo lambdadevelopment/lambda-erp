@@ -66,6 +66,25 @@ Full description: [`docs/storage-locations.md`](../storage-locations.md).
 - `get_batch_balances` adds up over locations; use `get_stock_details` for
   the per-location rows.
 
+## Reservations and FEFO
+
+Full description: [`docs/reservations-and-fefo.md`](../reservations-and-fefo.md).
+
+- `stock/reservation.py`. available = physical − blocked − reserved, per
+  item × warehouse. What a reservation still holds is derived from the order
+  line's `delivered_qty`; never add a counter.
+- `Document.submit` / `cancel` wrap every posting in
+  `reservation.begin_guard` / `finish_guard`: a document may not leave
+  reservations less covered than it found them. The guard is a no-op unless
+  an open reservation exists for a touched item. It runs after
+  `refresh_order_progress`, which is what consumes reservations.
+- `workflow.refresh_order_progress` calls `sync_sales_order` (reserve on
+  request at submit, statuses, cancel with the order).
+- Sell-side documents call `validate_sellable` before posting (expired,
+  blocked, shelf life). A new sell-side path must call it too.
+- FEFO (`suggest_picks`) never reads valuation, and nothing in valuation
+  reads expiry dates.
+
 ## Moving-average cost
 
 - The `Bin` table holds current `valuation_rate` per item+warehouse.

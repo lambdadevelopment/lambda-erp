@@ -878,7 +878,7 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-detail", "batch-stock", "batch-movements", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
+                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "batch-stock", "batch-movements", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
                     "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse; for batch-stock also batch_no, item_prefix, expiring_before, include_empty; for stock-detail also location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty; batch-movements requires batch_no. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
                 },
                 "required": ["report_type"],
@@ -1974,6 +1974,9 @@ def _handle_get_report(args):
         return _batch_stock(db, filters.get("item_code"), filters.get("warehouse"), filters.get("batch_no"),
                             filters.get("item_prefix"), filters.get("expiring_before"),
                             bool(filters.get("include_empty")))
+    elif report_type == "stock-availability":
+        from api.routers.reports import _stock_availability
+        return _stock_availability(db, filters.get("item_code"), filters.get("warehouse"), filters.get("item_prefix"))
     elif report_type == "stock-detail":
         from api.routers.reports import _stock_detail
         return _stock_detail(db, filters.get("item_code"), filters.get("warehouse"), filters.get("location"),
@@ -2915,6 +2918,13 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - **Material Transfer:** Moves stock between warehouses. No GL impact.
 - **Batch Assignment:** Gives stock that has no batch (from before the item was batch-tracked) its batch, in place: row = item_code, qty, t_warehouse, batch_no (+ expiry_date for a new batch). No GL impact, no quantity or value change.
 
+### Reservations, availability and picking (FEFO)
+- available = in stock − blocked (expired or blocked batches) − reserved. Check it with the stock-availability report before promising a delivery.
+- A **Stock Reservation** (doctype `stock-reservation`) sets stock aside: for a sales order line (use the `reserve_sales_order` action, or set `reserve_stock=1` on the Sales Order before submitting it), or free-standing with `remarks` saying what it is for. It is hard: a delivery, issue or transfer that would take reserved stock for someone else is refused with the orders it is reserved for. Deliveries against the order consume its reservation automatically; cancelling the order cancels it; set status Released to give stock back early.
+- Picking is first expired, first out. Converting a Sales Order to a Delivery Note already proposes batch and storage location per line that way (splitting a line over batches when needed). For anything else use the `suggest_picks` action; it is read-only.
+- A sale never ships an expired or blocked batch. If the item has a minimum shelf life (`min_shelf_life_days`) and the batch has less left, the line needs `shelf_life_exception` with the approved reason; do not write one unless the user gives it.
+- Expired or blocked stock can still be moved, returned to the supplier or written off with a Stock Entry.
+
 ### Storage locations (places inside a warehouse)
 - A warehouse with `use_locations=1` has storage locations (master `storage-location`: warehouse + location label, e.g. "A12"). The same label may exist in several warehouses.
 - In such a warehouse every stock-moving line names its location: `location` on Delivery Note, Purchase Receipt and invoice lines (with update_stock=1); on Stock Entry lines `s_location` for the source side and `t_location` for the target side. Drafts may be saved without it; submit is refused. A warehouse without storage locations takes no location.
@@ -2986,6 +2996,7 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 - **ar-aging** — Outstanding receivables bucketed by overdue days (Current, 1-30, 31-60, 61-90, 90+). Filters: company, as_of_date.
 - **ap-aging** — Outstanding payables bucketed by overdue days. Filters: company, as_of_date.
 - **stock-balance** — Inventory quantities and valuations. Filters: item_code, warehouse.
+- **stock-availability** — Per item × warehouse: physical_qty (in stock), blocked_qty (expired or blocked batches), reserved_qty (open Stock Reservations), available_qty (= physical − blocked − reserved), plus open_sales_order_qty (ordered by customers, not yet delivered) and on_purchase_order_qty (ordered from suppliers, not yet received). Filters: item_code, warehouse, item_prefix. Use this to answer "can we deliver X" and "is it already on order".
 - **stock-detail** — Where stock is, in one view: item, warehouse, storage location, batch, expiry date, quantity. Filters: item_code, warehouse, location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty. Use this for "what is in location B4", "where is item X", "what expires in the next 3 months in warehouse Y".
 - **batch-stock** — Quantity per item × warehouse × batch with the batch's expiry date (batch-tracked items only). Filters: item_code, warehouse, batch_no, item_prefix (item codes starting with…), expiring_before (date), include_empty. A batch label is NOT unique: the same label can exist on several items, so a batch_no-only lookup can return several items — show them all, never pick one.
 - **batch-movements** — Every stock movement of a batch with document, line and customer/supplier: where it came from and who received it (recalls). Filters: batch_no (required), item_code, warehouse.

@@ -105,6 +105,8 @@ class DeliveryNote(Document):
                 self._data["status"] = "To Bill"
 
     def on_submit(self):
+        from lambda_erp.stock.reservation import validate_sellable
+        validate_sellable(self)
         sl_entries = self._get_sl_entries()
         make_sl_entries(sl_entries)
 
@@ -136,6 +138,26 @@ class DeliveryNote(Document):
         from lambda_erp.workflow import refresh_order_progress
         refresh_order_progress(self)
 
+def _proposed_picks(so, item, qty):
+    """The lines a delivery of `qty` of an order line should become: one per
+    batch and storage location, earliest expiry first. Stock that cannot be
+    picked now is left off (the order line stays open for it); when nothing
+    can be picked, or the item needs neither batch nor location, the line is
+    proposed as it is."""
+    db = get_db()
+    plain = [{"qty": qty}]
+    if not item.get("item_code") or not item.get("warehouse"):
+        return plain
+    tracked = flt(db.get_value("Item", item["item_code"], "has_batch_no"))
+    located = flt(db.get_value("Warehouse", item["warehouse"], "use_locations"))
+    if not tracked and not located:
+        return plain
+    from lambda_erp.stock.reservation import suggest_picks
+    picks = suggest_picks(item["item_code"], item["warehouse"], qty, customer=so.customer,
+                          sales_order_item=item.get("name"))["picks"]
+    return picks or plain
+
+
 def make_delivery_note(sales_order_name):
     """Convert a Sales Order into a Delivery Note."""
     from lambda_erp.selling.sales_order import SalesOrder
@@ -157,17 +179,23 @@ def make_delivery_note(sales_order_name):
         undelivered = flt(item.get("qty")) - flt(item.get("delivered_qty"))
         if undelivered <= 0:
             continue
-        dn.append("items", _dict(
-            item_code=item.get("item_code"),
-            item_name=item.get("item_name"),
-            description=item.get("description"),
-            qty=undelivered,
-            uom=item.get("uom"),
-            rate=item.get("rate"),
-            warehouse=item.get("warehouse"),
-            against_sales_order=so.name,
-            so_detail=item.get("name"),
-        ))
+        # A batch-tracked item, or a warehouse with storage locations, needs a
+        # batch / location per line: propose them first-expired-first-out. It
+        # is a proposal on a draft; nothing is reserved or moved by it.
+        for pick in _proposed_picks(so, item, undelivered):
+            dn.append("items", _dict(
+                item_code=item.get("item_code"),
+                item_name=item.get("item_name"),
+                description=item.get("description"),
+                qty=pick["qty"],
+                uom=item.get("uom"),
+                rate=item.get("rate"),
+                warehouse=item.get("warehouse"),
+                batch_no=pick.get("batch_no"),
+                location=pick.get("location"),
+                against_sales_order=so.name,
+                so_detail=item.get("name"),
+            ))
 
     for tax in so.get("taxes") or []:
         dn.append("taxes", _dict(

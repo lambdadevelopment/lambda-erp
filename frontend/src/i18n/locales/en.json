@@ -203,7 +203,8 @@
     "analytics": "Analytics",
     "chart-of-accounts": "Chart of Accounts",
     "batch-stock": "Batch Stock",
-    "stock-detail": "Stock by Location & Batch"
+    "stock-detail": "Stock by Location & Batch",
+    "stock-availability": "Stock Availability"
   },
   "doctypes": {
     "quotation": {
@@ -366,7 +367,9 @@
       "Batch": "Batch",
       "Batch Stock": "Batch Stock",
       "Storage Location": "Storage Location",
-      "Stock by Location & Batch": "Stock by Location & Batch"
+      "Stock by Location & Batch": "Stock by Location & Batch",
+      "Stock Reservation": "Stock Reservation",
+      "Stock Availability": "Stock Availability"
     }
   },
   "login": {
@@ -730,7 +733,20 @@
     "Storage Location": "Storage Location",
     "Storage Locations": "Storage Locations",
     "Source Location": "Source Location",
-    "Target Location": "Target Location"
+    "Target Location": "Target Location",
+    "Reserve Stock": "Reserve Stock",
+    "Shelf Life Exception": "Shelf Life Exception",
+    "Reserved Qty": "Reserved Qty",
+    "Sales Order Line": "Sales Order Line",
+    "Reserved By": "Reserved By",
+    "Min. Shelf Life (days)": "Min. Shelf Life (days)",
+    "Blocked": "Blocked",
+    "Blocked Reason": "Blocked Reason",
+    "In Stock": "In Stock",
+    "Reserved": "Reserved",
+    "Available": "Available",
+    "Open Sales Orders": "Open Sales Orders",
+    "On Purchase Order": "On Purchase Order"
   },
   "tables": {
     "accounts": "accounts",

@@ -3315,6 +3315,44 @@ def _m053_storage_locations(db: "Database") -> None:
     db.conn.commit()
 
 
+def _m054_reservations_and_shelf_life(db: "Database") -> None:
+    """Sales reservations, blocked batches and shelf life
+    (see docs/reservations-and-fefo.md). Nothing is reserved or blocked by
+    the migration; orders reserve only when asked to."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Stock Reservation" (
+            name TEXT PRIMARY KEY,
+            item_code TEXT NOT NULL,
+            warehouse TEXT NOT NULL,
+            reserved_qty REAL DEFAULT 0,
+            sales_order TEXT,
+            sales_order_item TEXT,
+            customer TEXT,
+            remarks TEXT,
+            status TEXT DEFAULT 'Reserved',
+            reserved_by TEXT,
+            company TEXT,
+            discarded INTEGER DEFAULT 0,
+            docstatus INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        'CREATE INDEX IF NOT EXISTS "ix_stock_reservation_item" ON "Stock Reservation" (item_code, warehouse, status)'))
+    db.conn.execute(db._ddl(
+        'CREATE INDEX IF NOT EXISTS "ix_stock_reservation_order" ON "Stock Reservation" (sales_order)'))
+    db.conn.commit()
+    db._col_cache.pop("Stock Reservation", None)
+    db._text_col_cache.pop("Stock Reservation", None)
+    db.ensure_column("Batch", "blocked", "INTEGER DEFAULT 0")
+    db.ensure_column("Batch", "blocked_reason", "TEXT")
+    db.ensure_column("Item", "min_shelf_life_days", "INTEGER DEFAULT 0")
+    db.ensure_column("Sales Order", "reserve_stock", "INTEGER DEFAULT 0")
+    for table in ("Delivery Note Item", "Sales Invoice Item", "POS Invoice Item"):
+        db.ensure_column(table, "shelf_life_exception", "TEXT")
+        db.ensure_column(table, "shelf_life_exception_by", "TEXT")
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3408,6 +3446,7 @@ Database.MIGRATIONS = [
     (51, "batches", _m051_batches),
     (52, "access_profiles", _m052_access_profiles),
     (53, "storage_locations", _m053_storage_locations),
+    (54, "reservations_and_shelf_life", _m054_reservations_and_shelf_life),
 ]
 
 

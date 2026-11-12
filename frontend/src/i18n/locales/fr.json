@@ -203,7 +203,8 @@
     "analytics": "Analyses",
     "chart-of-accounts": "Plan comptable",
     "batch-stock": "Stock par lot",
-    "stock-detail": "Stock par emplacement et lot"
+    "stock-detail": "Stock par emplacement et lot",
+    "stock-availability": "Disponibilité du stock"
   },
   "doctypes": {
     "quotation": {
@@ -366,7 +367,9 @@
       "Batch": "Lot",
       "Batch Stock": "Stock par lot",
       "Storage Location": "Emplacement",
-      "Stock by Location & Batch": "Stock par emplacement et lot"
+      "Stock by Location & Batch": "Stock par emplacement et lot",
+      "Stock Reservation": "Réservation de stock",
+      "Stock Availability": "Disponibilité du stock"
     }
   },
   "login": {
@@ -688,7 +691,20 @@
     "Storage Location": "Emplacement",
     "Storage Locations": "Emplacements",
     "Source Location": "Emplacement d'origine",
-    "Target Location": "Emplacement de destination"
+    "Target Location": "Emplacement de destination",
+    "Reserve Stock": "Réserver le stock",
+    "Shelf Life Exception": "Exception de durée de vie",
+    "Reserved Qty": "Quantité réservée",
+    "Sales Order Line": "Ligne de commande",
+    "Reserved By": "Réservé par",
+    "Min. Shelf Life (days)": "Durée de vie min. (jours)",
+    "Blocked": "Bloqué",
+    "Blocked Reason": "Motif du blocage",
+    "In Stock": "En stock",
+    "Reserved": "Réservé",
+    "Available": "Disponible",
+    "Open Sales Orders": "Commandes ouvertes",
+    "On Purchase Order": "En commande"
   },
   "tables": {
     "items": "Lignes",

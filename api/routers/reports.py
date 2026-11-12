@@ -455,6 +455,32 @@ def _stock_detail(db, item_code=None, warehouse=None, location=None, batch_no=No
     return {"rows": [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows]}
 
 
+def _stock_availability(db, item_code=None, warehouse=None, item_prefix=None):
+    """Per item and warehouse: in stock, blocked (expired or blocked
+    batches), reserved (open reservations) and available = the rest. Also
+    what customers have ordered and not yet received, and what is on order
+    from suppliers."""
+    permissions.require_artifact("report", "stock-availability")
+    from lambda_erp.stock.reservation import availability_rows
+    rows = []
+    for row in availability_rows(item_code, warehouse, item_prefix):
+        plan = db.get_value("Bin", {"item_code": row.item_code, "warehouse": row.warehouse},
+                            ["reserved_qty", "ordered_qty"]) or {}
+        rows.append({**row, "item_name": db.get_value("Item", row.item_code, "item_name") or row.item_code,
+                     "open_sales_order_qty": flt(plan.get("reserved_qty")),
+                     "on_purchase_order_qty": flt(plan.get("ordered_qty"))})
+    return {"rows": rows}
+
+
+@router.get("/stock-availability")
+def stock_availability(
+    item_code: str | None = None,
+    warehouse: str | None = None,
+    item_prefix: str | None = None,
+):
+    return _stock_availability(get_db(), item_code, warehouse, item_prefix)
+
+
 @router.get("/stock-detail")
 def stock_detail(
     item_code: str | None = None,

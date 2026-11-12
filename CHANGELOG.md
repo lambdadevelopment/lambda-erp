@@ -13,6 +13,41 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.8] - 2026-11-12
+
+Migration 54 runs on startup. Nothing is reserved or blocked by it. See
+`docs/reservations-and-fefo.md`.
+
+- **Stock reservations.** New document type Stock Reservation sets stock
+  aside for a sales order line, or without an order with a reason.
+  - Available = in stock − blocked − reserved; a reservation beyond that is
+    refused, so two orders cannot reserve the same unit.
+  - Reserved stock cannot be delivered, invoiced, issued or transferred away
+    for anyone else, and a receipt that backs a reservation cannot be
+    cancelled; the document is refused and names who the stock is held for.
+  - Deliveries against the order consume its reservation; partial deliveries,
+    returns and cancellations are followed automatically; cancelling the order
+    cancels the reservation.
+  - Action `reserve_sales_order` (REST, chat, MCP) reserves an order as far as
+    stock goes; a Sales Order with `reserve_stock` does so on submit.
+- **Blocked batches and shelf life.** A batch can be blocked with a reason.
+  Items get `min_shelf_life_days`.
+  - **Changed behaviour for batch-tracked items:** a Delivery Note or
+    direct-stock invoice can no longer ship an expired batch (or a blocked
+    one). Expired stock can still be transferred, returned or written off.
+  - A batch with less shelf life left than the item requires needs a
+    `shelf_life_exception` reason on the line.
+  - Plugins adjust the requirement per customer with
+    `register_availability_rule`.
+- **FEFO picking.** Action `suggest_picks` proposes batches and storage
+  locations first-expired-first-out, read-only. Converting a Sales Order to a
+  Delivery Note fills batch and location per line that way for batch-tracked
+  items and warehouses with storage locations (one line per batch; untracked
+  items convert as before).
+- Report `stock-availability`: in stock, blocked, reserved, available, open
+  sales orders and quantity on purchase order per item and warehouse (UI:
+  Reports → Stock Availability).
+
 ## [1.4.7] - 2026-11-12
 
 Migration 53 runs on startup. Nothing changes for a warehouse until it is

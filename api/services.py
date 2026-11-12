@@ -31,6 +31,7 @@ from lambda_erp.accounting.bank_transaction import BankTransaction
 from lambda_erp.accounting.bank_account import BankAccount
 from lambda_erp.assets.asset import Asset
 from lambda_erp.assets.reservation import Reservation
+from lambda_erp.stock.reservation import StockReservation
 
 
 # --- Doctype registries ---
@@ -60,6 +61,8 @@ DOCUMENT_CLASSES = {
     # CRUD, the chat tools and MCP drive them like every other doctype.
     "Asset": Asset,
     "Reservation": Reservation,
+    # Stock set aside for a sales order line (or with a reason); also status-driven.
+    "Stock Reservation": StockReservation,
 }
 
 CONVERTERS = {

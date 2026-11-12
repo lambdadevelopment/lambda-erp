@@ -201,6 +201,10 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         hint: "How the PDF looks. Fixed when the document is submitted." },
       { name: "company", label: "Company", type: "link", linkDoctype: "company", required: true },
       CURRENCY_FIELD,
+      { name: "reserve_stock", label: "Reserve Stock", type: "select",
+        options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0",
+        hint: "If Yes, submitting the order reserves what is in stock for it; nobody else can deliver or move that stock. What is not in stock stays open.",
+      },
       { name: "per_delivered", label: "% Delivered", type: "number", readOnly: true },
       { name: "per_billed", label: "% Billed", type: "number", readOnly: true },
       { name: "net_total", label: "Net Total", type: "currency", readOnly: true },
@@ -253,7 +257,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     childTables: [
       { key: "items", label: "Items", fields: [...ITEM_FIELDS, { name: "income_account", label: "Income Account", type: "link", linkDoctype: "account" },
         { name: "location", label: "Storage Location", type: "text", hint: "Only when this invoice also moves stock (Update Stock) and the warehouse uses storage locations." },
-        { name: "batch_no", label: "Batch", type: "text", hint: "Only when this invoice also moves stock (Update Stock) and the item is batch-tracked." }], lineDeductions: true },
+        { name: "batch_no", label: "Batch", type: "text", hint: "Only when this invoice also moves stock (Update Stock) and the item is batch-tracked." },
+        { name: "shelf_life_exception", label: "Shelf Life Exception", type: "text", hint: "Only when the batch has less shelf life left than the item requires: the approved reason for shipping it anyway." }], lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     listColumns: ["name", "customer", "posting_date", "grand_total", "outstanding_amount", "status"],
@@ -518,6 +523,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
             hint: "Required when the warehouse uses storage locations: the place the goods are taken from or put." },
           { name: "batch_no", label: "Batch", type: "text",
             hint: "Required on batch-tracked items when stock moves. One batch per line: split a quantity from two batches into two lines." },
+          { name: "shelf_life_exception", label: "Shelf Life Exception", type: "text",
+            hint: "Only when the batch has less shelf life left than the item requires: the approved reason for shipping it anyway." },
         ],
       },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
@@ -833,6 +840,37 @@ const CONFIGS: Record<string, DoctypeConfig> = {
   },
 
   // --- Rentals: unit-level assets + date-ranged reservations (ADR-0002).
+  // Stock set aside for a sales order line, or with a reason. Status-driven,
+  // no submit. See docs/reservations-and-fefo.md.
+  "stock-reservation": {
+    slug: "stock-reservation",
+    label: "Stock Reservation",
+    dateField: "creation",
+    partyField: "customer",
+    partyLabel: "Customer",
+    fields: [
+      { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
+      { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse", required: true },
+      { name: "reserved_qty", label: "Reserved Qty", type: "number", required: true,
+        hint: "For a sales order line: the total reserved for the line. What is still held goes down as the line is delivered." },
+      { name: "status", label: "Status", type: "select",
+        options: ["Reserved", "Partially Delivered", "Delivered", "Released", "Cancelled"], default: "Reserved",
+        hint: "Set Released to give the stock back. Partially Delivered, Delivered and Cancelled are set by the system." },
+      { name: "sales_order", label: "Sales Order", type: "text",
+        hint: "Leave empty for stock set aside without an order; Remarks must then say what for." },
+      { name: "sales_order_item", label: "Sales Order Line", type: "text" },
+      { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", readOnly: true },
+      { name: "reserved_by", label: "Reserved By", type: "text", readOnly: true },
+      { name: "remarks", label: "Remarks", type: "textarea" },
+    ],
+    childTables: [],
+    listColumns: ["name", "item_code", "warehouse", "reserved_qty", "sales_order", "customer", "status"],
+    searchFields: ["name", "item_code", "sales_order", "customer", "remarks"],
+    canSubmit: false,
+    canCancel: false,
+    conversions: [],
+  },
+
   // These are core doctypes (lambda_erp/assets/); they post nothing to the GL
   // or stock ledger. See docs/adr-0002-asset-and-reservation.md.
   "asset": {

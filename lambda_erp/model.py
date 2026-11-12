@@ -388,6 +388,10 @@ class Document:
                 from lambda_erp.workflow import lock_workflow_references
                 self._validate_server_managed_fields()
                 lock_workflow_references(self)
+                # Stock that is reserved for someone else must still be there
+                # afterwards (lambda_erp.stock.reservation).
+                from lambda_erp.stock import reservation
+                reserved = reservation.begin_guard(self)
                 self._data["modified"] = now()
                 from lambda_erp.controllers.item_prices import normalize_item_prices
                 normalize_item_prices(self)
@@ -405,6 +409,7 @@ class Document:
                 self.on_submit()
                 from lambda_erp.workflow import refresh_order_progress
                 refresh_order_progress(self)
+                reservation.finish_guard(self, reserved)
         except Exception:
             self._data, self._children, self._persisted, self._loaded_modified = snapshot
             raise
@@ -423,6 +428,8 @@ class Document:
                 self._check_write_state(SUBMITTED)
                 from lambda_erp.workflow import lock_workflow_references, validate_cancellation, refresh_order_progress
                 lock_workflow_references(self)
+                from lambda_erp.stock import reservation
+                reserved = reservation.begin_guard(self)
                 from lambda_erp.assets.lifecycle import validate_voucher_release
                 validate_voucher_release(self)
                 validate_cancellation(self)
@@ -433,6 +440,7 @@ class Document:
                 self._persist(commit=False)
                 self.on_cancel()
                 refresh_order_progress(self)
+                reservation.finish_guard(self, reserved, cancelling=True)
         except Exception:
             self._data, self._children, self._persisted, self._loaded_modified = snapshot
             raise

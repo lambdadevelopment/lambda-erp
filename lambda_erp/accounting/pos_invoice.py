@@ -172,6 +172,8 @@ class POSInvoice(Document):
         # GL entries (Dr COGS / Cr Stock In Hand at cost). Without this, stock
         # leaves physically but the balance sheet never reflects it.
         if flt(self._data.get("update_stock")):
+            from lambda_erp.stock.reservation import validate_sellable
+            validate_sellable(self)
             sl_entries = self._get_sl_entries()
             if sl_entries:
                 make_sl_entries(sl_entries)
