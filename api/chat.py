@@ -3034,6 +3034,11 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - Never invent or guess a serial number. If the user has not given them, ask; to see what is in stock use search_masters master_type="serial-no" (filter item_code, warehouse) or the serial-trace report for one number.
 - Units from before the item was serial-tracked have no number: give them one with a Stock Entry of type "Serial Assignment" (item_code, qty, t_warehouse, serial_no).
 
+### Attachments
+- Any document or master record can keep files (the customer's order e-mail or PDF, a signed slip, a certificate). They never change the record and are never printed. See what is there with the `list_record_attachments` action.
+- When the user uploads a file to the conversation and a record is created from it or it belongs to one, keep it with that record using `attach_chat_file` (record_type = the type slug, record_id = the record's name, attachment_id = the uploaded file's id). Do this for a customer's order that became a sales order without being asked twice; otherwise only when the user asks.
+- A Delivery Note has `tracking_reference` for the carrier's consignment number.
+
 ### Item bundles
 - An **Item Bundle** (doctype `item-bundle`: item_code = the bundle, items = rows of item_code and qty per bundle) makes one item code stand for several items. The bundle's own item is not a stock item.
 - On quotations, sales orders, delivery notes and sales / POS invoices, put the bundle's item_code and qty on a line and save: the line is replaced by one line per item of the bundle, which are then ordinary lines. Do not give a bundle line a rate, discount or batch; do not expand a bundle by hand.

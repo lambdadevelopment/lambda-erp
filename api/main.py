@@ -66,6 +66,8 @@ async def lifespan(app: FastAPI):
         initialize_mentions()
         from api.record_notes import initialize_record_notes
         initialize_record_notes()
+        from api.record_attachments import initialize_record_attachments
+        initialize_record_attachments()
         from api.stock_actions import initialize_stock_actions
         initialize_stock_actions()
         from api.pricing_actions import initialize_pricing_actions
@@ -155,6 +157,8 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(oauth_router, prefix="/api")
 app.include_router(mcp_oauth_router)
 app.include_router(attachments_router, prefix="/api")
+from api.record_attachments import router as record_attachments_router
+app.include_router(record_attachments_router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(proposals.router, prefix="/api")
 app.include_router(pdf_templates_router.router, prefix="/api")

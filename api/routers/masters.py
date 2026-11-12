@@ -908,8 +908,10 @@ def delete_master_record(master_type: str, name: str) -> dict:
         raise HTTPException(status_code=409, detail=f"Cannot delete {doctype} {name}: referenced by {reference}")
 
     from api.record_notes import delete_record_notes_for
+    from api.record_attachments import delete_attachments_for
     with db.atomic():
         delete_record_notes_for(master_type, name)
+        delete_attachments_for(master_type, name)
         db.delete(doctype, name=name)
     return {"ok": True, "status": "deleted"}
 

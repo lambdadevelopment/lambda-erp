@@ -21,6 +21,7 @@ import { formatCurrency, formatLocalDate, flt } from "@/lib/utils";
 import { HintTooltip } from "@/components/ui/hint-tooltip";
 import { NotesMarkupHelp } from "@/components/ui/notes-markup-help";
 import { RecordNotes, RecordNotesLink } from "@/components/record-notes";
+import { RecordAttachments } from "@/components/record-attachments";
 import { useCurrencies } from "@/hooks/use-currencies";
 import {
   PDF_TEMPLATE_DOCTYPES, pdfTemplateDoctype, usePdfTemplates, usePdfTextDefaults,
@@ -1246,6 +1247,7 @@ export default function DocumentFormPage() {
         </Card>
       )}
 
+      {!isNew && name && <RecordAttachments recordType={config.slug} recordId={name} />}
       {!isNew && name && <RecordNotes recordType={config.slug} recordId={name} />}
     </div>
   );

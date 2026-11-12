@@ -719,6 +719,7 @@
     "Item Bundle": "Nomenclature",
     "Bundle Item": "Article de nomenclature",
     "Qty per Bundle": "Quantité par nomenclature",
+    "Tracking Reference": "Numéro de suivi",
     "Pricing Date": "Date de prix",
     "Serial-tracked": "Suivi par numéro de série",
     "Storage Locations": "Emplacements",
@@ -1150,6 +1151,13 @@
     "markRead": "Marquer comme lue",
     "previous": "Précédent",
     "next": "Suivant"
+  },
+  "attachments": {
+    "title": "Pièces jointes",
+    "add": "Ajouter un fichier",
+    "uploading": "Envoi…",
+    "remove": "Retirer",
+    "empty": "Aucun fichier. Conservez ici la commande telle que reçue, un bon signé ou un certificat."
   },
   "recordNotes": {
     "title": "Notes internes",

@@ -761,6 +761,7 @@
     "Item Bundle": "Item Bundle",
     "Bundle Item": "Bundle Item",
     "Qty per Bundle": "Qty per Bundle",
+    "Tracking Reference": "Tracking Reference",
     "Pricing Date": "Pricing Date",
     "Serial-tracked": "Serial-tracked",
     "Storage Locations": "Storage Locations",
@@ -1150,6 +1151,13 @@
     "markRead": "Mark read",
     "previous": "Previous",
     "next": "Next"
+  },
+  "attachments": {
+    "title": "Attachments",
+    "add": "Add file",
+    "uploading": "Uploading…",
+    "remove": "Remove",
+    "empty": "No files yet. Keep the order as it arrived, a signed slip or a certificate here."
   },
   "recordNotes": {
     "title": "Internal notes",

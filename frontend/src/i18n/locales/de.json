@@ -719,6 +719,7 @@
     "Item Bundle": "Stückliste",
     "Bundle Item": "Stücklistenartikel",
     "Qty per Bundle": "Menge pro Stückliste",
+    "Tracking Reference": "Sendungsnummer",
     "Pricing Date": "Preisdatum",
     "Serial-tracked": "Seriennummernpflichtig",
     "Storage Locations": "Lagerplätze",
@@ -1150,6 +1151,13 @@
     "markRead": "Als gelesen markieren",
     "previous": "Zurück",
     "next": "Weiter"
+  },
+  "attachments": {
+    "title": "Anhänge",
+    "add": "Datei hinzufügen",
+    "uploading": "Wird hochgeladen…",
+    "remove": "Entfernen",
+    "empty": "Noch keine Dateien. Hier lassen sich die Bestellung im Original, ein unterschriebener Lieferschein oder ein Zertifikat ablegen."
   },
   "recordNotes": {
     "title": "Interne Notizen",

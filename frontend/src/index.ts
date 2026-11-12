@@ -24,6 +24,7 @@ export { MentionEditor, mentionAction } from "./components/mentions";
 export type { MentionUser } from "./components/mentions";
 export { RecordNotes, RecordNotesLink } from "./components/record-notes";
 export type { RecordNote } from "./components/record-notes";
+export { RecordAttachments } from "./components/record-attachments";
 
 // Route registry
 export { buildRoutes, registerRoute } from "./routes";

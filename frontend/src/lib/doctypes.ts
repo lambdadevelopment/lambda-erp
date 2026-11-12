@@ -562,6 +562,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "shipping_address_display", label: "Delivery Address (as printed)", type: "textarea",
         hint: "Filled from the address picked. Type an address the order names here; it takes precedence." },
       { name: "posting_date", label: "Posting Date", type: "date", required: true },
+      { name: "tracking_reference", label: "Tracking Reference", type: "text",
+        hint: "The carrier's consignment or tracking number for this delivery." },
       { name: "pricing_date", label: "Pricing Date", type: "date",
         hint: "Prices and pricing rules valid on this date apply. Empty: the document date." },
       { name: "pdf_template", label: "PDF Layout", type: "select", optionsSource: "pdfTemplate",

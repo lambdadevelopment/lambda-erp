@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.19] - 2026-11-12
+
+Migration 65 runs on startup. See `docs/attachments.md`.
+
+- **Attachments.** Any document or master record can keep files (the
+  customer's order as it arrived, a signed slip, a certificate), shown in an
+  *Attachments* card on its form. They never change the record, can be added
+  to submitted documents, and are never printed.
+  - Whoever may read the record may list and download its files; adding and
+    removing needs the manager role. Access profiles and record scope apply.
+  - 15 MB per file, 50 per record; PDF, images, mail, text, CSV, XML, XLSX
+    and DOCX. Files are always served as downloads.
+  - REST under `/api/record-attachments`; chat and MCP actions
+    `list_record_attachments` and `attach_chat_file` (keeps a file uploaded
+    to the conversation with a record).
+- Delivery Note has `tracking_reference` for the carrier's consignment number.
+
 ## [1.4.18] - 2026-11-12
 
 Migration 64 runs on startup; no item becomes a bundle. See `docs/bundles.md`.

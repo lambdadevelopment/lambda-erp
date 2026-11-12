@@ -19,6 +19,7 @@ import { BUILTIN_MASTER_FIELDS } from "@/lib/master-fields";
 import { LinkField } from "@/components/document/link-field";
 import { CompanySalesTaxField } from "@/components/company-sales-tax-field";
 import { RecordNotes, RecordNotesLink } from "@/components/record-notes";
+import { RecordAttachments } from "@/components/record-attachments";
 
 const TYPE_LABELS: Record<string, string> = {
   customer: "Customer",
@@ -376,6 +377,7 @@ export default function MasterFormPage() {
         </div>
       </Card>
 
+      {!isNew && name && <RecordAttachments recordType={type!} recordId={name} />}
       {!isNew && name && <RecordNotes recordType={type!} recordId={name} />}
     </div>
   );

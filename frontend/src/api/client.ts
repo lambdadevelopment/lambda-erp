@@ -260,6 +260,16 @@ export interface FleetCalendarFeed {
 
 /** Narrows what a user's role allows: hidden classes of sensitive data and,
  *  per document or master type, the actions that remain. */
+export interface RecordAttachment {
+  id: string;
+  filename: string;
+  content_type: string;
+  size: number;
+  description?: string | null;
+  uploaded_by?: string | null;
+  created_at?: string | null;
+}
+
 export interface AccessProfile {
   name: string;
   description?: string;
@@ -807,6 +817,20 @@ export const api = {
     ),
   authDeleteAccessProfile: (name: string) =>
     request<any>(`/auth/access-profiles/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  // Files kept with a document or master record.
+  listRecordAttachments: (recordType: string, recordId: string) =>
+    request<{ attachments: RecordAttachment[] }>(`/record-attachments${qs({ record_type: recordType, record_id: recordId })}`),
+  uploadRecordAttachment: (recordType: string, recordId: string, file: File, description?: string) => {
+    const form = new FormData();
+    form.append("record_type", recordType);
+    form.append("record_id", recordId);
+    form.append("file", file);
+    if (description) form.append("description", description);
+    return multipartRequest<RecordAttachment>("/record-attachments", form);
+  },
+  deleteRecordAttachment: (id: string) =>
+    request<any>(`/record-attachments/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  recordAttachmentUrl: (id: string) => `${BASE}/record-attachments/${encodeURIComponent(id)}`,
   authAssignRecordScope: (userName: string, record_scope: Record<string, string[]> | null) =>
     request<any>(`/auth/users/${encodeURIComponent(userName)}/record-scope`, {
       method: "PUT", body: JSON.stringify({ record_scope }),

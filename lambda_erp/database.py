@@ -3661,6 +3661,32 @@ def _m064_item_bundles(db: "Database") -> None:
         db.ensure_column(table, "bundle_qty", "REAL")
 
 
+def _m065_record_attachments(db: "Database") -> None:
+    """Files kept with a document or master record, and a tracking reference
+    on delivery notes (see docs/attachments.md)."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Record Attachment" (
+            name TEXT PRIMARY KEY,
+            record_type TEXT NOT NULL,
+            record_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            sha256 TEXT,
+            data BLOB NOT NULL,
+            description TEXT,
+            uploaded_by TEXT,
+            uploaded_by_name TEXT,
+            creation TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        'CREATE INDEX IF NOT EXISTS "ix_record_attachment_record" ON "Record Attachment" (record_type, record_id)'))
+    db.conn.commit()
+    db._col_cache.pop("Record Attachment", None)
+    db._text_col_cache.pop("Record Attachment", None)
+    db.ensure_column("Delivery Note", "tracking_reference", "TEXT")
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3765,6 +3791,7 @@ Database.MIGRATIONS = [
     (62, "stock_document_pricing", _m062_stock_document_pricing),
     (63, "addresses", _m063_addresses),
     (64, "item_bundles", _m064_item_bundles),
+    (65, "record_attachments", _m065_record_attachments),
 ]
 
 
