@@ -201,7 +201,8 @@
     "ar-aging": "Accounts Receivable Aging",
     "ap-aging": "Accounts Payable Aging",
     "analytics": "Analytics",
-    "chart-of-accounts": "Chart of Accounts"
+    "chart-of-accounts": "Chart of Accounts",
+    "batch-stock": "Batch Stock"
   },
   "doctypes": {
     "quotation": {
@@ -360,7 +361,9 @@
       "Fleet (Assets)": "Fleet (Assets)",
       "Reservations": "Reservations",
       "Menu": "Menu",
-      "PDF Templates": "PDF Templates"
+      "PDF Templates": "PDF Templates",
+      "Batch": "Batch",
+      "Batch Stock": "Batch Stock"
     }
   },
   "login": {
@@ -516,7 +519,12 @@
     "noStockData": "No stock data found",
     "noReceivables": "No outstanding receivables",
     "noPayables": "No outstanding payables",
-    "noDocuments": "No documents found"
+    "noDocuments": "No documents found",
+    "noBatchStock": "No batch stock found",
+    "batchMovements": "Movements of batch {{batch}} ({{item}})",
+    "withoutBatch": "without batch",
+    "showMovements": "Movements",
+    "expired": "expired"
   },
   "masterForm": {
     "required": "Required: {{fields}}",
@@ -707,7 +715,15 @@
     "Printed notes / terms": "Printed notes / terms",
     "PDF Layout": "PDF Layout",
     "Intro text": "Intro text",
-    "Closing text / terms": "Closing text / terms"
+    "Closing text / terms": "Closing text / terms",
+    "Batch": "Batch",
+    "Expiry Date": "Expiry Date",
+    "Manufacturing Date": "Manufacturing Date",
+    "Batch-tracked": "Batch-tracked",
+    "Has Expiry Date": "Has Expiry Date",
+    "Item starts with": "Item starts with",
+    "Expiring before": "Expiring before",
+    "Document": "Document"
   },
   "tables": {
     "accounts": "accounts",

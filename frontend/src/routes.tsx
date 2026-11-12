@@ -11,6 +11,7 @@ import TrialBalance from "@/pages/reports/trial-balance";
 import ChartOfAccounts from "@/pages/reports/chart-of-accounts";
 import GeneralLedger from "@/pages/reports/general-ledger";
 import StockBalance from "@/pages/reports/stock-balance";
+import BatchStock from "@/pages/reports/batch-stock";
 import ProfitLoss from "@/pages/reports/profit-loss";
 import BalanceSheet from "@/pages/reports/balance-sheet";
 import ArAging from "@/pages/reports/ar-aging";
@@ -80,6 +81,7 @@ const baseChildRoutes: RouteObject[] = [
   { path: "reports/trial-balance", element: <TrialBalance /> },
   { path: "reports/general-ledger", element: <GeneralLedger /> },
   { path: "reports/stock-balance", element: <StockBalance /> },
+  { path: "reports/batch-stock", element: <BatchStock /> },
   { path: "reports/profit-and-loss", element: <ProfitLoss /> },
   { path: "reports/balance-sheet", element: <BalanceSheet /> },
   { path: "reports/ar-aging", element: <ArAging /> },

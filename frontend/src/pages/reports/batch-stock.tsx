@@ -1,0 +1,210 @@
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { usePageTitle } from "@/lib/use-page-title";
+import { useTranslation } from "react-i18next";
+import { useBatchStock, useBatchMovements } from "@/hooks/use-report";
+import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LinkField } from "@/components/document/link-field";
+import { formatNumber } from "@/lib/utils";
+
+const slug = (doctype: string) => doctype.toLowerCase().replace(/ /g, "-");
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** Stock per item × warehouse × batch, with expiry. A batch label is not
+ *  unique across items, so a search by label can list several items. */
+export default function BatchStockPage() {
+  const { t } = useTranslation();
+  usePageTitle(t("titles.batch-stock", { defaultValue: "Batch Stock" }));
+  const [urlItemCode] = useUrlState<string>("item_code", "");
+  const [urlWarehouse] = useUrlState<string>("warehouse", "");
+  const [urlBatch] = useUrlState<string>("batch_no", "");
+  const [urlPrefix] = useUrlState<string>("item_prefix", "");
+  const [urlExpiring] = useUrlState<string>("expiring_before", "");
+  const patchUrl = useUrlPatch();
+
+  const [itemCode, setItemCode] = useState(urlItemCode);
+  const [warehouse, setWarehouse] = useState(urlWarehouse);
+  const [batch, setBatch] = useState(urlBatch);
+  const [prefix, setPrefix] = useState(urlPrefix);
+  const [expiring, setExpiring] = useState(urlExpiring);
+  const [selected, setSelected] = useState<{ batch_no: string; item_code: string } | null>(null);
+
+  const filters = useMemo(() => {
+    const f: Record<string, string> = {};
+    if (urlItemCode) f.item_code = urlItemCode;
+    if (urlWarehouse) f.warehouse = urlWarehouse;
+    if (urlBatch) f.batch_no = urlBatch;
+    if (urlPrefix) f.item_prefix = urlPrefix;
+    if (urlExpiring) f.expiring_before = urlExpiring;
+    return f;
+  }, [urlItemCode, urlWarehouse, urlBatch, urlPrefix, urlExpiring]);
+
+  const { data, isLoading, refetch } = useBatchStock(filters);
+  const movements = useBatchMovements(selected);
+
+  const handleApply = () => {
+    patchUrl({
+      item_code: itemCode || null,
+      warehouse: warehouse || null,
+      batch_no: batch.trim() || null,
+      item_prefix: prefix.trim() || null,
+      expiring_before: expiring || null,
+    });
+    setSelected(null);
+    refetch();
+  };
+
+  const th = "px-4 py-3 text-left font-medium text-gray-500";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-4">
+        <Input
+          label={t("fields.Batch", { defaultValue: "Batch" })}
+          value={batch}
+          onChange={(e) => setBatch(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleApply()}
+        />
+        <LinkField
+          label={t("fields.Item Code", { defaultValue: "Item Code" })}
+          value={itemCode}
+          onChange={setItemCode}
+          linkDoctype="item"
+          readOnly={false}
+        />
+        <Input
+          label={t("fields.Item starts with", { defaultValue: "Item starts with" })}
+          value={prefix}
+          onChange={(e) => setPrefix(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleApply()}
+        />
+        <LinkField
+          label={t("fields.Warehouse", { defaultValue: "Warehouse" })}
+          value={warehouse}
+          onChange={setWarehouse}
+          linkDoctype="warehouse"
+          readOnly={false}
+        />
+        <Input
+          type="date"
+          label={t("fields.Expiring before", { defaultValue: "Expiring before" })}
+          value={expiring}
+          onChange={(e) => setExpiring(e.target.value)}
+        />
+        <Button onClick={handleApply}>{t("common.apply")}</Button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-gray-500">{t("common.loading")}</p>
+      ) : !data || !data.rows || data.rows.length === 0 ? (
+        <p className="py-8 text-center text-gray-400">
+          {t("reports.noBatchStock", { defaultValue: "No batch stock found" })}
+        </p>
+      ) : (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className={th}>{t("fields.Item Code", { defaultValue: "Item Code" })}</th>
+                  <th className={th}>{t("fields.Item Name", { defaultValue: "Item Name" })}</th>
+                  <th className={th}>{t("fields.Warehouse", { defaultValue: "Warehouse" })}</th>
+                  <th className={th}>{t("fields.Batch", { defaultValue: "Batch" })}</th>
+                  <th className={th}>{t("fields.Expiry Date", { defaultValue: "Expiry Date" })}</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500">
+                    {t("fields.Qty", { defaultValue: "Qty" })}
+                  </th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.rows.map((row: any, idx: number) => {
+                  const expired = row.expiry_date && row.expiry_date < today();
+                  return (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 font-medium text-gray-900">{row.item_code}</td>
+                      <td className="px-4 py-2 text-gray-700">{row.item_name}</td>
+                      <td className="px-4 py-2 text-gray-700">{row.warehouse}</td>
+                      <td className="px-4 py-2 text-gray-700">
+                        {row.batch_no || (
+                          <span className="italic text-gray-400">
+                            {t("reports.withoutBatch", { defaultValue: "without batch" })}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-4 py-2 ${expired ? "font-medium text-red-600" : "text-gray-700"}`}>
+                        {row.expiry_date || ""}
+                        {expired ? ` (${t("reports.expired", { defaultValue: "expired" })})` : ""}
+                      </td>
+                      <td className="px-4 py-2 text-right">{formatNumber(row.actual_qty)}</td>
+                      <td className="px-4 py-2 text-right">
+                        {row.batch_no ? (
+                          <button
+                            type="button"
+                            className="text-sm text-blue-600 hover:underline"
+                            onClick={() => setSelected({ batch_no: row.batch_no, item_code: row.item_code })}
+                          >
+                            {t("reports.showMovements", { defaultValue: "Movements" })}
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {selected ? (
+        <Card>
+          <div className="border-b border-gray-200 px-4 py-3 text-sm font-medium text-gray-900">
+            {t("reports.batchMovements", {
+              defaultValue: "Movements of batch {{batch}} ({{item}})",
+              batch: selected.batch_no,
+              item: selected.item_code,
+            })}
+          </div>
+          {movements.isLoading ? (
+            <p className="px-4 py-3 text-gray-500">{t("common.loading")}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className={th}>{t("fields.Posting Date", { defaultValue: "Posting Date" })}</th>
+                    <th className={th}>{t("fields.Document", { defaultValue: "Document" })}</th>
+                    <th className={th}>{t("fields.Party", { defaultValue: "Party" })}</th>
+                    <th className={th}>{t("fields.Warehouse", { defaultValue: "Warehouse" })}</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-500">
+                      {t("fields.Qty", { defaultValue: "Qty" })}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {(movements.data?.rows ?? []).map((row: any) => (
+                    <tr key={row.name} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 text-gray-700">{row.posting_date}</td>
+                      <td className="px-4 py-2">
+                        <Link className="text-blue-600 hover:underline" to={`/app/${slug(row.voucher_type)}/${row.voucher_no}`}>
+                          {row.voucher_type} {row.voucher_no}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-2 text-gray-700">{row.party || ""}</td>
+                      <td className="px-4 py-2 text-gray-700">{row.warehouse}</td>
+                      <td className="px-4 py-2 text-right">{formatNumber(row.actual_qty)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      ) : null}
+    </div>
+  );
+}

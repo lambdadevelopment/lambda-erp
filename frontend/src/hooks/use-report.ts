@@ -33,6 +33,23 @@ export function useStockBalance(params?: Record<string, string>) {
   return { data, isLoading, error, refetch };
 }
 
+export function useBatchStock(params?: Record<string, string>) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["report", "batch-stock", params],
+    queryFn: () => api.batchStock(params),
+  });
+  return { data, isLoading, error, refetch };
+}
+
+export function useBatchMovements(params: Record<string, string> | null) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["report", "batch-movements", params],
+    queryFn: () => api.batchMovements(params as Record<string, string>),
+    enabled: !!params,
+  });
+  return { data, isLoading, error };
+}
+
 export function useProfitAndLoss(params?: Record<string, string>) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["report", "profit-and-loss", params],

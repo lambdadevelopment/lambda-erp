@@ -209,6 +209,7 @@ def make_delivery_return(dn_name):
             uom=item.get("uom"),
             rate=flt(item.get("rate")),
             warehouse=item.get("warehouse"),
+            batch_no=item.get("batch_no"),
             against_sales_order=item.get("against_sales_order"),
             so_detail=item.get("so_detail"),
         ))

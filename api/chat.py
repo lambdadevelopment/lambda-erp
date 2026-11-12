@@ -878,8 +878,8 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
-                    "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
+                    "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "batch-stock", "batch-movements", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
+                    "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse; for batch-stock also batch_no, item_prefix, expiring_before, include_empty; batch-movements requires batch_no. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
                 },
                 "required": ["report_type"],
             },
@@ -1963,6 +1963,16 @@ def _handle_get_report(args):
     elif report_type == "stock-balance":
         from api.routers.reports import _stock_balance
         return _stock_balance(db, filters.get("item_code"), filters.get("warehouse"))
+    elif report_type == "batch-stock":
+        from api.routers.reports import _batch_stock
+        return _batch_stock(db, filters.get("item_code"), filters.get("warehouse"), filters.get("batch_no"),
+                            filters.get("item_prefix"), filters.get("expiring_before"),
+                            bool(filters.get("include_empty")))
+    elif report_type == "batch-movements":
+        from api.routers.reports import _batch_movements
+        if not filters.get("batch_no"):
+            return {"error": "batch-movements needs filters.batch_no"}
+        return _batch_movements(db, filters.get("batch_no"), filters.get("item_code"), filters.get("warehouse"))
     elif report_type == "dashboard-summary":
         from api.routers.reports import _dashboard_summary
         return _dashboard_summary(db, filters.get("company"))
@@ -2879,6 +2889,15 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - **Material Receipt:** Manual adjustment that adds stock (found stock, inventory count corrections). Posts Dr Stock In Hand / Cr Stock Adjustment. Not for purchased goods — use Purchase Receipt or Purchase Invoice with update_stock=1 for those. Not for opening balances — use Opening Stock.
 - **Material Issue:** Removes stock for write-offs or internal consumption. Posts Dr Stock Adjustment / Cr Stock In Hand.
 - **Material Transfer:** Moves stock between warehouses. No GL impact.
+- **Batch Assignment:** Gives stock that has no batch (from before the item was batch-tracked) its batch, in place: row = item_code, qty, t_warehouse, batch_no (+ expiry_date for a new batch). No GL impact, no quantity or value change.
+
+### Batches (lot numbers)
+- An item with `has_batch_no=1` is batch-tracked; `has_expiry_date=1` additionally requires an expiry date on each batch. Switch these on the Item master.
+- Every stock-moving line of a tracked item needs `batch_no` (Stock Entry, Delivery Note, Purchase Receipt, and invoices with update_stock=1). One batch per line: a quantity from two batches is two lines. Drafts may be saved without it; submit is refused until every such line has one.
+- Receiving lines (Purchase Receipt, Purchase Invoice with update_stock, Stock Entry receipt/opening) create a new batch automatically: give `batch_no` and, for items with expiry dates, `expiry_date`. Outgoing lines must name an existing batch with enough quantity in that warehouse — check with the batch-stock report first. Never invent a batch number or expiry date; ask.
+- Quantities are checked per batch: 10 in stock but only 2 in the named batch means a line for 3 is refused.
+- A return must name a batch that was on the original document, and at most the quantity of it that was delivered/received.
+- The `batch` master (search_masters master_type="batch") has one record per item + batch label.
 
 ### Assets & Reservations (equipment you OWN and hire out — not stock you sell)
 Use these only for items flagged `is_asset_tracked` on the Item master. Neither posts GL or stock entries: an owned machine going out on hire is not a sale of inventory, so the books are untouched until you invoice the hire through the normal selling cycle.
@@ -2935,6 +2954,8 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 - **ar-aging** — Outstanding receivables bucketed by overdue days (Current, 1-30, 31-60, 61-90, 90+). Filters: company, as_of_date.
 - **ap-aging** — Outstanding payables bucketed by overdue days. Filters: company, as_of_date.
 - **stock-balance** — Inventory quantities and valuations. Filters: item_code, warehouse.
+- **batch-stock** — Quantity per item × warehouse × batch with the batch's expiry date (batch-tracked items only). Filters: item_code, warehouse, batch_no, item_prefix (item codes starting with…), expiring_before (date), include_empty. A batch label is NOT unique: the same label can exist on several items, so a batch_no-only lookup can return several items — show them all, never pick one.
+- **batch-movements** — Every stock movement of a batch with document, line and customer/supplier: where it came from and who received it (recalls). Filters: batch_no (required), item_code, warehouse.
 - **dashboard-summary** — KPI overview (revenue, receivables, payables, stock value).
 - **Custom analytics drafts** — reserved for when the user **explicitly asks
   for** a chart, graph, trend, pivot, breakdown, or saved report, or when the
@@ -2964,7 +2985,7 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 
 ## Stock Entry specifics
 When creating a stock-entry, the `data` object MUST include:
-- `stock_entry_type`: "Opening Stock", "Material Receipt", "Material Issue", or "Material Transfer"
+- `stock_entry_type`: "Opening Stock", "Material Receipt", "Material Issue", "Material Transfer", or "Batch Assignment"
 - `company`, `posting_date`
 - `items` array where each item uses `basic_rate` (NOT `rate`) and warehouse fields:
   - Opening Stock: items need `t_warehouse` (target). Set `to_warehouse` on the parent too.

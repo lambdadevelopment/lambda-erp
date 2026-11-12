@@ -25,7 +25,7 @@ The flow:
 
 from lambda_erp.utils import _dict, flt, new_name, now, nowdate
 from lambda_erp.database import get_db
-from lambda_erp.exceptions import NegativeStockError
+from lambda_erp.exceptions import NegativeStockError, ValidationError
 
 def make_sl_entries(sl_entries, allow_negative_stock=False):
     """Create Stock Ledger Entries from a list of SLE dicts.
@@ -46,6 +46,8 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
         if not flt(sle.get("actual_qty")):
             continue
 
+        batch_no = resolve_entry_batch(sle)
+
         # Create the SLE record
         sle_doc = _dict(
             name=new_name("SLE"),
@@ -59,7 +61,7 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
             voucher_type=sle.get("voucher_type"),
             voucher_no=sle.get("voucher_no"),
             voucher_detail_no=sle.get("voucher_detail_no"),
-            batch_no=sle.get("batch_no"),
+            batch_no=batch_no or None,
             serial_no=sle.get("serial_no"),
             company=sle.get("company"),
             is_cancelled=0,
@@ -77,8 +79,9 @@ def make_sl_entries(sl_entries, allow_negative_stock=False):
         # Persist
         db.insert("Stock Ledger Entry", sle_doc)
 
-        # Update Bin (summary table)
+        # Update Bin (summary table) and the per-batch quantity under it
         update_bin(sle_doc)
+        update_stock_balance_detail(sle_doc, batch_no, allow_negative_stock)
 
     if not db._in_transaction:
         db.commit()
@@ -92,6 +95,11 @@ def make_cancel_sl_entries(sl_entries):
     rolls back, and nothing is half-reversed. Reversals that put stock back
     (cancelling a delivery or an issue) are never affected.
     """
+    # A voucher posted before its item became batch-tracked has no batch on
+    # its lines; its reversal goes back to (or comes out of) stock without a
+    # batch, never to an invented one.
+    sl_entries = [sle if sle.get("batch_no") else _dict({**sle, "allow_unassigned_batch": True})
+                  for sle in sl_entries]
     try:
         make_sl_entries(sl_entries, allow_negative_stock=False)
     except NegativeStockError as exc:
@@ -102,6 +110,145 @@ def make_cancel_sl_entries(sl_entries):
             f"(they were delivered, issued or moved since). Cancel or return those "
             f"documents first. {exc}"
         ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Batches
+#
+# A batch is identified by (item, batch label): the same label can exist on
+# several items. Tracking is switched on per item (Item.has_batch_no). Every
+# stock ledger entry of a tracked item names its batch; quantities are kept
+# per item x warehouse x batch in "Stock Balance Detail", whose rows always add
+# up to the Bin. Valuation stays per item x warehouse (moving average on Bin).
+# ---------------------------------------------------------------------------
+
+def get_batch(item_code, batch_no):
+    """The Batch master row for (item, label), or None."""
+    return get_db().get_value(
+        "Batch", {"item_code": item_code, "batch_no": batch_no},
+        ["name", "batch_no", "item_code", "expiry_date", "disabled"])
+
+
+def _date_text(value):
+    return str(value)[:10] if value not in (None, "") else None
+
+
+def resolve_entry_batch(sle):
+    """Check one stock ledger entry's batch against its item and return the
+    batch label ('' when the entry carries none).
+
+    - an item that is not batch-tracked takes no batch;
+    - a tracked item needs one on every movement (the explicit exceptions are
+      the reversal of a voucher from before tracking and Batch Assignment);
+    - incoming stock creates the batch if it is new (with the expiry date from
+      the receiving line when the item has expiry dates);
+    - outgoing stock needs a batch that exists.
+    """
+    db = get_db()
+    item_code = sle["item_code"]
+    batch_no = str(sle.get("batch_no") or "").strip()
+    item = db.get_value("Item", item_code, ["has_batch_no", "has_expiry_date"])
+    tracked = bool(item and flt(item.get("has_batch_no")))
+    if not tracked:
+        if batch_no:
+            raise ValidationError(
+                f"Item {item_code} is not batch-tracked: remove batch {batch_no} from the line, "
+                f"or switch the item to batch tracking first")
+        return ""
+    if not batch_no:
+        if sle.get("allow_unassigned_batch"):
+            return ""
+        raise ValidationError(
+            f"Batch is required for item {item_code} (batch-tracked) in warehouse {sle['warehouse']}")
+
+    batch = get_batch(item_code, batch_no)
+    expiry = _date_text(sle.get("expiry_date"))
+    if flt(sle["actual_qty"]) < 0:
+        if not batch:
+            raise ValidationError(f"Unknown batch {batch_no} for item {item_code}")
+        return batch_no
+    if batch:
+        known = _date_text(batch.get("expiry_date"))
+        if expiry and known and expiry != known:
+            raise ValidationError(
+                f"Batch {batch_no} of item {item_code} already has expiry date {known}, not {expiry}. "
+                f"Correct the line or the batch")
+        if expiry and not known:
+            db.set_value("Batch", batch["name"], {"expiry_date": expiry, "modified": now()})
+        return batch_no
+    if flt(item.get("has_expiry_date")) and not expiry:
+        raise ValidationError(
+            f"Batch {batch_no} of item {item_code} is new: its expiry date is required on the receiving line")
+    while True:
+        name = f"BATCH-{db.next_in_series('BATCH'):05d}"
+        if not db.exists("Batch", name):
+            break
+    db.insert("Batch", _dict(name=name, batch_no=batch_no, item_code=item_code, expiry_date=expiry,
+                             disabled=0, creation=now(), modified=now()))
+    return batch_no
+
+
+def update_stock_balance_detail(sle, batch_no, allow_negative_stock=False):
+    """Apply an entry to the quantity of its item x warehouse x batch.
+
+    This is where a batch cannot be over-drawn: 2 of batch A and 8 of batch B
+    is 10 in the Bin, but an issue of 3 from A is refused. For stock without a
+    batch the row mirrors the Bin."""
+    import uuid
+
+    db = get_db()
+    key = [sle["item_code"], sle["warehouse"], batch_no]
+    db.sql('INSERT INTO "Stock Balance Detail" (name, item_code, warehouse, batch_no, actual_qty) '
+           'VALUES (?, ?, ?, ?, 0) ON CONFLICT DO NOTHING', [uuid.uuid4().hex, *key])
+    lock = ' FOR UPDATE' if db.dialect == 'postgres' else ''
+    row = db.sql('SELECT name, actual_qty FROM "Stock Balance Detail" '
+                 'WHERE item_code = ? AND warehouse = ? AND batch_no = ?' + lock, key)[0]
+    available = flt(row["actual_qty"])
+    new_qty = available + flt(sle["actual_qty"])
+    if new_qty < -1e-9 and not allow_negative_stock:
+        what = f"batch {batch_no} of item" if batch_no else "stock without a batch of item"
+        raise NegativeStockError(
+            f"Not enough of {what} {sle['item_code']} in warehouse {sle['warehouse']}. "
+            f"Available: {available}, requested: {abs(flt(sle['actual_qty']))}")
+    db.set_value("Stock Balance Detail", row["name"], "actual_qty", flt(new_qty))
+
+
+def get_batch_balances(item_code=None, warehouse=None, batch_no=None):
+    """Quantities per item x warehouse x batch (batch_no '' = without batch)."""
+    filters = {key: value for key, value in
+               (("item_code", item_code), ("warehouse", warehouse), ("batch_no", batch_no)) if value is not None}
+    return get_db().get_all("Stock Balance Detail", filters=filters or None,
+                            fields=["item_code", "warehouse", "batch_no", "actual_qty"])
+
+
+def stock_ledger_agreement():
+    """Rows where the three views of a quantity disagree; empty when healthy.
+
+    For every item x warehouse: sum of ledger entries = Bin = sum of the
+    per-batch balances; and for every item x warehouse x batch: sum of ledger
+    entries = its balance."""
+    db = get_db()
+    problems = []
+    ledger, detail = {}, {}
+    for row in db.sql('SELECT item_code, warehouse, COALESCE(batch_no, \'\') AS batch_no, SUM(actual_qty) AS qty '
+                      'FROM "Stock Ledger Entry" GROUP BY item_code, warehouse, COALESCE(batch_no, \'\')'):
+        ledger[(row["item_code"], row["warehouse"], row["batch_no"])] = flt(row["qty"])
+    for row in db.sql('SELECT item_code, warehouse, batch_no, actual_qty FROM "Stock Balance Detail"'):
+        detail[(row["item_code"], row["warehouse"], row["batch_no"])] = flt(row["actual_qty"])
+    for key in sorted(set(ledger) | set(detail)):
+        if abs(ledger.get(key, 0) - detail.get(key, 0)) > 1e-6:
+            problems.append({"item_code": key[0], "warehouse": key[1], "batch_no": key[2],
+                             "ledger_qty": ledger.get(key, 0), "detail_qty": detail.get(key, 0)})
+    totals = {}
+    for (item, warehouse, _), qty in detail.items():
+        totals[(item, warehouse)] = totals.get((item, warehouse), 0) + qty
+    bins = {(row["item_code"], row["warehouse"]): flt(row["actual_qty"])
+            for row in db.sql('SELECT item_code, warehouse, actual_qty FROM "Bin"')}
+    for key in sorted(set(totals) | set(bins)):
+        if abs(totals.get(key, 0) - bins.get(key, 0)) > 1e-6:
+            problems.append({"item_code": key[0], "warehouse": key[1], "batch_no": None,
+                             "bin_qty": bins.get(key, 0), "detail_qty": totals.get(key, 0)})
+    return problems
 
 
 def update_stock_values(sle, allow_negative_stock=False):
@@ -253,6 +400,7 @@ def build_sell_side_sles(doc, items):
             voucher_type=doc.DOCTYPE,
             voucher_no=doc.name,
             voucher_detail_no=item.get("name"),
+            batch_no=item.get("batch_no"),
             posting_date=doc.posting_date,
             company=doc.company,
         ))
@@ -286,6 +434,8 @@ def build_buy_side_sles(doc, items):
             voucher_type=doc.DOCTYPE,
             voucher_no=doc.name,
             voucher_detail_no=item.get("name"),
+            batch_no=item.get("batch_no"),
+            expiry_date=item.get("expiry_date"),
             posting_date=doc.posting_date,
             company=doc.company,
         ))

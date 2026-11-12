@@ -13,6 +13,35 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.5] - 2026-11-12
+
+Migration 51 runs on startup. Nothing changes for existing items until one is
+switched to batch tracking. See `docs/batches.md`.
+
+- **Batches (lot numbers).** An item can be batch-tracked (`has_batch_no`) and
+  can require an expiry date per batch (`has_expiry_date`).
+  - New `Batch` master, one record per item and batch label; the same label
+    may exist on several items.
+  - `batch_no` on Stock Entry, Delivery Note, Purchase Receipt and Sales /
+    Purchase / POS Invoice lines (before, the field was rejected as unknown);
+    `expiry_date` on receiving lines creates a new batch with its date.
+  - Stock is kept and checked per batch: an issue, delivery or direct-stock
+    invoice cannot take more of a batch than is there, even if the item has
+    enough in total. A failing line rolls back the whole document.
+  - A tracked item's stock cannot move without a batch. Drafts may be saved
+    without one; submit is refused.
+  - Returns must name a batch of the original document; cancelling a receipt
+    whose batch has left the warehouse is refused.
+  - Switching an existing item to tracking keeps its stock "without batch";
+    the new Stock Entry type **Batch Assignment** gives it a batch in place,
+    without changing quantity, value or GL.
+  - Reports `batch-stock` (stock per item × warehouse × batch with expiry;
+    lookup by label returns every matching item) and `batch-movements` (where
+    a batch came from and who received it), in the UI (Reports → Batch Stock),
+    REST and the chat / MCP `get_report` tool.
+  - Not included yet: serial numbers, stock count documents, batch blocking,
+    picking suggestions.
+
 ## [1.4.4] - 2026-11-12
 
 Migration 50 runs on startup.

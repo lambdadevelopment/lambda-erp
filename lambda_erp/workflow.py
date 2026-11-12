@@ -62,6 +62,10 @@ def _goods_returns(doctype, alias='p'):
     return f' AND COALESCE({alias}.amount_only, 0) = 0'
 
 
+def _row_batch(row):
+    return str(row.get('batch_no') or '').strip()
+
+
 def validate_return(doc):
     if not doc.get('return_against'):
         raise ValidationError(f'Return Against is required for a return {doc.DOCTYPE}')
@@ -96,6 +100,19 @@ def validate_return(doc):
     returned = defaultdict(float)
     for row in previous:
         returned[_return_key(row, rule)] += abs(flt(row.get('qty')))
+    # Batches the original moved, per line identity. A return can only bring
+    # back (or send back) a batch that was on the original, and no more of it.
+    batch_quantities = defaultdict(float)
+    batch_returned = defaultdict(float)
+    batch_requested = defaultdict(float)
+    with_batches = set()
+    for row in original_rows:
+        if _row_batch(row):
+            with_batches.add(_return_key(row, rule))
+            batch_quantities[(*_return_key(row, rule), _row_batch(row))] += flt(row.get('qty'))
+    for row in previous:
+        if _row_batch(row):
+            batch_returned[(*_return_key(row, rule), _row_batch(row))] += abs(flt(row.get('qty')))
     requested = defaultdict(float)
     for row in doc.get('items'):
         if flt(row.get('qty')) >= 0:
@@ -104,6 +121,20 @@ def validate_return(doc):
         if key not in quantities:
             raise ValidationError('Return item and order line must match an original document row; use the return converter')
         requested[key] += abs(flt(row.get('qty')))
+        batch = _row_batch(row)
+        if batch and key in with_batches and not amount_only:
+            if (*key, batch) not in batch_quantities:
+                raise ValidationError(
+                    f'Batch {batch} of {key[0]} is not on {doc.DOCTYPE} {doc.return_against}; '
+                    f'a return must name a batch the original moved '
+                    f'({", ".join(sorted(b for *k, b in batch_quantities if tuple(k) == key))})')
+            batch_requested[(*key, batch)] += abs(flt(row.get('qty')))
+    for key, qty in batch_requested.items():
+        remaining = max(0, batch_quantities[key] - batch_returned[key])
+        if qty > remaining + EPSILON:
+            raise ValidationError(
+                f'Return qty ({qty}) of batch {key[-1]} of {key[0]} exceeds what is left to return of that batch '
+                f'({remaining}; already returned {batch_returned[key]})')
     for key, qty in requested.items():
         if amount_only:
             # Money only: bounded by what was invoiced (and by the value cap
@@ -135,6 +166,7 @@ def returnable_rows(original):
     previous = db.sql(f'SELECT i.*{flag} FROM "{table}" i JOIN "{original.DOCTYPE}" p ON p.name = i.parent '
                       'WHERE p.return_against = ? AND p.is_return = 1 AND p.docstatus = 1', [original.name])
     used = defaultdict(float)
+    used_batch = defaultdict(float)  # returned per line identity and batch
     credited = defaultdict(float)  # value already credited per line identity
     corrected = set()
     for row in previous:
@@ -142,6 +174,8 @@ def returnable_rows(original):
         credited[key] += abs(flt(row.qty)) * flt(row.get('rate'))
         if flt(row.get('amount_only')):
             corrected.add(key)
+        elif _row_batch(row):
+            used_batch[(*key, _row_batch(row))] += abs(flt(row.qty))
         else:
             used[key] += abs(flt(row.qty))
     invoiced = defaultdict(float)
@@ -150,9 +184,16 @@ def returnable_rows(original):
     result = []
     for row in original.get('items'):
         key = _return_key(row, rule)
-        consumed = min(flt(row.get('qty')), used[key])
+        remaining = flt(row.get('qty'))
+        if _row_batch(row):
+            # A returned batch comes off the original rows of that batch.
+            batch_key = (*key, _row_batch(row))
+            consumed = min(remaining, used_batch[batch_key])
+            used_batch[batch_key] -= consumed
+            remaining -= consumed
+        consumed = min(remaining, used[key])
         used[key] -= consumed
-        remaining = flt(row.get('qty')) - consumed
+        remaining -= consumed
         if remaining > EPSILON:
             result.append({**row, 'qty':remaining})
     if not result:

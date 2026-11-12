@@ -201,7 +201,8 @@
     "ar-aging": "Offene Posten Debitoren",
     "ap-aging": "Offene Posten Kreditoren",
     "analytics": "Analysen",
-    "chart-of-accounts": "Kontenplan"
+    "chart-of-accounts": "Kontenplan",
+    "batch-stock": "Chargenbestand"
   },
   "doctypes": {
     "quotation": {
@@ -360,7 +361,9 @@
       "Fleet (Assets)": "Flotte (Geräte)",
       "Reservations": "Reservationen",
       "Menu": "Menü",
-      "PDF Templates": "PDF-Vorlagen"
+      "PDF Templates": "PDF-Vorlagen",
+      "Batch": "Charge",
+      "Batch Stock": "Chargenbestand"
     }
   },
   "login": {
@@ -516,7 +519,12 @@
     "noStockData": "Keine Lagerdaten gefunden",
     "noReceivables": "Keine offenen Forderungen",
     "noPayables": "Keine offenen Verbindlichkeiten",
-    "noDocuments": "Keine Dokumente gefunden"
+    "noDocuments": "Keine Dokumente gefunden",
+    "noBatchStock": "Kein Chargenbestand gefunden",
+    "batchMovements": "Bewegungen der Charge {{batch}} ({{item}})",
+    "withoutBatch": "ohne Charge",
+    "showMovements": "Bewegungen",
+    "expired": "abgelaufen"
   },
   "masterForm": {
     "required": "Erforderlich: {{fields}}",
@@ -665,7 +673,15 @@
     "Printed notes / terms": "Gedruckte Notizen / Konditionen",
     "PDF Layout": "PDF-Layout",
     "Intro text": "Einleitungstext",
-    "Closing text / terms": "Schlusstext / Konditionen"
+    "Closing text / terms": "Schlusstext / Konditionen",
+    "Batch": "Charge",
+    "Expiry Date": "Ablaufdatum",
+    "Manufacturing Date": "Herstelldatum",
+    "Batch-tracked": "Chargenpflichtig",
+    "Has Expiry Date": "Mit Ablaufdatum",
+    "Item starts with": "Artikel beginnt mit",
+    "Expiring before": "Ablauf vor",
+    "Document": "Beleg"
   },
   "tables": {
     "items": "Positionen",

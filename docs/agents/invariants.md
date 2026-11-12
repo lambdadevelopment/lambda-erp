@@ -50,6 +50,9 @@ before touching any accounting, stock, or lifecycle path.
   `build_cost_basis_gl` / `reverse_stock_sles`. Before these existed, POS
   silently drifted (sell-rate SLE, no GL). If you add a fifth path, **use
   the helpers** or the drift pattern repeats.
+- **Bin = sum of Stock Balance Detail = sum of the stock ledger.** Per
+  item × warehouse, and per batch within it. Only `make_sl_entries` writes
+  them. A tracked item's entry always names its batch (`docs/batches.md`).
 - **Material Receipt vs Opening Stock.** Material Receipt contras to
   `stock_adjustment_account` (Expense — write-offs, found stock). Opening
   Stock contras to `default_opening_balance_equity` (Equity — day-one

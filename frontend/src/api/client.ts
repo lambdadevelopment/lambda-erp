@@ -555,6 +555,12 @@ export const api = {
   stockBalance: (params?: Record<string, string>) =>
     request<{ rows: any[] }>(`/reports/stock-balance${qs(params)}`),
 
+  batchStock: (params?: Record<string, string>) =>
+    request<{ rows: any[] }>(`/reports/batch-stock${qs(params)}`),
+
+  batchMovements: (params: Record<string, string>) =>
+    request<{ rows: any[] }>(`/reports/batch-movements${qs(params)}`),
+
   // --- Rentals: availability + fleet calendar ---
   availability: (params: { item_code: string; from: string; to: string; warehouse?: string; exclude?: string }) =>
     request<AvailabilityResult>(`/availability${qs(params)}`),

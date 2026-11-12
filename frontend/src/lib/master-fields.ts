@@ -41,6 +41,18 @@ export const BUILTIN_MASTER_FIELDS: Record<string, FieldDef[]> = {
     { name: "item_group", label: "Item Group", type: "select", options: ["Products", "Raw Material", "Services", "Consumable"] },
     { name: "stock_uom", label: "Stock UOM", type: "select", options: ["Nos", "Kg", "Ltr", "Mtr", "Box", "Set"] },
     { name: "standard_rate", label: "Standard Rate", type: "currency" },
+    { name: "has_batch_no", label: "Batch-tracked", type: "select", options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0",
+      hint: "If Yes, every stock movement of this item names its batch and stock is checked per batch. Stock already there stays without a batch until a Batch Assignment." },
+    { name: "has_expiry_date", label: "Has Expiry Date", type: "select", options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0",
+      hint: "If Yes, every batch of this item needs an expiry date. Requires batch tracking." },
+    { name: "description", label: "Description", type: "textarea" },
+  ],
+  batch: [
+    { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
+    { name: "batch_no", label: "Batch", type: "text", required: true,
+      hint: "The label as printed on the goods. The same label may exist on several items." },
+    { name: "expiry_date", label: "Expiry Date", type: "date" },
+    { name: "manufacturing_date", label: "Manufacturing Date", type: "date" },
     { name: "description", label: "Description", type: "textarea" },
   ],
   warehouse: [

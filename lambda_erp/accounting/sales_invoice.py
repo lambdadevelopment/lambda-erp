@@ -458,6 +458,7 @@ def make_sales_return(sinv_name):
             income_account=item.get("income_account"),
             cost_center=item.get("cost_center"),
             warehouse=item.get("warehouse"),
+            batch_no=item.get("batch_no"),
             sales_order=item.get("sales_order"),
             sales_order_item=item.get("sales_order_item"),
         ))

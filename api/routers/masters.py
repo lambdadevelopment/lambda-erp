@@ -4,7 +4,7 @@ import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from lambda_erp.database import get_db
-from lambda_erp.utils import _dict, now
+from lambda_erp.utils import _dict, flt, now
 # The per-type registries live in api.services so `register_master` can extend
 # them; imported here (not moved) so existing `from api.routers.masters import
 # MASTER_IDENTITY_ALIAS`-style imports keep working.
@@ -58,6 +58,10 @@ DELETE_REFERENCE_CHECKS = {
         ('SELECT 1 FROM "Budget" WHERE company = ? LIMIT 1', "budget"),
         ('SELECT 1 FROM "Subscription" WHERE company = ? LIMIT 1', "subscription"),
         ('SELECT 1 FROM "Bank Transaction" t JOIN "Bank Account" a ON a.name = t.bank_account WHERE a.company = ? LIMIT 1', "bank transaction"),
+    ],
+    "batch": [
+        ('SELECT 1 FROM "Stock Ledger Entry" s JOIN "Batch" b ON b.item_code = s.item_code '
+         'AND b.batch_no = s.batch_no WHERE b.name = ? LIMIT 1', "stock ledger entry"),
     ],
     "customer": [
         ('SELECT 1 FROM "Quotation" WHERE customer = ? LIMIT 1', "quotation"),
@@ -211,6 +215,7 @@ MASTER_LINK_FIELDS = {
     'warehouse': {'company': 'Company', 'account': 'Account', 'parent_warehouse': 'Warehouse'},
     'account': {'company': 'Company', 'parent_account': 'Account'},
     'cost-center': {'company': 'Company', 'parent_cost_center': 'Cost Center'},
+    'batch': {'item_code': 'Item'},
 }
 
 
@@ -272,10 +277,44 @@ def _validate_master_input(master_type, doctype, data, name=None):
             raise ValidationError(f'{doctype}: {field} must reference an existing {table}')
     if master_type == 'item' and data.get('valuation_method') not in (None, '', 'Moving Average'):
         raise ValidationError('Item: valuation_method must be Moving Average; it is the only valuation the stock ledger implements')
+    if master_type == 'item':
+        _validate_item_batch_flags(db, merged, name)
+    if master_type == 'batch':
+        _validate_batch(db, merged, name)
     if master_type == 'company' and data.get('default_sales_tax_template'):
         template = db.get_value('Tax Template', data['default_sales_tax_template'], ['company', 'tax_type'])
         if not template or template['company'] != (name or data.get('name')) or template['tax_type'] != 'Sales':
             raise ValidationError('Default sales tax template must be a Sales template belonging to this Company')
+
+
+def _validate_item_batch_flags(db, merged, name):
+    """Batch tracking can be switched on at any time (stock that is already
+    there stays without a batch until a Batch Assignment). It cannot be
+    switched off while the item has batches in the stock ledger."""
+    tracked = bool(flt(merged.get('has_batch_no')))
+    if flt(merged.get('has_expiry_date')) and not tracked:
+        raise ValidationError('Item: has_expiry_date needs has_batch_no; the expiry date belongs to the batch')
+    stock_item = merged.get('is_stock_item')
+    if tracked and stock_item is not None and not flt(stock_item):
+        raise ValidationError('Item: only a stock item can be batch-tracked')
+    if name and not tracked and db.sql(
+            'SELECT 1 FROM "Stock Ledger Entry" WHERE item_code = ? AND batch_no IS NOT NULL '
+            'AND batch_no <> \'\' LIMIT 1', [name]):
+        raise ValidationError(f'Item {name}: batch tracking cannot be switched off, the stock ledger has batches of it')
+
+
+def _validate_batch(db, merged, name):
+    for field in ('item_code', 'batch_no'):
+        if missing(merged.get(field)):
+            raise ValidationError(f'Batch: {field} is required')
+    item = db.get_value('Item', merged['item_code'], ['has_batch_no', 'has_expiry_date'])
+    if not item or not flt(item.get('has_batch_no')):
+        raise ValidationError(f'Batch: item {merged["item_code"]} is not batch-tracked (set has_batch_no on the item first)')
+    if flt(item.get('has_expiry_date')) and missing(merged.get('expiry_date')):
+        raise ValidationError(f'Batch: expiry_date is required, item {merged["item_code"]} has expiry dates')
+    twin = db.get_value('Batch', {'item_code': merged['item_code'], 'batch_no': merged['batch_no']}, 'name')
+    if twin and twin != name:
+        raise ValidationError(f'Batch {merged["batch_no"]} already exists for item {merged["item_code"]} ({twin})')
 
 
 @router.get('/company/{name}/sales-tax-templates')

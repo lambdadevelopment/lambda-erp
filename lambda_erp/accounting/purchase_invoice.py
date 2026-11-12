@@ -474,6 +474,7 @@ def make_purchase_return(pinv_name):
             expense_account=item.get("expense_account"),
             cost_center=item.get("cost_center"),
             warehouse=item.get("warehouse"),
+            batch_no=item.get("batch_no"),
             purchase_order=item.get("purchase_order"),
             purchase_order_item=item.get("purchase_order_item"),
         ))

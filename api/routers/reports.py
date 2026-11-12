@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from lambda_erp.database import get_db
 from lambda_erp.utils import flt, nowdate
 from lambda_erp.controllers.currency import get_exchange_rate
@@ -379,6 +379,98 @@ def stock_balance(
     warehouse: str | None = None,
 ):
     return _stock_balance(get_db(), item_code, warehouse)
+
+
+def _batch_stock(db, item_code=None, warehouse=None, batch_no=None, item_prefix=None,
+                 expiring_before=None, include_empty=False):
+    """Stock per item x warehouse x batch with the batch's expiry date.
+
+    `batch_no` is the label as printed on the goods: the same label can exist
+    on several items, so it can return several rows. Stock of a tracked item
+    that has no batch yet appears with an empty batch_no."""
+    where, params = [], []
+    for column, value in (("d.item_code", item_code), ("d.warehouse", warehouse), ("d.batch_no", batch_no)):
+        if value:
+            where.append(f"{column} = ?")
+            params.append(value)
+    if item_prefix:
+        where.append("d.item_code LIKE ?")
+        params.append(item_prefix.replace("%", "") + "%")
+    if expiring_before:
+        where.append("b.expiry_date IS NOT NULL AND b.expiry_date <= ?")
+        params.append(expiring_before)
+    if not include_empty:
+        where.append("d.actual_qty <> 0")
+    if not batch_no:
+        # Untracked items have no batches to show; their stock is in stock-balance.
+        where.append("(d.batch_no <> '' OR COALESCE(i.has_batch_no, 0) = 1)")
+    rows = db.sql(
+        'SELECT d.item_code, i.item_name, d.warehouse, d.batch_no, b.name AS batch, b.expiry_date, '
+        'COALESCE(b.disabled, 0) AS batch_disabled, d.actual_qty '
+        'FROM "Stock Balance Detail" d '
+        'LEFT JOIN "Item" i ON i.name = d.item_code '
+        'LEFT JOIN "Batch" b ON b.item_code = d.item_code AND b.batch_no = d.batch_no '
+        + (f"WHERE {' AND '.join(where)} " if where else "")
+        + 'ORDER BY d.item_code, b.expiry_date, d.batch_no, d.warehouse', params)
+    return {"rows": [{**dict(row), "actual_qty": flt(row["actual_qty"])} for row in rows]}
+
+
+@router.get("/batch-stock")
+def batch_stock(
+    item_code: str | None = None,
+    warehouse: str | None = None,
+    batch_no: str | None = None,
+    item_prefix: str | None = None,
+    expiring_before: str | None = None,
+    include_empty: bool = False,
+):
+    return _batch_stock(get_db(), item_code, warehouse, batch_no, item_prefix, expiring_before, include_empty)
+
+
+_BATCH_PARTY = {
+    "Delivery Note": ("customer", "Customer"), "Sales Invoice": ("customer", "Customer"),
+    "POS Invoice": ("customer", "Customer"), "Purchase Receipt": ("supplier", "Supplier"),
+    "Purchase Invoice": ("supplier", "Supplier"),
+}
+
+
+def _batch_movements(db, batch_no=None, item_code=None, warehouse=None):
+    """Every stock movement of a batch, oldest first, with its document, line
+    and the customer or supplier of that document: where a batch came from
+    and who received it. `batch_no` alone can match several items."""
+    if not batch_no:
+        raise HTTPException(status_code=422, detail="batch_no is required")
+    where, params = ["s.batch_no = ?"], [batch_no]
+    for column, value in (("s.item_code", item_code), ("s.warehouse", warehouse)):
+        if value:
+            where.append(f"{column} = ?")
+            params.append(value)
+    rows = db.sql(
+        'SELECT s.name, s.posting_date, s.item_code, s.warehouse, s.batch_no, s.actual_qty, '
+        's.voucher_type, s.voucher_no, s.voucher_detail_no '
+        f'FROM "Stock Ledger Entry" s WHERE {" AND ".join(where)} '
+        'ORDER BY s.posting_date, s.creation, s.name', params)
+    parties = {}
+    result = []
+    for row in rows:
+        entry = {**dict(row), "actual_qty": flt(row["actual_qty"]), "party_type": None, "party": None}
+        field = _BATCH_PARTY.get(row["voucher_type"])
+        if field:
+            key = (row["voucher_type"], row["voucher_no"])
+            if key not in parties:
+                parties[key] = db.get_value(row["voucher_type"], row["voucher_no"], field[0])
+            entry["party_type"], entry["party"] = field[1], parties[key]
+        result.append(entry)
+    return {"rows": result}
+
+
+@router.get("/batch-movements")
+def batch_movements(
+    batch_no: str,
+    item_code: str | None = None,
+    warehouse: str | None = None,
+):
+    return _batch_movements(get_db(), batch_no, item_code, warehouse)
 
 
 def _dashboard_summary(db, company=None):

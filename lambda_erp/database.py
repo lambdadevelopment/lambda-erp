@@ -3209,6 +3209,68 @@ def _m050_amount_only_returns(db: "Database") -> None:
         db.ensure_column(table, "amount_only", "INTEGER DEFAULT 0")
 
 
+BATCH_LINE_TABLES = ("Stock Entry Detail", "Delivery Note Item", "Purchase Receipt Item",
+                     "Sales Invoice Item", "Purchase Invoice Item", "POS Invoice Item")
+BATCH_RECEIVING_TABLES = ("Stock Entry Detail", "Purchase Receipt Item", "Purchase Invoice Item")
+
+
+def _m051_batches(db: "Database") -> None:
+    """Batch-tracked stock (see docs/batches.md).
+
+    - Item.has_batch_no / has_expiry_date switch tracking on per item.
+    - "Batch" is the master: one row per (item, batch label); a label alone is
+      not unique, several items can carry the same one.
+    - "Stock Balance Detail" is the quantity per item x warehouse x batch,
+      maintained with every stock ledger entry. batch_no '' is stock without a
+      batch (items that are not tracked, and stock that was there before an
+      item was switched to tracking). Its rows always add up to "Bin".
+    - Existing stock is backfilled into the '' rows: no batch is invented.
+    """
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Batch" (
+            name TEXT PRIMARY KEY,
+            batch_no TEXT NOT NULL,
+            item_code TEXT NOT NULL,
+            expiry_date TEXT,
+            manufacturing_date TEXT,
+            description TEXT,
+            disabled INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ux_batch_item_batch_no" ON "Batch" (item_code, batch_no)'))
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Stock Balance Detail" (
+            name TEXT PRIMARY KEY,
+            item_code TEXT NOT NULL,
+            warehouse TEXT NOT NULL,
+            batch_no TEXT NOT NULL DEFAULT '',
+            actual_qty REAL DEFAULT 0
+        )"""))
+    db.conn.execute(db._ddl(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ux_stock_balance_detail_key" '
+        'ON "Stock Balance Detail" (item_code, warehouse, batch_no)'))
+    db.conn.commit()
+    for table in ("Batch", "Stock Balance Detail"):
+        db._col_cache.pop(table, None)
+        db._text_col_cache.pop(table, None)
+    db.ensure_column("Item", "has_batch_no", "INTEGER DEFAULT 0")
+    db.ensure_column("Item", "has_expiry_date", "INTEGER DEFAULT 0")
+    for table in BATCH_LINE_TABLES:
+        db.ensure_column(table, "batch_no", "TEXT")
+    for table in BATCH_RECEIVING_TABLES:
+        db.ensure_column(table, "expiry_date", "TEXT")
+    import uuid
+    for row in db.sql(
+            'SELECT b.item_code, b.warehouse, b.actual_qty FROM "Bin" b WHERE NOT EXISTS ('
+            'SELECT 1 FROM "Stock Balance Detail" d WHERE d.item_code = b.item_code AND d.warehouse = b.warehouse)'):
+        db.sql('INSERT INTO "Stock Balance Detail" (name, item_code, warehouse, batch_no, actual_qty) '
+               'VALUES (?, ?, ?, ?, ?)',
+               [uuid.uuid4().hex, row["item_code"], row["warehouse"], "", row["actual_qty"] or 0])
+    db.conn.commit()
+
+
 def _m042_record_notes(db: "Database") -> None:
     """Internal team notes on any document or master (see api.record_notes)."""
     db.conn.execute(
@@ -3279,6 +3341,7 @@ Database.MIGRATIONS = [
     (48, "item_valuation_moving_average", _m048_item_valuation_moving_average),
     (49, "pricing_rule_currency", _m049_pricing_rule_currency),
     (50, "amount_only_returns", _m050_amount_only_returns),
+    (51, "batches", _m051_batches),
 ]
 
 

@@ -201,7 +201,8 @@
     "ar-aging": "Balance âgée clients",
     "ap-aging": "Balance âgée fournisseurs",
     "analytics": "Analyses",
-    "chart-of-accounts": "Plan comptable"
+    "chart-of-accounts": "Plan comptable",
+    "batch-stock": "Stock par lot"
   },
   "doctypes": {
     "quotation": {
@@ -360,7 +361,9 @@
       "Fleet (Assets)": "Flotte (matériel)",
       "Reservations": "Réservations",
       "Menu": "Menu",
-      "PDF Templates": "Modèles PDF"
+      "PDF Templates": "Modèles PDF",
+      "Batch": "Lot",
+      "Batch Stock": "Stock par lot"
     }
   },
   "login": {
@@ -516,7 +519,12 @@
     "noStockData": "Aucune donnée de stock trouvée",
     "noReceivables": "Aucune créance en cours",
     "noPayables": "Aucune dette en cours",
-    "noDocuments": "Aucun document trouvé"
+    "noDocuments": "Aucun document trouvé",
+    "noBatchStock": "Aucun stock par lot trouvé",
+    "batchMovements": "Mouvements du lot {{batch}} ({{item}})",
+    "withoutBatch": "sans lot",
+    "showMovements": "Mouvements",
+    "expired": "périmé"
   },
   "masterForm": {
     "required": "Requis : {{fields}}",
@@ -665,7 +673,15 @@
     "Printed notes / terms": "Notes / conditions imprimées",
     "PDF Layout": "Mise en page PDF",
     "Intro text": "Texte d'introduction",
-    "Closing text / terms": "Texte final / conditions"
+    "Closing text / terms": "Texte final / conditions",
+    "Batch": "Lot",
+    "Expiry Date": "Date de péremption",
+    "Manufacturing Date": "Date de fabrication",
+    "Batch-tracked": "Géré par lot",
+    "Has Expiry Date": "Avec date de péremption",
+    "Item starts with": "Article commençant par",
+    "Expiring before": "Péremption avant",
+    "Document": "Document"
   },
   "tables": {
     "items": "Lignes",

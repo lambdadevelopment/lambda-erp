@@ -30,6 +30,26 @@ booked per warehouse.
 Cancels go through `make_cancel_sl_entries`, which refuses to drive stock
 negative ("goods have already left the warehouse").
 
+## Batches
+
+Full description: [`docs/batches.md`](../batches.md). What to keep in mind
+when touching stock code:
+
+- Batch rules live in `stock_ledger.make_sl_entries` (`resolve_entry_batch`,
+  `update_stock_balance_detail`), not in the documents. A new stock-moving
+  path gets them by passing `batch_no` (and `expiry_date` on incoming
+  entries) through; the shared builders already do.
+- `Stock Balance Detail` (item × warehouse × batch, `''` = no batch) must
+  always add up to `Bin`. Never write either table outside the ledger.
+  `stock_ledger_agreement()` is the check; tests assert it returns `[]`.
+- Valuation is not per batch. Batch Assignment and same-value moves must
+  leave `Bin.stock_value` unchanged and post no GL.
+- An entry without a batch for a tracked item is only legal with
+  `allow_unassigned_batch` (cancel of a pre-tracking voucher, the source leg
+  of a Batch Assignment). Do not set it anywhere else.
+- Returns: `workflow.validate_return` checks the batch against the original
+  document; `returnable_rows` consumes returned quantities per batch.
+
 ## Moving-average cost
 
 - The `Bin` table holds current `valuation_rate` per item+warehouse.

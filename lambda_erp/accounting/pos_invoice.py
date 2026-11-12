@@ -337,6 +337,7 @@ def make_pos_return(posi_name):
             income_account=item.get("income_account"),
             cost_center=item.get("cost_center"),
             warehouse=item.get("warehouse"),
+            batch_no=item.get("batch_no"),
         ))
 
     for tax in original.get("taxes") or []:

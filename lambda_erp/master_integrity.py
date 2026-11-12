@@ -6,6 +6,8 @@ STRUCTURAL_FIELDS = {
     'item': ('is_asset_tracked', 'is_stock_item', 'stock_uom'),
     'cost-center': ('company', 'parent_cost_center', 'is_group'),
     'company': ('default_currency',),
+    # A batch is identified by its item and label once stock has moved on it.
+    'batch': ('item_code', 'batch_no'),
 }
 
 

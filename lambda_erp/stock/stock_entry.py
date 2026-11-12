@@ -5,6 +5,7 @@ Stock Entry handles all material movements:
 - Material Receipt: goods coming INTO a warehouse (no source)
 - Material Issue: goods going OUT of a warehouse (no target)
 - Material Transfer: goods moving between warehouses
+- Batch Assignment: stock without a batch gets its batch, in place
 
 Each type creates Stock Ledger Entries (SLEs) and optionally
 GL entries for perpetual inventory.
@@ -29,8 +30,10 @@ class StockEntry(Document):
     CHILD_REQUIREMENTS = {'items': {'required': ['item_code', 'qty']}}
     CONDITIONAL_REQUIREMENTS = (
         "Receipt/opening rows require an explicit finite basic_rate >= 0 in company currency (zero means intentionally unvalued). Issues and transfers use actual inventory cost, not a supplied selling rate. Financial postings derive from posted stock values.",
-        "stock_entry_type must be Opening Stock, Material Receipt, Material Issue or Material Transfer.",
+        "stock_entry_type must be Opening Stock, Material Receipt, Material Issue, Material Transfer or Batch Assignment.",
         "Every items row requires an existing item_code and a positive finite qty. Receipt/opening need t_warehouse; issue needs s_warehouse; transfer needs two distinct warehouses. Warehouses must belong to company.",
+        "Rows of a batch-tracked item (Item.has_batch_no) require batch_no; a new batch on a receipt/opening row also needs expiry_date when the item has expiry dates. A transfer moves the batch as it is. Items that are not batch-tracked take no batch_no.",
+        "Batch Assignment gives stock that has no batch (from before the item was batch-tracked) its batch without moving it: each row needs the warehouse (s_warehouse or t_warehouse), batch_no and qty; it changes neither total quantity nor value and posts no GL.",
     )
 
     LINK_FIELDS = {
@@ -47,9 +50,11 @@ class StockEntry(Document):
     }
 
     def validate(self):
-        if self.stock_entry_type not in {"Opening Stock", "Material Receipt", "Material Issue", "Material Transfer"}:
+        if self.stock_entry_type not in {"Opening Stock", "Material Receipt", "Material Issue", "Material Transfer",
+                                         "Batch Assignment"}:
             raise ValidationError(
-                "Stock Entry Type must be Opening Stock, Material Receipt, Material Issue or Material Transfer"
+                "Stock Entry Type must be Opening Stock, Material Receipt, Material Issue, "
+                "Material Transfer or Batch Assignment"
             )
         if not self.get("items"):
             raise ValidationError("At least one item is required")
@@ -111,6 +116,20 @@ class StockEntry(Document):
                     raise ValidationError(
                         f"Source Warehouse is required for Material Issue (Item: {item.get('item_code')})"
                     )
+            elif self.stock_entry_type == "Batch Assignment":
+                # Same warehouse on both sides: the stock stays where it is.
+                warehouse = (item.get("t_warehouse") or item.get("s_warehouse")
+                             or self.to_warehouse or self.from_warehouse)
+                if not warehouse:
+                    raise ValidationError(
+                        f"Warehouse is required for Batch Assignment (Item: {item.get('item_code')})")
+                if item.get("s_warehouse") and item.get("t_warehouse") and item["s_warehouse"] != item["t_warehouse"]:
+                    raise ValidationError(
+                        "Batch Assignment does not move stock: Source and Target Warehouse must be the same")
+                item["s_warehouse"] = item["t_warehouse"] = warehouse
+                if not str(item.get("batch_no") or "").strip():
+                    raise ValidationError(
+                        f"Batch is required for Batch Assignment (Item: {item.get('item_code')})")
             elif self.stock_entry_type == "Material Transfer":
                 if not item.get("s_warehouse"):
                     item["s_warehouse"] = self.from_warehouse
@@ -164,14 +183,19 @@ class StockEntry(Document):
                          posting_date=self.posting_date, posting_time=self.posting_time or '00:00:00',
                          company=self.company)
             rate = flt(item.get('basic_rate'))
+            batch = {'batch_no': item.get('batch_no')}
+            # Batch Assignment takes the quantity out of stock without a batch
+            # and puts it back, at the same value, under the batch.
+            source_batch = ({'batch_no': None, 'allow_unassigned_batch': True}
+                            if self.stock_entry_type == 'Batch Assignment' else batch)
             if item.get('s_warehouse'):
-                make_sl_entries([{**base, 'warehouse': item['s_warehouse'], 'actual_qty': -flt(item['qty']), 'outgoing_rate': 0}])
+                make_sl_entries([{**base, **source_batch, 'warehouse': item['s_warehouse'], 'actual_qty': -flt(item['qty']), 'outgoing_rate': 0}])
                 posted = db.get_value('Stock Ledger Entry', {'voucher_type': self.DOCTYPE, 'voucher_no': self.name, 'voucher_detail_no': item['name'], 'warehouse': item['s_warehouse']}, ['stock_value_difference'])
                 value = -flt(posted.stock_value_difference)
                 rate = value / flt(item['qty'])
                 outgoing += value
             if item.get('t_warehouse'):
-                make_sl_entries([{**base, 'warehouse': item['t_warehouse'], 'actual_qty': flt(item['qty']), 'incoming_rate': rate, 'incoming_rate_is_explicit': True}])
+                make_sl_entries([{**base, **batch, 'expiry_date': item.get('expiry_date'), 'warehouse': item['t_warehouse'], 'actual_qty': flt(item['qty']), 'incoming_rate': rate, 'incoming_rate_is_explicit': True}])
                 incoming += flt(item['qty']) * rate
             item['basic_rate'] = rate
             item['basic_amount'] = item['amount'] = flt(flt(item['qty']) * rate, 2)
@@ -209,6 +233,10 @@ class StockEntry(Document):
             if not account:
                 raise ValidationError('Stock account is required before posting a valued stock movement')
             amounts[account] = amounts.get(account, 0) + value
+        if self.stock_entry_type == 'Batch Assignment':
+            if abs(sum(amounts.values())) > 0.01:
+                raise ValidationError('Batch Assignment must not change stock value')
+            return []
         if self.stock_entry_type != 'Material Transfer':
             total = sum(amounts.values())
             if total:
