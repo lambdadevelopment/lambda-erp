@@ -13,6 +13,25 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.17] - 2026-11-12
+
+Migration 63 runs on startup; it creates no address and changes no document.
+See `docs/addresses.md`.
+
+- **Several addresses per customer.** New master `address`: any number of
+  addresses per customer, each for invoices, deliveries or both, with one
+  default of each kind, a contact and delivery instructions.
+- **Invoice and delivery address on sales documents.** Quotation, Sales
+  Order, Delivery Note and Sales Invoice carry `billing_address` and
+  `shipping_address` with the text as printed. They default from the
+  customer, follow the order through delivery and invoice, can be changed per
+  document or typed in without an address record, and are a snapshot: a later
+  change of the address record does not alter existing documents.
+- PDFs: quotations, orders and invoices are addressed to the invoice address
+  and name a differing delivery address; delivery notes are addressed to the
+  delivery address and print its instructions.
+- `Customer.invoice_email`: where invoices are sent by e-mail.
+
 ## [1.4.16] - 2026-11-12
 
 Migration 62 runs on startup. Existing delivery note and receipt lines keep

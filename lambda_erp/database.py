@@ -3586,6 +3586,44 @@ def _m062_stock_document_pricing(db: "Database") -> None:
     db.ensure_column("Supplier", "default_price_list", "TEXT")
 
 
+def _m063_addresses(db: "Database") -> None:
+    """Several addresses per customer, and an invoice and a delivery address
+    on sales documents (see docs/addresses.md). No address is created and no
+    document changed: a customer's main address stays where it is and is
+    still what prints when a document has no address of its own."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Address" (
+            name TEXT PRIMARY KEY,
+            customer TEXT NOT NULL,
+            label TEXT,
+            address_title TEXT,
+            is_billing INTEGER DEFAULT 1,
+            is_shipping INTEGER DEFAULT 1,
+            is_default_billing INTEGER DEFAULT 0,
+            is_default_shipping INTEGER DEFAULT 0,
+            recipient_name TEXT,
+            address TEXT,
+            zip_code TEXT,
+            city TEXT,
+            country TEXT,
+            contact_person TEXT,
+            email TEXT,
+            phone TEXT,
+            instructions TEXT,
+            disabled INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.execute(db._ddl('CREATE INDEX IF NOT EXISTS "ix_address_customer" ON "Address" (customer)'))
+    db.conn.commit()
+    db._col_cache.pop("Address", None)
+    db._text_col_cache.pop("Address", None)
+    db.ensure_column("Customer", "invoice_email", "TEXT")
+    for table in ("Quotation", "Sales Order", "Delivery Note", "Sales Invoice"):
+        for column in ("billing_address", "billing_address_display", "shipping_address", "shipping_address_display"):
+            db.ensure_column(table, column, "TEXT")
+
+
 def _m052_access_profiles(db: "Database") -> None:
     """Access profiles narrow what a user's role allows (lambda_erp.permissions).
     No profile is created and no user is assigned one: nothing changes for
@@ -3688,6 +3726,7 @@ Database.MIGRATIONS = [
     (60, "serial_numbers", _m060_serial_numbers),
     (61, "record_scope", _m061_record_scope),
     (62, "stock_document_pricing", _m062_stock_document_pricing),
+    (63, "addresses", _m063_addresses),
 ]
 
 

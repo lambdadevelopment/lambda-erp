@@ -124,6 +124,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Company", path: "/masters/company" },
       { label: "Customer", path: "/masters/customer" },
+      { label: "Address", path: "/masters/address" },
       { label: "Supplier", path: "/masters/supplier" },
       { label: "Item", path: "/masters/item" },
       { label: "Warehouse", path: "/masters/warehouse" },

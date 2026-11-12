@@ -67,6 +67,10 @@ DELETE_REFERENCE_CHECKS = {
     "serial-no": [
         ('SELECT 1 FROM "Serial Movement" WHERE serial = ? LIMIT 1', "stock movement"),
     ],
+    "address": [
+        (f'SELECT 1 FROM "{table}" WHERE billing_address = ? OR shipping_address = ? LIMIT 1', table.lower())
+        for table in ("Quotation", "Sales Order", "Delivery Note", "Sales Invoice")
+    ],
     "storage-location": [
         ('SELECT 1 FROM "Stock Ledger Entry" s JOIN "Storage Location" l ON l.warehouse = s.warehouse '
          'AND l.location = s.location WHERE l.name = ? LIMIT 1', "stock ledger entry"),
@@ -222,6 +226,7 @@ def _normalize_master_data(data: dict) -> dict:
 MASTER_LINK_FIELDS = {
     'customer': {'default_price_list': 'Price List'},
     'supplier': {'default_price_list': 'Price List'},
+    'address': {'customer': 'Customer'},
     'company': {'default_price_list': 'Price List'},
     'item': {'default_warehouse': 'Warehouse'},
     'warehouse': {'company': 'Company', 'account': 'Account', 'parent_warehouse': 'Warehouse',
@@ -284,6 +289,11 @@ def _validate_master_input(master_type, doctype, data, name=None):
         raise ValidationError('Cannot change master identity; create a new record instead')
     merged = dict(db.get_value(doctype, name, list(allowed)) or {}) if name else {}
     merged.update(data)
+    if master_type == 'address':
+        # The title is made from customer, label and town, never typed.
+        from lambda_erp.addresses import address_title
+        merged['address_title'] = data['address_title'] = address_title(
+            merged, db.get_value('Customer', merged.get('customer'), 'customer_name') if merged.get('customer') else None)
     for field in master_requirements(master_type)['required']:
         if missing(merged.get(field)):
             raise ValidationError(f'{doctype}: {field} is required')
@@ -298,6 +308,9 @@ def _validate_master_input(master_type, doctype, data, name=None):
         _validate_batch(db, merged, name)
     if master_type == 'serial-no':
         _validate_serial(db, data, name)
+    if master_type == 'address':
+        from lambda_erp.addresses import validate_address
+        validate_address(merged)
     # A user restricted to assigned records cannot write one outside of them
     # (a new customer or warehouse is never one of the assigned).
     permissions.require_record_in_scope(doctype, {**merged, 'name': name})
@@ -480,6 +493,9 @@ def _create_master_record(master_type: str, data: dict) -> dict:
             doc["default_currency"] = companies[0].get("default_currency") or "USD"
 
     db.insert(doctype, doc)
+    if master_type == 'address':
+        from lambda_erp.addresses import finish_address
+        finish_address(doc["name"])
     row = db.get_all(doctype, filters={"name": doc["name"]}, fields=["*"])[0]
     return _echo_identity_alias(master_type, row)
 
@@ -538,6 +554,9 @@ def _update_master_record(master_type: str, name: str, data: dict) -> dict:
         update_fields["modified"] = now()
     if update_fields:
         db.set_value(doctype, name, update_fields)
+    if master_type == 'address':
+        from lambda_erp.addresses import finish_address
+        finish_address(name)
     if master_type == 'batch':
         # A batch's expiry date and block decide what may be sold: keep the trail.
         from lambda_erp.stock.stock_ledger import log_batch_changes

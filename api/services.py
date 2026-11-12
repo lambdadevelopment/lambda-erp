@@ -106,6 +106,8 @@ MASTER_TABLES = {
     "storage-location": ("Storage Location", "location"),
     # One row per (item, serial number); written by the stock ledger.
     "serial-no": ("Serial No", "serial_no"),
+    # Further addresses of a customer (lambda_erp/addresses.py).
+    "address": ("Address", "address_title"),
 }
 
 # Auto-naming prefixes: masters created without an explicit `name` get a
@@ -118,11 +120,12 @@ MASTER_NAME_PREFIXES = {
     "warehouse": "WH",
     "batch": "BATCH",
     "storage-location": "LOC",
+    "address": "ADDR",
 }
 
 # Minimum numeric suffix width for sequential plugin master ids. Core masters
 # retain the historical three-digit form; plugins can opt into e.g. FIDX-0001.
-MASTER_NAME_DIGITS: dict[str, int] = {"batch": 5, "storage-location": 5}
+MASTER_NAME_DIGITS: dict[str, int] = {"batch": 5, "storage-location": 5, "address": 5}
 
 # High-volume plugin masters can opt out of sequential ids. Sequential naming
 # must inspect existing suffixes after a process restart; opaque random ids keep

@@ -100,14 +100,24 @@
   </div>
   <div class="party-block" style="text-align: right;">
     <h3>{{ party_label }}</h3>
-    <div class="name">{{ party_name }}</div>
+    <div class="name">{{ address_lines[0] if address_lines else party_name }}</div>
     {% if party_info %}
+    {% if address_lines %}
+    {# The document's own address (lambda_erp/addresses.py); its first line is the recipient. #}
+    {% for line in address_lines[1:] %}<div class="detail">{{ line }}</div>{% endfor %}
+    {% else %}
     {% if party_info.get("address") %}<div class="detail">{{ party_info.address }}</div>{% endif %}
     {% if party_info.get("city") or party_info.get("zip_code") or party_info.get("country") %}<div class="detail">{{ party_info.get("city", "") }}{% if party_info.get("zip_code") %} {{ party_info.zip_code }}{% endif %}{% if party_info.get("country") %}, {{ party_info.country }}{% endif %}</div>{% endif %}
+    {% endif %}
     {% if party_info.get("email") %}<div class="detail">{{ party_info.email }}</div>{% endif %}
     {% if party_info.get("phone") %}<div class="detail">{{ party_info.phone }}</div>{% endif %}
     {% if party_info.get("tax_id") %}<div class="detail">Tax ID: {{ party_info.tax_id }}</div>{% endif %}
     {% endif %}
+    {% if delivery_lines %}
+    <div class="detail" style="margin-top: 6px;"><strong>{{ delivery_label }}</strong></div>
+    {% for line in delivery_lines %}<div class="detail">{{ line }}</div>{% endfor %}
+    {% endif %}
+    {% if delivery_instructions %}<div class="detail" style="margin-top: 4px;">{{ delivery_instructions }}</div>{% endif %}
   </div>
 </div>
 

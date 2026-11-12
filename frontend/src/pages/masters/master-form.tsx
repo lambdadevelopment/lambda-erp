@@ -29,9 +29,10 @@ const TYPE_LABELS: Record<string, string> = {
   batch: "Batch",
   "storage-location": "Storage Location",
   "serial-no": "Serial Number",
+  address: "Address",
 };
 
-const AUTO_NAME_TYPES = new Set(["customer", "supplier", "item", "warehouse"]);
+const AUTO_NAME_TYPES = new Set(["customer", "supplier", "item", "warehouse", "address"]);
 
 // ---------------------------------------------------------------------------
 // MasterFormPage

@@ -346,6 +346,8 @@ class Document:
                 from lambda_erp.controllers.item_prices import normalize_item_prices
                 normalize_item_prices(self)
                 self._normalize_timestamps(before_validate=True)
+                from lambda_erp.addresses import resolve_document_addresses
+                resolve_document_addresses(self)
                 self.validate()
                 normalize_item_prices(self)
                 self._require_in_scope()
@@ -404,6 +406,8 @@ class Document:
                 from lambda_erp.controllers.item_prices import normalize_item_prices
                 normalize_item_prices(self)
                 self._normalize_timestamps(before_validate=True)
+                from lambda_erp.addresses import resolve_document_addresses
+                resolve_document_addresses(self)
                 self.validate()
                 normalize_item_prices(self)
                 self._require_in_scope()

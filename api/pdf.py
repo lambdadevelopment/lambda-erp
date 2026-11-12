@@ -311,6 +311,18 @@ def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=No
         line.lstrip().startswith(">>") for line in _remarks.splitlines()
     )
 
+    # The document's own addresses (lambda_erp/addresses.py): a delivery note
+    # is addressed to where the goods go, everything else to where the
+    # invoice goes, with the delivery address below it when it differs.
+    from lambda_erp.addresses import delivery_instructions, document_address_lines
+    billing_lines = document_address_lines(doc, "billing")
+    shipping_lines = document_address_lines(doc, "shipping")
+    if file == "delivery_note.html":
+        address_lines, delivery_lines = shipping_lines or billing_lines, []
+    else:
+        address_lines = billing_lines
+        delivery_lines = shipping_lines if shipping_lines and shipping_lines != billing_lines else []
+
     context = dict(
         doc=doc,
         pdf_status=contract["status"],
@@ -322,6 +334,10 @@ def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=No
         party_label=party_label,
         party_name=party_name,
         party_info=party_info,
+        address_lines=address_lines,
+        delivery_lines=delivery_lines,
+        delivery_label="Delivery address",
+        delivery_instructions=delivery_instructions(doc) if file == "delivery_note.html" else None,
         currency=currency,
         meta_fields=meta_fields,
         items=items,

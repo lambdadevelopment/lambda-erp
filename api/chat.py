@@ -3034,6 +3034,12 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - Never invent or guess a serial number. If the user has not given them, ask; to see what is in stock use search_masters master_type="serial-no" (filter item_code, warehouse) or the serial-trace report for one number.
 - Units from before the item was serial-tracked have no number: give them one with a Stock Entry of type "Serial Assignment" (item_code, qty, t_warehouse, serial_no).
 
+### Addresses
+- A customer can have several addresses (master_type="address": customer, label, is_billing, is_shipping, is_default_billing, is_default_shipping, recipient_name, contact_person, address, zip_code, city, country, instructions). Search them with search_masters master_type="address" and the customer's name.
+- Quotation, Sales Order, Delivery Note and Sales Invoice carry `billing_address` and `shipping_address` (address record ids of that customer) and `billing_address_display` / `shipping_address_display` (the text that prints). Leave them out to get the customer's defaults; documents made from an order follow the order.
+- When an order names where the goods must go and that address is not on record, put the text in `shipping_address_display` (recipient first, one line per row) without a link: what the document says takes precedence. Do not create an address record for a one-off address unless the user asks.
+- Never guess between several addresses of a customer: use the default, or ask.
+
 ### Storage locations (places inside a warehouse)
 - A warehouse with `use_locations=1` has storage locations (master `storage-location`: warehouse + location label, e.g. "A12"). The same label may exist in several warehouses.
 - In such a warehouse every stock-moving line names its location: `location` on Delivery Note, Purchase Receipt and invoice lines (with update_stock=1); on Stock Entry lines `s_location` for the source side and `t_location` for the target side. Drafts may be saved without it; submit is refused. A warehouse without storage locations takes no location.

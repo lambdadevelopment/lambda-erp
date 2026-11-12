@@ -265,6 +265,8 @@ def _core_record_scopes():
         register_record_scope(doctype, "customer", "customer")
     for doctype in ("Item Price", "Pricing Rule", "Serial No"):
         register_record_scope(doctype, "customer", "customer", optional=True)
+    register_record_scope("Address", "customer", "customer")
+    register_record_scope("Address", "warehouse", unrelated=True)
     for doctype in ("Payment Entry", "Subscription", "Reservation"):
         register_record_scope(doctype, "customer", "party", when=("party_type", "Customer"))
     register_record_scope("Journal Entry", "customer", child="accounts", child_table="Journal Entry Account",
