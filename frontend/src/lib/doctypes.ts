@@ -93,10 +93,18 @@ const ITEM_FIELDS: FieldDef[] = [
   // type here to override it for this document only — like a Proposal position.
   { name: "description", label: "Description", type: "textarea" },
   { name: "qty", label: "Qty", type: "number", required: true },
+  // Units of measure (lambda_erp/units.py): naming one of the item's further
+  // units here enters qty and rate in that unit; the saved line is per stock
+  // unit and the two read-only columns say what was ordered.
+  { name: "uom", label: "UOM", type: "text",
+    hint: "Leave blank for the item's stock unit. Name one of the item's units (e.g. Karton) to enter quantity and rate in that unit: on save the line is stored per stock unit and keeps what was ordered." },
   { name: "rate", label: "Rate", type: "currency", default: null, hint: "Leave blank to resolve the customer or company price on save. Enter 0 for a free line." },
   { name: "amount", label: "Amount", type: "currency", readOnly: true },
   { name: "price_source", label: "Price Source", type: "text", readOnly: true,
     hint: "Where the price came from: Item Price, Standard Rate, Entered, Manual (changed by hand; no longer repriced) or None (no price found)." },
+  { name: "order_qty", label: "Ordered Qty", type: "number", readOnly: true,
+    hint: "How many of the ordered unit this line is (2 Karton for 200 Stk). Empty for a line in the stock unit." },
+  { name: "order_uom", label: "Ordered Unit", type: "text", readOnly: true },
 ];
 
 // Quotation lines additionally carry a billing frequency: one-time or a
@@ -520,6 +528,10 @@ const CONFIGS: Record<string, DoctypeConfig> = {
           { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
           { name: "item_name", label: "Item Name", type: "text", readOnly: true },
           { name: "qty", label: "Qty", type: "number", required: true },
+          { name: "uom", label: "UOM", type: "text",
+            hint: "Leave blank for the item's stock unit. Name one of the item's units (e.g. Karton) to enter quantity and rate in that unit; the line is stored per stock unit." },
+          { name: "order_qty", label: "Ordered Qty", type: "number", readOnly: true },
+          { name: "order_uom", label: "Ordered Unit", type: "text", readOnly: true },
           { name: "s_warehouse", label: "Source", type: "link", linkDoctype: "warehouse" },
           { name: "t_warehouse", label: "Target", type: "link", linkDoctype: "warehouse" },
           { name: "s_location", label: "Source Location", type: "text", suggest: "location", suggestWarehouse: ["s_warehouse"],
@@ -739,6 +751,20 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     ],
     childTables: [], listColumns: ["name", "price_list_name", "currency", "selling", "buying", "enabled"],
     listFilters: ["enabled"], searchFields: ["name", "price_list_name"],
+    canSubmit: false, canCancel: false, conversions: [],
+  },
+  "item-unit": {
+    slug: "item-unit", label: "Item Unit", dateField: "creation", usesExchangeRate: false,
+    fields: [
+      { name: "item_code", label: "Item", type: "link", linkDoctype: "item", required: true },
+      { name: "uom", label: "UOM", type: "text", required: true,
+        hint: "The unit as it is written on orders (Karton, Pack). Not the item's own stock unit." },
+      { name: "conversion_factor", label: "Conversion Factor", type: "number", required: true,
+        hint: "How many stock units one of this unit holds: 100 for a carton of 100 pieces." },
+      { name: "enabled", label: "Enabled", type: "select", options: [{ value: "1", label: "Yes" }, { value: "0", label: "No" }], default: "1" },
+    ],
+    childTables: [], listColumns: ["name", "item_code", "uom", "conversion_factor", "enabled"],
+    listFilters: ["enabled"], searchFields: ["name", "item_code", "uom"],
     canSubmit: false, canCancel: false, conversions: [],
   },
   "item-price": {

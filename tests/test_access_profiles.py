@@ -22,7 +22,9 @@ SELLING = "20.77"
 SAFE_NUMERIC = {"qty", "idx", "docstatus", "discarded", "conversion_rate", "total_qty", "billed_qty",
                 "received_qty", "per_billed", "per_received", "ignore_pricing_rule", "is_return",
                 "update_stock", "amount_only", "included_in_print_rate", "row_id", "rate",
-                "returned_qty", "confirmed_qty"}
+                "returned_qty", "confirmed_qty",
+                # Units of measure: how many of which unit a line was ordered as; no price.
+                "conversion_factor", "order_qty"}
 
 
 def check_access_profiles():

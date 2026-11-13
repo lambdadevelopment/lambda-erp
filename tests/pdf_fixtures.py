@@ -37,6 +37,7 @@ def seed_pdf_documents():
         'Budget': dict(company='PDF Co', account='AR-PDF',fiscal_year='2026',budget_amount=1200,action_if_exceeded='Warn',monthly_distribution=[dict(month='January',percentage=100)]),
         'Pricing Rule': dict(title='Machine discount',company='PDF Co',item_code='M-PDF',selling=1,rate_or_discount='Discount Percentage',discount_percentage=10),
         'Price List': dict(price_list_name='Standard Selling',currency='CHF',selling=1,buying=0,enabled=1),
+        'Item Unit': dict(item_code='M-PDF', uom='Karton', conversion_factor=100, enabled=1),
         'Item Price': dict(item_code='M-PDF',price_list='PDF-Price-List',rate=185,min_qty=0,uom='Nos',enabled=1),
         'Bank Account': dict(account_name='Business account',company='PDF Co',account='BANK-PDF',iban='CH9300762011623852957',currency='CHF'),
         'Bank Transaction': dict(bank_account='BANK-PDF',posting_date='2026-09-16',currency='CHF',deposit=20,withdrawal=0,description='Payment received',details=[dict(amount=20,currency='CHF',debtor_name='Ada Example')]),

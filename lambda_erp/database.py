@@ -3661,6 +3661,35 @@ def _m064_item_bundles(db: "Database") -> None:
         db.ensure_column(table, "bundle_qty", "REAL")
 
 
+def _m067_item_units(db: "Database") -> None:
+    """Units of measure (see docs/units.md): further units per item with a
+    conversion factor, and on every item line what it was ordered as. No
+    existing line changes: without `order_uom` a line is in the stock unit,
+    as all lines were."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Item Unit" (
+            name TEXT PRIMARY KEY,
+            item_code TEXT NOT NULL,
+            uom TEXT NOT NULL,
+            conversion_factor REAL DEFAULT 1,
+            enabled INTEGER DEFAULT 1,
+            docstatus INTEGER DEFAULT 0,
+            discarded INTEGER DEFAULT 0,
+            creation TEXT,
+            modified TEXT
+        )"""))
+    db.conn.execute(db._ddl('CREATE INDEX IF NOT EXISTS "ix_item_unit_item_code" ON "Item Unit" (item_code)'))
+    db.conn.commit()
+    db._col_cache.pop("Item Unit", None)
+    db._text_col_cache.pop("Item Unit", None)
+    for table in ("Quotation Item", "Sales Order Item", "Purchase Order Item", "Sales Invoice Item",
+                  "Purchase Invoice Item", "Delivery Note Item", "Purchase Receipt Item", "POS Invoice Item",
+                  "Stock Entry Detail"):
+        db.ensure_column(table, "order_uom", "TEXT")
+        db.ensure_column(table, "conversion_factor", "REAL")
+        db.ensure_column(table, "order_qty", "REAL")
+
+
 def _m065_record_attachments(db: "Database") -> None:
     """Files kept with a document or master record, and a tracking reference
     on delivery notes (see docs/attachments.md)."""
@@ -3801,6 +3830,7 @@ Database.MIGRATIONS = [
     (64, "item_bundles", _m064_item_bundles),
     (65, "record_attachments", _m065_record_attachments),
     (66, "attachment_sensitivity", _m066_attachment_sensitivity),
+    (67, "item_units", _m067_item_units),
 ]
 
 

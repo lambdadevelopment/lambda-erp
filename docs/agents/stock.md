@@ -66,6 +66,20 @@ Full description: [`docs/storage-locations.md`](../storage-locations.md).
 - `get_batch_balances` adds up over locations; use `get_stock_details` for
   the per-location rows.
 
+## Units of measure
+
+Full description: [`docs/units.md`](../units.md).
+
+- A stored line's `qty` and `rate` are always per stock unit. A line entered
+  in a further unit of the item is converted in
+  `item_price.set_item_defaults` (Stock Entry: `units.apply_units`) before
+  anything else reads it. Do not multiply by `conversion_factor` anywhere
+  downstream: `order_uom` / `conversion_factor` / `order_qty` are what the
+  line was ordered as, for display only.
+- A new document type with item lines gets units by calling
+  `set_item_defaults` and by having the three columns on its line table.
+- Copy `order_uom` and `conversion_factor` when a converter copies a line.
+
 ## Reservations and FEFO
 
 Full description: [`docs/reservations-and-fefo.md`](../reservations-and-fefo.md).

@@ -154,9 +154,10 @@
       <td style="font-weight: 600">{{ item.item_code or "" }}</td>
       <td>{{ item.item_name or item.description or "" }}{% if item.frequency %}<br>{{ item.frequency }}{% endif %}</td>
       {% if show_warehouse %}<td>{{ item.warehouse or "" }}</td>{% endif %}
-      <td class="num">{{ item.qty }}</td>
+      {# A line ordered in a further unit prints that unit and its price; the stock quantity below. #}
+      <td class="num">{% if item.ordered_in_unit %}{{ "%g"|format(item.order_qty or 0) }} {{ item.order_uom }}<br><span style="color: #555; font-size: 85%">= {{ "%g"|format(item.qty or 0) }} {{ item.uom or "" }}</span>{% else %}{{ item.qty }}{% endif %}</td>
       {% if item.discount_total %}
-      <td class="num">{{ "%.2f"|format(item.gross_rate) }}</td>
+      <td class="num">{{ "%.2f"|format(item.order_gross_rate if item.ordered_in_unit else item.gross_rate) }}</td>
       <td class="num">{{ "%.2f"|format(item.gross_amount) }}</td>
     </tr>
     <tr class="deduction">
@@ -168,7 +169,7 @@
       <td></td>
       <td class="num">&minus;{{ "%.2f"|format(item.discount_total) }}</td>
       {% else %}
-      <td class="num">{{ "%.2f"|format(item.rate or 0) }}</td>
+      <td class="num">{{ "%.2f"|format(item.order_rate if item.ordered_in_unit else (item.rate or 0)) }}</td>
       <td class="num">{{ "%.2f"|format(item.amount) }}</td>
       {% endif %}
     </tr>

@@ -39,6 +39,7 @@ from lambda_erp.stock.reservation import StockReservation
 from lambda_erp.stock.consignment import ConsignmentWithdrawal
 from lambda_erp.stock.stock_count import StockCount
 from lambda_erp.bundles import ItemBundle
+from lambda_erp.units import ItemUnit
 
 
 # --- Doctype registries ---
@@ -75,6 +76,8 @@ DOCUMENT_CLASSES = {
     # Counted quantities; submitting books the differences with a reason.
     "Stock Count": StockCount,
     "Item Bundle": ItemBundle,
+    # A further unit of an item (carton of 100) that lines may be entered in.
+    "Item Unit": ItemUnit,
 }
 
 CONVERTERS = {

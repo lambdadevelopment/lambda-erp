@@ -307,6 +307,7 @@ def _core_record_scopes():
     register_record_scope("Address", "warehouse", unrelated=True)
     for dimension in ("customer", "warehouse"):
         register_record_scope("Item Bundle", dimension, unrelated=True)
+        register_record_scope("Item Unit", dimension, unrelated=True)
     for doctype in ("Payment Entry", "Subscription", "Reservation"):
         register_record_scope(doctype, "customer", "party", when=("party_type", "Customer"))
     register_record_scope("Journal Entry", "customer", child="accounts", child_table="Journal Entry Account",
@@ -981,7 +982,26 @@ def restore_hidden_values(doctype, stored_rows, new_rows, child):
         for field in fields:
             if field in stored:
                 row[field] = stored[field]
+        _keep_restored_per_stock_unit(row, stored, fields)
     return fresh
+
+
+def _keep_restored_per_stock_unit(row, stored, fields):
+    """A stored line's hidden rate is per stock unit. If the user re-enters the
+    line in a further unit of the item (uom "Karton"), saving divides every
+    rate on the line by the unit's factor (units.py), which would divide the
+    restored rate a second time. The restored values are therefore put back
+    per the entered unit, so the conversion ends at the stored price."""
+    from lambda_erp import units
+    entered = str(row.get("uom") or "").strip()
+    if not entered or entered == str(stored.get("uom") or "").strip():
+        return
+    factor = units.conversion_factor(row.get("item_code"), entered)
+    if not factor:
+        return
+    for field in units.RATE_FIELDS + ("basic_rate", "valuation_rate"):
+        if field in fields and row.get(field) not in (None, ""):
+            row[field] = float(row[field]) * factor
 
 
 def require_hidden_complete(doctype, doc, fresh=None):

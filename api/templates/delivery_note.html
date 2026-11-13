@@ -158,7 +158,7 @@
       <td>{{ item.item_name or item.description or "" }}{% if item.item_name and item.description and item.description != item.item_name %}<br><span style="color: #555">{{ item.description }}</span>{% endif %}</td>
       <td>{{ item.warehouse_name or item.warehouse or "" }}</td>
       <td class="num">{{ "%g"|format(item.qty or 0) }}</td>
-      <td>{{ item.uom or "" }}</td>
+      <td>{{ item.uom or "" }}{% if item.order_uom and item.conversion_factor %}<br><span style="color: #555; font-size: 85%">= {{ "%g"|format(item.order_qty or 0) }} {{ item.order_uom }}</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>

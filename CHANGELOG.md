@@ -13,6 +13,29 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.22] - 2026-11-13
+
+Migration 67 (adds a table and three columns per line table; no existing
+line changes).
+
+- **Units of measure.** An item can have further units next to its stock
+  unit: new document type `item-unit` (item_code, uom, conversion_factor =
+  stock units per unit, e.g. Karton = 100). A line of a quotation, sales or
+  purchase order, delivery note, purchase receipt, invoice, POS invoice or
+  stock entry can be entered in such a unit by naming it in `uom`: quantity
+  and rate are then in that unit. On save the line is stored per stock unit
+  (2 Karton at 290.00 become 200 Stk at 2.90, amount 580.00) and keeps
+  `order_uom`, `conversion_factor` (a snapshot) and `order_qty`. Stock,
+  valuation, reservations, deliveries, backlog, invoicing and returns
+  therefore work in stock units without change. An Item Price with `uom`
+  set is a price per that unit. A unit the item does not have is refused
+  once the item has any Item Unit; other items keep free text in `uom`.
+  The built-in PDFs print the ordered unit and its price. See
+  `docs/units.md`.
+- On a line ordered in a further unit the rate per stock unit is no longer
+  rounded to the cent when a discount percentage applies (it keeps six
+  places); the line amount is rounded as before. Lines in the stock unit are
+  unchanged.
 - Translations (German, French): the Users page, company setup, opening
   balances and analytics pages, submit / cancel dialogs and other shared
   controls were English only. Missing field labels, menu entries, document

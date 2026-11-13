@@ -293,6 +293,10 @@
       "one": "Stückliste",
       "other": "Stücklisten"
     },
+    "item-unit": {
+      "one": "Artikeleinheit",
+      "other": "Artikeleinheiten"
+    },
     "item-price": {
       "one": "Artikelpreis",
       "other": "Artikelpreise"
@@ -421,6 +425,7 @@
       "Batch": "Charge",
       "Batch Stock": "Chargenbestand",
       "Item Bundle": "Stückliste",
+      "Item Unit": "Artikeleinheit",
       "Storage Location": "Lagerplatz",
       "Serial Number": "Seriennummer",
       "Stock by Location & Batch": "Bestand nach Lagerplatz & Charge",
@@ -774,6 +779,10 @@
     "Default Invoice Address": "Standard-Rechnungsadresse",
     "Default Delivery Address": "Standard-Lieferadresse",
     "Item Bundle": "Stückliste",
+    "Item Unit": "Artikeleinheit",
+    "Ordered Qty": "Bestellte Menge",
+    "Ordered Unit": "Bestelleinheit",
+    "Conversion Factor": "Umrechnungsfaktor",
     "Bundle Item": "Stücklistenartikel",
     "Qty per Bundle": "Menge pro Stückliste",
     "Tracking Reference": "Sendungsnummer",
@@ -1242,6 +1251,10 @@
     },
     "item-bundle": {
       "item_code": "Der Artikel, der für die Stückliste steht. Er darf kein Lagerartikel sein. Auf einem Verkaufsbeleg wird er durch die Artikel unten ersetzt."
+    },
+    "item-unit": {
+      "uom": "Die Einheit, wie sie auf Bestellungen steht (Karton, Pack). Nicht die Lagereinheit des Artikels.",
+      "conversion_factor": "Wie viele Lagereinheiten eine solche Einheit enthält: 100 für einen Karton mit 100 Stück."
     },
     "item-price": {
       "rate": "In der Währung der Preisliste.",

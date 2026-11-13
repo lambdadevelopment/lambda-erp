@@ -293,6 +293,10 @@
       "one": "Nomenclature",
       "other": "Nomenclatures"
     },
+    "item-unit": {
+      "one": "Unité d'article",
+      "other": "Unités d'article"
+    },
     "item-price": {
       "one": "Prix d'article",
       "other": "Prix d'articles"
@@ -421,6 +425,7 @@
       "Batch": "Lot",
       "Batch Stock": "Stock par lot",
       "Item Bundle": "Nomenclature",
+      "Item Unit": "Unité d'article",
       "Storage Location": "Emplacement",
       "Serial Number": "Numéro de série",
       "Stock by Location & Batch": "Stock par emplacement et lot",
@@ -774,6 +779,10 @@
     "Default Invoice Address": "Adresse de facturation par défaut",
     "Default Delivery Address": "Adresse de livraison par défaut",
     "Item Bundle": "Nomenclature",
+    "Item Unit": "Unité d'article",
+    "Ordered Qty": "Quantité commandée",
+    "Ordered Unit": "Unité de commande",
+    "Conversion Factor": "Facteur de conversion",
     "Bundle Item": "Article de nomenclature",
     "Qty per Bundle": "Quantité par nomenclature",
     "Tracking Reference": "Numéro de suivi",
@@ -1242,6 +1251,10 @@
     },
     "item-bundle": {
       "item_code": "L'article qui représente la nomenclature. Il ne doit pas être un article de stock. Sur un document de vente, il est remplacé par les articles ci-dessous."
+    },
+    "item-unit": {
+      "uom": "L'unité telle qu'elle figure sur les commandes (carton, paquet). Pas l'unité de stock de l'article.",
+      "conversion_factor": "Combien d'unités de stock contient une telle unité : 100 pour un carton de 100 pièces."
     },
     "item-price": {
       "rate": "Dans la devise de la liste de prix.",

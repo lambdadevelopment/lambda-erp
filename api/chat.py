@@ -3060,6 +3060,13 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - On quotations, sales orders, delivery notes and sales / POS invoices, put the bundle's item_code and qty on a line and save: the line is replaced by one line per item of the bundle, which are then ordinary lines. Do not give a bundle line a rate, discount or batch; do not expand a bundle by hand.
 - When the user names a set, look for it with list_documents doctype="item-bundle" (or the item) before listing single items yourself.
 
+### Units of measure (ordering in a pack, stocking in pieces)
+- An item is stocked in its `stock_uom`. An **Item Unit** (doctype `item-unit`: item_code, uom, conversion_factor = stock units per unit, e.g. Karton = 100) gives it a further unit. List an item's units with list_documents doctype="item-unit" filtered by item_code.
+- To enter a line in such a unit, send `qty` and `rate` in that unit and name it in `uom` (qty 2, uom "Karton", rate 290). On save the line is stored per stock unit (qty 200, rate 2.90) and keeps `order_uom`, `conversion_factor` and `order_qty` (2). Amounts are unchanged: 2 x 290 = 200 x 2.90.
+- On a stored line `qty`, `rate`, delivered/billed quantities and every stock figure are in the stock unit; `order_qty` + `order_uom` say what was ordered. Tell the user both when they differ ("2 Karton = 200 Stk"). Never multiply or divide by the factor yourself before sending a line: either send the entered unit in `uom`, or send stock units.
+- A unit the item does not have is refused. Do not guess a factor from a product name or from "VE"/"Pack": ask, or have an Item Unit created first.
+- An Item Price with `uom` set is a price per that unit (290 per Karton) and is used for lines entered in it; a price without `uom` is per stock unit.
+
 ### Addresses
 - A customer can have several addresses (master_type="address": customer, label, is_billing, is_shipping, is_default_billing, is_default_shipping, recipient_name, contact_person, address, zip_code, city, country, instructions). Search them with search_masters master_type="address" and the customer's name.
 - Quotation, Sales Order, Delivery Note and Sales Invoice carry `billing_address` and `shipping_address` (address record ids of that customer) and `billing_address_display` / `shipping_address_display` (the text that prints). Leave them out to get the customer's defaults; documents made from an order follow the order.

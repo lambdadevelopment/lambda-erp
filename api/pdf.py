@@ -110,6 +110,25 @@ def add_line_deductions(items):
             item["discount_total"], item["discount_label"] = deduction["amount"], deduction["label"]
         else:
             item["discount_total"] = 0
+        add_order_unit(item)
+
+
+def add_order_unit(item):
+    """A line ordered in a further unit of the item (lambda_erp/units.py) is
+    stored per stock unit. For printing it also gets the price per ordered
+    unit: item.order_rate (and item.order_gross_rate before a deduction), next
+    to item.order_qty and item.order_uom. item.ordered_in_unit says whether
+    the line has them."""
+    try:
+        factor = float(item.get("conversion_factor") or 0)
+    except (TypeError, ValueError):
+        factor = 0
+    ordered = bool(item.get("order_uom")) and factor > 0
+    item["ordered_in_unit"] = ordered
+    if ordered:
+        item["order_rate"] = round(float(item.get("rate") or 0) * factor, 2)
+        if item.get("gross_rate") is not None:
+            item["order_gross_rate"] = round(float(item.get("gross_rate") or 0) * factor, 2)
 
 
 def fill_text_placeholders(text, doc, party_name=None, company_name=None) -> str:

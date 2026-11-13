@@ -28,6 +28,7 @@ import math
 from lambda_erp.model import Document
 from lambda_erp.utils import flt, getdate, nowdate
 from lambda_erp.database import get_db
+from lambda_erp import units
 from lambda_erp.exceptions import ValidationError
 
 
@@ -244,7 +245,9 @@ def set_item_defaults(doc, party_type=None, party_field=None, *, set_description
     stamps = "price_source" in db._get_table_columns(doc.CHILD_TABLES["items"][0]) \
         if "items" in getattr(doc, "CHILD_TABLES", {}) else False
 
-    for item in doc.get("items") or []:
+    unit_columns = units.has_unit_columns(doc)
+
+    for position, item in enumerate(doc.get("items") or [], 1):
         item_code = item.get("item_code")
         if not item_code:
             continue
@@ -255,6 +258,15 @@ def set_item_defaults(doc, party_type=None, party_field=None, *, set_description
         if not item_data:
             continue
 
+        # A line entered in one of the item's further units (2 Karton) is
+        # converted to the stock unit here, before it is priced; see units.py.
+        factor = entered_uom = entered_qty = None
+        if unit_columns:
+            factor = units.pending_factor(item, item_data.stock_uom, f"{doc.DOCTYPE} row {position}")
+            if factor:
+                entered_uom = str(item.get("uom")).strip()
+                entered_qty = units.convert_line(item, item_data.stock_uom, factor)
+
         if not item.get("item_name"):
             item["item_name"] = item_data.item_name
             if set_description:
@@ -262,13 +274,28 @@ def set_item_defaults(doc, party_type=None, party_field=None, *, set_description
             item["uom"] = item.get("uom") or item_data.stock_uom
 
         if item.get("rate") is None and item.get("price_list_rate") is None:
-            row = find_item_price(
-                item_code, price_list,
-                qty=flt(item.get("qty", 0)),
-                party_field=party_field, party=party,
-                uom=item.get("uom") or item_data.stock_uom,
-                date=date,
-            )
+            # A price quoted for the entered unit (290.00 per Karton) comes
+            # first and is taken per stock unit; else the price per stock
+            # unit, with volume breaks counted in stock units.
+            row = unit_row = None
+            if factor:
+                unit_row = find_item_price(
+                    item_code, price_list, qty=entered_qty,
+                    party_field=party_field, party=party, uom=entered_uom, date=date)
+                if unit_row is not None and unit_row.get("uom") != entered_uom:
+                    unit_row = None
+                row = unit_row
+            if row is None:
+                row = find_item_price(
+                    item_code, price_list,
+                    qty=flt(item.get("qty", 0)),
+                    party_field=party_field, party=party,
+                    uom=item.get("uom") or item_data.stock_uom,
+                    date=date,
+                )
+            if unit_row is not None:
+                row = dict(row)
+                row["rate"] = flt(row["rate"]) / factor
             # Where the base price came from is kept on the line
             # (price_source / price_reference), see price_resolution.py.
             if row is None:
@@ -282,3 +309,6 @@ def set_item_defaults(doc, party_type=None, party_field=None, *, set_description
                 item["price_source"], item["price_reference"] = source, reference
             from lambda_erp.controllers import price_resolution
             price_resolution.trace_base(item, source, reference, price_list, row)
+
+        if unit_columns:
+            units.stamp_order_qty(item)

@@ -66,6 +66,10 @@ class StockEntry(Document):
 
         if not self.company:
             raise ValidationError("Stock Entry: Company is required")
+        # Lines entered in a further unit of the item (2 Karton) become
+        # stock units before anything reads the quantity; see units.py.
+        from lambda_erp import units
+        units.apply_units(self, rate_fields=("basic_rate", "valuation_rate"))
         for idx, item in enumerate(self.get("items"), 1):
             if not item.get('item_code'):
                 raise ValidationError(f"Stock Entry row {idx}: Item Code is required")

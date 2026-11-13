@@ -80,6 +80,11 @@ class TaxCalculator:
         conversion_rate = dec(self.doc.get("conversion_rate") or 1.0)
 
         for item in self.doc.get("items"):
+            # A line ordered in a further unit (units.py) carries its price
+            # per stock unit: 12.99 per carton of 100 is 0.1299 a piece.
+            # Rounding that to the cent would move the line amount, so the
+            # unit rate keeps six places there; amounts round as always.
+            places = 6 if flt(item.get("conversion_factor")) not in (0.0, 1.0) else 2
             # Apply discount to get rate from price_list_rate
             if item.get('rate') is not None and flt(item['rate']) == 0:
                 item['rate'] = 0.0
@@ -88,14 +93,14 @@ class TaxCalculator:
             elif item.get("price_list_rate") is not None and (flt(item['price_list_rate']) != 0 or item.get('rate') is None):
                 list_rate, percent = dec(item["price_list_rate"]), dec(item.get("discount_percentage"))
                 if item.get("rate") is None or percent > 0:
-                    item["rate"] = money(list_rate * (1 - percent / HUNDRED))
-                    item["discount_amount"] = money(list_rate * percent / HUNDRED)
+                    item["rate"] = money(list_rate * (1 - percent / HUNDRED), places)
+                    item["discount_amount"] = money(list_rate * percent / HUNDRED, places)
                 elif item.get("discount_amount"):
                     item["rate"] = float(list_rate - dec(item["discount_amount"]))
 
             rate = dec(item.get("rate"))
             # Set net_rate = rate (before inclusive tax adjustment)
-            item["net_rate"] = money(rate)
+            item["net_rate"] = money(rate, places)
 
             # Calculate amount: the decimal product, rounded once
             item["amount"] = money(rate * dec(item.get("qty", 0)))
