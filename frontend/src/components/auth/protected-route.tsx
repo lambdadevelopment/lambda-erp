@@ -1,13 +1,15 @@
+import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-context";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
       <div className="flex h-dvh items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
+        <div className="text-gray-400">{t("common.loading")}</div>
       </div>
     );
   }
@@ -23,12 +25,13 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
  *  Used for admin-only pages (e.g. Opening Balances) so the URL can't be reached
  *  directly, not just hidden from the menu. */
 export function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
       <div className="flex h-dvh items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
+        <div className="text-gray-400">{t("common.loading")}</div>
       </div>
     );
   }
@@ -47,12 +50,13 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
 /** Restrict operational write workflows to real managers and admins.
  *  In particular this excludes the shared public demo manager account. */
 export function ManagerRoute({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
       <div className="flex h-dvh items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
+        <div className="text-gray-400">{t("common.loading")}</div>
       </div>
     );
   }

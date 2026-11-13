@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/dialog";
 
@@ -23,12 +24,13 @@ export function DocumentActions({
   conversions = [],
   saving,
 }: DocumentActionsProps) {
+  const { t } = useTranslation();
   const confirm = useConfirm();
 
   const handleSubmit = async () => {
     if (await confirm({
-      title: "Submit document?",
-      body: "Once submitted it cannot be edited.",
+      title: t("documentActions.submitTitle"),
+      body: t("documentActions.submitBody"),
       confirmLabel: "Submit",
     })) {
       onSubmit();
@@ -37,9 +39,9 @@ export function DocumentActions({
 
   const handleCancel = async () => {
     if (await confirm({
-      title: "Cancel document?",
-      body: "This action cannot be undone.",
-      confirmLabel: "Cancel document",
+      title: t("documentActions.cancelTitle"),
+      body: t("documentActions.cancelBody"),
+      confirmLabel: t("documentActions.cancelConfirm"),
       danger: true,
     })) {
       onCancel();

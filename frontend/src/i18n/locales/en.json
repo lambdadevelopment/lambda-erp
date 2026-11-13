@@ -415,7 +415,9 @@
       "identity_taken": "That provider account is already linked to a different user.",
       "account_disabled": "This account has been disabled.",
       "token_exchange_failed": "Sign-in failed while contacting the provider. Please try again."
-    }
+    },
+    "demoFailed": "Could not start demo",
+    "demoStarting": "Starting live demo..."
   },
   "settings": {
     "pdfTitle": "PDF & Print",
@@ -818,7 +820,10 @@
     "payments": "payments",
     "plans": "plans",
     "references": "references",
-    "taxes": "taxes"
+    "taxes": "taxes",
+    "removeRow": "Remove row",
+    "noRows": "No rows.",
+    "addOneBelow": "Click the button below to add one."
   },
   "tutorial": {
     "chips": {
@@ -1158,7 +1163,12 @@
     "notSensitive": "Not sensitive",
     "hiddenWith": "hidden with {{name}}",
     "classifyHint": "Who does not see this kind of data does not get the file.",
-    "class": {"purchase_price": "purchase prices", "cost": "cost", "supplier_terms": "supplier terms", "margin": "financials"},
+    "class": {
+      "purchase_price": "purchase prices",
+      "cost": "cost",
+      "supplier_terms": "supplier terms",
+      "margin": "financials"
+    },
     "drop": "Drop the files to attach them",
     "dropHint": "Drag files here or use Add file.",
     "title": "Attachments",
@@ -1275,5 +1285,208 @@
     "label": "Deduction text",
     "labelPlaceholder": "e.g. Less already invoiced (invoice SINV-0003)",
     "perUnit": "Deduction per unit, printed under the line; the line counts the rest."
+  },
+  "users": {
+    "title": "Users",
+    "adminRequired": "Admin access required",
+    "nothingToSave": "Nothing to save",
+    "email": "Email",
+    "roleColumn": "Role",
+    "created": "Created",
+    "actions": "Actions",
+    "name": "Name",
+    "status": "Status",
+    "team": "Team Members",
+    "profileColumn": "Access profile",
+    "role": {
+      "admin": "Admin",
+      "manager": "Manager",
+      "viewer": "Viewer",
+      "public_manager": "Public demo (system)"
+    },
+    "roles": {
+      "title": "Roles",
+      "adminText": "Full access. Can create and manage documents, masters, company setup, and users. Can invite team members and change roles.",
+      "managerText": "Can create, edit, submit, and cancel documents. Can create and edit master data. Can run reports and use the AI chat. Cannot manage users or company setup.",
+      "viewerText": "Read-only access to all documents, masters, and reports. Can use the AI chat. Cannot create or modify any data."
+    },
+    "invite": {
+      "title": "Invite User",
+      "placeholder": "colleague@company.com",
+      "sending": "Sending...",
+      "create": "Create Invite",
+      "created": "Invite created!",
+      "share": "Share this link:",
+      "pending": "Pending Invites",
+      "copy": "Copy link",
+      "copied": "Copied!",
+      "revoke": "Revoke",
+      "linkTitle": "Invite link",
+      "linkBody": "Copy this link:"
+    },
+    "scope": {
+      "column": "Assigned records",
+      "all": "all",
+      "unreadable": "unreadable: locked out",
+      "count": {
+        "customer_one": "{{count}} customer",
+        "customer_other": "{{count}} customers",
+        "warehouse_one": "{{count}} warehouse",
+        "warehouse_other": "{{count}} warehouses"
+      },
+      "editTitle": "Assigned records: {{name}}",
+      "intro": "Restrict this user to assigned customers or warehouses. They then see and write only documents, stock and reports of those; anything that cannot be limited to them (ledger reports, the dashboard) is refused. A kind that is not restricted is left as it is. Restricted with nothing listed means none at all.",
+      "restrict": {
+        "customer": "Restrict to assigned customers",
+        "warehouse": "Restrict to assigned warehouses"
+      },
+      "placeholder": {
+        "customer": "IDs of the customers, separated by commas",
+        "warehouse": "IDs of the warehouses, separated by commas"
+      }
+    },
+    "profiles": {
+      "title": "Access Profiles",
+      "intro": "A profile narrows what a user's role allows: it hides classes of sensitive data everywhere (documents, lists, reports, PDFs, chat) and can take away actions per document type. Users without a profile are not restricted. A disabled or deleted profile locks its users out.",
+      "profile": "Profile",
+      "hides": "Hides",
+      "rules": "Action rules",
+      "none": "none",
+      "noneRoleOnly": "none (role only)",
+      "nothing": "nothing",
+      "disabledTag": "disabled",
+      "missing": "missing: locked out",
+      "description": "Description",
+      "hide": "Hide",
+      "implies": "Hiding purchase prices also hides cost, supplier balances and the financial statements; hiding cost also hides the financial statements.",
+      "rulesLabel": "Action rules (optional, JSON)",
+      "rulesHelp": "Per document or master type (by its name, e.g. \"Sales Order\", \"Supplier\"), the actions that remain: {{actions}}. An empty list hides the type. \"default\" applies to every type not listed; leave it out to allow whatever the role allows.",
+      "disabledLabel": "Disabled (locks its users out)",
+      "save": "Save profile",
+      "new": "New profile",
+      "invalidJson": "Action rules must be valid JSON"
+    },
+    "classes": {
+      "purchase_price": {
+        "name": "Purchase prices",
+        "text": "Rates, amounts and totals of purchasing documents, buying price lists and rules."
+      },
+      "cost": {
+        "name": "Cost",
+        "text": "Valuation rates, stock value, stock entry rates."
+      },
+      "supplier_terms": {
+        "name": "Supplier terms",
+        "text": "What is owed and paid to suppliers: payables, supplier payments."
+      },
+      "margin": {
+        "name": "Financials",
+        "text": "Financial statements and the general ledger, from which margins follow."
+      }
+    }
+  },
+  "setupPage": {
+    "title": "Company Setup",
+    "companies": "Companies",
+    "noCompanies": "No companies found",
+    "toDashboard": "Go to Dashboard",
+    "complete": "Setup complete!",
+    "doneHistory": "Your company has been created and three years of history has been simulated.",
+    "doneQuick": "Your company has been created and demo data has been seeded.",
+    "doneEmpty": "Your company has been created. No demo data was added.",
+    "generated": "Generated documents:",
+    "intro": "Set up your first company to get started.",
+    "error": "An error occurred during setup",
+    "companyName": "Company Name",
+    "companyPlaceholder": "e.g. My Company Ltd",
+    "details": "Company details",
+    "detailsHelp": "These appear on your invoices and other PDFs. Optional now — you can fill or change them later under Masters → Company.",
+    "addressPlaceholder": "e.g. 42 Market Street",
+    "zip": "ZIP / Postal code",
+    "taxId": "Tax ID / VAT",
+    "seed": "Seed data",
+    "quick": "Quick demo",
+    "quickHelp": "Customers, suppliers, items, one warehouse. No transactions.",
+    "history": "Simulate 3 years of history",
+    "historyHelp": "Walks business days (skips weekends + US holidays) and generates quotations, orders, deliveries, invoices, payments, and reorder-driven purchasing. Seasonality + YoY growth baked in. Takes ~3 minutes.",
+    "empty": "Create empty company, no demo data",
+    "emptyHelp": "Just the company and its chart of accounts. Add your own customers, suppliers, items, and transactions from scratch.",
+    "simulating": "Simulating three years...",
+    "settingUp": "Setting up...",
+    "createHistory": "Create Company & Simulate History",
+    "createQuick": "Create Company & Seed Demo Data",
+    "create": "Create Company",
+    "location": "Location"
+  },
+  "pager": {
+    "prev": "Previous record (k / ←)",
+    "next": "Next record (j / →)"
+  },
+  "documentActions": {
+    "submitTitle": "Submit document?",
+    "submitBody": "Once submitted it cannot be edited.",
+    "cancelTitle": "Cancel document?",
+    "cancelBody": "This action cannot be undone.",
+    "cancelConfirm": "Cancel document"
+  },
+  "openingBalances": {
+    "intro": "Import balances from your previous system. Each section creates the appropriate documents (Journal Entry, Stock Entry, or Invoices) and submits them automatically.",
+    "common": "Common Settings",
+    "asOf": "As-of Date",
+    "partyFirst": "set party type first",
+    "addRow": "+ Add Row",
+    "importing": "Importing...",
+    "created": "Created {{what}}",
+    "createdInvoices_one": "Created {{count}} invoice",
+    "createdInvoices_other": "Created {{count}} invoices",
+    "finishHelp": "Done importing? You can disable this page and re-enable it later under Settings > General.",
+    "finish": "Finish and Disable Opening Balances",
+    "accounts": {
+      "title": "1. Account Balances",
+      "help": "Enter your trial balance from the old system. The difference will be automatically balanced against Opening Balance Equity. For receivable/payable accounts, also set the party type and party.",
+      "import": "Import Account Balances"
+    },
+    "stock": {
+      "title": "2. Stock Balances",
+      "help": "Enter your current inventory. Creates a Stock Entry (Opening Stock) — posts Dr Stock In Hand / Cr Opening Balance Equity so the P&L isn't distorted by day-one inventory.",
+      "import": "Import Stock Balances"
+    },
+    "invoices": {
+      "title": "3. Outstanding Invoices",
+      "help": "Enter unpaid invoices from your old system. Creates submitted Sales or Purchase Invoices with the correct outstanding amounts for AR/AP aging.",
+      "import": "Import Outstanding Invoices",
+      "sales": "Sales (AR)",
+      "purchase": "Purchase (AP)"
+    },
+    "col": {
+      "account": "Account",
+      "partyType": "Party Type",
+      "party": "Party",
+      "debit": "Debit",
+      "credit": "Credit",
+      "item": "Item",
+      "qty": "Qty",
+      "rate": "Rate",
+      "type": "Type",
+      "partyEither": "Customer / Supplier",
+      "amount": "Amount",
+      "dueDate": "Due Date",
+      "remarks": "Ref / Remarks"
+    },
+    "createdStock_one": "Created {{what}} ({{count}} item)",
+    "createdStock_other": "Created {{what}} ({{count}} items)"
+  },
+  "analyticsPage": {
+    "intro": "All analytics now run through the custom runtime and semantic datasets.",
+    "loadedDraft": "Loaded draft: {{id}}",
+    "legacy": "Loaded runtime report from legacy URL filters.",
+    "fixInChat": "Fix In Chat",
+    "running": "Running...",
+    "run": "Run Report",
+    "loadingDraft": "Loading draft...",
+    "datasets": "Fetched Datasets",
+    "definition": "Report Definition JSON",
+    "custom": "Custom Report",
+    "noChartData": "Chart has no usable data."
   }
 }

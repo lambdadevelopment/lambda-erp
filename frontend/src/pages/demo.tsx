@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
@@ -8,6 +9,7 @@ import { api, ApiError } from "@/api/client";
  * visitor has no cookie) and redirects to /chat/{id}?demo=1 for replay.
  */
 export default function DemoPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const startedRef = useRef(false);
   const [error, setError] = useState<string>("");
@@ -25,7 +27,7 @@ export default function DemoPage() {
         navigate(`/chat/${session.id}?demo=1`, { replace: true });
       })
       .catch((err) => {
-        setError(err instanceof ApiError ? err.message : "Could not start demo");
+        setError(err instanceof ApiError ? err.message : t("login.demoFailed", { defaultValue: "Could not start demo" }));
       });
   }, [navigate]);
 
@@ -45,7 +47,7 @@ export default function DemoPage() {
         ) : (
           <div className="space-y-3">
             <div className="mx-auto h-2 w-2 animate-pulse rounded-full bg-brand" />
-            <p className="text-sm text-fg-muted">Starting live demo...</p>
+            <p className="text-sm text-fg-muted">{t("login.demoStarting", { defaultValue: "Starting live demo..." })}</p>
           </div>
         )}
       </div>

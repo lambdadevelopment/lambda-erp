@@ -6,6 +6,7 @@
 // Buttons: ‹ = previous (up the list), › = next (down). Keyboard (only when not
 // typing in a field): k / ← = prev, j / → = next, Esc / u = back to the list.
 // Cmd/Ctrl+S = save (fires even while typing) when an onSave is provided.
+import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { readBackState } from "@/lib/back-to";
@@ -22,6 +23,7 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
   /** "master" pages through /masters/{slug} instead of /app/{slug}. */
   kind?: "document" | "master";
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const isMaster = kind === "master";
   // Masters get their own context namespace so e.g. a "lead" master and a
@@ -73,7 +75,7 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
       <button
         type="button"
         disabled={!prev}
-        title="Previous record (k / ←)"
+        title={t("pager.prev")}
         onClick={() => prev && page(prev)}
         className={btn}
       >
@@ -82,7 +84,7 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
       <button
         type="button"
         disabled={!next}
-        title="Next record (j / →)"
+        title={t("pager.next")}
         onClick={() => next && page(next)}
         className={btn}
       >

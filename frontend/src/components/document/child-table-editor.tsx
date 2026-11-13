@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useCallback } from "react";
 import { X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ export function ChildTableEditor({
   onChange,
   readOnly,
 }: ChildTableEditorProps) {
+  const { t } = useTranslation();
   const addRow = useCallback(() => {
     const newRow: Record<string, any> = {};
     for (const field of fields) {
@@ -103,7 +105,7 @@ export function ChildTableEditor({
                     type="button"
                     onClick={() => removeRow(rowIndex)}
                     className="rounded-md p-1 text-fg-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
-                    title="Remove row"
+                    title={t("tables.removeRow", { defaultValue: "Remove row" })}
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -117,7 +119,7 @@ export function ChildTableEditor({
                 colSpan={fields.length + (readOnly ? 1 : 2)}
                 className="px-4 py-6 text-center text-sm text-fg-muted"
               >
-                No rows. {!readOnly && "Click the button below to add one."}
+                {t("tables.noRows", { defaultValue: "No rows." })} {!readOnly && t("tables.addOneBelow", { defaultValue: "Click the button below to add one." })}
               </td>
             </tr>
           )}

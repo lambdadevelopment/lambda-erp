@@ -63,8 +63,8 @@ export default function MasterListPage() {
   const location = useLocation();
   const config = getMasterConfig(type ?? "");
   const label = config?.label ?? TYPE_LABELS[type ?? ""] ?? type ?? "";
-  usePageTitle(label || null);
   const { t } = useTranslation();
+  usePageTitle(label ? t(`masters.${type}.other`, { defaultValue: label }) : null);
   const notice = (location.state as { notice?: string } | null)?.notice;
 
   const [pageSize] = useUrlState<number>("per_page", 50);

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/api/client";
@@ -18,6 +19,7 @@ export function LinkField({
   linkDoctype,
   readOnly,
 }: LinkFieldProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState(value ?? "");
   const [results, setResults] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
@@ -135,7 +137,7 @@ export function LinkField({
           search(query);
         }}
         onBlur={handleBlur}
-        placeholder={`Search ${linkDoctype}...`}
+        placeholder={t("common.searchPlaceholder")}
         className={cn(
           "block h-9 w-full rounded-lg bg-surface px-3 text-sm text-fg ring-1 ring-line transition-all placeholder:text-fg-muted/70 focus:outline-none focus:ring-2 focus:ring-brand/30",
           loading && "bg-surface-subtle",

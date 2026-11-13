@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePageTitle } from "@/lib/use-page-title";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Bar,
@@ -119,7 +120,8 @@ function buildExampleCustomReport(): string {
 const EXAMPLE_CUSTOM_REPORT = buildExampleCustomReport();
 
 export default function AnalyticsPage() {
-  usePageTitle("Analytics");
+  const { t } = useTranslation();
+  usePageTitle(t("titles.analytics", { defaultValue: "Analytics" }));
   const navigate = useNavigate();
   const { sessions, createSession } = useChat();
 
@@ -284,24 +286,24 @@ export default function AnalyticsPage() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Analytics</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t("titles.analytics", { defaultValue: "Analytics" })}</h2>
             <p className="text-sm text-gray-600">
-              All analytics now run through the custom runtime and semantic datasets.
+              {t("analyticsPage.intro")}
             </p>
           </div>
           <div className="flex items-center gap-3">
             {reportId ? (
-              <div className="text-xs text-gray-500">Loaded draft: {reportId}</div>
+              <div className="text-xs text-gray-500">{t("analyticsPage.loadedDraft", { id: reportId })}</div>
             ) : showLegacyBanner ? (
-              <div className="text-xs text-gray-500">Loaded runtime report from legacy URL filters.</div>
+              <div className="text-xs text-gray-500">{t("analyticsPage.legacy")}</div>
             ) : null}
             {reportId ? (
               <Button variant="secondary" onClick={() => void onFixInChat()}>
-                Fix In Chat
+                {t("analyticsPage.fixInChat")}
               </Button>
             ) : null}
             <Button onClick={() => void onRunCustom()} disabled={running}>
-              {running ? "Running..." : "Run Report"}
+              {running ? t("analyticsPage.running") : t("analyticsPage.run")}
             </Button>
           </div>
         </div>
@@ -309,7 +311,7 @@ export default function AnalyticsPage() {
 
       {loadingDraft ? (
         <Card>
-          <p className="text-sm text-gray-600">Loading draft...</p>
+          <p className="text-sm text-gray-600">{t("analyticsPage.loadingDraft")}</p>
         </Card>
       ) : runtimeError ? (
         <Card>
@@ -326,7 +328,7 @@ export default function AnalyticsPage() {
       )}
 
       {runtimeData.length > 0 && (
-        <Card title="Fetched Datasets">
+        <Card title={t("analyticsPage.datasets")}>
           <div className="space-y-4">
             {runtimeData.map((dataset) => (
               <div key={dataset.name} className="rounded-md border border-gray-200 p-4">
@@ -350,7 +352,7 @@ export default function AnalyticsPage() {
       )}
 
       <Card>
-        <label className="mb-2 block text-sm font-medium text-gray-700">Report Definition JSON</label>
+        <label className="mb-2 block text-sm font-medium text-gray-700">{t("analyticsPage.definition")}</label>
         <textarea
           className="min-h-[520px] w-full rounded-md border border-gray-300 p-3 font-mono text-xs text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           value={customSpec}
@@ -363,6 +365,7 @@ export default function AnalyticsPage() {
 }
 
 function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
+  const { t } = useTranslation();
   // Custom-report currency values are base-currency numbers; format them with
   // the company currency instead of the util's hardcoded USD default.
   const baseCurrency = useBaseCurrency();
@@ -376,7 +379,7 @@ function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
       <Card>
         <div className="flex items-baseline justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">{output.title || "Custom Report"}</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{output.title || t("analyticsPage.custom")}</h3>
             {output.summary && <p className="mt-1 text-sm text-gray-600">{output.summary}</p>}
           </div>
         </div>
@@ -400,7 +403,7 @@ function RuntimeReportRenderer({ output }: { output: RuntimeReportOutput }) {
         if (!rows.length) {
           return (
             <Card key={chart.id || `chart_${idx + 1}`} title={chart.title}>
-              <p className="text-sm text-red-600">Chart has no usable data.</p>
+              <p className="text-sm text-red-600">{t("analyticsPage.noChartData")}</p>
             </Card>
           );
         }

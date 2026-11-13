@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { usePageTitle } from "@/lib/use-page-title";
 import { Link } from "react-router-dom";
@@ -13,7 +14,8 @@ const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "CNY"
 type SeedMode = "none" | "quick" | "history";
 
 export default function SetupPage() {
-  usePageTitle("Company Setup");
+  const { t } = useTranslation();
+  usePageTitle(t("setupPage.title"));
   const queryClient = useQueryClient();
 
   const { data: status, isLoading } = useQuery({
@@ -69,14 +71,14 @@ export default function SetupPage() {
   };
 
   if (isLoading) {
-    return <p className="text-gray-500">Loading...</p>;
+    return <p className="text-gray-500">{t("common.loading")}</p>;
   }
 
   // Setup already complete -- show existing companies
   if (status?.setup_complete && !success) {
     return (
       <div className="space-y-6">
-        <Card title="Companies">
+        <Card title={t("setupPage.companies")}>
           {status.companies && status.companies.length > 0 ? (
             <ul className="divide-y divide-gray-100">
               {status.companies.map((company: any, idx: number) => (
@@ -86,11 +88,11 @@ export default function SetupPage() {
               ))}
             </ul>
           ) : (
-            <p className="text-gray-400">No companies found</p>
+            <p className="text-gray-400">{t("setupPage.noCompanies")}</p>
           )}
         </Card>
         <Link to="/" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-          Go to Dashboard
+          {t("setupPage.toDashboard")}
         </Link>
       </div>
     );
@@ -103,18 +105,18 @@ export default function SetupPage() {
         <Card>
           <div className="py-8 text-center">
             <p className="text-lg font-semibold text-green-700">
-              Setup complete!
+              {t("setupPage.complete")}
             </p>
             <p className="mt-2 text-sm text-gray-500">
               {seedMode === "history"
-                ? "Your company has been created and three years of history has been simulated."
+                ? t("setupPage.doneHistory")
                 : seedMode === "quick"
-                  ? "Your company has been created and demo data has been seeded."
-                  : "Your company has been created. No demo data was added."}
+                  ? t("setupPage.doneQuick")
+                  : t("setupPage.doneEmpty")}
             </p>
             {historyStats && (
               <div className="mx-auto mt-6 max-w-sm text-left">
-                <p className="mb-2 text-sm font-medium text-gray-700">Generated documents:</p>
+                <p className="mb-2 text-sm font-medium text-gray-700">{t("setupPage.generated")}</p>
                 <ul className="divide-y divide-gray-100 text-sm">
                   {Object.entries(historyStats)
                     .sort(([a], [b]) => a.localeCompare(b))
@@ -129,7 +131,7 @@ export default function SetupPage() {
             )}
             <div className="mt-6">
               <Link to="/">
-                <Button>Go to Dashboard</Button>
+                <Button>{t("setupPage.toDashboard")}</Button>
               </Link>
             </div>
           </div>
@@ -146,26 +148,26 @@ export default function SetupPage() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <p className="text-sm text-gray-500">
-        Set up your first company to get started.
+        {t("setupPage.intro")}
       </p>
 
       {error && (
         <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">
-          {error.message ?? "An error occurred during setup"}
+          {error.message ?? t("setupPage.error")}
         </div>
       )}
 
       <Card>
         <div className="space-y-4">
           <Input
-            label="Company Name"
+            label={t("setupPage.companyName")}
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
-            placeholder="e.g. My Company Ltd"
+            placeholder={t("setupPage.companyPlaceholder")}
             required
           />
           <Select
-            label="Currency"
+            label={t("fields.Currency", { defaultValue: "Currency" })}
             options={CURRENCY_OPTIONS}
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
@@ -173,31 +175,30 @@ export default function SetupPage() {
 
           <fieldset className="space-y-3">
             <legend className="mb-1 text-sm font-medium text-gray-700">
-              Company details
+              {t("setupPage.details")}
             </legend>
             <p className="text-xs text-gray-500">
-              These appear on your invoices and other PDFs. Optional now — you can
-              fill or change them later under Masters → Company.
+              {t("setupPage.detailsHelp")}
             </p>
-            <Input label="Address" value={details.address} onChange={setDetail("address")}
-              placeholder="e.g. 42 Market Street" />
+            <Input label={t("fields.Address", { defaultValue: "Address" })} value={details.address} onChange={setDetail("address")}
+              placeholder={t("setupPage.addressPlaceholder")} />
             <div className="grid grid-cols-2 gap-3">
-              <Input label="City" value={details.city} onChange={setDetail("city")} />
-              <Input label="ZIP / Postal code" value={details.zip_code} onChange={setDetail("zip_code")} />
+              <Input label={t("fields.City", { defaultValue: "City" })} value={details.city} onChange={setDetail("city")} />
+              <Input label={t("setupPage.zip")} value={details.zip_code} onChange={setDetail("zip_code")} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Country" value={details.country} onChange={setDetail("country")} />
-              <Input label="Tax ID / VAT" value={details.tax_id} onChange={setDetail("tax_id")} />
+              <Input label={t("fields.Country", { defaultValue: "Country" })} value={details.country} onChange={setDetail("country")} />
+              <Input label={t("setupPage.taxId")} value={details.tax_id} onChange={setDetail("tax_id")} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Email" value={details.email} onChange={setDetail("email")} />
-              <Input label="Phone" value={details.phone} onChange={setDetail("phone")} />
+              <Input label={t("fields.Email", { defaultValue: "Email" })} value={details.email} onChange={setDetail("email")} />
+              <Input label={t("fields.Phone", { defaultValue: "Phone" })} value={details.phone} onChange={setDetail("phone")} />
             </div>
           </fieldset>
 
           <fieldset className="space-y-2">
             <legend className="mb-1 text-sm font-medium text-gray-700">
-              Seed data
+              {t("setupPage.seed")}
             </legend>
             <label className="flex cursor-pointer items-start gap-3 rounded-md border border-gray-200 p-3 hover:bg-gray-50">
               <input
@@ -209,9 +210,9 @@ export default function SetupPage() {
                 className="mt-1"
               />
               <div>
-                <div className="text-sm font-medium text-gray-900">Quick demo</div>
+                <div className="text-sm font-medium text-gray-900">{t("setupPage.quick")}</div>
                 <div className="text-xs text-gray-500">
-                  Customers, suppliers, items, one warehouse. No transactions.
+                  {t("setupPage.quickHelp")}
                 </div>
               </div>
             </label>
@@ -226,13 +227,10 @@ export default function SetupPage() {
               />
               <div>
                 <div className="text-sm font-medium text-gray-900">
-                  Simulate 3 years of history
+                  {t("setupPage.history")}
                 </div>
                 <div className="text-xs text-gray-500">
-                  Walks business days (skips weekends + US holidays) and generates
-                  quotations, orders, deliveries, invoices, payments, and
-                  reorder-driven purchasing. Seasonality + YoY growth baked in.
-                  Takes ~3 minutes.
+                  {t("setupPage.historyHelp")}
                 </div>
               </div>
             </label>
@@ -247,11 +245,10 @@ export default function SetupPage() {
               />
               <div>
                 <div className="text-sm font-medium text-gray-900">
-                  Create empty company, no demo data
+                  {t("setupPage.empty")}
                 </div>
                 <div className="text-xs text-gray-500">
-                  Just the company and its chart of accounts. Add your own
-                  customers, suppliers, items, and transactions from scratch.
+                  {t("setupPage.emptyHelp")}
                 </div>
               </div>
             </label>
@@ -264,13 +261,13 @@ export default function SetupPage() {
             >
               {isPending
                 ? seedMode === "history"
-                  ? "Simulating three years..."
-                  : "Setting up..."
+                  ? t("setupPage.simulating")
+                  : t("setupPage.settingUp")
                 : seedMode === "history"
-                  ? "Create Company & Simulate History"
+                  ? t("setupPage.createHistory")
                   : seedMode === "quick"
-                    ? "Create Company & Seed Demo Data"
-                    : "Create Company"}
+                    ? t("setupPage.createQuick")
+                    : t("setupPage.create")}
             </Button>
           </div>
         </div>
@@ -280,6 +277,7 @@ export default function SetupPage() {
 }
 
 function CompanyRow({ company }: { company: Record<string, any> }) {
+  const { t } = useTranslation();
   const cityCountry = [
     [company.city, company.zip_code].filter(Boolean).join(" "),
     company.country,
@@ -293,19 +291,19 @@ function CompanyRow({ company }: { company: Record<string, any> }) {
         <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-0.5 text-xs text-gray-500">
           {company.address && (
             <>
-              <dt className="text-gray-400">Address</dt>
+              <dt className="text-gray-400">{t("fields.Address", { defaultValue: "Address" })}</dt>
               <dd className="text-gray-700">{company.address}</dd>
             </>
           )}
           {cityCountry && (
             <>
-              <dt className="text-gray-400">Location</dt>
+              <dt className="text-gray-400">{t("setupPage.location")}</dt>
               <dd className="text-gray-700">{cityCountry}</dd>
             </>
           )}
           {company.email && (
             <>
-              <dt className="text-gray-400">Email</dt>
+              <dt className="text-gray-400">{t("fields.Email", { defaultValue: "Email" })}</dt>
               <dd className="truncate text-gray-700">
                 <a
                   href={`mailto:${company.email}`}
@@ -318,13 +316,13 @@ function CompanyRow({ company }: { company: Record<string, any> }) {
           )}
           {company.phone && (
             <>
-              <dt className="text-gray-400">Phone</dt>
+              <dt className="text-gray-400">{t("fields.Phone", { defaultValue: "Phone" })}</dt>
               <dd className="text-gray-700">{company.phone}</dd>
             </>
           )}
           {company.tax_id && (
             <>
-              <dt className="text-gray-400">Tax ID</dt>
+              <dt className="text-gray-400">{t("fields.Tax ID", { defaultValue: "Tax ID" })}</dt>
               <dd className="font-mono text-gray-700">{company.tax_id}</dd>
             </>
           )}

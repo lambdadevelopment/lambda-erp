@@ -280,6 +280,34 @@
     "reservation": {
       "one": "Réservation",
       "other": "Réservations"
+    },
+    "asset": {
+      "one": "Équipement",
+      "other": "Équipements"
+    },
+    "consignment-withdrawal": {
+      "one": "Prélèvement en consignation",
+      "other": "Prélèvements en consignation"
+    },
+    "item-bundle": {
+      "one": "Nomenclature",
+      "other": "Nomenclatures"
+    },
+    "item-price": {
+      "one": "Prix d'article",
+      "other": "Prix d'articles"
+    },
+    "price-list": {
+      "one": "Liste de prix",
+      "other": "Listes de prix"
+    },
+    "stock-count": {
+      "one": "Inventaire",
+      "other": "Inventaires"
+    },
+    "stock-reservation": {
+      "one": "Réservation de stock",
+      "other": "Réservations de stock"
     }
   },
   "masters": {
@@ -302,6 +330,30 @@
     "warehouse": {
       "one": "Entrepôt",
       "other": "Entrepôts"
+    },
+    "batch": {
+      "one": "Lot",
+      "other": "Lots"
+    },
+    "storage-location": {
+      "one": "Emplacement",
+      "other": "Emplacements"
+    },
+    "serial-no": {
+      "one": "Numéro de série",
+      "other": "Numéros de série"
+    },
+    "address": {
+      "one": "Adresse",
+      "other": "Adresses"
+    },
+    "account": {
+      "one": "Compte",
+      "other": "Comptes"
+    },
+    "cost-center": {
+      "one": "Centre de coûts",
+      "other": "Centres de coûts"
     }
   },
   "nav": {
@@ -377,7 +429,10 @@
       "Sales Backlog": "Commandes en attente",
       "Purchase Backlog": "Achats en attente",
       "Consignment Withdrawal": "Prélèvement en consignation",
-      "Stock Count": "Inventaire"
+      "Stock Count": "Inventaire",
+      "Address": "Adresse",
+      "Price List": "Liste de prix",
+      "Item Price": "Prix d'article"
     }
   },
   "login": {
@@ -415,7 +470,9 @@
       "identity_taken": "Ce compte fournisseur est déjà lié à un autre utilisateur.",
       "account_disabled": "Ce compte a été désactivé.",
       "token_exchange_failed": "Échec de la connexion auprès du fournisseur. Veuillez réessayer."
-    }
+    },
+    "demoFailed": "Impossible de démarrer la démo",
+    "demoStarting": "Démarrage de la démo..."
   },
   "settings": {
     "pdfTitle": "PDF et impression",
@@ -767,7 +824,43 @@
     "Difference": "Écart",
     "Returned": "Retourné",
     "Still With Them": "Encore chez le client",
-    "Last Delivery": "Dernière livraison"
+    "Last Delivery": "Dernière livraison",
+    "%": "%",
+    "Applicable For": "Applicable à",
+    "Apply On": "Appliquer sur",
+    "BIC": "BIC",
+    "Bank": "Banque",
+    "Bank Account Name": "Nom du compte bancaire",
+    "Bank Reconciliation": "Rapprochement bancaire",
+    "Bank Transaction Code": "Code de transaction bancaire",
+    "Counterparty": "Contrepartie",
+    "Counterparty IBAN": "IBAN de la contrepartie",
+    "Creditor": "Créancier",
+    "Creditor Reference": "Référence du créancier",
+    "Debtor": "Débiteur",
+    "Default Price List": "Liste de prix par défaut",
+    "Default sales tax": "Taxe de vente par défaut",
+    "Direction": "Sens",
+    "Disabled": "Désactivé",
+    "External Bank Account": "Compte bancaire externe",
+    "GL Account": "Compte général",
+    "IBAN": "IBAN",
+    "Label": "Libellé",
+    "Max Amount": "Montant max.",
+    "Max Qty": "Qté max.",
+    "Min Amount": "Montant min.",
+    "Price List": "Liste de prix",
+    "Price List Name": "Nom de la liste de prix",
+    "Reconciled At": "Rapproché le",
+    "Reconciled By": "Rapproché par",
+    "Remarks": "Remarques",
+    "Remittance Information": "Motif du paiement",
+    "Sales Invoice": "Facture de vente",
+    "Sales Order": "Commande client",
+    "Statement Import": "Import de relevé",
+    "Structured Reference": "Référence structurée",
+    "UOM": "Unité",
+    "Value Date": "Date de valeur"
   },
   "tables": {
     "items": "Lignes",
@@ -776,7 +869,10 @@
     "accounts": "Écritures de compte",
     "payments": "Paiements",
     "plans": "Articles du plan",
-    "monthly_distribution": "Répartition mensuelle"
+    "monthly_distribution": "Répartition mensuelle",
+    "removeRow": "Supprimer la ligne",
+    "noRows": "Aucune ligne.",
+    "addOneBelow": "Cliquez sur le bouton ci-dessous pour en ajouter une."
   },
   "conversions": {
     "Create Sales Order": "Créer une commande client",
@@ -786,7 +882,8 @@
     "Create Purchase Receipt": "Créer un bon de réception",
     "Create Credit Note": "Créer un avoir",
     "Create Debit Note": "Créer une note de débit",
-    "Create Return": "Créer un retour"
+    "Create Return": "Créer un retour",
+    "Create Invoice": "Créer la facture"
   },
   "dashboard": {
     "totalRevenue": "Chiffre d'affaires total",
@@ -1047,28 +1144,146 @@
       "asset": "Réserver une machine précise. Une réservation d'unité consomme aussi une place du pool Article+Dépôt.",
       "from_datetime": "Début exact — date et heure (p. ex. 14:27). Une date seule signifie 00:00.",
       "to_datetime": "Fin exacte. Les fenêtres sont semi-ouvertes [de, à) : une location finissant à 09:00 et la suivante commençant à 09:00 ne se chevauchent PAS.",
-      "pdf_template": "L’aspect de la confirmation de réservation."
+      "pdf_template": "L’aspect de la confirmation de réservation.",
+      "allocation_mode": "« Machine précise » exige un équipement donné. Ne choisissez « Pool » que si la machine sera attribuée plus tard.",
+      "purpose": "Obligatoire pour un blocage interne sans client (p. ex. maintenance)."
     },
     "quotation": {
       "pdf_template": "L'apparence du PDF de l'offre. Figée lorsque l'offre est validée.",
       "intro_text": "Imprimé au-dessus des positions (l'emplacement exact dépend de la mise en page PDF). Les nouvelles offres reprennent le texte par défaut de Paramètres → Modèles PDF.",
-      "remarks": "Imprimé après les totaux (l'emplacement exact dépend de la mise en page PDF). Les nouvelles offres reprennent le texte par défaut de Paramètres → Modèles PDF."
+      "remarks": "Imprimé après les totaux (l'emplacement exact dépend de la mise en page PDF). Les nouvelles offres reprennent le texte par défaut de Paramètres → Modèles PDF.",
+      "billing_address": "Une des adresses du client. Vide : son adresse de facturation par défaut, sinon l'adresse principale du client.",
+      "billing_address_display": "Repris de l'adresse choisie. Modifiable ici pour ce document seulement ; videz le champ pour le remplir à nouveau.",
+      "shipping_address": "Où va la marchandise. Vide : l'adresse de livraison par défaut du client.",
+      "shipping_address_display": "Repris de l'adresse choisie. Saisissez ici une adresse indiquée sur la commande ; elle a la priorité.",
+      "pricing_date": "Les prix et règles de prix valables à cette date s'appliquent. Vide : la date du document."
     },
     "sales-order": {
       "pdf_template": "L’aspect du PDF. Fixé lors de la validation du document.",
-      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF."
+      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF.",
+      "billing_address": "Une des adresses du client. Vide : son adresse de facturation par défaut, sinon l'adresse principale du client.",
+      "billing_address_display": "Repris de l'adresse choisie. Modifiable ici pour ce document seulement ; videz le champ pour le remplir à nouveau.",
+      "shipping_address": "Où va la marchandise. Vide : l'adresse de livraison par défaut du client.",
+      "shipping_address_display": "Repris de l'adresse choisie. Saisissez ici une adresse indiquée sur la commande ; elle a la priorité.",
+      "pricing_date": "Les prix et règles de prix valables à cette date s'appliquent. Vide : la date du document."
     },
     "sales-invoice": {
       "pdf_template": "L’aspect du PDF. Fixé lors de la validation du document.",
-      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF."
+      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF.",
+      "billing_address": "Une des adresses du client. Vide : son adresse de facturation par défaut, sinon l'adresse principale du client.",
+      "billing_address_display": "Repris de l'adresse choisie. Modifiable ici pour ce document seulement ; videz le champ pour le remplir à nouveau.",
+      "shipping_address": "Où va la marchandise. Vide : l'adresse de livraison par défaut du client.",
+      "shipping_address_display": "Repris de l'adresse choisie. Saisissez ici une adresse indiquée sur la commande ; elle a la priorité.",
+      "pricing_date": "Les prix et règles de prix valables à cette date s'appliquent. Vide : la date du document.",
+      "location": "Seulement si cette facture mouvemente aussi le stock (Mettre à jour le stock) et que l'entrepôt gère des emplacements.",
+      "serial_no": "Pour les articles suivis par numéro de série : un numéro par unité, autant que la quantité, séparés par des virgules.",
+      "batch_no": "Seulement si cette facture mouvemente aussi le stock (Mettre à jour le stock) et que l'article est suivi par lot.",
+      "shelf_life_exception": "Seulement si le lot a moins de durée de vie restante que l'article ne l'exige : le motif approuvé pour l'expédier malgré tout."
     },
     "purchase-order": {
       "pdf_template": "L’aspect du PDF. Fixé lors de la validation du document.",
-      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF."
+      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF.",
+      "pricing_date": "Les prix et règles de prix valables à cette date s'appliquent. Vide : la date du document.",
+      "confirmed_date": "La date de livraison confirmée par le fournisseur pour cette ligne. Après validation de la commande, saisissez-la avec l'action confirm_purchase_order (ou demandez à l'assistant).",
+      "confirmation_reference": "Le numéro de confirmation de commande du fournisseur."
     },
     "delivery-note": {
       "pdf_template": "L’aspect du PDF. Fixé lors de la validation du document.",
-      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF."
+      "intro_text": "Imprimé au-dessus des lignes (l’endroit exact dépend de la mise en page PDF). Les nouveaux documents commencent avec le texte par défaut des Paramètres → Modèles PDF.",
+      "billing_address": "Une des adresses du client. Vide : son adresse de facturation par défaut, sinon l'adresse principale du client.",
+      "billing_address_display": "Repris de l'adresse choisie. Modifiable ici pour ce document seulement ; videz le champ pour le remplir à nouveau.",
+      "shipping_address": "Où va la marchandise. Vide : l'adresse de livraison par défaut du client.",
+      "shipping_address_display": "Repris de l'adresse choisie. Saisissez ici une adresse indiquée sur la commande ; elle a la priorité.",
+      "tracking_reference": "Le numéro d'envoi ou de suivi du transporteur pour cette livraison.",
+      "pricing_date": "Les prix et règles de prix valables à cette date s'appliquent. Vide : la date du document.",
+      "location": "Obligatoire si l'entrepôt gère des emplacements : l'endroit d'où la marchandise est prise ou où elle est rangée.",
+      "serial_no": "Pour les articles suivis par numéro de série : un numéro par unité, autant que la quantité, séparés par des virgules.",
+      "batch_no": "Obligatoire pour les articles suivis par lot lorsque du stock bouge. Un lot par ligne : répartissez une quantité issue de deux lots sur deux lignes.",
+      "shelf_life_exception": "Seulement si le lot a moins de durée de vie restante que l'article ne l'exige : le motif approuvé pour l'expédier malgré tout."
+    },
+    "purchase-invoice": {
+      "pricing_date": "Les prix et règles de prix valables à cette date s'appliquent. Vide : la date du document.",
+      "warehouse": "Obligatoire si « Mettre à jour le stock » est Oui : la marchandise reçue arrive dans cet entrepôt.",
+      "location": "Obligatoire si l'entrepôt gère des emplacements : l'endroit d'où la marchandise est prise ou où elle est rangée.",
+      "serial_no": "Pour les articles suivis par numéro de série : un numéro par unité, autant que la quantité, séparés par des virgules.",
+      "batch_no": "Obligatoire pour les articles suivis par lot lorsque du stock bouge. Un lot par ligne : répartissez une quantité issue de deux lots sur deux lignes.",
+      "expiry_date": "Nécessaire seulement pour un nouveau lot : elle est enregistrée sur le lot."
+    },
+    "payment-entry": {
+      "party_type": "Choisissez Client pour un encaissement, Fournisseur pour un paiement.",
+      "paid_from": "Le compte d'où vient l'argent (p. ex. Créances clients à l'encaissement, Banque au paiement).",
+      "paid_to": "Le compte où va l'argent (p. ex. Banque à l'encaissement, Dettes fournisseurs au paiement).",
+      "paid_amount": "Le montant total qui change de mains. C'est le montant qui arrive sur le compte bancaire.",
+      "reference_name": "La facture sur laquelle ce paiement est imputé.",
+      "total_amount": "Le montant total de la facture référencée.",
+      "outstanding_amount": "Ce qui reste impayé sur cette facture.",
+      "allocated_amount": "La part de ce paiement à imputer sur cette facture. Peut être inférieure au montant payé pour un paiement partiel, ou répartie sur plusieurs factures."
+    },
+    "stock-entry": {
+      "s_location": "L'emplacement d'où la marchandise est prise (entrepôts avec emplacements). Laissez vide lors d'un déplacement dans un même entrepôt pour ranger du stock sans emplacement.",
+      "t_location": "L'emplacement où la marchandise est rangée (entrepôts avec emplacements).",
+      "serial_no": "Pour les articles suivis par numéro de série : un numéro par unité, autant que la quantité, séparés par des virgules.",
+      "batch_no": "Obligatoire pour les articles suivis par lot lorsque du stock bouge. Un lot par ligne : répartissez une quantité issue de deux lots sur deux lignes.",
+      "expiry_date": "Nécessaire seulement pour un nouveau lot : elle est enregistrée sur le lot."
+    },
+    "purchase-receipt": {
+      "pricing_date": "Les prix et règles de prix valables à cette date s'appliquent. Vide : la date du document.",
+      "location": "Obligatoire si l'entrepôt gère des emplacements : l'endroit d'où la marchandise est prise ou où elle est rangée.",
+      "serial_no": "Pour les articles suivis par numéro de série : un numéro par unité, autant que la quantité, séparés par des virgules.",
+      "batch_no": "Obligatoire pour les articles suivis par lot lorsque du stock bouge. Un lot par ligne : répartissez une quantité issue de deux lots sur deux lignes.",
+      "expiry_date": "Nécessaire seulement pour un nouveau lot : elle est enregistrée sur le lot."
+    },
+    "pos-invoice": {
+      "pricing_date": "Les prix et règles de prix valables à cette date s'appliquent. Vide : la date du document.",
+      "warehouse": "Obligatoire si « Mettre à jour le stock » est Oui : le stock est prélevé dans cet entrepôt.",
+      "location": "Obligatoire si l'entrepôt gère des emplacements : l'endroit d'où la marchandise est prise ou où elle est rangée.",
+      "serial_no": "Pour les articles suivis par numéro de série : un numéro par unité, autant que la quantité, séparés par des virgules.",
+      "batch_no": "Obligatoire pour les articles suivis par lot lorsque du stock bouge. Un lot par ligne : répartissez une quantité issue de deux lots sur deux lignes."
+    },
+    "item-bundle": {
+      "item_code": "L'article qui représente la nomenclature. Il ne doit pas être un article de stock. Sur un document de vente, il est remplacé par les articles ci-dessous."
+    },
+    "item-price": {
+      "rate": "Dans la devise de la liste de prix.",
+      "customer": "Prix propre à un client, facultatif. Laissez client et fournisseur vides pour un prix de liste général."
+    },
+    "pricing-rule": {
+      "item_code": "Obligatoire si « Appliquer sur » est Article.",
+      "item_group": "Obligatoire si « Appliquer sur » est Groupe d'articles.",
+      "apply_on_value": "Uniquement pour une clé « Appliquer sur » ajoutée par votre installation (p. ex. une famille de prix) : la valeur visée par la règle.",
+      "applicable_for": "Laissez vide pour appliquer à tous. Sinon, remplissez le champ correspondant ci-dessous.",
+      "applicable_for_value": "Uniquement pour une clé « Applicable à » ajoutée par votre installation (p. ex. un groupement d'achat) : la valeur visée par la règle.",
+      "max_qty": "Zéro signifie sans limite supérieure.",
+      "max_amt": "Zéro signifie sans limite supérieure.",
+      "priority": "La règle de priorité la plus élevée s'applique. À égalité : la correspondance la plus précise, la quantité min. la plus élevée, la validité la plus étroite, le « Valable dès » le plus récent, puis le nom.",
+      "currency": "Le prix et le montant de remise ne s'appliquent qu'aux documents dans cette devise. Par défaut, la devise de l'entreprise."
+    },
+    "budget": {
+      "action_if_exceeded": "Bloquer : empêche l'opération. Avertir : l'autorise mais consigne un avertissement. Ignorer : aucun contrôle."
+    },
+    "bank-account": {
+      "account": "Le compte général de type Banque sur lequel ce compte bancaire est tenu."
+    },
+    "stock-count": {
+      "reason": "Pourquoi le stock est corrigé. Obligatoire pour valider l'inventaire ; conservé avec chaque mouvement qui en résulte.",
+      "serial_no": "Pour les articles suivis par numéro de série : un numéro par unité, autant que la quantité, séparés par des virgules.",
+      "expiry_date": "Nécessaire pour un lot que le système ne connaît pas encore.",
+      "counted_qty": "Laissez vide pour une ligne non comptée ; elle reste alors inchangée. Saisissez 0 s'il n'y a rien."
+    },
+    "consignment-withdrawal": {
+      "warehouse": "L'entrepôt de consignation du client. Le client en est repris.",
+      "external_source": "D'où vient l'annonce du client, p. ex. son système de commande. Avec le numéro d'annonce, cela empêche de facturer deux fois la même annonce.",
+      "replenish_from_warehouse": "Par défaut, « Réapprovisionné depuis » de l'entrepôt de consignation.",
+      "serial_no": "Pour les articles suivis par numéro de série : un numéro par unité, autant que la quantité, séparés par des virgules.",
+      "batch_no": "Le lot annoncé par le client. Il doit se trouver dans cet entrepôt de consignation.",
+      "rate": "Laissez vide pour facturer le prix du client."
+    },
+    "stock-reservation": {
+      "batch_no": "Facultatif : réserver exactement ce lot. Personne d'autre ne peut alors prélever dans ce lot.",
+      "location": "Facultatif : réserver le stock à cet emplacement précis.",
+      "reserved_qty": "Pour une ligne de commande : le total réservé pour la ligne. Ce qui reste réservé diminue au fil des livraisons.",
+      "status": "Passez à « Libéré » pour rendre le stock. « Partiellement livré », « Livré » et « Annulé » sont définis par le système.",
+      "sales_order": "Laissez vide pour du stock mis de côté sans commande ; les remarques doivent alors dire pour quoi."
     }
   },
   "companyTax": {
@@ -1158,7 +1373,12 @@
     "notSensitive": "Non sensible",
     "hiddenWith": "masqué avec {{name}}",
     "classifyHint": "Qui ne voit pas ce type de données ne reçoit pas le fichier.",
-    "class": {"purchase_price": "prix d'achat", "cost": "coûts", "supplier_terms": "conditions fournisseurs", "margin": "données financières"},
+    "class": {
+      "purchase_price": "prix d'achat",
+      "cost": "coûts",
+      "supplier_terms": "conditions fournisseurs",
+      "margin": "données financières"
+    },
     "drop": "Déposez les fichiers pour les joindre",
     "dropHint": "Glissez des fichiers ici ou utilisez « Ajouter un fichier ».",
     "title": "Pièces jointes",
@@ -1275,5 +1495,208 @@
     "label": "Texte de la déduction",
     "labelPlaceholder": "p. ex. Moins déjà facturé (facture SINV-0003)",
     "perUnit": "Déduction par unité, imprimée sous la ligne ; la ligne compte le reste."
+  },
+  "users": {
+    "title": "Utilisateurs",
+    "adminRequired": "Réservé aux administrateurs",
+    "nothingToSave": "Rien à enregistrer",
+    "email": "E-mail",
+    "roleColumn": "Rôle",
+    "created": "Créé le",
+    "actions": "Actions",
+    "name": "Nom",
+    "status": "Statut",
+    "team": "Membres de l'équipe",
+    "profileColumn": "Profil d'accès",
+    "role": {
+      "admin": "Administrateur",
+      "manager": "Gestionnaire",
+      "viewer": "Lecteur",
+      "public_manager": "Démo publique (système)"
+    },
+    "roles": {
+      "title": "Rôles",
+      "adminText": "Accès complet. Peut créer et gérer les documents, les données de base, la configuration de l'entreprise et les utilisateurs, inviter des membres et changer les rôles.",
+      "managerText": "Peut créer, modifier, valider et annuler des documents, créer et modifier les données de base, lancer des rapports et utiliser le chat IA. Ne peut pas gérer les utilisateurs ni la configuration de l'entreprise.",
+      "viewerText": "Accès en lecture seule à tous les documents, données de base et rapports. Peut utiliser le chat IA. Ne peut créer ni modifier aucune donnée."
+    },
+    "invite": {
+      "title": "Inviter un utilisateur",
+      "placeholder": "collegue@entreprise.ch",
+      "sending": "Envoi...",
+      "create": "Créer l'invitation",
+      "created": "Invitation créée !",
+      "share": "Partagez ce lien :",
+      "pending": "Invitations en attente",
+      "copy": "Copier le lien",
+      "copied": "Copié !",
+      "revoke": "Révoquer",
+      "linkTitle": "Lien d'invitation",
+      "linkBody": "Copiez ce lien :"
+    },
+    "scope": {
+      "column": "Enregistrements attribués",
+      "all": "tous",
+      "unreadable": "illisible : accès bloqué",
+      "count": {
+        "customer_one": "{{count}} client",
+        "customer_other": "{{count}} clients",
+        "warehouse_one": "{{count}} entrepôt",
+        "warehouse_other": "{{count}} entrepôts"
+      },
+      "editTitle": "Enregistrements attribués : {{name}}",
+      "intro": "Limite cet utilisateur aux clients ou entrepôts attribués. Il ne voit et ne modifie alors que leurs documents, stocks et rapports ; ce qui ne peut pas y être limité (rapports du grand livre, tableau de bord) est refusé. Un type non limité reste inchangé. Limité sans aucune entrée signifie : aucun.",
+      "restrict": {
+        "customer": "Limiter aux clients attribués",
+        "warehouse": "Limiter aux entrepôts attribués"
+      },
+      "placeholder": {
+        "customer": "Identifiants des clients, séparés par des virgules",
+        "warehouse": "Identifiants des entrepôts, séparés par des virgules"
+      }
+    },
+    "profiles": {
+      "title": "Profils d'accès",
+      "intro": "Un profil restreint ce que le rôle d'un utilisateur autorise : il masque partout des classes de données sensibles (documents, listes, rapports, PDF, chat) et peut retirer des actions par type de document. Les utilisateurs sans profil ne sont pas restreints. Un profil désactivé ou supprimé bloque ses utilisateurs.",
+      "profile": "Profil",
+      "hides": "Masque",
+      "rules": "Règles d'action",
+      "none": "aucune",
+      "noneRoleOnly": "aucun (rôle seul)",
+      "nothing": "rien",
+      "disabledTag": "désactivé",
+      "missing": "manquant : accès bloqué",
+      "description": "Description",
+      "hide": "Masquer",
+      "implies": "Masquer les prix d'achat masque aussi les coûts, les soldes fournisseurs et les états financiers ; masquer les coûts masque aussi les états financiers.",
+      "rulesLabel": "Règles d'action (facultatif, JSON)",
+      "rulesHelp": "Par type de document ou de donnée de base (par son nom, p. ex. \"Sales Order\", \"Supplier\"), les actions qui restent autorisées : {{actions}}. Une liste vide masque le type. \"default\" s'applique à tous les types non cités ; sans indication, ce que le rôle autorise s'applique.",
+      "disabledLabel": "Désactivé (bloque ses utilisateurs)",
+      "save": "Enregistrer le profil",
+      "new": "Nouveau profil",
+      "invalidJson": "Les règles d'action doivent être du JSON valide"
+    },
+    "classes": {
+      "purchase_price": {
+        "name": "Prix d'achat",
+        "text": "Prix, montants et totaux des documents d'achat, listes de prix et règles d'achat."
+      },
+      "cost": {
+        "name": "Coûts",
+        "text": "Prix de valorisation, valeur du stock, prix des mouvements de stock."
+      },
+      "supplier_terms": {
+        "name": "Conditions fournisseurs",
+        "text": "Ce qui est dû et payé aux fournisseurs : dettes, paiements fournisseurs."
+      },
+      "margin": {
+        "name": "Données financières",
+        "text": "États financiers et grand livre, d'où découlent les marges."
+      }
+    }
+  },
+  "setupPage": {
+    "title": "Configuration de l'entreprise",
+    "companies": "Entreprises",
+    "noCompanies": "Aucune entreprise trouvée",
+    "toDashboard": "Vers le tableau de bord",
+    "complete": "Configuration terminée !",
+    "doneHistory": "Votre entreprise a été créée et trois années d'historique ont été simulées.",
+    "doneQuick": "Votre entreprise a été créée et des données de démonstration ont été ajoutées.",
+    "doneEmpty": "Votre entreprise a été créée. Aucune donnée de démonstration n'a été ajoutée.",
+    "generated": "Documents générés :",
+    "intro": "Configurez votre première entreprise pour commencer.",
+    "error": "Une erreur est survenue pendant la configuration",
+    "companyName": "Nom de l'entreprise",
+    "companyPlaceholder": "p. ex. Exemple SA",
+    "details": "Coordonnées de l'entreprise",
+    "detailsHelp": "Ces informations figurent sur vos factures et autres PDF. Facultatif pour l'instant – vous pourrez les compléter ou les modifier sous Données de base → Entreprise.",
+    "addressPlaceholder": "p. ex. Rue du Marché 42",
+    "zip": "NPA / Code postal",
+    "taxId": "IDE / N° TVA",
+    "seed": "Données de départ",
+    "quick": "Démo rapide",
+    "quickHelp": "Clients, fournisseurs, articles, un entrepôt. Aucune opération.",
+    "history": "Simuler 3 ans d'historique",
+    "historyHelp": "Parcourt les jours ouvrables (sans week-ends ni jours fériés américains) et génère offres, commandes, livraisons, factures, paiements et réapprovisionnements. Saisonnalité et croissance annuelle incluses. Dure environ 3 minutes.",
+    "empty": "Créer une entreprise vide, sans données de démonstration",
+    "emptyHelp": "Seulement l'entreprise et son plan comptable. Ajoutez vous-même clients, fournisseurs, articles et opérations.",
+    "simulating": "Simulation de trois ans...",
+    "settingUp": "Configuration...",
+    "createHistory": "Créer l'entreprise et simuler l'historique",
+    "createQuick": "Créer l'entreprise avec des données de démo",
+    "create": "Créer l'entreprise",
+    "location": "Lieu"
+  },
+  "pager": {
+    "prev": "Enregistrement précédent (k / ←)",
+    "next": "Enregistrement suivant (j / →)"
+  },
+  "documentActions": {
+    "submitTitle": "Valider le document ?",
+    "submitBody": "Une fois validé, il ne peut plus être modifié.",
+    "cancelTitle": "Annuler le document ?",
+    "cancelBody": "Cette action est irréversible.",
+    "cancelConfirm": "Annuler le document"
+  },
+  "openingBalances": {
+    "intro": "Importez les soldes de votre ancien système. Chaque section crée les documents adéquats (écriture, mouvement de stock ou factures) et les valide automatiquement.",
+    "common": "Paramètres communs",
+    "asOf": "Date de référence",
+    "partyFirst": "choisissez d'abord le type de tiers",
+    "addRow": "+ Ajouter une ligne",
+    "importing": "Importation...",
+    "created": "{{what}} créé",
+    "createdInvoices_one": "{{count}} facture créée",
+    "createdInvoices_other": "{{count}} factures créées",
+    "finishHelp": "Import terminé ? Vous pouvez désactiver cette page et la réactiver plus tard sous Paramètres > Général.",
+    "finish": "Terminer et désactiver les soldes d'ouverture",
+    "accounts": {
+      "title": "1. Soldes des comptes",
+      "help": "Saisissez la balance de l'ancien système. La différence est équilibrée automatiquement sur le compte de bilan d'ouverture. Pour les comptes clients et fournisseurs, indiquez aussi le type de tiers et le tiers.",
+      "import": "Importer les soldes des comptes"
+    },
+    "stock": {
+      "title": "2. Stocks",
+      "help": "Saisissez votre stock actuel. Crée un mouvement de stock (stock d'ouverture) : débit Stock, crédit Bilan d'ouverture, pour que le compte de résultat ne soit pas faussé par le stock initial.",
+      "import": "Importer les stocks"
+    },
+    "invoices": {
+      "title": "3. Factures ouvertes",
+      "help": "Saisissez les factures impayées de l'ancien système. Crée des factures de vente ou d'achat validées avec les bons montants ouverts pour les balances âgées.",
+      "import": "Importer les factures ouvertes",
+      "sales": "Vente (clients)",
+      "purchase": "Achat (fournisseurs)"
+    },
+    "col": {
+      "account": "Compte",
+      "partyType": "Type de tiers",
+      "party": "Tiers",
+      "debit": "Débit",
+      "credit": "Crédit",
+      "item": "Article",
+      "qty": "Qté",
+      "rate": "Prix",
+      "type": "Type",
+      "partyEither": "Client / Fournisseur",
+      "amount": "Montant",
+      "dueDate": "Échéance",
+      "remarks": "Réf. / Remarques"
+    },
+    "createdStock_one": "{{what}} créé ({{count}} article)",
+    "createdStock_other": "{{what}} créé ({{count}} articles)"
+  },
+  "analyticsPage": {
+    "intro": "Toutes les analyses passent par le moteur de rapports et les jeux de données sémantiques.",
+    "loadedDraft": "Brouillon chargé : {{id}}",
+    "legacy": "Rapport chargé à partir d'anciens filtres d'URL.",
+    "fixInChat": "Corriger dans le chat",
+    "running": "Exécution...",
+    "run": "Exécuter le rapport",
+    "loadingDraft": "Chargement du brouillon...",
+    "datasets": "Jeux de données chargés",
+    "definition": "Définition du rapport (JSON)",
+    "custom": "Rapport personnalisé",
+    "noChartData": "Le graphique n'a pas de données exploitables."
   }
 }

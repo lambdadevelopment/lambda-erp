@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { LinkField } from "@/components/document/link-field";
 import { formatLocalDate } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface AccountRow { account: string; debit: string; credit: string; party_type: string; party: string }
 interface StockRow { item_code: string; qty: string; rate: string }
@@ -18,6 +19,7 @@ function emptyStockRow(): StockRow { return { item_code: "", qty: "", rate: "" }
 function emptyInvoiceRow(): InvoiceRow { return { type: "sales", party: "", amount: "", due_date: "", remarks: "" }; }
 
 export default function OpeningBalancesPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [company, setCompany] = useState("");
@@ -74,32 +76,30 @@ export default function OpeningBalancesPage() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-gray-500">
-        Import balances from your previous system. Each section creates the appropriate documents
-        (Journal Entry, Stock Entry, or Invoices) and submits them automatically.
+        {t("openingBalances.intro")}
       </p>
 
-      <Card title="Common Settings">
+      <Card title={t("openingBalances.common")}>
         <div className="flex flex-wrap items-end gap-4">
-          <LinkField label="Company" value={company} onChange={setCompany} linkDoctype="company" readOnly={false} />
-          <Input label="As-of Date" type="date" value={postingDate} onChange={e => setPostingDate(e.target.value)} />
+          <LinkField label={t("fields.Company", { defaultValue: "Company" })} value={company} onChange={setCompany} linkDoctype="company" readOnly={false} />
+          <Input label={t("openingBalances.asOf")} type="date" value={postingDate} onChange={e => setPostingDate(e.target.value)} />
         </div>
       </Card>
 
       {/* Account Balances */}
-      <Card title="1. Account Balances">
+      <Card title={t("openingBalances.accounts.title")}>
         <p className="mb-3 text-xs text-gray-500">
-          Enter your trial balance from the old system. The difference will be automatically balanced against Opening Balance Equity.
-          For receivable/payable accounts, also set the party type and party.
+          {t("openingBalances.accounts.help")}
         </p>
         <div>
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 py-2 text-left font-medium text-gray-500">Account</th>
-                <th className="px-2 py-2 text-left font-medium text-gray-500">Party Type</th>
-                <th className="px-2 py-2 text-left font-medium text-gray-500">Party</th>
-                <th className="px-2 py-2 text-right font-medium text-gray-500">Debit</th>
-                <th className="px-2 py-2 text-right font-medium text-gray-500">Credit</th>
+                <th className="px-2 py-2 text-left font-medium text-gray-500">{t("openingBalances.col.account")}</th>
+                <th className="px-2 py-2 text-left font-medium text-gray-500">{t("openingBalances.col.partyType")}</th>
+                <th className="px-2 py-2 text-left font-medium text-gray-500">{t("openingBalances.col.party")}</th>
+                <th className="px-2 py-2 text-right font-medium text-gray-500">{t("openingBalances.col.debit")}</th>
+                <th className="px-2 py-2 text-right font-medium text-gray-500">{t("openingBalances.col.credit")}</th>
               </tr>
             </thead>
             <tbody>
@@ -111,14 +111,14 @@ export default function OpeningBalancesPage() {
                   <td className="px-2 py-1">
                     <select value={row.party_type} onChange={e => updateRow(accountRows, setAccountRows, i, "party_type", e.target.value)} className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm">
                       <option value="">—</option>
-                      <option value="Customer">Customer</option>
-                      <option value="Supplier">Supplier</option>
+                      <option value="Customer">{t("masters.customer.one", { defaultValue: "Customer" })}</option>
+                      <option value="Supplier">{t("masters.supplier.one", { defaultValue: "Supplier" })}</option>
                     </select>
                   </td>
                   <td className="px-2 py-1">
                     {row.party_type ? (
                       <LinkField label="" value={row.party} onChange={v => updateRow(accountRows, setAccountRows, i, "party", v)} linkDoctype={row.party_type.toLowerCase()} readOnly={false} />
-                    ) : <span className="text-gray-300 text-xs">set party type first</span>}
+                    ) : <span className="text-gray-300 text-xs">{t("openingBalances.partyFirst")}</span>}
                   </td>
                   <td className="px-2 py-1"><input type="number" value={row.debit} onChange={e => updateRow(accountRows, setAccountRows, i, "debit", e.target.value)} className="w-24 rounded border border-gray-300 px-2 py-1.5 text-right text-sm" placeholder="0.00" /></td>
                   <td className="px-2 py-1"><input type="number" value={row.credit} onChange={e => updateRow(accountRows, setAccountRows, i, "credit", e.target.value)} className="w-24 rounded border border-gray-300 px-2 py-1.5 text-right text-sm" placeholder="0.00" /></td>
@@ -128,32 +128,32 @@ export default function OpeningBalancesPage() {
           </table>
         </div>
         <div className="mt-2 flex gap-2">
-          <button onClick={() => setAccountRows([...accountRows, emptyAccountRow()])} className="text-xs text-blue-600 hover:text-blue-800">+ Add Row</button>
+          <button onClick={() => setAccountRows([...accountRows, emptyAccountRow()])} className="text-xs text-blue-600 hover:text-blue-800">{t("openingBalances.addRow")}</button>
         </div>
         <div className="mt-3 flex items-center gap-3">
           <Button onClick={() => accountMut.mutate()} disabled={!company || accountMut.isPending}>
-            {accountMut.isPending ? "Importing..." : "Import Account Balances"}
+            {accountMut.isPending ? t("openingBalances.importing") : t("openingBalances.accounts.import")}
           </Button>
           {accountMut.error && <span className="text-xs text-red-600">{(accountMut.error as Error).message}</span>}
-          {results.accounts && <span className="text-xs text-green-600">Created {results.accounts.journal_entry}</span>}
+          {results.accounts && <span className="text-xs text-green-600">{t("openingBalances.created", { what: results.accounts.journal_entry })}</span>}
         </div>
       </Card>
 
       {/* Stock Balances */}
-      <Card title="2. Stock Balances">
+      <Card title={t("openingBalances.stock.title")}>
         <p className="mb-3 text-xs text-gray-500">
-          Enter your current inventory. Creates a Stock Entry (Opening Stock) — posts Dr Stock In Hand / Cr Opening Balance Equity so the P&L isn't distorted by day-one inventory.
+          {t("openingBalances.stock.help")}
         </p>
         <div className="mb-3">
-          <LinkField label="Warehouse" value={warehouse} onChange={setWarehouse} linkDoctype="warehouse" readOnly={false} />
+          <LinkField label={t("fields.Warehouse", { defaultValue: "Warehouse" })} value={warehouse} onChange={setWarehouse} linkDoctype="warehouse" readOnly={false} />
         </div>
         <div>
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 py-2 text-left font-medium text-gray-500">Item</th>
-                <th className="px-2 py-2 text-right font-medium text-gray-500">Qty</th>
-                <th className="px-2 py-2 text-right font-medium text-gray-500">Rate</th>
+                <th className="px-2 py-2 text-left font-medium text-gray-500">{t("openingBalances.col.item")}</th>
+                <th className="px-2 py-2 text-right font-medium text-gray-500">{t("openingBalances.col.qty")}</th>
+                <th className="px-2 py-2 text-right font-medium text-gray-500">{t("openingBalances.col.rate")}</th>
               </tr>
             </thead>
             <tbody>
@@ -168,31 +168,31 @@ export default function OpeningBalancesPage() {
           </table>
         </div>
         <div className="mt-2">
-          <button onClick={() => setStockRows([...stockRows, emptyStockRow()])} className="text-xs text-blue-600 hover:text-blue-800">+ Add Row</button>
+          <button onClick={() => setStockRows([...stockRows, emptyStockRow()])} className="text-xs text-blue-600 hover:text-blue-800">{t("openingBalances.addRow")}</button>
         </div>
         <div className="mt-3 flex items-center gap-3">
           <Button onClick={() => stockMut.mutate()} disabled={!company || !warehouse || stockMut.isPending}>
-            {stockMut.isPending ? "Importing..." : "Import Stock Balances"}
+            {stockMut.isPending ? t("openingBalances.importing") : t("openingBalances.stock.import")}
           </Button>
           {stockMut.error && <span className="text-xs text-red-600">{(stockMut.error as Error).message}</span>}
-          {results.stock && <span className="text-xs text-green-600">Created {results.stock.stock_entry} ({results.stock.items_count} items)</span>}
+          {results.stock && <span className="text-xs text-green-600">{t("openingBalances.createdStock", { what: results.stock.stock_entry, count: results.stock.items_count })}</span>}
         </div>
       </Card>
 
       {/* Outstanding Invoices */}
-      <Card title="3. Outstanding Invoices">
+      <Card title={t("openingBalances.invoices.title")}>
         <p className="mb-3 text-xs text-gray-500">
-          Enter unpaid invoices from your old system. Creates submitted Sales or Purchase Invoices with the correct outstanding amounts for AR/AP aging.
+          {t("openingBalances.invoices.help")}
         </p>
         <div>
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 py-2 text-left font-medium text-gray-500">Type</th>
-                <th className="px-2 py-2 text-left font-medium text-gray-500">Customer / Supplier</th>
-                <th className="px-2 py-2 text-right font-medium text-gray-500">Amount</th>
-                <th className="px-2 py-2 text-left font-medium text-gray-500">Due Date</th>
-                <th className="px-2 py-2 text-left font-medium text-gray-500">Ref / Remarks</th>
+                <th className="px-2 py-2 text-left font-medium text-gray-500">{t("openingBalances.col.type")}</th>
+                <th className="px-2 py-2 text-left font-medium text-gray-500">{t("openingBalances.col.partyEither")}</th>
+                <th className="px-2 py-2 text-right font-medium text-gray-500">{t("openingBalances.col.amount")}</th>
+                <th className="px-2 py-2 text-left font-medium text-gray-500">{t("openingBalances.col.dueDate")}</th>
+                <th className="px-2 py-2 text-left font-medium text-gray-500">{t("openingBalances.col.remarks")}</th>
               </tr>
             </thead>
             <tbody>
@@ -200,8 +200,8 @@ export default function OpeningBalancesPage() {
                 <tr key={i}>
                   <td className="px-2 py-1">
                     <select value={row.type} onChange={e => updateRow(invoiceRows, setInvoiceRows, i, "type", e.target.value)} className="rounded border border-gray-300 px-2 py-1.5 text-sm">
-                      <option value="sales">Sales (AR)</option>
-                      <option value="purchase">Purchase (AP)</option>
+                      <option value="sales">{t("openingBalances.invoices.sales")}</option>
+                      <option value="purchase">{t("openingBalances.invoices.purchase")}</option>
                     </select>
                   </td>
                   <td className="px-2 py-1">
@@ -222,21 +222,21 @@ export default function OpeningBalancesPage() {
           </table>
         </div>
         <div className="mt-2">
-          <button onClick={() => setInvoiceRows([...invoiceRows, emptyInvoiceRow()])} className="text-xs text-blue-600 hover:text-blue-800">+ Add Row</button>
+          <button onClick={() => setInvoiceRows([...invoiceRows, emptyInvoiceRow()])} className="text-xs text-blue-600 hover:text-blue-800">{t("openingBalances.addRow")}</button>
         </div>
         <div className="mt-3 flex items-center gap-3">
           <Button onClick={() => invoiceMut.mutate()} disabled={!company || invoiceMut.isPending}>
-            {invoiceMut.isPending ? "Importing..." : "Import Outstanding Invoices"}
+            {invoiceMut.isPending ? t("openingBalances.importing") : t("openingBalances.invoices.import")}
           </Button>
           {invoiceMut.error && <span className="text-xs text-red-600">{(invoiceMut.error as Error).message}</span>}
-          {results.invoices && <span className="text-xs text-green-600">Created {results.invoices.invoices_created} invoices</span>}
+          {results.invoices && <span className="text-xs text-green-600">{t("openingBalances.createdInvoices", { count: results.invoices.invoices_created })}</span>}
         </div>
       </Card>
 
       {/* Finish */}
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center">
         <p className="text-sm text-gray-600">
-          Done importing? You can disable this page and re-enable it later under Settings &gt; General.
+          {t("openingBalances.finishHelp")}
         </p>
         <button
           onClick={async () => {
@@ -246,7 +246,7 @@ export default function OpeningBalancesPage() {
           }}
           className="mt-3 rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white hover:bg-gray-800"
         >
-          Finish and Disable Opening Balances
+          {t("openingBalances.finish")}
         </button>
       </div>
     </div>

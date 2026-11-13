@@ -280,6 +280,34 @@
     "reservation": {
       "one": "Reservation",
       "other": "Reservationen"
+    },
+    "asset": {
+      "one": "Gerät",
+      "other": "Geräte"
+    },
+    "consignment-withdrawal": {
+      "one": "Konsignationsentnahme",
+      "other": "Konsignationsentnahmen"
+    },
+    "item-bundle": {
+      "one": "Stückliste",
+      "other": "Stücklisten"
+    },
+    "item-price": {
+      "one": "Artikelpreis",
+      "other": "Artikelpreise"
+    },
+    "price-list": {
+      "one": "Preisliste",
+      "other": "Preislisten"
+    },
+    "stock-count": {
+      "one": "Inventur",
+      "other": "Inventuren"
+    },
+    "stock-reservation": {
+      "one": "Bestandsreservierung",
+      "other": "Bestandsreservierungen"
     }
   },
   "masters": {
@@ -302,6 +330,30 @@
     "warehouse": {
       "one": "Lager",
       "other": "Lager"
+    },
+    "batch": {
+      "one": "Charge",
+      "other": "Chargen"
+    },
+    "storage-location": {
+      "one": "Lagerplatz",
+      "other": "Lagerplätze"
+    },
+    "serial-no": {
+      "one": "Seriennummer",
+      "other": "Seriennummern"
+    },
+    "address": {
+      "one": "Adresse",
+      "other": "Adressen"
+    },
+    "account": {
+      "one": "Konto",
+      "other": "Konten"
+    },
+    "cost-center": {
+      "one": "Kostenstelle",
+      "other": "Kostenstellen"
     }
   },
   "nav": {
@@ -377,7 +429,10 @@
       "Sales Backlog": "Auftragsrückstand",
       "Purchase Backlog": "Bestellrückstand",
       "Consignment Withdrawal": "Konsignationsentnahme",
-      "Stock Count": "Inventur"
+      "Stock Count": "Inventur",
+      "Address": "Adresse",
+      "Price List": "Preisliste",
+      "Item Price": "Artikelpreis"
     }
   },
   "login": {
@@ -415,7 +470,9 @@
       "identity_taken": "Dieses Anbieterkonto ist bereits mit einem anderen Benutzer verknüpft.",
       "account_disabled": "Dieses Konto wurde deaktiviert.",
       "token_exchange_failed": "Anmeldung beim Anbieter fehlgeschlagen. Bitte erneut versuchen."
-    }
+    },
+    "demoFailed": "Demo konnte nicht gestartet werden",
+    "demoStarting": "Live-Demo wird gestartet..."
   },
   "settings": {
     "pdfTitle": "PDF & Druck",
@@ -767,7 +824,43 @@
     "Difference": "Differenz",
     "Returned": "Retourniert",
     "Still With Them": "Noch beim Kunden",
-    "Last Delivery": "Letzte Lieferung"
+    "Last Delivery": "Letzte Lieferung",
+    "%": "%",
+    "Applicable For": "Gilt für",
+    "Apply On": "Anwenden auf",
+    "BIC": "BIC",
+    "Bank": "Bank",
+    "Bank Account Name": "Name des Bankkontos",
+    "Bank Reconciliation": "Bankabgleich",
+    "Bank Transaction Code": "Banktransaktionscode",
+    "Counterparty": "Gegenpartei",
+    "Counterparty IBAN": "IBAN der Gegenpartei",
+    "Creditor": "Kreditor",
+    "Creditor Reference": "Kreditorreferenz",
+    "Debtor": "Debitor",
+    "Default Price List": "Standardpreisliste",
+    "Default sales tax": "Standard-Umsatzsteuer",
+    "Direction": "Richtung",
+    "Disabled": "Deaktiviert",
+    "External Bank Account": "Externes Bankkonto",
+    "GL Account": "Sachkonto",
+    "IBAN": "IBAN",
+    "Label": "Bezeichnung",
+    "Max Amount": "Höchstbetrag",
+    "Max Qty": "Höchstmenge",
+    "Min Amount": "Mindestbetrag",
+    "Price List": "Preisliste",
+    "Price List Name": "Name der Preisliste",
+    "Reconciled At": "Abgeglichen am",
+    "Reconciled By": "Abgeglichen von",
+    "Remarks": "Bemerkungen",
+    "Remittance Information": "Verwendungszweck",
+    "Sales Invoice": "Ausgangsrechnung",
+    "Sales Order": "Kundenauftrag",
+    "Statement Import": "Kontoauszug-Import",
+    "Structured Reference": "Strukturierte Referenz",
+    "UOM": "Einheit",
+    "Value Date": "Valuta"
   },
   "tables": {
     "items": "Positionen",
@@ -776,7 +869,10 @@
     "accounts": "Kontobuchungen",
     "payments": "Zahlungen",
     "plans": "Planpositionen",
-    "monthly_distribution": "Monatliche Verteilung"
+    "monthly_distribution": "Monatliche Verteilung",
+    "removeRow": "Zeile entfernen",
+    "noRows": "Keine Zeilen.",
+    "addOneBelow": "Über die Schaltfläche unten eine hinzufügen."
   },
   "conversions": {
     "Create Sales Order": "Kundenauftrag erstellen",
@@ -786,7 +882,8 @@
     "Create Purchase Receipt": "Wareneingang erstellen",
     "Create Credit Note": "Gutschrift erstellen",
     "Create Debit Note": "Lastschrift erstellen",
-    "Create Return": "Retoure erstellen"
+    "Create Return": "Retoure erstellen",
+    "Create Invoice": "Rechnung erstellen"
   },
   "dashboard": {
     "totalRevenue": "Gesamtumsatz",
@@ -1047,28 +1144,146 @@
       "asset": "Eine bestimmte Maschine buchen. Eine Einheiten-Buchung belegt auch einen Platz im Artikel+Depot-Pool.",
       "from_datetime": "Genauer Beginn — Datum und Uhrzeit (z. B. 14:27). Ein reines Datum bedeutet 00:00.",
       "to_datetime": "Genaues Ende. Fenster sind halboffen [von, bis): eine Miete, die um 09:00 endet, und die nächste um 09:00 beginnende, kollidieren NICHT.",
-      "pdf_template": "Wie die Reservationsbestätigung aussieht."
+      "pdf_template": "Wie die Reservationsbestätigung aussieht.",
+      "allocation_mode": "«Bestimmte Maschine» verlangt ein konkretes Gerät. «Pool» nur wählen, wenn die Maschine später zugewiesen wird.",
+      "purpose": "Pflicht bei einer internen Sperre ohne Kunde (z. B. Wartung)."
     },
     "quotation": {
       "pdf_template": "Wie das PDF der Offerte aussieht. Wird beim Buchen der Offerte festgehalten.",
       "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Offerten starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen.",
-      "remarks": "Wird nach den Summen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Offerten starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
+      "remarks": "Wird nach den Summen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Offerten starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen.",
+      "billing_address": "Eine der Adressen des Kunden. Leer: seine Standard-Rechnungsadresse, sonst die Hauptadresse des Kunden.",
+      "billing_address_display": "Wird aus der gewählten Adresse übernommen. Hier nur für diesen Beleg änderbar; leeren, um sie neu zu übernehmen.",
+      "shipping_address": "Wohin die Ware geht. Leer: die Standard-Lieferadresse des Kunden.",
+      "shipping_address_display": "Wird aus der gewählten Adresse übernommen. Eine in der Bestellung genannte Adresse hier eintragen; sie hat Vorrang.",
+      "pricing_date": "Es gelten die Preise und Preisregeln dieses Datums. Leer: das Belegdatum."
     },
     "sales-order": {
       "pdf_template": "Wie das PDF aussieht. Wird beim Buchen festgehalten.",
-      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
+      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen.",
+      "billing_address": "Eine der Adressen des Kunden. Leer: seine Standard-Rechnungsadresse, sonst die Hauptadresse des Kunden.",
+      "billing_address_display": "Wird aus der gewählten Adresse übernommen. Hier nur für diesen Beleg änderbar; leeren, um sie neu zu übernehmen.",
+      "shipping_address": "Wohin die Ware geht. Leer: die Standard-Lieferadresse des Kunden.",
+      "shipping_address_display": "Wird aus der gewählten Adresse übernommen. Eine in der Bestellung genannte Adresse hier eintragen; sie hat Vorrang.",
+      "pricing_date": "Es gelten die Preise und Preisregeln dieses Datums. Leer: das Belegdatum."
     },
     "sales-invoice": {
       "pdf_template": "Wie das PDF aussieht. Wird beim Buchen festgehalten.",
-      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
+      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen.",
+      "billing_address": "Eine der Adressen des Kunden. Leer: seine Standard-Rechnungsadresse, sonst die Hauptadresse des Kunden.",
+      "billing_address_display": "Wird aus der gewählten Adresse übernommen. Hier nur für diesen Beleg änderbar; leeren, um sie neu zu übernehmen.",
+      "shipping_address": "Wohin die Ware geht. Leer: die Standard-Lieferadresse des Kunden.",
+      "shipping_address_display": "Wird aus der gewählten Adresse übernommen. Eine in der Bestellung genannte Adresse hier eintragen; sie hat Vorrang.",
+      "pricing_date": "Es gelten die Preise und Preisregeln dieses Datums. Leer: das Belegdatum.",
+      "location": "Nur wenn diese Rechnung auch Bestand bucht (Bestand aktualisieren) und das Lager Lagerplätze führt.",
+      "serial_no": "Für seriennummernpflichtige Artikel: eine Nummer pro Stück, so viele wie die Menge, durch Kommas getrennt.",
+      "batch_no": "Nur wenn diese Rechnung auch Bestand bucht (Bestand aktualisieren) und der Artikel chargenpflichtig ist.",
+      "shelf_life_exception": "Nur wenn die Charge weniger Resthaltbarkeit hat, als der Artikel verlangt: der genehmigte Grund, sie trotzdem zu liefern."
     },
     "purchase-order": {
       "pdf_template": "Wie das PDF aussieht. Wird beim Buchen festgehalten.",
-      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
+      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen.",
+      "pricing_date": "Es gelten die Preise und Preisregeln dieses Datums. Leer: das Belegdatum.",
+      "confirmed_date": "Der vom Lieferanten bestätigte Liefertermin dieser Position. Nach dem Buchen der Bestellung über die Aktion confirm_purchase_order erfassen (oder den Assistenten fragen).",
+      "confirmation_reference": "Die Nummer der Auftragsbestätigung des Lieferanten."
     },
     "delivery-note": {
       "pdf_template": "Wie das PDF aussieht. Wird beim Buchen festgehalten.",
-      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen."
+      "intro_text": "Wird über den Positionen gedruckt (wo genau, bestimmt das PDF-Layout). Neue Belege starten mit dem Standardtext aus Einstellungen → PDF-Vorlagen.",
+      "billing_address": "Eine der Adressen des Kunden. Leer: seine Standard-Rechnungsadresse, sonst die Hauptadresse des Kunden.",
+      "billing_address_display": "Wird aus der gewählten Adresse übernommen. Hier nur für diesen Beleg änderbar; leeren, um sie neu zu übernehmen.",
+      "shipping_address": "Wohin die Ware geht. Leer: die Standard-Lieferadresse des Kunden.",
+      "shipping_address_display": "Wird aus der gewählten Adresse übernommen. Eine in der Bestellung genannte Adresse hier eintragen; sie hat Vorrang.",
+      "tracking_reference": "Die Sendungs- oder Trackingnummer des Transporteurs für diese Lieferung.",
+      "pricing_date": "Es gelten die Preise und Preisregeln dieses Datums. Leer: das Belegdatum.",
+      "location": "Pflicht, wenn das Lager Lagerplätze führt: der Platz, von dem die Ware genommen oder an den sie gelegt wird.",
+      "serial_no": "Für seriennummernpflichtige Artikel: eine Nummer pro Stück, so viele wie die Menge, durch Kommas getrennt.",
+      "batch_no": "Pflicht bei chargenpflichtigen Artikeln, wenn Bestand bewegt wird. Eine Charge pro Zeile: Eine Menge aus zwei Chargen auf zwei Zeilen aufteilen.",
+      "shelf_life_exception": "Nur wenn die Charge weniger Resthaltbarkeit hat, als der Artikel verlangt: der genehmigte Grund, sie trotzdem zu liefern."
+    },
+    "purchase-invoice": {
+      "pricing_date": "Es gelten die Preise und Preisregeln dieses Datums. Leer: das Belegdatum.",
+      "warehouse": "Pflicht, wenn «Bestand aktualisieren» Ja ist: Die erhaltene Ware kommt in dieses Lager.",
+      "location": "Pflicht, wenn das Lager Lagerplätze führt: der Platz, von dem die Ware genommen oder an den sie gelegt wird.",
+      "serial_no": "Für seriennummernpflichtige Artikel: eine Nummer pro Stück, so viele wie die Menge, durch Kommas getrennt.",
+      "batch_no": "Pflicht bei chargenpflichtigen Artikeln, wenn Bestand bewegt wird. Eine Charge pro Zeile: Eine Menge aus zwei Chargen auf zwei Zeilen aufteilen.",
+      "expiry_date": "Nur bei einer neuen Charge nötig: Es wird auf der Charge gespeichert."
+    },
+    "payment-entry": {
+      "party_type": "Kunde wählen bei Zahlungseingang, Lieferant bei Zahlungsausgang.",
+      "paid_from": "Das Konto, von dem das Geld kommt (z. B. Debitoren bei Zahlungseingang, Bank bei Zahlungsausgang).",
+      "paid_to": "Das Konto, auf das das Geld geht (z. B. Bank bei Zahlungseingang, Kreditoren bei Zahlungsausgang).",
+      "paid_amount": "Der gesamte Betrag, der den Besitzer wechselt. Das ist der Betrag auf dem Bankkonto.",
+      "reference_name": "Die Rechnung, auf die diese Zahlung angerechnet wird.",
+      "total_amount": "Der Gesamtbetrag der referenzierten Rechnung.",
+      "outstanding_amount": "Wie viel von dieser Rechnung noch offen ist.",
+      "allocated_amount": "Wie viel dieser Zahlung auf diese Rechnung angerechnet wird. Kann bei Teilzahlungen kleiner sein als der Zahlbetrag oder auf mehrere Rechnungen verteilt werden."
+    },
+    "stock-entry": {
+      "s_location": "Der Lagerplatz, von dem die Ware genommen wird (Lager mit Lagerplätzen). Bei einer Umlagerung innerhalb eines Lagers leer lassen, um Bestand ohne Platz einzulagern.",
+      "t_location": "Der Lagerplatz, an den die Ware gelegt wird (Lager mit Lagerplätzen).",
+      "serial_no": "Für seriennummernpflichtige Artikel: eine Nummer pro Stück, so viele wie die Menge, durch Kommas getrennt.",
+      "batch_no": "Pflicht bei chargenpflichtigen Artikeln, wenn Bestand bewegt wird. Eine Charge pro Zeile: Eine Menge aus zwei Chargen auf zwei Zeilen aufteilen.",
+      "expiry_date": "Nur bei einer neuen Charge nötig: Es wird auf der Charge gespeichert."
+    },
+    "purchase-receipt": {
+      "pricing_date": "Es gelten die Preise und Preisregeln dieses Datums. Leer: das Belegdatum.",
+      "location": "Pflicht, wenn das Lager Lagerplätze führt: der Platz, von dem die Ware genommen oder an den sie gelegt wird.",
+      "serial_no": "Für seriennummernpflichtige Artikel: eine Nummer pro Stück, so viele wie die Menge, durch Kommas getrennt.",
+      "batch_no": "Pflicht bei chargenpflichtigen Artikeln, wenn Bestand bewegt wird. Eine Charge pro Zeile: Eine Menge aus zwei Chargen auf zwei Zeilen aufteilen.",
+      "expiry_date": "Nur bei einer neuen Charge nötig: Es wird auf der Charge gespeichert."
+    },
+    "pos-invoice": {
+      "pricing_date": "Es gelten die Preise und Preisregeln dieses Datums. Leer: das Belegdatum.",
+      "warehouse": "Pflicht, wenn «Bestand aktualisieren» Ja ist: Aus diesem Lager wird der Bestand entnommen.",
+      "location": "Pflicht, wenn das Lager Lagerplätze führt: der Platz, von dem die Ware genommen oder an den sie gelegt wird.",
+      "serial_no": "Für seriennummernpflichtige Artikel: eine Nummer pro Stück, so viele wie die Menge, durch Kommas getrennt.",
+      "batch_no": "Pflicht bei chargenpflichtigen Artikeln, wenn Bestand bewegt wird. Eine Charge pro Zeile: Eine Menge aus zwei Chargen auf zwei Zeilen aufteilen."
+    },
+    "item-bundle": {
+      "item_code": "Der Artikel, der für die Stückliste steht. Er darf kein Lagerartikel sein. Auf einem Verkaufsbeleg wird er durch die Artikel unten ersetzt."
+    },
+    "item-price": {
+      "rate": "In der Währung der Preisliste.",
+      "customer": "Optionaler kundenspezifischer Preis. Kunde und Lieferant leer lassen für einen allgemeinen Listenpreis."
+    },
+    "pricing-rule": {
+      "item_code": "Pflicht, wenn «Anwenden auf» Artikel ist.",
+      "item_group": "Pflicht, wenn «Anwenden auf» Artikelgruppe ist.",
+      "apply_on_value": "Nur für einen von Ihrer Installation ergänzten «Anwenden auf»-Schlüssel (z. B. eine Preisfamilie): der Wert, für den die Regel gilt.",
+      "applicable_for": "Leer lassen, damit die Regel für alle gilt. Sonst das passende Feld unten ausfüllen.",
+      "applicable_for_value": "Nur für einen von Ihrer Installation ergänzten «Gilt für»-Schlüssel (z. B. eine Einkaufsgemeinschaft): der Wert, für den die Regel gilt.",
+      "max_qty": "Null bedeutet keine Obergrenze.",
+      "max_amt": "Null bedeutet keine Obergrenze.",
+      "priority": "Es gilt die Regel mit der höchsten Priorität. Bei Gleichstand: der genauere Treffer, die höhere Mindestmenge, die engere Gültigkeit, das neuere «Gültig ab», dann der Name.",
+      "currency": "Preis und Rabattbetrag gelten nur für Belege in dieser Währung. Standard ist die Firmenwährung."
+    },
+    "budget": {
+      "action_if_exceeded": "Stoppen: verhindert die Buchung. Warnen: erlaubt sie, protokolliert aber eine Warnung. Ignorieren: keine Prüfung."
+    },
+    "bank-account": {
+      "account": "Das Sachkonto vom Typ Bank, auf dem dieses Bankkonto geführt wird."
+    },
+    "stock-count": {
+      "reason": "Warum der Bestand korrigiert wird. Pflicht zum Buchen der Inventur; wird bei jeder daraus entstehenden Bewegung festgehalten.",
+      "serial_no": "Für seriennummernpflichtige Artikel: eine Nummer pro Stück, so viele wie die Menge, durch Kommas getrennt.",
+      "expiry_date": "Nötig für eine Charge, die das System noch nicht kennt.",
+      "counted_qty": "Leer lassen bei einer nicht gezählten Zeile; sie bleibt dann unverändert. 0 eintragen, wenn nichts da ist."
+    },
+    "consignment-withdrawal": {
+      "warehouse": "Das Konsignationslager des Kunden. Der Kunde wird daraus übernommen.",
+      "external_source": "Woher die Meldung des Kunden stammt, z. B. sein Bestellsystem. Zusammen mit der Meldungsnummer verhindert dies, dass dieselbe Meldung zweimal verrechnet wird.",
+      "replenish_from_warehouse": "Standard ist «Nachschub aus» des Konsignationslagers.",
+      "serial_no": "Für seriennummernpflichtige Artikel: eine Nummer pro Stück, so viele wie die Menge, durch Kommas getrennt.",
+      "batch_no": "Die vom Kunden gemeldete Charge. Sie muss in diesem Konsignationslager liegen.",
+      "rate": "Leer lassen, um den Preis des Kunden zu verrechnen."
+    },
+    "stock-reservation": {
+      "batch_no": "Optional: genau diese Charge reservieren. Niemand sonst kann dann aus dieser Charge entnehmen.",
+      "location": "Optional: den Bestand an genau diesem Lagerplatz reservieren.",
+      "reserved_qty": "Bei einer Auftragsposition: die insgesamt für die Position reservierte Menge. Was noch reserviert ist, sinkt mit jeder Lieferung.",
+      "status": "Auf «Freigegeben» setzen, um den Bestand zurückzugeben. «Teilweise geliefert», «Geliefert» und «Storniert» setzt das System.",
+      "sales_order": "Leer lassen bei Bestand, der ohne Auftrag zurückgelegt wird; die Bemerkungen müssen dann sagen, wofür."
     }
   },
   "companyTax": {
@@ -1158,7 +1373,12 @@
     "notSensitive": "Nicht sensibel",
     "hiddenWith": "verborgen mit {{name}}",
     "classifyHint": "Wer diese Art von Daten nicht sieht, erhält die Datei nicht.",
-    "class": {"purchase_price": "Einkaufspreise", "cost": "Einstandswerte", "supplier_terms": "Lieferantenkonditionen", "margin": "Finanzzahlen"},
+    "class": {
+      "purchase_price": "Einkaufspreise",
+      "cost": "Einstandswerte",
+      "supplier_terms": "Lieferantenkonditionen",
+      "margin": "Finanzzahlen"
+    },
     "drop": "Dateien hier ablegen, um sie anzuhängen",
     "dropHint": "Dateien hierher ziehen oder «Datei hinzufügen» verwenden.",
     "title": "Anhänge",
@@ -1275,5 +1495,208 @@
     "label": "Text des Abzugs",
     "labelPlaceholder": "z. B. Abzüglich bereits verrechnet (Rechnung SINV-0003)",
     "perUnit": "Abzug pro Einheit, wird unter der Position gedruckt; die Position zählt den Rest."
+  },
+  "users": {
+    "title": "Benutzer",
+    "adminRequired": "Nur für Administratoren",
+    "nothingToSave": "Nichts zu speichern",
+    "email": "E-Mail",
+    "roleColumn": "Rolle",
+    "created": "Erstellt",
+    "actions": "Aktionen",
+    "name": "Name",
+    "status": "Status",
+    "team": "Teammitglieder",
+    "profileColumn": "Zugriffsprofil",
+    "role": {
+      "admin": "Administrator",
+      "manager": "Manager",
+      "viewer": "Betrachter",
+      "public_manager": "Öffentliche Demo (System)"
+    },
+    "roles": {
+      "title": "Rollen",
+      "adminText": "Voller Zugriff. Kann Belege, Stammdaten, die Firmeneinrichtung und Benutzer anlegen und verwalten, Teammitglieder einladen und Rollen ändern.",
+      "managerText": "Kann Belege anlegen, bearbeiten, buchen und stornieren, Stammdaten anlegen und bearbeiten, Berichte ausführen und den KI-Chat nutzen. Kann keine Benutzer und keine Firmeneinrichtung verwalten.",
+      "viewerText": "Nur Lesezugriff auf alle Belege, Stammdaten und Berichte. Kann den KI-Chat nutzen. Kann keine Daten anlegen oder ändern."
+    },
+    "invite": {
+      "title": "Benutzer einladen",
+      "placeholder": "kollegin@firma.ch",
+      "sending": "Wird gesendet...",
+      "create": "Einladung erstellen",
+      "created": "Einladung erstellt!",
+      "share": "Diesen Link weitergeben:",
+      "pending": "Offene Einladungen",
+      "copy": "Link kopieren",
+      "copied": "Kopiert!",
+      "revoke": "Widerrufen",
+      "linkTitle": "Einladungslink",
+      "linkBody": "Diesen Link kopieren:"
+    },
+    "scope": {
+      "column": "Zugewiesene Datensätze",
+      "all": "alle",
+      "unreadable": "nicht lesbar: gesperrt",
+      "count": {
+        "customer_one": "{{count}} Kunde",
+        "customer_other": "{{count}} Kunden",
+        "warehouse_one": "{{count}} Lager",
+        "warehouse_other": "{{count}} Lager"
+      },
+      "editTitle": "Zugewiesene Datensätze: {{name}}",
+      "intro": "Beschränkt diesen Benutzer auf zugewiesene Kunden oder Lager. Er sieht und bearbeitet dann nur deren Belege, Bestände und Berichte; was sich nicht darauf einschränken lässt (Hauptbuch-Berichte, das Dashboard), wird verweigert. Eine Art, die nicht beschränkt ist, bleibt wie bisher. Beschränkt ohne Einträge bedeutet: gar keine.",
+      "restrict": {
+        "customer": "Auf zugewiesene Kunden beschränken",
+        "warehouse": "Auf zugewiesene Lager beschränken"
+      },
+      "placeholder": {
+        "customer": "IDs der Kunden, durch Kommas getrennt",
+        "warehouse": "IDs der Lager, durch Kommas getrennt"
+      }
+    },
+    "profiles": {
+      "title": "Zugriffsprofile",
+      "intro": "Ein Profil schränkt ein, was die Rolle eines Benutzers erlaubt: Es blendet Klassen sensibler Daten überall aus (Belege, Listen, Berichte, PDFs, Chat) und kann Aktionen je Belegart entziehen. Benutzer ohne Profil sind nicht eingeschränkt. Ein deaktiviertes oder gelöschtes Profil sperrt seine Benutzer aus.",
+      "profile": "Profil",
+      "hides": "Blendet aus",
+      "rules": "Aktionsregeln",
+      "none": "keine",
+      "noneRoleOnly": "keines (nur Rolle)",
+      "nothing": "nichts",
+      "disabledTag": "deaktiviert",
+      "missing": "fehlt: gesperrt",
+      "description": "Beschreibung",
+      "hide": "Ausblenden",
+      "implies": "Wer Einkaufspreise ausblendet, blendet auch Einstandswerte, Lieferantensalden und die Finanzberichte aus; wer Einstandswerte ausblendet, blendet auch die Finanzberichte aus.",
+      "rulesLabel": "Aktionsregeln (optional, JSON)",
+      "rulesHelp": "Je Beleg- oder Stammdatenart (mit ihrem Namen, z. B. \"Sales Order\", \"Supplier\") die Aktionen, die erlaubt bleiben: {{actions}}. Eine leere Liste blendet die Art aus. \"default\" gilt für alle nicht genannten Arten; ohne Angabe gilt, was die Rolle erlaubt.",
+      "disabledLabel": "Deaktiviert (sperrt seine Benutzer aus)",
+      "save": "Profil speichern",
+      "new": "Neues Profil",
+      "invalidJson": "Die Aktionsregeln müssen gültiges JSON sein"
+    },
+    "classes": {
+      "purchase_price": {
+        "name": "Einkaufspreise",
+        "text": "Preise, Beträge und Summen von Einkaufsbelegen, Einkaufspreislisten und -regeln."
+      },
+      "cost": {
+        "name": "Einstandswerte",
+        "text": "Bewertungspreise, Lagerwert, Preise von Lagerbuchungen."
+      },
+      "supplier_terms": {
+        "name": "Lieferantenkonditionen",
+        "text": "Was Lieferanten geschuldet und bezahlt wird: Verbindlichkeiten, Lieferantenzahlungen."
+      },
+      "margin": {
+        "name": "Finanzzahlen",
+        "text": "Finanzberichte und das Hauptbuch, aus denen sich Margen ergeben."
+      }
+    }
+  },
+  "setupPage": {
+    "title": "Firmeneinrichtung",
+    "companies": "Unternehmen",
+    "noCompanies": "Keine Unternehmen gefunden",
+    "toDashboard": "Zum Dashboard",
+    "complete": "Einrichtung abgeschlossen!",
+    "doneHistory": "Ihr Unternehmen wurde angelegt und drei Jahre Historie wurden simuliert.",
+    "doneQuick": "Ihr Unternehmen wurde angelegt und mit Demodaten gefüllt.",
+    "doneEmpty": "Ihr Unternehmen wurde angelegt. Es wurden keine Demodaten hinzugefügt.",
+    "generated": "Erzeugte Belege:",
+    "intro": "Richten Sie Ihr erstes Unternehmen ein, um zu beginnen.",
+    "error": "Bei der Einrichtung ist ein Fehler aufgetreten",
+    "companyName": "Firmenname",
+    "companyPlaceholder": "z. B. Muster AG",
+    "details": "Firmenangaben",
+    "detailsHelp": "Diese Angaben erscheinen auf Ihren Rechnungen und anderen PDFs. Jetzt optional – Sie können sie später unter Stammdaten → Unternehmen ergänzen oder ändern.",
+    "addressPlaceholder": "z. B. Marktgasse 42",
+    "zip": "PLZ",
+    "taxId": "UID / MWST-Nr.",
+    "seed": "Startdaten",
+    "quick": "Schnelle Demo",
+    "quickHelp": "Kunden, Lieferanten, Artikel, ein Lager. Keine Buchungen.",
+    "history": "3 Jahre Historie simulieren",
+    "historyHelp": "Geht die Arbeitstage durch (ohne Wochenenden und US-Feiertage) und erzeugt Angebote, Aufträge, Lieferungen, Rechnungen, Zahlungen und Nachbestellungen. Mit Saisonalität und Jahreswachstum. Dauert etwa 3 Minuten.",
+    "empty": "Leeres Unternehmen anlegen, ohne Demodaten",
+    "emptyHelp": "Nur das Unternehmen und sein Kontenplan. Kunden, Lieferanten, Artikel und Buchungen erfassen Sie selbst.",
+    "simulating": "Drei Jahre werden simuliert...",
+    "settingUp": "Wird eingerichtet...",
+    "createHistory": "Unternehmen anlegen und Historie simulieren",
+    "createQuick": "Unternehmen anlegen mit Demodaten",
+    "create": "Unternehmen anlegen",
+    "location": "Ort"
+  },
+  "pager": {
+    "prev": "Vorheriger Datensatz (k / ←)",
+    "next": "Nächster Datensatz (j / →)"
+  },
+  "documentActions": {
+    "submitTitle": "Beleg buchen?",
+    "submitBody": "Nach dem Buchen kann er nicht mehr bearbeitet werden.",
+    "cancelTitle": "Beleg stornieren?",
+    "cancelBody": "Diese Aktion kann nicht rückgängig gemacht werden.",
+    "cancelConfirm": "Beleg stornieren"
+  },
+  "openingBalances": {
+    "intro": "Übernehmen Sie Salden aus Ihrem bisherigen System. Jeder Abschnitt erzeugt die passenden Belege (Buchungssatz, Lagerbuchung oder Rechnungen) und bucht sie automatisch.",
+    "common": "Gemeinsame Angaben",
+    "asOf": "Stichtag",
+    "partyFirst": "zuerst die Parteiart wählen",
+    "addRow": "+ Zeile hinzufügen",
+    "importing": "Wird importiert...",
+    "created": "{{what}} erstellt",
+    "createdInvoices_one": "{{count}} Rechnung erstellt",
+    "createdInvoices_other": "{{count}} Rechnungen erstellt",
+    "finishHelp": "Import abgeschlossen? Sie können diese Seite deaktivieren und später unter Einstellungen > Allgemein wieder aktivieren.",
+    "finish": "Abschliessen und Eröffnungsbilanzen deaktivieren",
+    "accounts": {
+      "title": "1. Kontensalden",
+      "help": "Erfassen Sie die Saldenliste aus dem alten System. Die Differenz wird automatisch gegen das Eröffnungsbilanzkonto ausgeglichen. Bei Debitoren- und Kreditorenkonten zusätzlich Parteiart und Partei angeben.",
+      "import": "Kontensalden importieren"
+    },
+    "stock": {
+      "title": "2. Lagerbestände",
+      "help": "Erfassen Sie Ihren aktuellen Bestand. Erzeugt eine Lagerbuchung (Eröffnungsbestand): Soll Warenbestand, Haben Eröffnungsbilanzkonto, damit die Erfolgsrechnung nicht durch den Anfangsbestand verzerrt wird.",
+      "import": "Lagerbestände importieren"
+    },
+    "invoices": {
+      "title": "3. Offene Rechnungen",
+      "help": "Erfassen Sie unbezahlte Rechnungen aus dem alten System. Erzeugt gebuchte Ausgangs- oder Eingangsrechnungen mit den korrekten offenen Beträgen für die Fälligkeitslisten.",
+      "import": "Offene Rechnungen importieren",
+      "sales": "Verkauf (Debitoren)",
+      "purchase": "Einkauf (Kreditoren)"
+    },
+    "col": {
+      "account": "Konto",
+      "partyType": "Parteiart",
+      "party": "Partei",
+      "debit": "Soll",
+      "credit": "Haben",
+      "item": "Artikel",
+      "qty": "Menge",
+      "rate": "Preis",
+      "type": "Art",
+      "partyEither": "Kunde / Lieferant",
+      "amount": "Betrag",
+      "dueDate": "Fällig am",
+      "remarks": "Ref. / Bemerkungen"
+    },
+    "createdStock_one": "{{what}} erstellt ({{count}} Artikel)",
+    "createdStock_other": "{{what}} erstellt ({{count}} Artikel)"
+  },
+  "analyticsPage": {
+    "intro": "Alle Analysen laufen über die Berichtslaufzeit und die semantischen Datensätze.",
+    "loadedDraft": "Geladener Entwurf: {{id}}",
+    "legacy": "Bericht aus älteren URL-Filtern geladen.",
+    "fixInChat": "Im Chat korrigieren",
+    "running": "Läuft...",
+    "run": "Bericht ausführen",
+    "loadingDraft": "Entwurf wird geladen...",
+    "datasets": "Geladene Datensätze",
+    "definition": "Berichtsdefinition (JSON)",
+    "custom": "Eigener Bericht",
+    "noChartData": "Das Diagramm hat keine verwendbaren Daten."
   }
 }

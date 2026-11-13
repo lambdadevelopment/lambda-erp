@@ -13,6 +13,12 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- Translations (German, French): the Users page, company setup, opening
+  balances and analytics pages, submit / cancel dialogs and other shared
+  controls were English only. Missing field labels, menu entries, document
+  names and about 90 field hints of the features added since 1.4.5 are
+  translated.
+
 ## [1.4.21] - 2026-11-13
 
 No migration. Amounts on existing documents are not recalculated.

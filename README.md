@@ -4,6 +4,8 @@
 
 Lambda ERP is a simpler ERP: create invoices, check inventory, answer accounting questions, and change reports by asking for what you need in plain language.
 
+Developed by [Lambda](https://lambda.dev/erp).
+
 https://github.com/user-attachments/assets/1b2749ef-10e7-42f5-9cce-df5628292667
 
 <p align="center">
