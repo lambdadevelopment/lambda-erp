@@ -13,6 +13,28 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.21] - 2026-11-13
+
+No migration. Amounts on existing documents are not recalculated.
+
+- **Fixed: invoices the core writes itself had no tax.** The invoice of a
+  consignment withdrawal and the invoices a subscription generates were
+  created without the company's default tax rows, so they were posted
+  without VAT (the ledger still balanced). They now take the company's
+  default Tax Template like an invoice created through the form or the API.
+  The rule moved into the core (`lambda_erp.controllers.tax_defaults`).
+  Invoices already posted are not changed: correct them with a credit note
+  or by cancelling and re-issuing.
+- **Fixed: rounding lost a cent at half-cent amounts.** Amounts are now
+  calculated as decimal numbers and rounded half-up (away from zero): three
+  lines of 395.00 at 8.1 % are 95.99 tax, not 95.98; 0.335 x 3 is 1.01.
+  **Changed:** `utils.flt(value, precision)` rounds decimal half-up
+  everywhere instead of Python's binary round-to-even, so an amount that is
+  exactly on a half cent can come out one cent higher than before. New:
+  `utils.money`, `utils.dec`, `utils.round_half_up`.
+- `rounded_total` (the grand total in whole currency units, informational)
+  is rounded half-up too: 12.50 is 13, not 12.
+
 ## [1.4.20] - 2026-11-12
 
 Migration 66 runs on startup.

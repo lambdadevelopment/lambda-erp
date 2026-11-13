@@ -126,3 +126,45 @@ undo all require a separate explicit confirmation.
    equity-side activity.
 3. The SRBNB balance roughly tracks "PRs that don't yet have a PI" —
    drift here is the canary for flow errors.
+
+## Rounding
+
+One rule: **decimal, half-up (away from zero), at the precision the call
+site names**. `utils.flt(value, precision)` and `utils.money(value)` both do
+this. Python's `round()` is not used for amounts: it works on the binary
+value and to even, so 2.675 became 2.67 and 3 x 31.995 became 95.98.
+
+- Calculate with `utils.dec(value)` (the decimal value a number was written
+  as) and round once at the end with `money()`. Rounding a float that came
+  out of float arithmetic is already too late: `31.995 * 3` is
+  95.98499999999999.
+- `controllers/taxes_and_totals.py` says where a document rounds: each line
+  amount once; each tax row once, after adding up all lines unrounded; totals
+  are sums of rounded amounts; base-currency amounts are the rounded document
+  amounts times the conversion rate, rounded once.
+- Negative amounts round away from zero, so a return is exactly the negative
+  of its original.
+- `rounded_total` / `rounding_adjustment` are the grand total in whole
+  currency units and the difference. Informational only: the receivable, the
+  ledger and payments use `grand_total`. There is no cash rounding (0.05) in
+  the core.
+- Amounts are stored as floats (REAL / double precision) and serialised as
+  JSON numbers; a value rounded to the cent reads back as the same cent.
+
+## Default taxes
+
+`controllers/tax_defaults.py`. A new document that says nothing about taxes
+takes the rows of its company's default Tax Template for its side
+(`default_sales_tax_template` / `default_purchase_tax_template`).
+
+- The document service applies it when the input has no `taxes` key. An
+  explicit `taxes: []` means "no tax" and stays empty; given rows are kept.
+- **An invoice the core writes itself must call `apply_default_taxes(doc)`**
+  when it is not made from a document that has tax rows to copy. Consignment
+  withdrawals and subscriptions do. Without it the invoice posts with no VAT
+  and nothing complains: the ledger still balances.
+- Converters copy the source document's tax rows instead (order -> invoice,
+  delivery note -> invoice, returns).
+- The rows are copied into the document. Changing the template or the
+  company default never touches documents that exist.
+

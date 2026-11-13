@@ -182,6 +182,14 @@ jobs:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_attachments
 
+      - name: Tax defaults and rounding — SQLite
+        run: python -m tests.test_tax_defaults
+
+      - name: Tax defaults and rounding — PostgreSQL
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_tax_defaults
+
       - name: Consignment — SQLite
         run: python -m tests.test_consignment
 

@@ -10,11 +10,31 @@ charge types:
 - "On Item Quantity": fixed amount per unit
 
 Taxes can be inclusive (included in the printed price) or exclusive (added on top).
+
+Rounding
+--------
+Amounts are calculated as decimal numbers and rounded half-up (away from
+zero) to the cent, at these points and nowhere in between:
+
+- a line: rate x qty -> amount, once per line;
+- a tax row: the tax of all lines is added up unrounded, then the row is
+  rounded once (3 x 31.995 = 95.985 -> 95.99, not 3 x 32.00 and not 95.98);
+- the totals are sums of those rounded amounts;
+- base-currency amounts are the rounded document amounts times the
+  conversion rate, rounded once.
+
+A return is the same calculation with negative quantities and gives exactly
+the negative amounts. `rounded_total` is the grand total rounded half-up to
+whole currency units, with `rounding_adjustment` the difference; both are
+informational: nothing is posted, owed or paid from them.
 """
 
 import json
-from lambda_erp.utils import flt, cint, _dict
+from decimal import Decimal
+from lambda_erp.utils import flt, cint, _dict, dec, money
 from lambda_erp.exceptions import ValidationError
+
+HUNDRED = Decimal(100)
 
 class TaxCalculator:
     """Calculate taxes and totals for a transaction document.
@@ -57,7 +77,7 @@ class TaxCalculator:
         - Price list rate -> discounted rate
         - Base currency conversion
         """
-        conversion_rate = flt(self.doc.get("conversion_rate") or 1.0)
+        conversion_rate = dec(self.doc.get("conversion_rate") or 1.0)
 
         for item in self.doc.get("items"):
             # Apply discount to get rate from price_list_rate
@@ -66,30 +86,26 @@ class TaxCalculator:
             elif flt(item.get("discount_percentage")) == 100:
                 item["rate"] = 0.0
             elif item.get("price_list_rate") is not None and (flt(item['price_list_rate']) != 0 or item.get('rate') is None):
-                if item.get("rate") is None or flt(item.get("discount_percentage")) > 0:
-                    item["rate"] = flt(
-                        flt(item["price_list_rate"]) * (1.0 - flt(item.get("discount_percentage")) / 100.0),
-                        2,
-                    )
-                    item["discount_amount"] = flt(
-                        flt(item["price_list_rate"]) * flt(item.get("discount_percentage")) / 100.0, 2
-                    )
+                list_rate, percent = dec(item["price_list_rate"]), dec(item.get("discount_percentage"))
+                if item.get("rate") is None or percent > 0:
+                    item["rate"] = money(list_rate * (1 - percent / HUNDRED))
+                    item["discount_amount"] = money(list_rate * percent / HUNDRED)
                 elif item.get("discount_amount"):
-                    item["rate"] = flt(item["price_list_rate"]) - flt(item["discount_amount"])
+                    item["rate"] = float(list_rate - dec(item["discount_amount"]))
 
+            rate = dec(item.get("rate"))
             # Set net_rate = rate (before inclusive tax adjustment)
-            item["net_rate"] = flt(item.get("rate"), 2)
+            item["net_rate"] = money(rate)
 
-            # Calculate amount
-            qty = flt(item.get("qty", 0))
-            item["amount"] = flt(flt(item.get("rate")) * qty, 2)
-            item["net_amount"] = flt(item["amount"], 2)
+            # Calculate amount: the decimal product, rounded once
+            item["amount"] = money(rate * dec(item.get("qty", 0)))
+            item["net_amount"] = item["amount"]
 
             # Set base currency values
-            item["base_rate"] = flt(flt(item.get("rate")) * conversion_rate, 2)
-            item["base_amount"] = flt(flt(item["amount"]) * conversion_rate, 2)
-            item["base_net_rate"] = flt(flt(item["net_rate"]) * conversion_rate, 2)
-            item["base_net_amount"] = flt(flt(item["net_amount"]) * conversion_rate, 2)
+            item["base_rate"] = money(rate * conversion_rate)
+            item["base_amount"] = money(dec(item["amount"]) * conversion_rate)
+            item["base_net_rate"] = money(dec(item["net_rate"]) * conversion_rate)
+            item["base_net_amount"] = money(dec(item["net_amount"]) * conversion_rate)
 
     def initialize_taxes(self):
         """Reset tax computation fields before recalculating.
@@ -124,71 +140,66 @@ class TaxCalculator:
         if not any(cint(tax.get("included_in_print_rate")) for tax in taxes):
             return
 
+        conversion_rate = dec(self.doc.get("conversion_rate") or 1.0)
         for item in self.doc.get("items"):
             item_tax_map = self._load_item_tax_rate(item.get("item_tax_rate"))
-            cumulated_tax_fraction = 0
-            total_inclusive_tax_amount_per_qty = 0
+            cumulated_tax_fraction = Decimal(0)
+            total_inclusive_tax_amount_per_qty = Decimal(0)
+            fractions = []  # per tax row: (tax fraction, grand total fraction), exact
 
             for i, tax in enumerate(taxes):
                 tax_fraction, inclusive_amount_per_qty = self._get_current_tax_fraction(
-                    tax, item_tax_map, i
+                    tax, item_tax_map, i, fractions
                 )
-                tax["tax_fraction_for_current_item"] = tax_fraction
-
-                if i == 0:
-                    tax["grand_total_fraction_for_current_item"] = 1 + tax_fraction
-                else:
-                    tax["grand_total_fraction_for_current_item"] = (
-                        taxes[i - 1].get("grand_total_fraction_for_current_item", 0) + tax_fraction
-                    )
+                grand_fraction = (1 + tax_fraction) if i == 0 else fractions[i - 1][1] + tax_fraction
+                fractions.append((tax_fraction, grand_fraction))
+                tax["tax_fraction_for_current_item"] = float(tax_fraction)
+                tax["grand_total_fraction_for_current_item"] = float(grand_fraction)
 
                 cumulated_tax_fraction += tax_fraction
-                total_inclusive_tax_amount_per_qty += inclusive_amount_per_qty * flt(item.get("qty"))
+                total_inclusive_tax_amount_per_qty += inclusive_amount_per_qty * dec(item.get("qty"))
 
             if item.get("qty") and (cumulated_tax_fraction or total_inclusive_tax_amount_per_qty):
-                amount = flt(item["amount"]) - total_inclusive_tax_amount_per_qty
-                item["net_amount"] = flt(amount / (1 + cumulated_tax_fraction), 2)
-                item["net_rate"] = flt(item["net_amount"] / flt(item["qty"]), 2)
+                amount = dec(item["amount"]) - total_inclusive_tax_amount_per_qty
+                item["net_amount"] = money(amount / (1 + cumulated_tax_fraction))
+                item["net_rate"] = money(dec(item["net_amount"]) / dec(item["qty"]))
 
-                conversion_rate = flt(self.doc.get("conversion_rate") or 1.0)
-                item["base_net_rate"] = flt(item["net_rate"] * conversion_rate, 2)
-                item["base_net_amount"] = flt(item["net_amount"] * conversion_rate, 2)
+                item["base_net_rate"] = money(dec(item["net_rate"]) * conversion_rate)
+                item["base_net_amount"] = money(dec(item["net_amount"]) * conversion_rate)
 
-    def _get_current_tax_fraction(self, tax, item_tax_map, idx):
-        """Get the tax fraction for back-calculating exclusive rate from inclusive price."""
-        current_tax_fraction = 0
-        inclusive_tax_amount_per_qty = 0
+    def _get_current_tax_fraction(self, tax, item_tax_map, idx, fractions=()):
+        """Get the tax fraction for back-calculating exclusive rate from inclusive price.
+
+        `fractions` are the exact (tax, grand total) fractions of the rows
+        before this one, for rows that refer to a previous row."""
+        current_tax_fraction = Decimal(0)
+        inclusive_tax_amount_per_qty = Decimal(0)
 
         if cint(tax.get("included_in_print_rate")):
             tax_rate = self._get_tax_rate(tax, item_tax_map)
             charge_type = tax.get("charge_type", "On Net Total")
-            taxes = self.doc.get("taxes") or []
 
             if charge_type == "On Net Total":
-                current_tax_fraction = tax_rate / 100.0
+                current_tax_fraction = tax_rate / HUNDRED
             elif charge_type == "On Previous Row Amount":
                 row_id = cint(tax.get("row_id", 0)) - 1
-                if 0 <= row_id < len(taxes):
-                    current_tax_fraction = (tax_rate / 100.0) * taxes[row_id].get(
-                        "tax_fraction_for_current_item", 0
-                    )
+                if 0 <= row_id < len(fractions):
+                    current_tax_fraction = (tax_rate / HUNDRED) * fractions[row_id][0]
             elif charge_type == "On Previous Row Total":
                 row_id = cint(tax.get("row_id", 0)) - 1
-                if 0 <= row_id < len(taxes):
-                    current_tax_fraction = (tax_rate / 100.0) * taxes[row_id].get(
-                        "grand_total_fraction_for_current_item", 0
-                    )
+                if 0 <= row_id < len(fractions):
+                    current_tax_fraction = (tax_rate / HUNDRED) * fractions[row_id][1]
             elif charge_type == "On Item Quantity":
-                inclusive_tax_amount_per_qty = flt(tax_rate)
+                inclusive_tax_amount_per_qty = tax_rate
 
         return current_tax_fraction, inclusive_tax_amount_per_qty
 
     def _get_tax_rate(self, tax, item_tax_map):
-        """Get tax rate, checking item-specific overrides first."""
+        """Get tax rate (a Decimal), checking item-specific overrides first."""
         account_head = tax.get("account_head", "")
         if account_head in item_tax_map:
-            return flt(item_tax_map[account_head])
-        return flt(tax.get("rate", 0))
+            return dec(item_tax_map[account_head])
+        return dec(tax.get("rate", 0))
 
     def _load_item_tax_rate(self, item_tax_rate):
         """Parse item_tax_rate JSON string to dict."""
@@ -204,21 +215,17 @@ class TaxCalculator:
     def calculate_net_total(self):
         """Sum up item amounts to get document totals."""
         doc = self.doc
-        doc["total_qty"] = 0
-        doc["total"] = 0
-        doc["base_total"] = 0
-        doc["net_total"] = 0
-        doc["base_net_total"] = 0
-
+        sums = {field: Decimal(0) for field in ("total_qty", "total", "base_total", "net_total", "base_net_total")}
         for item in doc.get("items"):
-            doc["total_qty"] = flt(doc["total_qty"]) + flt(item.get("qty", 0))
-            doc["total"] = flt(doc["total"]) + flt(item.get("amount", 0))
-            doc["base_total"] = flt(doc["base_total"]) + flt(item.get("base_amount", 0))
-            doc["net_total"] = flt(doc["net_total"]) + flt(item.get("net_amount", 0))
-            doc["base_net_total"] = flt(doc["base_net_total"]) + flt(item.get("base_net_amount", 0))
+            sums["total_qty"] += dec(item.get("qty", 0))
+            sums["total"] += dec(item.get("amount", 0))
+            sums["base_total"] += dec(item.get("base_amount", 0))
+            sums["net_total"] += dec(item.get("net_amount", 0))
+            sums["base_net_total"] += dec(item.get("base_net_amount", 0))
 
+        doc["total_qty"] = float(sums["total_qty"])
         for field in ["total", "base_total", "net_total", "base_net_total"]:
-            doc[field] = flt(doc[field], 2)
+            doc[field] = money(sums[field])
 
     def calculate_taxes(self):
         """Calculate tax amounts row by row, item by item.
@@ -228,7 +235,8 @@ class TaxCalculator:
         the charge_type (On Net Total, On Previous Row Amount, Actual, etc.).
 
         The running total accumulates so each subsequent tax row can reference
-        the cumulative total from previous rows.
+        the cumulative total from previous rows. The per-item amounts stay
+        exact decimals; each tax row is rounded once, after all items.
         """
         taxes = self.doc.get("taxes") or []
         items = self.doc.get("items") or []
@@ -236,84 +244,75 @@ class TaxCalculator:
             return
 
         # For "Actual" charge type, distribute evenly across items
-        actual_tax_dict = {}
-        for tax in taxes:
-            if tax.get("charge_type") == "Actual":
-                actual_tax_dict[tax.get("idx", 0)] = flt(tax.get("tax_amount", 0))
+        actual_left = {i: dec(tax.get("tax_amount", 0)) for i, tax in enumerate(taxes)
+                       if tax.get("charge_type") == "Actual"}
+        accumulated = [Decimal(0)] * len(taxes)
 
         for n, item in enumerate(items):
             item_tax_map = self._load_item_tax_rate(item.get("item_tax_rate"))
+            current = []       # this item's exact tax per row
+            running = []       # this item's exact running total per row
 
             for i, tax in enumerate(taxes):
-                current_tax_amount = self._get_current_tax_amount(item, tax, item_tax_map)
+                amount = self._get_current_tax_amount(item, tax, item_tax_map, current, running)
 
                 # Adjust divisional loss to the last item (the reference implementation pattern)
-                if tax.get("charge_type") == "Actual":
-                    idx = tax.get("idx", 0)
-                    actual_tax_dict[idx] = actual_tax_dict.get(idx, 0) - current_tax_amount
+                if i in actual_left:
+                    actual_left[i] -= amount
                     if n == len(items) - 1:
-                        current_tax_amount += actual_tax_dict.get(idx, 0)
-
-                # Accumulate tax amount
-                if tax.get("charge_type") != "Actual":
-                    tax["tax_amount"] = flt(tax.get("tax_amount", 0)) + current_tax_amount
-
-                tax["tax_amount_for_current_item"] = current_tax_amount
-
-                # Build running grand total for this item
-                if i == 0:
-                    tax["grand_total_for_current_item"] = flt(item.get("net_amount", 0)) + current_tax_amount
+                        amount += actual_left[i]
                 else:
-                    tax["grand_total_for_current_item"] = flt(
-                        taxes[i - 1].get("grand_total_for_current_item", 0)
-                    ) + current_tax_amount
+                    accumulated[i] += amount
 
-        # Set cumulative totals on each tax row
+                current.append(amount)
+                running.append((dec(item.get("net_amount", 0)) if i == 0 else running[i - 1]) + amount)
+                tax["tax_amount_for_current_item"] = float(amount)
+                tax["grand_total_for_current_item"] = float(running[i])
+
+        # Round each tax row once, then set the cumulative totals
+        conversion_rate = dec(self.doc.get("conversion_rate") or 1.0)
         for i, tax in enumerate(taxes):
-            tax["tax_amount"] = flt(tax.get("tax_amount", 0), 2)
-            if i == 0:
-                tax["total"] = flt(self.doc.get("net_total", 0)) + tax["tax_amount"]
-            else:
-                tax["total"] = flt(taxes[i - 1]["total"]) + tax["tax_amount"]
-
-            tax["total"] = flt(tax["total"], 2)
+            tax["tax_amount"] = money(tax.get("tax_amount", 0)) if i in actual_left else money(accumulated[i])
+            previous = dec(self.doc.get("net_total", 0)) if i == 0 else dec(taxes[i - 1]["total"])
+            tax["total"] = money(previous + dec(tax["tax_amount"]))
 
             # Base currency
-            conversion_rate = flt(self.doc.get("conversion_rate") or 1.0)
-            tax["base_tax_amount"] = flt(tax["tax_amount"] * conversion_rate, 2)
-            tax["base_total"] = flt(tax["total"] * conversion_rate, 2)
+            tax["base_tax_amount"] = money(dec(tax["tax_amount"]) * conversion_rate)
+            tax["base_total"] = money(dec(tax["total"]) * conversion_rate)
 
-    def _get_current_tax_amount(self, item, tax, item_tax_map):
-        """Compute tax for one item + one tax row."""
+    def _get_current_tax_amount(self, item, tax, item_tax_map, current=(), running=()):
+        """Compute tax for one item + one tax row, as an exact Decimal.
+
+        `current` and `running` are this item's exact tax amounts and running
+        totals of the rows before this one."""
         tax_rate = self._get_tax_rate(tax, item_tax_map)
         charge_type = tax.get("charge_type", "On Net Total")
-        taxes = self.doc.get("taxes") or []
+        net_amount = dec(item.get("net_amount", 0))
 
         if charge_type == "Actual":
             # Distribute actual amount proportionally across items
-            total = flt(self.doc.get("net_total")) or 1
-            proportion = flt(item.get("net_amount", 0)) / total
-            return flt(tax.get("tax_amount", 0)) * proportion
+            total = dec(self.doc.get("net_total")) or Decimal(1)
+            return dec(tax.get("tax_amount", 0)) * net_amount / total
 
         elif charge_type == "On Net Total":
-            return flt(item.get("net_amount", 0)) * tax_rate / 100.0
+            return net_amount * tax_rate / HUNDRED
 
         elif charge_type == "On Previous Row Amount":
             row_id = cint(tax.get("row_id", 0)) - 1
-            if 0 <= row_id < len(taxes):
-                return flt(taxes[row_id].get("tax_amount_for_current_item", 0)) * tax_rate / 100.0
-            return 0
+            if 0 <= row_id < len(current):
+                return current[row_id] * tax_rate / HUNDRED
+            return Decimal(0)
 
         elif charge_type == "On Previous Row Total":
             row_id = cint(tax.get("row_id", 0)) - 1
-            if 0 <= row_id < len(taxes):
-                return flt(taxes[row_id].get("grand_total_for_current_item", 0)) * tax_rate / 100.0
-            return 0
+            if 0 <= row_id < len(running):
+                return running[row_id] * tax_rate / HUNDRED
+            return Decimal(0)
 
         elif charge_type == "On Item Quantity":
-            return flt(item.get("qty", 0)) * tax_rate
+            return dec(item.get("qty", 0)) * tax_rate
 
-        return 0
+        return Decimal(0)
 
     def calculate_totals(self):
         """Calculate grand_total, rounded_total, etc."""
@@ -321,50 +320,48 @@ class TaxCalculator:
         taxes = doc.get("taxes") or []
 
         if taxes:
-            doc["grand_total"] = flt(taxes[-1]["total"], 2)
-            doc["total_taxes_and_charges"] = flt(doc["grand_total"]) - flt(doc["net_total"])
+            doc["grand_total"] = money(taxes[-1]["total"])
+            doc["total_taxes_and_charges"] = money(dec(doc["grand_total"]) - dec(doc["net_total"]))
         else:
-            doc["grand_total"] = flt(doc["net_total"], 2)
+            doc["grand_total"] = money(doc["net_total"])
             doc["total_taxes_and_charges"] = 0
 
-        doc["total_taxes_and_charges"] = flt(doc["total_taxes_and_charges"], 2)
+        conversion_rate = dec(doc.get("conversion_rate") or 1.0)
+        doc["base_grand_total"] = money(dec(doc["grand_total"]) * conversion_rate)
+        doc["base_total_taxes_and_charges"] = money(dec(doc["total_taxes_and_charges"]) * conversion_rate)
 
-        conversion_rate = flt(doc.get("conversion_rate") or 1.0)
-        doc["base_grand_total"] = flt(flt(doc["grand_total"]) * conversion_rate, 2)
-        doc["base_total_taxes_and_charges"] = flt(
-            flt(doc["total_taxes_and_charges"]) * conversion_rate, 2
-        )
+        self._set_rounded_total()
 
-        # Rounded total
-        doc["rounded_total"] = round(flt(doc["grand_total"]))
-        doc["rounding_adjustment"] = flt(doc["rounded_total"]) - flt(doc["grand_total"])
+    def _set_rounded_total(self):
+        """The grand total in whole currency units, half-up, and what that
+        differs by. Informational: nothing is posted or owed from it."""
+        doc = self.doc
+        doc["rounded_total"] = money(doc["grand_total"], 0)
+        doc["rounding_adjustment"] = money(dec(doc["rounded_total"]) - dec(doc["grand_total"]))
 
     def apply_discount_amount(self):
         """Apply a flat discount amount to the document."""
-        discount = flt(self.doc.get("discount_amount"))
+        discount = dec(self.doc.get("discount_amount"))
         if not discount:
             return
 
         if self.doc.get("apply_discount_on") == "Net Total":
             # Distribute discount across items proportionally
-            net_total = flt(self.doc.get("net_total")) or 1
+            net_total = dec(self.doc.get("net_total")) or Decimal(1)
             for item in self.doc.get("items"):
-                proportion = flt(item.get("net_amount", 0)) / net_total
-                item_discount = flt(discount * proportion, 2)
-                item["net_amount"] = flt(item["net_amount"]) - item_discount
+                item_discount = dec(money(discount * dec(item.get("net_amount", 0)) / net_total))
+                item["net_amount"] = float(dec(item["net_amount"]) - item_discount)
                 if flt(item.get("qty")):
-                    item["net_rate"] = flt(item["net_amount"] / flt(item["qty"]), 2)
+                    item["net_rate"] = money(dec(item["net_amount"]) / dec(item["qty"]))
 
             self.discount_amount_applied = True
             self._calculate()
         else:
             # Discount on Grand Total - subtract from grand total
-            self.doc["grand_total"] = flt(self.doc["grand_total"]) - discount
-            self.doc["base_grand_total"] = flt(self.doc["grand_total"]) * flt(
-                self.doc.get("conversion_rate") or 1.0
-            )
-            self.doc["rounded_total"] = round(flt(self.doc["grand_total"]))
-            self.doc["rounding_adjustment"] = flt(self.doc["rounded_total"]) - flt(self.doc["grand_total"])
+            self.doc["grand_total"] = money(dec(self.doc["grand_total"]) - discount)
+            self.doc["base_grand_total"] = money(
+                dec(self.doc["grand_total"]) * dec(self.doc.get("conversion_rate") or 1.0))
+            self._set_rounded_total()
 
 def calculate_taxes_and_totals(doc):
     """Convenience function matching the reference implementation's pattern."""

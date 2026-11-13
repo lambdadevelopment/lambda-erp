@@ -135,7 +135,7 @@ class StorageLocations(unittest.TestCase):
     # -- delivery, return, transfer to a warehouse without locations ---------
     def test_delivery_return_and_transfer_out(self):
         self.receive('B', 6, 'A1', batch_no='LOT-1', expiry_date='2027-06-30')
-        note = self.post('delivery-note', {'company': 'Test Co', 'customer': 'C', 'posting_date': '2026-11-12', 'items': [
+        note = self.post('delivery-note', {'company': 'Test Co', 'customer': 'C', 'items': [
             {'item_code': 'B', 'qty': 4, 'rate': 20, 'warehouse': 'L', 'location': 'A1', 'batch_no': 'LOT-1'}]})
         self.assertEqual(self.at('B', 'A1', batch='LOT-1'), 2)
         back = make_delivery_return(note['name'])

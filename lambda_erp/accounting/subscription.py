@@ -183,5 +183,8 @@ class Subscription(Document):
                 rate=flt(plan.get("rate", 0)),
             ))
 
+        # A subscription names no taxes of its own: the company's default applies.
+        from lambda_erp.controllers.tax_defaults import apply_default_taxes
+        apply_default_taxes(invoice)
         invoice.save()
         return invoice

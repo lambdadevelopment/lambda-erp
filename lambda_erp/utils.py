@@ -6,12 +6,48 @@ throughout the the reference implementation business logic.
 """
 
 import math
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import math
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
+def dec(value):
+    """A number as a Decimal with the decimal value it was written as: the
+    float 8.1 is Decimal('8.1'), not the binary 8.0999999999999996447....
+    None, '' and anything that is not a number are 0."""
+    if isinstance(value, Decimal):
+        return value
+    if value is None or value == "" or isinstance(value, bool):
+        return Decimal(int(value)) if isinstance(value, bool) else Decimal(0)
+    try:
+        if isinstance(value, float):
+            # repr() is the shortest text that reads back as the same float.
+            return Decimal(repr(value)) if math.isfinite(value) else Decimal(0)
+        return Decimal(str(value).strip())
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal(0)
+
+
+def round_half_up(value, precision=2):
+    """Round a Decimal (or number) to `precision` places, halves away from
+    zero: 95.985 -> 95.99, -95.985 -> -95.99, 2.5 -> 3 at precision 0."""
+    return dec(value).quantize(Decimal(1).scaleb(-int(precision)), rounding=ROUND_HALF_UP)
+
+
+def money(value, precision=2):
+    """An amount rounded the way the books round: decimal, halves away from
+    zero, to the cent unless another precision is asked for. Returns a float
+    for storage and JSON; calculate with dec() before, not with the result."""
+    return float(round_half_up(value, precision))
+
+
 def flt(value, precision=None):
     """Convert to float, with optional rounding precision. Safe numeric
-    conversion used everywhere amounts are handled."""
+    conversion used everywhere amounts are handled.
+
+    Rounding is decimal and half-up (see money): Python's round() works on
+    the binary value and to even, which turns 2.675 into 2.67 and 0.125 into
+    0.12 and so loses or gains a cent depending on the digits."""
     if value is None or value == "":
         return 0.0
     try:
@@ -19,7 +55,9 @@ def flt(value, precision=None):
     except (ValueError, TypeError):
         return 0.0
     if precision is not None:
-        value = round(value, precision)
+        if not math.isfinite(value):
+            return value
+        value = float(round_half_up(value, precision))
     return value
 
 def cint(value):

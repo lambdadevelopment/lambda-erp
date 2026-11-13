@@ -183,6 +183,9 @@ class ConsignmentWithdrawal(Document):
             if row.get("rate") is not None:
                 line["rate"] = flt(row["rate"])
             invoice.append("items", line)
+        # The sale is taxed like any other invoice of the company.
+        from lambda_erp.controllers.tax_defaults import apply_default_taxes
+        apply_default_taxes(invoice)
         invoice.save()
         invoice.submit()
         self._data["sales_invoice"] = invoice.name
