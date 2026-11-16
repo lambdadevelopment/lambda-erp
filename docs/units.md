@@ -22,6 +22,9 @@ Create an **Item Unit** (Masters → Item Unit, document type `item-unit`):
 - `uom` is the name as it is written on orders. It cannot be the item's own
   `stock_uom`, and an item has each unit once.
 - `enabled` = 0 takes the unit out of use without deleting it.
+- `must_be_whole_number` = 1: a line entered in this unit needs a whole
+  quantity (2 Karton, not 1.5). Quantities in the stock unit are not
+  affected: an order for 2 Karton can still be delivered as 150 pieces.
 
 ## Entering a line in a unit
 
@@ -43,7 +46,11 @@ plus `order_uom` = Karton, `conversion_factor` = 100, `order_qty` = 2.
 
 This works on Quotation, Sales Order, Delivery Note, Sales Invoice, POS
 Invoice, Purchase Order, Purchase Receipt, Purchase Invoice and Stock Entry
-(there with `basic_rate`).
+(there with `basic_rate`), and since 1.4.23 on Consignment Withdrawal (a
+report of "1 Karton" and one of "100 Stk" are the same report) and on Stock
+Count (`counted_qty` with `uom`; `system_qty` is always in stock units).
+Returns are entered the same way: `qty` -1, `uom` Karton. What may still come
+back is counted in stock units.
 
 Rules:
 
@@ -88,6 +95,9 @@ delivery note → invoice, returns).
   units never takes a price quoted for another unit.
 - Pricing rules see the stored line: their quantities and amounts are per
   stock unit.
+- **A price per several units is not a pack.** `per_qty` on an Item Price
+  says the rate buys that many units: rate 12.50 with `per_qty` 100 is 0.125
+  each (1.4.23). It changes no quantity. A carton of 100 is an Item Unit.
 
 Amounts stay exact. The rate per stock unit is not rounded to the cent on a
 converted line (10.00 for a pack of 3 is 3.3333… a piece; 7 packs are
@@ -103,7 +113,6 @@ The built-in layouts print a converted line as it was ordered, 2 Karton at
 
 ## Not covered
 
-- Consignment withdrawals and stock counts are entered in stock units.
 - Reports show stock units.
-- There is no per-unit rule for whole numbers: 1.5 Karton is accepted where
-  the item itself allows 150 pieces.
+- The whole-number rule is per Item Unit. The stock unit itself has none,
+  except for serial-tracked items, which always need whole pieces.

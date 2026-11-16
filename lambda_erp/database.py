@@ -3690,6 +3690,22 @@ def _m067_item_units(db: "Database") -> None:
         db.ensure_column(table, "order_qty", "REAL")
 
 
+def _m068_units_completed(db: "Database") -> None:
+    """Units of measure, the rest (see docs/units.md): consignment
+    withdrawals and stock counts can be entered in a further unit, a unit can
+    require whole quantities, and an Item Price can be quoted per several
+    units. Existing rows keep their meaning: per_qty 1, no whole-number rule."""
+    db.ensure_column("Item Unit", "must_be_whole_number", "INTEGER DEFAULT 0")
+    db.ensure_column("Item Price", "per_qty", "REAL DEFAULT 1")
+    for table in ("Consignment Withdrawal Item", "Stock Count Item"):
+        if not db._get_table_columns(table):
+            continue
+        db.ensure_column(table, "uom", "TEXT")
+        db.ensure_column(table, "order_uom", "TEXT")
+        db.ensure_column(table, "conversion_factor", "REAL")
+        db.ensure_column(table, "order_qty", "REAL")
+
+
 def _m065_record_attachments(db: "Database") -> None:
     """Files kept with a document or master record, and a tracking reference
     on delivery notes (see docs/attachments.md)."""
@@ -3831,6 +3847,7 @@ Database.MIGRATIONS = [
     (65, "record_attachments", _m065_record_attachments),
     (66, "attachment_sensitivity", _m066_attachment_sensitivity),
     (67, "item_units", _m067_item_units),
+    (68, "units_completed", _m068_units_completed),
 ]
 
 

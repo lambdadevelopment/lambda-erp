@@ -60,11 +60,16 @@ def _serials(value):
 def content_hash(warehouse, items, replenish=False):
     """What a withdrawal report says, reduced to what matters: the same
     report gives the same hash whatever the order of its lines."""
-    lines = sorted(
-        (str(row.get("item_code") or ""), str(row.get("batch_no") or ""), str(row.get("location") or ""),
-         round(flt(row.get("qty")), 6), None if row.get("rate") in (None, "") else round(flt(row.get("rate")), 6),
-         sorted(_serials(row.get("serial_no"))))
-        for row in items or [])
+    # In stock units: a report of "1 Karton" and the stored line of 100 pieces
+    # are the same report (units.py).
+    from lambda_erp import units
+
+    def line(row):
+        qty, rate = units.in_stock_units(row)
+        return (str(row.get("item_code") or ""), str(row.get("batch_no") or ""), str(row.get("location") or ""),
+                round(qty, 6), None if rate is None else round(rate, 6), sorted(_serials(row.get("serial_no"))))
+
+    lines = sorted(line(row) for row in items or [])
     payload = json.dumps({"warehouse": warehouse, "lines": lines, "replenish": bool(flt(replenish))},
                          sort_keys=True, default=str)
     return hashlib.sha256(payload.encode()).hexdigest()
@@ -114,6 +119,10 @@ class ConsignmentWithdrawal(Document):
             self.posting_date = nowdate()
         if not self.get("items"):
             raise ValidationError("At least one item is required")
+        # Reported by the carton: rows in a further unit of the item become
+        # stock units before anything reads the quantity (units.py).
+        from lambda_erp import units
+        units.apply_units(self, rate_fields=("rate",))
         for idx, row in enumerate(self.get("items"), 1):
             if not row.get("item_code"):
                 raise ValidationError(f"Consignment Withdrawal row {idx}: Item Code is required")
@@ -179,7 +188,9 @@ class ConsignmentWithdrawal(Document):
         for row in self.get("items"):
             line = _dict(item_code=row["item_code"], qty=flt(row["qty"]), warehouse=self.warehouse,
                          batch_no=row.get("batch_no") or None, location=row.get("location") or None,
-                         serial_no=row.get("serial_no") or None)
+                         serial_no=row.get("serial_no") or None,
+                         order_uom=row.get("order_uom") or None,
+                         conversion_factor=row.get("conversion_factor") or None)
             if row.get("rate") is not None:
                 line["rate"] = flt(row["rate"])
             invoice.append("items", line)

@@ -79,6 +79,12 @@ def _row_batch(row):
 def validate_return(doc):
     if not doc.get('return_against'):
         raise ValidationError(f'Return Against is required for a return {doc.DOCTYPE}')
+    # A return line entered in a further unit of the item (-1 Karton) becomes
+    # stock units first: every check below compares with the original
+    # document's quantities, which are in stock units (units.py). The
+    # documents run this before they price their lines.
+    from lambda_erp import units
+    units.apply_units(doc)
     db = get_db()
     original = db.get_value(doc.DOCTYPE, doc.return_against, ['name', 'docstatus', 'is_return', 'company', 'customer', 'supplier', 'currency', 'update_stock'])
     if not original:

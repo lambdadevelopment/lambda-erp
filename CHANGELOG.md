@@ -13,6 +13,27 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.23] - 2026-11-16
+
+Migration 68 (adds columns; existing prices and units keep their meaning).
+
+- **Units of measure, completed.** Consignment withdrawals (`qty` + `uom`)
+  and stock counts (`counted_qty` + `uom`) can be entered in a further unit
+  of the item. A withdrawal reported as 1 Karton and one reported as 100 Stk
+  are the same report for the replay check.
+- A return line entered in a further unit (`qty` -1, `uom` Karton) is
+  converted to stock units before the return checks run, so every check
+  compares stock units with the original document. In 1.4.22 the first
+  checks saw the entered number; an over-return was still refused by a later
+  check, so no wrong return could be posted.
+- An Item Unit can require whole quantities (`must_be_whole_number`):
+  1.5 Karton is refused, 150 Stk is not.
+- An Item Price can be quoted per several units (`per_qty`: 12.50 per 100
+  is 0.125 each). This is a price notation, not a pack size.
+- A discount percentage on a list price finer than a cent is no longer
+  rounded to the cent per unit (0.125 less 10 % is 0.1125, not 0.11); the
+  line amount is rounded as before. Prices in whole cents are unchanged.
+
 ## [1.4.22] - 2026-11-13
 
 Migration 67 (adds a table and three columns per line table; no existing

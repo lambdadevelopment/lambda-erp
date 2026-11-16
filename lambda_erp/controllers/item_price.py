@@ -80,6 +80,8 @@ class ItemPrice(Document):
     CONDITIONAL_REQUIREMENTS = (
         'A row without a customer/supplier is the list price for that item. A row naming a party overrides it for that party only.',
         'min_qty sets a volume break: the highest min_qty at or below the line quantity wins.',
+        'per_qty: the rate is the price of this many units (rate 12.50, per_qty 100 = 0.125 each). Default 1. '
+        'It is not a pack size: for a carton of 100 give the item an Item Unit and set uom on the price.',
         'A customer may only be set on a selling Price List, a supplier only on a buying one.',
     )
 
@@ -96,6 +98,17 @@ class ItemPrice(Document):
             raise ValidationError("Min Qty cannot be negative")
         if flt(self.rate) < 0:
             raise ValidationError("Rate cannot be negative")
+        per = self._data.get("per_qty")
+        if per in (None, ""):
+            self._data["per_qty"] = 1
+        else:
+            try:
+                per = float(per)
+            except (TypeError, ValueError):
+                raise ValidationError("Per Qty must be a number")
+            if not math.isfinite(per) or per <= 0:
+                raise ValidationError("Per Qty must be positive")
+            self._data["per_qty"] = per
         if self.customer and self.supplier:
             raise ValidationError("An Item Price names either a customer or a supplier, not both")
 
@@ -225,7 +238,15 @@ def find_item_price(item_code, price_list, qty=0, party_field=None, party=None,
         unit_match = 1 if (uom and row.get("uom") == uom) else 0
         return (party_match, unit_match, flt(row.get("min_qty")), *_validity_rank(row), str(row.get("name")))
 
-    return max(rows, key=rank)
+    best = dict(max(rows, key=rank))
+    # A price quoted per several units (12.50 per 100): `rate` of the row
+    # that is returned is the price of ONE unit; `quoted_rate` and `per_qty`
+    # keep what the price list says.
+    per = flt(best.get("per_qty"))
+    if per > 0 and per != 1:
+        best["quoted_rate"] = flt(best["rate"])
+        best["rate"] = flt(best["rate"]) / per
+    return best
 
 
 def set_item_defaults(doc, party_type=None, party_field=None, *, set_description=True):
@@ -294,7 +315,6 @@ def set_item_defaults(doc, party_type=None, party_field=None, *, set_description
                     date=date,
                 )
             if unit_row is not None:
-                row = dict(row)
                 row["rate"] = flt(row["rate"]) / factor
             # Where the base price came from is kept on the line
             # (price_source / price_reference), see price_resolution.py.

@@ -22,6 +22,7 @@ See docs/stock-counts.md.
 """
 from lambda_erp.accounting.general_ledger import make_gl_entries, make_reverse_gl_entries
 from lambda_erp.database import get_db
+from lambda_erp import units
 from lambda_erp.exceptions import ValidationError
 from lambda_erp.model import Document
 from lambda_erp.stock.stock_ledger import (
@@ -73,6 +74,7 @@ class StockCount(Document):
         if not self.get("items"):
             raise ValidationError("At least one item is required")
         system = _system_quantities(self.warehouse)
+        unit_columns = units.has_unit_columns(self)
         seen = set()
         counted = differences = 0
         for idx, row in enumerate(self.get("items"), 1):
@@ -107,6 +109,15 @@ class StockCount(Document):
             if quantity < 0 or quantity != quantity or quantity == float("inf"):
                 raise ValidationError(f"Stock Count row {idx}: Counted Qty cannot be negative")
             row["counted_qty"] = quantity
+            # Counted by the carton: a row whose uom names one of the item's
+            # units is converted to stock units like a document line.
+            if unit_columns:
+                stock_uom = db.get_value("Item", row["item_code"], "stock_uom")
+                factor = units.pending_factor(row, stock_uom, f"Stock Count row {idx}", qty_field="counted_qty")
+                if factor:
+                    units.convert_line(row, stock_uom, factor, rate_fields=(), qty_field="counted_qty")
+                    quantity = row["counted_qty"]
+                units.stamp_order_qty(row, "counted_qty")
             row["difference_qty"] = quantity - row["system_qty"]
             counted += 1
             differences += 1 if abs(row["difference_qty"]) > EPSILON else 0

@@ -55,6 +55,8 @@ class ItemUnit(Document):
         "stock_uom, and an item has each unit once.",
         "A document line entered with this uom is converted to the stock unit when saved; the line keeps "
         "order_uom, conversion_factor and order_qty. Changing or disabling a unit does not change stored documents.",
+        "must_be_whole_number = 1: a line entered in this unit needs a whole quantity (2 Karton, not 1.5). "
+        "Quantities in the stock unit are not affected.",
     )
 
     def validate(self):
@@ -80,6 +82,7 @@ class ItemUnit(Document):
         self._data["conversion_factor"] = factor
         enabled = self._data.get("enabled")
         self._data["enabled"] = 1 if enabled in (None, "") else int(flt(enabled) != 0)
+        self._data["must_be_whole_number"] = int(flt(self._data.get("must_be_whole_number")) != 0)
         twin = db.sql(
             'SELECT name FROM "Item Unit" WHERE item_code = ? AND uom = ? AND name <> ? '
             'AND COALESCE(discarded, 0) = 0 LIMIT 1',
@@ -93,16 +96,23 @@ def _table_ready(db):
     return bool(db._get_table_columns("Item Unit"))
 
 
-def units_of(item_code):
-    """The enabled further units of an item as {uom: conversion_factor}."""
+def unit_records(item_code):
+    """The enabled further units of an item as {uom: {"factor", "whole"}}."""
     db = get_db()
     if not item_code or not _table_ready(db):
         return {}
+    whole = "must_be_whole_number" in db._get_table_columns("Item Unit")
     rows = db.sql(
-        'SELECT uom, conversion_factor FROM "Item Unit" WHERE item_code = ? '
+        'SELECT * FROM "Item Unit" WHERE item_code = ? '
         'AND COALESCE(enabled, 1) = 1 AND COALESCE(discarded, 0) = 0 ORDER BY uom',
         [item_code])
-    return {row["uom"]: flt(row["conversion_factor"]) for row in rows}
+    return {row["uom"]: {"factor": flt(row["conversion_factor"]),
+                         "whole": bool(whole and flt(row.get("must_be_whole_number")))} for row in rows}
+
+
+def units_of(item_code):
+    """The enabled further units of an item as {uom: conversion_factor}."""
+    return {uom: unit["factor"] for uom, unit in unit_records(item_code).items()}
 
 
 def conversion_factor(item_code, uom):
@@ -110,35 +120,42 @@ def conversion_factor(item_code, uom):
     return units_of(item_code).get(uom)
 
 
-def pending_factor(item, stock_uom, label="Row"):
+def pending_factor(item, stock_uom, label="Row", qty_field="qty"):
     """The factor a line still has to be converted by, or None.
 
     A line is converted when its `uom` is one of the item's units. None for
     a line already in the stock unit, and for an item without any Item Unit
-    (its `uom` stays free text). Raises for a unit the item does not have.
+    (its `uom` stays free text). Raises for a unit the item does not have,
+    and for a broken quantity of a unit that is only handled whole.
     """
     uom = str(item.get("uom") or "").strip()
     if not uom or uom == (stock_uom or ""):
         return None
-    units = units_of(item.get("item_code"))
+    units = unit_records(item.get("item_code"))
     if not units:
         return None
-    factor = units.get(uom)
-    if not factor:
-        known = ", ".join(f"{name} (= {flt(value):g} {stock_uom})" for name, value in units.items())
+    unit = units.get(uom)
+    if not unit or not unit["factor"]:
+        known = ", ".join(f"{name} (= {flt(value['factor']):g} {stock_uom})" for name, value in units.items())
         raise ValidationError(
             f"{label}: {uom} is not a unit of item {item.get('item_code')}. It is stocked in {stock_uom}; "
             f"its further units are {known}. Use one of these, or add an Item Unit for {uom} first")
-    return factor
+    entered = flt(item.get(qty_field))
+    if unit["whole"] and abs(entered - round(entered)) > 1e-9:
+        raise ValidationError(
+            f"{label}: {item.get('item_code')} is handled in whole {uom} only, not {entered:g}. "
+            f"Enter a whole number of {uom}, or the quantity in {stock_uom} "
+            f"(1 {uom} = {flt(unit['factor']):g} {stock_uom})")
+    return unit["factor"]
 
 
-def convert_line(item, stock_uom, factor, rate_fields=RATE_FIELDS):
+def convert_line(item, stock_uom, factor, rate_fields=RATE_FIELDS, qty_field="qty"):
     """Convert one line from the unit in `uom` to the stock unit, in place.
     Returns the quantity as it was entered."""
-    entered = flt(item.get("qty"))
+    entered = flt(item.get(qty_field))
     item["order_uom"] = str(item.get("uom")).strip()
     item["conversion_factor"] = factor
-    item["qty"] = flt(entered * factor, QTY_PLACES)
+    item[qty_field] = flt(entered * factor, QTY_PLACES)
     for field in rate_fields:
         if item.get(field) not in (None, ""):
             # Not rounded: 10.00 for a pack of 3 is 3.3333... per piece, and
@@ -148,11 +165,11 @@ def convert_line(item, stock_uom, factor, rate_fields=RATE_FIELDS):
     return entered
 
 
-def stamp_order_qty(item):
+def stamp_order_qty(item, qty_field="qty"):
     """Derive `order_qty` (and tidy the snapshot) of a line in the stock unit."""
     factor = flt(item.get("conversion_factor"))
-    if item.get("order_uom") and math.isfinite(factor) and factor > 0:
-        item["order_qty"] = flt(flt(item.get("qty")) / factor, QTY_PLACES)
+    if item.get("order_uom") and math.isfinite(factor) and factor > 0 and item.get(qty_field) not in (None, ""):
+        item["order_qty"] = flt(flt(item.get(qty_field)) / factor, QTY_PLACES)
     else:
         item["order_uom"] = None
         item["conversion_factor"] = None
@@ -180,6 +197,21 @@ def apply_units(doc, rate_fields=RATE_FIELDS, child="items"):
             if factor:
                 convert_line(item, stock_uom, factor, rate_fields)
         stamp_order_qty(item)
+
+
+def in_stock_units(row):
+    """(quantity, rate) of a row as it will be stored: per stock unit. For
+    code that compares a row as it was sent with one that was saved (the
+    content hash of a consignment report)."""
+    qty = flt(row.get("qty"))
+    rate = None if row.get("rate") in (None, "") else flt(row.get("rate"))
+    code = row.get("item_code")
+    stock_uom = get_db().get_value("Item", code, "stock_uom") if code else None
+    factor = pending_factor(row, stock_uom, "Row") if stock_uom is not None else None
+    if factor:
+        qty = flt(qty * factor, QTY_PLACES)
+        rate = None if rate is None else rate / factor
+    return qty, rate
 
 
 def describe(item, stock_uom=None):

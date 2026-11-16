@@ -159,6 +159,119 @@ class Units(unittest.TestCase):
         line = services.load_document('purchase-order', order['name'])['items'][0]
         self.assertEqual((line['qty'], line['order_qty'], round(line['rate'], 6), line['amount']), (300, 3, 2.4, 720))
 
+    def test_a_unit_handled_whole_only(self):
+        services.update_document('item-unit', self.carton['name'], {'must_be_whole_number': 1})
+        with self.assertRaisesRegex(ValidationError, 'whole Karton only, not 1.5'):
+            self.order([{'item_code': 'GLOVE', 'qty': 1.5, 'uom': 'Karton', 'rate': 290}])
+        # The same quantity in stock units is fine, and so is a partial quantity later.
+        order = self.order([{'item_code': 'GLOVE', 'qty': 2, 'uom': 'Karton', 'rate': 290}])
+        row = dict(order['items'][0], qty=150)
+        part = services.update_document('sales-order', order['name'], {'items': [row]})
+        self.assertEqual((part['items'][0]['qty'], part['items'][0]['order_qty']), (150, 1.5))
+
+    def test_a_price_per_several_units_is_not_a_pack(self):
+        selling = services.create_document('price-list', {
+            'price_list_name': 'Selling', 'currency': 'USD', 'selling': 1, 'buying': 0})['name']
+        self.db.set_value('Company', 'Test Co', 'default_price_list', selling)
+        self.db.commit()
+        price = services.create_document('item-price', {
+            'item_code': 'PLAIN', 'price_list': selling, 'rate': 12.5, 'per_qty': 100})
+        self.assertEqual(price['per_qty'], 100)
+        line = self.order([{'item_code': 'PLAIN', 'qty': 40}])['items'][0]
+        self.assertEqual((line['qty'], line['rate'], line['amount'], line.get('order_uom')), (40, 0.125, 5, None))
+        # A discount on a price finer than a cent is not rounded to the cent.
+        line = self.order([{'item_code': 'PLAIN', 'qty': 1000, 'price_list_rate': 0.125,
+                            'discount_percentage': 10}])['items'][0]
+        self.assertEqual((line['rate'], line['amount']), (0.1125, 112.5))
+        with self.assertRaisesRegex(ValidationError, 'Per Qty must be positive'):
+            services.create_document('item-price', {'item_code': 'PLAIN', 'price_list': selling, 'rate': 1, 'per_qty': 0})
+
+    def test_return_and_cancel_in_units(self):
+        self.receive('GLOVE', 3, 250, uom='Karton')
+        order = self.order([{'item_code': 'GLOVE', 'qty': 2, 'uom': 'Karton', 'rate': 290}])
+        services.submit_document('sales-order', order['name'])
+        note = make_delivery_note(order['name'])
+        note.save()
+        note.submit()
+        self.assertEqual(self.bin('GLOVE'), 100)
+        from lambda_erp.stock.delivery_note import make_delivery_return
+        back = make_delivery_return(note.name)
+        back.get('items')[0].update(qty=-1, uom='Karton', rate=290)
+        back.save()
+        line = back.get('items')[0]
+        self.assertEqual((line['qty'], line['order_qty'], line['rate'], line['amount']), (-100, -1, 2.9, -290))
+        back.submit()
+        self.assertEqual(self.bin('GLOVE'), 200)
+        self.assertEqual(self.db.get_value('Sales Order Item', {'parent': order['name']}, 'returned_qty'), 100)
+        # More than is left to return cannot come back: 2 Karton are 200 pieces, 100 are left.
+        again = make_delivery_return(note.name)
+        again.get('items')[0].update(qty=-2, uom='Karton', rate=290)
+        with self.assertRaises(ValidationError):
+            again.save()
+        back = {'name': back.name}
+        services.cancel_document('delivery-note', back['name'])
+        self.assertEqual(self.bin('GLOVE'), 100)
+        services.cancel_document('delivery-note', note.name)
+        self.assertEqual((self.bin('GLOVE'), self.bin('GLOVE', 'valuation_rate')), (300, 2.5))
+        self.assertEqual(self.db.get_value('Sales Order', order['name'], 'per_delivered'), 0)
+        self.assertEqual(stock_ledger_agreement(), [])
+
+    def test_two_orders_compete_for_the_last_carton(self):
+        from lambda_erp.stock import reservation
+        self.receive('GLOVE', 1, 250, uom='Karton')
+        first = self.order([{'item_code': 'GLOVE', 'qty': 1, 'uom': 'Karton', 'rate': 290}])
+        second = self.order([{'item_code': 'GLOVE', 'qty': 1, 'uom': 'Karton', 'rate': 290}])
+        for order in (first, second):
+            services.submit_document('sales-order', order['name'])
+        got = reservation.reserve_sales_order(first['name'])
+        self.assertEqual((got['lines'][0]['reserved_qty'], got['fully_reserved']), (100, True))
+        got = reservation.reserve_sales_order(second['name'])
+        self.assertEqual((got['lines'][0]['reserved_qty'], got['lines'][0]['short_qty'], got['fully_reserved']),
+                         (0, 100, False))
+
+    def test_consignment_withdrawal_reported_by_the_carton(self):
+        from api.routers.masters import update_master_record
+        from lambda_erp.exceptions import ConflictError
+        from lambda_erp.stock.consignment import record_withdrawal
+        db = self.db
+        db.insert('Customer', {'name': 'H', 'customer_name': 'Hospital', 'default_currency': 'USD'})
+        db.insert('Warehouse', {'name': 'CONSI-H', 'warehouse_name': 'Consignment Hospital', 'company': 'Test Co'})
+        db.commit()
+        update_master_record('warehouse', 'CONSI-H', {'consignment_customer': 'H'})
+        entry = services.create_document('stock-entry', {
+            'company': 'Test Co', 'stock_entry_type': 'Material Receipt',
+            'items': [{'item_code': 'GLOVE', 'qty': 3, 'uom': 'Karton', 'basic_rate': 250, 't_warehouse': 'CONSI-H'}]})
+        services.submit_document('stock-entry', entry['name'])
+        report = [{'item_code': 'GLOVE', 'qty': 1, 'uom': 'Karton', 'rate': 290}]
+        got = record_withdrawal('CONSI-H', report, external_source='portal', external_reference='R-1')
+        self.assertFalse(got['replayed'])
+        row = services.load_document('consignment-withdrawal', got['name'])['items'][0]
+        self.assertEqual((row['qty'], row['order_qty'], row['order_uom'], row['rate']), (100, 1, 'Karton', 2.9))
+        line = services.load_document('sales-invoice', got['sales_invoice'])['items'][0]
+        self.assertEqual((line['qty'], line['amount'], line['order_uom'], line['order_qty']), (100, 290, 'Karton', 1))
+        self.assertEqual(db.get_value('Bin', {'item_code': 'GLOVE', 'warehouse': 'CONSI-H'}, 'actual_qty'), 200)
+        # The same report again, by the carton or in pieces, is the same report.
+        self.assertTrue(record_withdrawal('CONSI-H', report, external_source='portal', external_reference='R-1')['replayed'])
+        self.assertTrue(record_withdrawal('CONSI-H', [{'item_code': 'GLOVE', 'qty': 100, 'rate': 2.9}],
+                                          external_source='portal', external_reference='R-1')['replayed'])
+        with self.assertRaises(ConflictError):
+            record_withdrawal('CONSI-H', [{'item_code': 'GLOVE', 'qty': 2, 'uom': 'Karton', 'rate': 290}],
+                              external_source='portal', external_reference='R-1')
+        self.assertEqual(db.get_value('Bin', {'item_code': 'GLOVE', 'warehouse': 'CONSI-H'}, 'actual_qty'), 200)
+        self.assertEqual(stock_ledger_agreement(), [])
+
+    def test_stock_count_by_the_carton(self):
+        self.receive('GLOVE', 2, 250, uom='Karton')
+        count = services.create_document('stock-count', {
+            'warehouse': 'A', 'reason': 'Year-end count',
+            'items': [{'item_code': 'GLOVE', 'counted_qty': 3, 'uom': 'Karton'}]})
+        row = count['items'][0]
+        self.assertEqual((row['system_qty'], row['counted_qty'], row['difference_qty'], row['order_qty'], row['order_uom']),
+                         (200, 300, 100, 3, 'Karton'))
+        services.submit_document('stock-count', count['name'])
+        self.assertEqual(self.bin('GLOVE'), 300)
+        self.assertEqual(stock_ledger_agreement(), [])
+
     def test_purchase_by_the_pack(self):
         receipt = services.create_document('purchase-receipt', {
             'company': 'Test Co', 'supplier': 'SUP', 'posting_date': '2026-11-13',

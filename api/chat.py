@@ -3065,7 +3065,9 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - To enter a line in such a unit, send `qty` and `rate` in that unit and name it in `uom` (qty 2, uom "Karton", rate 290). On save the line is stored per stock unit (qty 200, rate 2.90) and keeps `order_uom`, `conversion_factor` and `order_qty` (2). Amounts are unchanged: 2 x 290 = 200 x 2.90.
 - On a stored line `qty`, `rate`, delivered/billed quantities and every stock figure are in the stock unit; `order_qty` + `order_uom` say what was ordered. Tell the user both when they differ ("2 Karton = 200 Stk"). Never multiply or divide by the factor yourself before sending a line: either send the entered unit in `uom`, or send stock units.
 - A unit the item does not have is refused. Do not guess a factor from a product name or from "VE"/"Pack": ask, or have an Item Unit created first.
-- An Item Price with `uom` set is a price per that unit (290 per Karton) and is used for lines entered in it; a price without `uom` is per stock unit.
+- An Item Price with `uom` set is a price per that unit (290 per Karton) and is used for lines entered in it; a price without `uom` is per stock unit. `per_qty` on an Item Price means the rate buys that many units (12.50 per 100 = 0.125 each); it is not a pack size.
+- An Item Unit with must_be_whole_number = 1 takes whole quantities only (2 Karton, not 1.5); say so instead of rounding.
+- Consignment withdrawals (qty + uom) and stock counts (counted_qty + uom) can be entered in a unit the same way; returns too (qty -1, uom "Karton").
 
 ### Addresses
 - A customer can have several addresses (master_type="address": customer, label, is_billing, is_shipping, is_default_billing, is_default_shipping, recipient_name, contact_person, address, zip_code, city, country, instructions). Search them with search_masters master_type="address" and the customer's name.

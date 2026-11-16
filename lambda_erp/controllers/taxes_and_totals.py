@@ -31,7 +31,7 @@ informational: nothing is posted, owed or paid from them.
 
 import json
 from decimal import Decimal
-from lambda_erp.utils import flt, cint, _dict, dec, money
+from lambda_erp.utils import flt, cint, _dict, dec, money, round_half_up
 from lambda_erp.exceptions import ValidationError
 
 HUNDRED = Decimal(100)
@@ -85,6 +85,11 @@ class TaxCalculator:
             # Rounding that to the cent would move the line amount, so the
             # unit rate keeps six places there; amounts round as always.
             places = 6 if flt(item.get("conversion_factor")) not in (0.0, 1.0) else 2
+            # The same holds for a list price finer than a cent (12.50 per
+            # 100 is 0.125 each): a discount on it is not rounded to the cent.
+            list_price = item.get("price_list_rate")
+            if places == 2 and list_price not in (None, "") and dec(list_price) != round_half_up(list_price, 2):
+                places = 6
             # Apply discount to get rate from price_list_rate
             if item.get('rate') is not None and flt(item['rate']) == 0:
                 item['rate'] = 0.0
