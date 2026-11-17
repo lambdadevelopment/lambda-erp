@@ -111,6 +111,18 @@ Register an app in Microsoft Entra (App registrations → New registration):
 - Optional: add the `email` optional claim to the ID token (Token
   configuration). Without it the sign-in name is used as the address.
 
+**Which accounts to admit.** Leave `MICROSOFT_OAUTH_TENANT` at `common`
+unless there is a concrete reason not to. Restricting it to work accounts or
+to one organisation rarely adds safety and often locks out the people who are
+meant to sign in: companies use several e-mail domains and Microsoft tenants
+side by side, and some people only have a personal Microsoft account. What
+decides who gets in is not the kind of Microsoft account but the ERP user it
+is linked to (next paragraph). The app registration's account type and this
+setting must agree: an app registered for organisations only makes Microsoft
+refuse personal accounts ("You can't sign in here with a personal account")
+before the ERP is asked. Changing the app to include personal accounts
+requires access token version 2 on it (`api.requestedAccessTokenVersion`).
+
 Signing in with a Microsoft account does not let a user in by itself. As with
 the other providers, the account must already be linked to an ERP user, or a
 new user is created only under the usual rules (first user, invitation, or
