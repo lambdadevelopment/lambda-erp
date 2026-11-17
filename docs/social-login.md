@@ -1,6 +1,7 @@
 # Social login
 
-Lambda ERP supports Google and Apple sign-in alongside email and password.
+Lambda ERP supports Google, Apple and Microsoft sign-in alongside email and
+password.
 Each provider remains disabled until all of its environment variables are
 configured; the login page only shows configured providers.
 
@@ -17,9 +18,9 @@ and the rest of the application therefore behave identically after sign-in.
   and link the provider from Settings. This prevents account takeover through
   an email match alone.
 - Provider emails must be verified. Apple private-relay addresses are valid
-  verified addresses.
-- Invitations can be accepted through Google or Apple; the invitation token
-  and role are carried through the signed OAuth state.
+  verified addresses. For Microsoft see below.
+- Invitations can be accepted through any of the providers; the invitation
+  token and role are carried through the signed OAuth state.
 - OAuth-only users have no usable password. They can add one later as a
   fallback.
 - Provider unlinking is not currently supported.
@@ -36,7 +37,7 @@ The OAuth router is mounted below `/api/auth`:
 |---|---|
 | `GET /api/auth/oauth/providers` | List configured providers for the login UI |
 | `GET /api/auth/oauth/identities` | List the signed-in user's linked providers |
-| `GET /api/auth/{provider}/login` | Start a Google or Apple login |
+| `GET /api/auth/{provider}/login` | Start a login (`google`, `apple`, `microsoft`) |
 | `GET /api/auth/{provider}/login?link=1` | Link a provider while signed in |
 | `GET or POST /api/auth/{provider}/callback` | Provider callback |
 
@@ -57,6 +58,16 @@ Apple requires:
 - `APPLE_KEY_ID`
 - `APPLE_PRIVATE_KEY` — the `.p8` key contents
 
+Microsoft requires (since 1.4.24):
+
+- `MICROSOFT_OAUTH_CLIENT_ID` — the application (client) ID of the app
+  registration
+- `MICROSOFT_OAUTH_CLIENT_SECRET` — a client secret of it
+- `MICROSOFT_OAUTH_TENANT` — optional, who may sign in: `common` (default:
+  any Microsoft account, personal or of any organisation), `organizations`
+  (work and school accounts only), `consumers` (personal accounts only), or
+  one tenant ID for a single organisation
+
 `OAUTH_REDIRECT_BASE` optionally fixes the public origin used to construct
 callback URLs. This is useful behind a reverse proxy. Otherwise the request
 origin is used.
@@ -66,6 +77,7 @@ Register these exact callback URLs with the providers:
 ```text
 https://<erp-domain>/api/auth/google/callback
 https://<erp-domain>/api/auth/apple/callback
+https://<erp-domain>/api/auth/microsoft/callback
 ```
 
 Google should use a dedicated OAuth client for the ERP deployment. For Apple,
@@ -85,3 +97,38 @@ attribute, because that would expose the session to sibling applications.
 - A provider identity already owned by another user cannot be linked.
 
 The implementation lives in `api/oauth.py`.
+
+## Microsoft
+
+Register an app in Microsoft Entra (App registrations → New registration):
+
+- Supported account types to match `MICROSOFT_OAUTH_TENANT`. For the default
+  `common`: "Accounts in any organizational directory and personal Microsoft
+  accounts".
+- Redirect URI of type **Web**: the callback URL above.
+- A client secret (Certificates & secrets). It expires; renew it before it
+  does.
+- Optional: add the `email` optional claim to the ID token (Token
+  configuration). Without it the sign-in name is used as the address.
+
+Signing in with a Microsoft account does not let a user in by itself. As with
+the other providers, the account must already be linked to an ERP user, or a
+new user is created only under the usual rules (first user, invitation, or
+public signup).
+
+Two things differ from Google and Apple, and both are checked by the ERP:
+
+- **Issuer.** With `common`, each token is issued by the user's own tenant.
+  The ERP accepts a token only if its issuer is exactly the Microsoft issuer
+  of the tenant ID inside the token, and that tenant is admitted by
+  `MICROSOFT_OAUTH_TENANT`.
+- **E-mail address.** In an organisation's directory the administrator can
+  write any address into a user's e-mail field, so that field alone proves
+  nothing. The ERP takes it only when its domain equals the domain of the
+  user's sign-in name, which the organisation has verified with Microsoft;
+  otherwise it uses the sign-in name. A guest of a tenant gets no address and
+  cannot register with it. Personal Microsoft accounts use the address
+  Microsoft holds for them.
+
+The identity is stored as tenant ID and object ID, so it stays the same if
+the app registration is replaced.

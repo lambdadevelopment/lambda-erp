@@ -13,6 +13,21 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.24] - 2026-11-17
+
+No migration.
+
+- **Sign in with Microsoft.** A third login provider next to Google and
+  Apple, off until `MICROSOFT_OAUTH_CLIENT_ID` and
+  `MICROSOFT_OAUTH_CLIENT_SECRET` are set. By default any Microsoft account
+  can be used (personal accounts and users of any organisation);
+  `MICROSOFT_OAUTH_TENANT` narrows that to work accounts, personal accounts
+  or one organisation. Accounts, invitations and linking work as for the
+  other providers: a Microsoft account alone does not let anyone in. The
+  token's issuer is checked against its own tenant, and an organisation
+  account's e-mail field is only believed when its domain is the tenant's
+  verified one. See `docs/social-login.md`.
+
 ## [1.4.23] - 2026-11-16
 
 Migration 68 (adds columns; existing prices and units keep their meaning).

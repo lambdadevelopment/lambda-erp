@@ -1,4 +1,4 @@
-"""Social login (Google / Apple) for Lambda ERP.
+"""Social login (Google / Apple / Microsoft) for Lambda ERP.
 
 OAuth/OIDC is layered on top of the existing password auth without changing what
 a session *is*: once a provider has proven the user's identity, we mint the very
@@ -20,6 +20,14 @@ Design notes:
   The OIDC nonce is stored with that flow and verified in the ID token.
 - A provider is simply *disabled* (its buttons hidden) whenever its env vars are
   absent, so local/dev runs need no OAuth setup.
+- Microsoft (any Microsoft account by default: personal accounts and the
+  users of any organisation) differs in two ways, both handled in
+  `_microsoft_identity`: the token's issuer names the user's own tenant, so
+  it is checked against the tenant id inside the token instead of one fixed
+  string; and the `email` claim is not proof of ownership for organisation
+  accounts (their admin can write any address into it, the "nOAuth" attack),
+  so the address is only taken when its domain is the one the tenant has
+  verified for the user's sign-in name.
 """
 
 import os
@@ -83,7 +91,38 @@ PROVIDERS = {
         "scope": "openid email name",
         "response_mode": "form_post",
     },
+    "microsoft": {
+        "label": "Microsoft",
+        # Per tenant; checked in _microsoft_identity.
+        "issuer": None,
+        # Built from MICROSOFT_OAUTH_TENANT in _discovery_url.
+        "discovery": None,
+        "scope": "openid email profile",
+        "response_mode": None,
+    },
 }
+
+# The tenant every personal Microsoft account (outlook.com, hotmail.com, ...)
+# belongs to.
+MICROSOFT_CONSUMER_TENANT = "9188040d-6c67-4c5b-b112-36a304b66dad"
+_GUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+
+
+def _microsoft_tenant() -> str:
+    """Who may sign in with Microsoft: "common" (default: any Microsoft
+    account), "organizations" (work and school accounts only), "consumers"
+    (personal accounts only), or one tenant's id for a single organisation."""
+    tenant = (os.environ.get("MICROSOFT_OAUTH_TENANT") or "common").strip().lower()
+    if tenant in ("common", "organizations", "consumers") or _GUID.fullmatch(tenant):
+        return tenant
+    raise HTTPException(status_code=500, detail="MICROSOFT_OAUTH_TENANT must be common, organizations, consumers or a tenant id")
+
+
+def _discovery_url(provider: str) -> str:
+    if provider == "microsoft":
+        return f"https://login.microsoftonline.com/{_microsoft_tenant()}/v2.0/.well-known/openid-configuration"
+    return PROVIDERS[provider]["discovery"]
 
 
 def _client_id(provider: str) -> str | None:
@@ -91,6 +130,8 @@ def _client_id(provider: str) -> str | None:
         return os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
     if provider == "apple":
         return os.environ.get("APPLE_OAUTH_CLIENT_ID")
+    if provider == "microsoft":
+        return os.environ.get("MICROSOFT_OAUTH_CLIENT_ID")
     return None
 
 
@@ -103,6 +144,8 @@ def _client_secret(provider: str) -> str | None:
     """
     if provider == "google":
         return os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+    if provider == "microsoft":
+        return os.environ.get("MICROSOFT_OAUTH_CLIENT_SECRET")
     if provider == "apple":
         team_id = os.environ.get("APPLE_TEAM_ID")
         key_id = os.environ.get("APPLE_KEY_ID")
@@ -141,7 +184,7 @@ _jwks_cache: dict[str, dict] = {}
 
 def _discovery(provider: str) -> dict:
     if provider not in _discovery_cache:
-        url = PROVIDERS[provider]["discovery"]
+        url = _discovery_url(provider)
         resp = httpx.get(url, timeout=10)
         resp.raise_for_status()
         _discovery_cache[provider] = resp.json()
@@ -306,6 +349,7 @@ def _verify_id_token(provider: str, id_token: str, nonce: str) -> dict:
             key,
             algorithms=[header.get("alg", "RS256")],
             audience=_client_id(provider),
+            # None for Microsoft: its issuer is checked in _microsoft_identity.
             issuer=PROVIDERS[provider]["issuer"],
             # Apple omits at_hash; we don't pass the access token, so disable it.
             options={"verify_at_hash": False},
@@ -314,7 +358,54 @@ def _verify_id_token(provider: str, id_token: str, nonce: str) -> dict:
         raise HTTPException(status_code=400, detail=f"Identity token rejected: {exc}")
     if nonce and claims.get("nonce") != nonce:
         raise HTTPException(status_code=400, detail="Sign-in nonce mismatch")
+    if provider == "microsoft":
+        claims = _microsoft_identity(claims)
     return claims
+
+
+def _microsoft_identity(claims: dict) -> dict:
+    """Finish verifying a Microsoft ID token (its signature, audience, expiry
+    and nonce are already checked) and put it in the shape the callback
+    expects: `sub`, `email`, `email_verified`.
+
+    Issuer: a token from the multi-tenant endpoint is issued by the user's own
+    tenant, `https://login.microsoftonline.com/<tid>/v2.0`. It must be exactly
+    that for the `tid` it carries, and that tenant must be one this deployment
+    admits (MICROSOFT_OAUTH_TENANT).
+
+    Subject: tenant id + object id, the user's identity at Microsoft that does
+    not change with the app registration (`sub` alone is per registration).
+
+    E-mail: see the module docstring. Personal accounts: the address Microsoft
+    holds. Organisation accounts: the `email` claim only when its domain is
+    that of the sign-in name (`preferred_username`), which the tenant has
+    verified; else the sign-in name; none for a guest of the tenant.
+    """
+    tid = str(claims.get("tid") or "").lower()
+    if not _GUID.fullmatch(tid):
+        raise HTTPException(status_code=400, detail="Identity token rejected: no tenant")
+    if claims.get("iss") != f"https://login.microsoftonline.com/{tid}/v2.0":
+        raise HTTPException(status_code=400, detail="Identity token rejected: issuer does not match its tenant")
+    personal = tid == MICROSOFT_CONSUMER_TENANT
+    admitted = _microsoft_tenant()
+    if (admitted == "organizations" and personal) or (admitted == "consumers" and not personal) \
+            or (_GUID.fullmatch(admitted) and tid != admitted):
+        raise HTTPException(status_code=403, detail="This Microsoft account is not from an organisation that may sign in here")
+
+    oid = str(claims.get("oid") or "").lower()
+    subject = f"{tid}:{oid}" if _GUID.fullmatch(oid) else claims.get("sub")
+
+    mail = str(claims.get("email") or "").strip().lower()
+    upn = str(claims.get("preferred_username") or "").strip().lower()
+    mail = mail if _EMAIL.fullmatch(mail) else ""
+    upn = upn if _EMAIL.fullmatch(upn) and "#ext#" not in upn else ""
+    if personal:
+        email = mail or upn
+    elif mail and upn and mail.rsplit("@", 1)[1] == upn.rsplit("@", 1)[1]:
+        email = mail
+    else:
+        email = upn
+    return {**claims, "sub": subject, "email": email or None, "email_verified": bool(email)}
 
 
 def _email_is_verified(claims: dict) -> bool:
