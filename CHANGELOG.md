@@ -13,6 +13,45 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.25] - 2026-11-17
+
+No migration. **Changes what the assistant tools return for large results**
+(the built-in chat and MCP); the REST API and the pages of the app are not
+affected.
+
+- **`search_masters` no longer returns everything.** Called without a limit
+  it returned every match with every column: 5000 customers were 2.9 million
+  characters, more than any model can read. Now: up to 50 matches come back
+  as before, an array of full records. When more match, the answer is a page
+  `{rows, total, returned, offset, has_more, note}` with the first 50 records
+  and their identifying columns only; `offset` reads on and `result_fields`
+  chooses columns. A caller that sets `limit` still gets a plain array of
+  that many full records, now at most 500 (it was unbounded).
+- **`get_report`**: a report with a list of rows returns at most `limit` rows
+  (default 200, up to 2000) with `total_rows` and `has_more`; `offset` reads
+  on. Totals and summaries still cover all rows. The general ledger keeps
+  its own paging.
+- **`get_document`**: a line table with more than `limit` lines (default 200)
+  comes as a window, with `_lines` giving the total per table.
+- **`query_dataset`** returns 200 groups unless `limit` asks for more.
+- **`batch_create_masters`: many master records in one call.** A new tool
+  for the chat and MCP (managers and admins) that creates up to 200 records
+  of one master type per call, each exactly as `create_master` would, in the
+  order given (a parent before its children). A record that is refused does
+  not undo the others; the result lists every record with its outcome.
+  Entering a chart of accounts took one call per account before and ran out
+  of steps.
+- **The chat may take 30 steps per message** (12 before) before it has to
+  stop and report. `LAMBDA_ERP_CHAT_MAX_STEPS` sets it (1 to 100). Demo
+  visitors keep 12. A step is one model call with the tool calls it asks
+  for, so a long task can now cost up to two and a half times as much per
+  message.
+- **A size limit for every tool result.** Whatever a tool returns, including
+  tools registered by a deployment, is cut to 100,000 characters before it
+  reaches the model (`LAMBDA_ERP_TOOL_RESULT_MAX_CHARS`): the largest list is
+  shortened with a note of how many entries there are, or an error names the
+  size. See `docs/tool-result-limits.md`.
+
 ## [1.4.24] - 2026-11-17
 
 No migration.

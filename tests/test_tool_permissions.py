@@ -101,6 +101,7 @@ def check_tool_permissions():
         ("convert_document", {"doctype": "sales-invoice", "name": "SINV-TEST",
                               "target_doctype": "delivery-note"}),
         ("create_master", {"master_type": "customer", "data": {"customer_name": "Forbidden"}}),
+        ("batch_create_masters", {"master_type": "customer", "records": [{"customer_name": "Forbidden"}]}),
         ("update_master", {"master_type": "customer", "name": "CUST-001",
                            "data": {"customer_name": "Forbidden"}}),
         ("revalue_currencies", {"company": "Synthetic Co", "date": "2025-02-01", "post": True}),
@@ -125,7 +126,7 @@ def check_tool_permissions():
     # Explicit expectations protect the role policy itself, not just its use.
     writers = {"create_document", "update_document", "batch_update_documents",
                "submit_document", "cancel_document", "discard_document", "convert_document"}
-    managers = {"create_master", "update_master", "revalue_currencies",
+    managers = {"create_master", "batch_create_masters", "update_master", "revalue_currencies",
                 "import_bank_statement_attachments", "list_bank_reconciliation_queue",
                 "suggest_bank_reconciliation", "reconcile_bank_transaction", "undo_bank_reconciliation"}
     admins = {"delete_master", "plan_company_setup", "apply_company_setup"}

@@ -429,6 +429,41 @@ def create_master_record(master_type: str, data: dict) -> dict:
         return _create_master_record(master_type, data)
 
 
+BATCH_CREATE_MAX = 200
+
+
+def batch_create_master_records(master_type: str, records: list) -> dict:
+    """Create many master records of ONE type in a single call: a chart of
+    accounts, a customer list, an item list.
+
+    Each record is created on its own, in the order given, exactly as
+    create_master_record would (same checks, same hooks), so a record that
+    is refused does not undo the others, and a parent listed before its
+    children exists when they are created. Returns ``{"created", "failed",
+    "results": [{"index", "ok", "name"?, "error"?}]}``.
+    """
+    if _get_table(master_type)[0] is None:  # before anything is written
+        raise ValueError(f"Unknown master type: {master_type}")
+    if not isinstance(records, list) or not records:
+        raise ValueError("records must be a non-empty array of data objects")
+    if len(records) > BATCH_CREATE_MAX:
+        raise ValueError(f"Too many records ({len(records)}); max {BATCH_CREATE_MAX} per call")
+    results, created = [], 0
+    for index, data in enumerate(records):
+        if not isinstance(data, dict) or not data:
+            results.append({"index": index, "ok": False, "error": "not a data object"})
+            continue
+        try:
+            record = dict(create_master_record(master_type, data))
+            results.append({"index": index, "ok": True, "name": record.get("name")})
+            created += 1
+        except Exception as exc:  # noqa: BLE001 — per record; report, don't abort
+            detail = getattr(exc, "detail", None)
+            results.append({"index": index, "ok": False, "name": data.get("name"),
+                            "error": str(detail or exc)})
+    return {"created": created, "failed": len(results) - created, "results": results}
+
+
 def _create_master_record(master_type: str, data: dict) -> dict:
     doctype, _ = _get_table(master_type)
     if not doctype:

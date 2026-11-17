@@ -29,7 +29,7 @@ TOOL_ROLES = {
         "submit_document", "cancel_document", "discard_document", "convert_document",
     ), _DOCUMENT_WRITERS),
     **dict.fromkeys((
-        "create_master", "update_master", "revalue_currencies",
+        "create_master", "batch_create_masters", "update_master", "revalue_currencies",
         "import_bank_statement_attachments", "list_bank_reconciliation_queue",
         "suggest_bank_reconciliation", "reconcile_bank_transaction",
         "undo_bank_reconciliation",

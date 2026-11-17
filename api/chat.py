@@ -641,12 +641,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_document",
-            "description": "Load a specific document by its name/ID. Returns the full document with all fields and child tables.",
+            "description": "Load a specific document by its name/ID. Returns the document with all fields and its line tables. A table with more than `limit` lines (default 200) comes as a window of it; `_lines` then gives the total per table and has_more, and `offset` reads on.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "doctype": {"type": "string", "enum": DOCUMENT_SLUGS},
                     "name": {"type": "string", "description": "Document name/ID, e.g. 'QTN-0001'"},
+                    "limit": {"type": "integer", "description": "Maximum lines per line table, default 200, range 1–2000."},
+                    "offset": {"type": "integer", "description": "Skip this many lines of each line table.", "default": 0},
                 },
                 "required": ["doctype", "name"],
             },
@@ -786,7 +788,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_masters",
-            "description": "Search and filter master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). `query` is a case-insensitive free-text lookup with fuzzy fallback for simple misspellings. Use `filters` for deterministic field-aware queries and for combining different values across fields. With time_filter or include_meta=true returns a page object with rows, total, pagination and coverage (default limit 50, max 500; no fuzzy fallback). Legacy simple lookups return all matches as an array unless limit is supplied.",
+            "description": "Search and filter master data (customers, suppliers, items, warehouses, accounts, companies, cost centers). `query` is a case-insensitive free-text lookup with fuzzy fallback for simple misspellings. Use `filters` for deterministic field-aware queries and for combining different values across fields. With time_filter or include_meta=true returns a page object with rows, total, pagination and coverage (default limit 50, max 500; no fuzzy fallback). A simple lookup returns an array of full records when up to 50 match, or when you set `limit` yourself (at most 500). Without a limit, when more than 50 match it returns a page instead: {rows, total, returned, offset, has_more, note} with the first 50 records and only their identifying columns; then narrow the search (a more specific query, or filters such as {\"root_type\": \"Expense\"}, {\"account_type\": \"Bank\"}, {\"is_group\": 0} for accounts, {\"item_group\": ...} for items), page with offset, or name the columns you need in result_fields.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -806,7 +808,7 @@ TOOLS = [
                     },
                     "order_by": {"type": "string", "description": "Optional real column or registered alias (item_code = name) to sort by. Defaults to the time_filter field when supplied, otherwise name."},
                     "order": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction (default asc).", "default": "asc"},
-                    "limit": {"type": "integer", "description": "Maximum results. With time_filter/include_meta: default 50, range 1–500. Legacy simple lookups have no cap when omitted."},
+                    "limit": {"type": "integer", "description": "Maximum results, range 1–500. Set it and a simple lookup returns a plain array of that many full records; leave it out to get the first 50 with the total and has_more when there are more."},
                     "offset": {"type": "integer", "description": "Skip this many matching rows. Use with limit for pagination.", "default": 0},
                     "result_fields": {
                         "type": "array",
@@ -830,6 +832,36 @@ TOOLS = [
                     "master_type": {"type": "string", "enum": MASTER_TYPES},
                 },
                 "required": ["master_type"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "batch_create_masters",
+            "description": (
+                "Create MANY master records of the SAME type in ONE call: a chart of accounts, a customer "
+                "list, an item list. Use this instead of one create_master per record whenever there are more "
+                "than a handful; a whole chart of accounts is one or two calls. `records` is an array of "
+                "`data` objects, each exactly as create_master takes it (see create_master and "
+                "get_master_fields for the fields). Max 200 per call. Records are created one by one in the "
+                "order given: list a parent (group account, parent warehouse) before its children. "
+                "Best-effort and per record: one that is refused (already exists, missing field, unknown "
+                "parent) does not undo the others. Returns {\"created\", \"failed\", \"results\": "
+                "[{\"index\", \"ok\", \"name\", \"error\"?}]}; report the failed ones with their reason and "
+                "do not blindly resend records that were created."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "master_type": {"type": "string", "enum": MASTER_TYPES},
+                    "records": {
+                        "type": "array",
+                        "description": "Up to 200 data objects, one per record to create (same shape as create_master's data).",
+                        "items": {"type": "object"},
+                    },
+                },
+                "required": ["master_type", "records"],
             },
         },
     },
@@ -908,10 +940,12 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_report",
-            "description": "Run a financial or stock report.",
+            "description": "Run a financial or stock report. A report with a list of rows returns at most `limit` rows (default 200) plus total_rows and has_more; prefer the report's filters over paging through everything.",
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "limit": {"type": "integer", "description": "Maximum rows of a list report, default 200, range 1–2000. The general ledger uses filters.limit / filters.offset instead."},
+                    "offset": {"type": "integer", "description": "Skip this many rows.", "default": 0},
                     "report_type": {"type": "string", "enum": ["trial-balance", "general-ledger", "stock-balance", "stock-availability", "stock-detail", "batch-stock", "batch-movements", "batch-recipients", "batch-changes", "serial-trace", "sales-backlog", "purchase-backlog", "dashboard-summary", "profit-and-loss", "balance-sheet", "ar-aging", "ap-aging"]},
                     "filters": {"type": "object", "description": "Optional filters: company, account, from_date, to_date, item_code, warehouse; for batch-stock also batch_no, item_prefix, expiring_before, include_empty; for stock-detail also location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty; batch-movements requires batch_no. For trial-balance / profit-and-loss / balance-sheet you may also pass `presentation_currency` (e.g. \"EUR\") to view the report translated from the company's base currency at the period's closing rate — display only, the ledger stays in base currency.", "default": {}},
                 },
@@ -1663,7 +1697,26 @@ def _handle_get_document_fields(args):
 
 @with_record_view_urls("doctype")
 def _handle_get_document(args):
-    return services.load_document(args["doctype"], args["name"])
+    """One document. A line table longer than `limit` (default 200) is
+    returned as a window of it, with `_lines` saying how many there are: a
+    stock count or a bank statement can have thousands of lines."""
+    from api import tool_results
+    limit, offset, problem = tool_results.page_window(args)
+    if problem:
+        return {"error": problem}
+    doc = services.load_document(args["doctype"], args["name"])
+    if not isinstance(doc, dict):
+        return doc
+    windows = {}
+    for key, value in list(doc.items()):
+        if isinstance(value, list) and (len(value) > limit or (offset and value)):
+            doc[key] = value[offset:offset + limit]
+            windows[key] = {"total": len(value), "offset": offset, "returned": len(doc[key]),
+                            "has_more": offset + len(doc[key]) < len(value)}
+    if windows:
+        doc["_lines"] = {**windows, "note": "Not all lines are included. Read on with offset (and limit, up to "
+                                            f"{tool_results.MAX_ROWS}); totals on the document cover all lines."}
+    return doc
 
 
 @with_record_view_urls("doctype")
@@ -1786,6 +1839,44 @@ def _handle_get_master_fields(args):
     }
 
 
+def _compact_master_columns(db, doctype):
+    """What identifies a master record in a list: its id, the columns a
+    free-text search looks at, and a few that tell records apart."""
+    columns = db._get_table_columns(doctype)
+    wanted = ["name", *_master_search_columns(db, doctype),
+              "root_type", "account_type", "is_group", "parent_account", "company",
+              "item_group", "stock_uom", "city", "zip_code", "country", "customer", "disabled"]
+    return [column for column in dict.fromkeys(wanted) if column in columns][:9]
+
+
+def _master_page(master_type, doctype, args, rows, limit, offset, result_fields, search_cols):
+    """More records match than one answer holds: a page instead of the whole
+    list, with compact rows unless the caller chose the columns."""
+    db = get_db()
+    counted = services.list_master_records(
+        master_type, filters=args.get("filters") or {}, search=(args.get("query") or "").strip() or None,
+        search_fields=search_cols, include_disabled=bool(args.get("include_disabled")), limit=1, offset=0,
+        fields=["name"], with_total=True)
+    total = counted.get("total", len(rows))
+    if total <= len(rows) and not offset:
+        return rows
+    compact = not result_fields
+    if compact:
+        keep = _compact_master_columns(db, doctype)
+        rows = [{column: row.get(column) for column in keep if column in row} for row in rows]
+    more = offset + len(rows) < total
+    return {
+        "rows": rows, "total": total, "returned": len(rows), "offset": offset, "has_more": more,
+        "note": (f"{total} {master_type} records match; {len(rows)} are shown"
+                 + (" with their identifying columns only" if compact else "") + ". "
+                 + ("Narrow the search with a more specific query or with filters "
+                    "(see get_master_fields for the columns), or read on with offset="
+                    f"{offset + len(rows)}. " if more else "")
+                 + ("For other columns pass result_fields, or read one record by its name."
+                    if compact else "")),
+    }
+
+
 @with_record_view_urls("master_type", master=True)
 def _handle_search_masters(args):
     db = get_db()
@@ -1793,16 +1884,18 @@ def _handle_search_masters(args):
     master_type = args["master_type"]
     query = (args.get("query") or "").strip()
 
-    # Optional result cap the caller sets per call; omit for NO cap (return all —
-    # e.g. the whole chart of accounts). Coerced to int so the LIMIT clause below
-    # can't be injected.
+    # A simple lookup returns at most DEFAULT_PAGE rows unless the caller sets
+    # `limit` (up to MAX_PAGE). Until 1.4.25 it returned every match with every
+    # column: 5000 customers were 2.9 million characters. Coerced to int so the
+    # LIMIT clause below can't be injected.
+    from api import tool_results
     _raw_limit = args.get("limit")
-    limit = None
+    limit = tool_results.DEFAULT_PAGE
     if _raw_limit not in (None, "", 0):
         try:
-            limit = max(1, int(_raw_limit))
+            limit = min(tool_results.MAX_PAGE, max(1, int(_raw_limit)))
         except (TypeError, ValueError):
-            limit = None
+            limit = tool_results.DEFAULT_PAGE
     if meta:
         limit = args.get("limit", 50)
         offset = args.get("offset", 0)
@@ -1873,7 +1966,12 @@ def _handle_search_masters(args):
     if meta:
         return result
     if rows or not query:
-        return rows
+        # A caller that set `limit` itself gets its array, as always (now at
+        # most MAX_PAGE rows). So does a search that returned everything.
+        if _raw_limit not in (None, "", 0) or (len(rows) < limit and not offset):
+            return rows
+        return _master_page(master_type, doctype, args, rows, limit, offset, result_fields,
+                            search_cols if query else None)
 
     # Preserve the established fuzzy fallback for a simple lookup. A
     # deterministic field-filter query must return exactly its literal result;
@@ -1900,6 +1998,15 @@ def _handle_create_master(args):
         return {"error": detail or str(exc)}
 
     return result
+
+
+@with_record_view_urls("master_type", master=True)
+def _handle_batch_create_masters(args):
+    from api.routers.masters import batch_create_master_records
+    try:
+        return batch_create_master_records(args.get("master_type"), args.get("records"))
+    except Exception as exc:  # unknown type, empty or oversized batch
+        return {"error": str(getattr(exc, "detail", None) or exc)}
 
 
 @with_record_view_urls("master_type", master=True)
@@ -2000,6 +2107,30 @@ def _handle_retrieve_chat_history(args, session_id=None):
 
 
 def _handle_get_report(args):
+    """A report. Its list of rows is returned as a window (default 200 rows)
+    with the total, so a stock report over thousands of items stays readable.
+    Totals and summaries of a report always cover all rows. The general
+    ledger pages itself through its own filters."""
+    from api import tool_results
+    result = _run_report(args)
+    if args.get("report_type") == "general-ledger" or not isinstance(result, dict):
+        return result
+    rows = result.get("rows")
+    if not isinstance(rows, list):
+        return result
+    limit, offset, problem = tool_results.page_window(args)
+    if problem:
+        return {"error": problem}
+    if len(rows) <= limit and not offset:
+        return result
+    window = rows[offset:offset + limit]
+    return {**result, "rows": window, "total_rows": len(rows), "offset": offset, "returned": len(window),
+            "has_more": offset + len(window) < len(rows),
+            "note": (f"{len(rows)} rows in all; {len(window)} are included. Narrow the report with its filters "
+                     f"(item_code, item_prefix, warehouse, customer, ...) or read on with offset={offset + len(window)}.")}
+
+
+def _run_report(args):
     report_type = args["report_type"]
     filters = args.get("filters", {})
     db = get_db()
@@ -2392,7 +2523,8 @@ def _handle_query_dataset(args):
             measures=measures,
             filters=args.get("filters"),
             order_by=args.get("order_by") or [],
-            limit=args.get("limit"),
+            # An assistant reads groups, not a table export: 200 unless it asks.
+            limit=args.get("limit") or 200,
         )
     except HTTPException as e:
         return {"error": str(e.detail)}
@@ -2539,6 +2671,7 @@ TOOL_HANDLERS = {
     "get_master_fields": _handle_get_master_fields,
     "search_masters": _handle_search_masters,
     "create_master": _handle_create_master,
+    "batch_create_masters": _handle_batch_create_masters,
     "update_master": _handle_update_master,
     "get_report": _handle_get_report,
     "revalue_currencies": _handle_revalue_currencies,
@@ -3059,6 +3192,10 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - An **Item Bundle** (doctype `item-bundle`: item_code = the bundle, items = rows of item_code and qty per bundle) makes one item code stand for several items. The bundle's own item is not a stock item.
 - On quotations, sales orders, delivery notes and sales / POS invoices, put the bundle's item_code and qty on a line and save: the line is replaced by one line per item of the bundle, which are then ordinary lines. Do not give a bundle line a rate, discount or batch; do not expand a bundle by hand.
 - When the user names a set, look for it with list_documents doctype="item-bundle" (or the item) before listing single items yourself.
+
+### Entering many records
+- To enter a list of master records (a chart of accounts, customers, items from a file or a pasted table) use batch_create_masters with up to 200 records per call, not one create_master each. Give parents before their children. Afterwards report how many were created and name each one that was refused with its reason; never resend a list blindly, because the records that were created would be refused as duplicates.
+- A search that says more records match than it shows (`has_more`) has not shown you everything: narrow it with filters or read on with offset before concluding that something does not exist.
 
 ### Units of measure (ordering in a pack, stocking in pieces)
 - An item is stocked in its `stock_uom`. An **Item Unit** (doctype `item-unit`: item_code, uom, conversion_factor = stock units per unit, e.g. Karton = 100) gives it a further unit. List an item's units with list_documents doctype="item-unit" filtered by item_code.
@@ -3906,11 +4043,27 @@ def _orchestrator_turn(client, messages, tools, max_tokens, *, tool_choice="auto
     return resp.choices[0].message, getattr(resp, "usage", None)
 
 
+DEMO_MAX_STEPS = 12
+
+
+def chat_max_steps() -> int:
+    """How many steps (a model call with the tool calls it asks for) one
+    message may take before the assistant must stop and report. 30 since
+    1.4.25 (12 before): entering a chart of accounts or working through a
+    list ran out of steps mid-task. LAMBDA_ERP_CHAT_MAX_STEPS sets it (1-100).
+    Demo visitors keep 12, whatever is configured."""
+    try:
+        steps = int(os.environ.get("LAMBDA_ERP_CHAT_MAX_STEPS") or 30)
+    except ValueError:
+        steps = 30
+    return max(1, min(100, steps))
+
+
 async def run_thinking_loop(
     messages: list[dict],
     on_event,
     session_id: str = None,
-    max_iterations: int = 12,
+    max_iterations: int | None = None,
     user_info: dict | None = None,
     client_ip: str | None = None,
 ):
@@ -3953,9 +4106,13 @@ async def run_thinking_loop(
     # cost per turn; logged-in managers/admins keep the original cap.
     max_completion = demo_max_completion_tokens() if demo_mode else 4096
 
+    if max_iterations is None:
+        max_iterations = DEMO_MAX_STEPS if demo_mode else chat_max_steps()
+
     if demo_mode:
         denied = lambda _args: {"error": "Demo mode cannot create, update, or delete master data."}
         tool_handlers["create_master"] = denied
+        tool_handlers["batch_create_masters"] = denied
         tool_handlers["update_master"] = denied
         tool_handlers["delete_master"] = denied
 
@@ -4176,6 +4333,9 @@ async def run_thinking_loop(
                 multimodal_block = result.pop("_multimodal_content", None)
                 page_images = result.pop("_images", None)
 
+            # No tool result reaches the model larger than a model can read.
+            from api.tool_results import bound_tool_result
+            result = bound_tool_result(fn_name, result)
             result_str = json.dumps(result, default=str)
             summary = result_str[:500] + "..." if len(result_str) > 500 else result_str
 

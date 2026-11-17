@@ -186,7 +186,8 @@ def _handle(msg: dict, user: dict):
         params = msg.get("params") or {}
         name = params.get("name")
         try:
-            out = _call(name, params.get("arguments") or {}, user)
+            from api.tool_results import bound_tool_result
+            out = bound_tool_result(name, _call(name, params.get("arguments") or {}, user))
         except KeyError:
             return _rpc_error(mid, -32602, f"Unknown tool: {name}")
         except Exception as e:  # noqa: BLE001 — surface as an MCP tool error, not a 500
