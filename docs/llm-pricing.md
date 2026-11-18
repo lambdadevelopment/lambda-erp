@@ -1,9 +1,10 @@
 # LLM models and pricing
 
-Verified on **2026-10-30**. The table lists the OpenAI models available to us.
-Since core 1.1.8, the ERP chat and report specialist both use `gpt-6.1-sol`
-with the Responses API (override with `LAMBDA_ERP_CHAT_MODEL` and
-`LAMBDA_ERP_REPORT_MODEL`; GPT-6.1 models always use Responses). Chat uses
+Verified on **2026-10-30**, the GPT-6.2 models on **2026-11-18**. The table lists
+the OpenAI models available to us. Since core 1.4.26, the ERP chat and report
+specialist both use `gpt-6.2-sol` (core 1.1.8 to 1.4.25: `gpt-6.1-sol`) with the
+Responses API (override with `LAMBDA_ERP_CHAT_MODEL` and
+`LAMBDA_ERP_REPORT_MODEL`; GPT-6.1 and 6.2 models always use Responses). Chat uses
 reasoning effort `low`; the report specialist uses `medium`. Since core 1.3.2, chat titles use `gpt-6-luna` (effort `low`,
 override with `LAMBDA_ERP_TITLE_MODEL`); the previous `gpt-4.1-nano` was retired
 by OpenAI. Transcription uses `gpt-4o-transcribe`.
@@ -15,6 +16,8 @@ These rates are registered in `api/providers.py` and used for new cost estimates
 
 | Model | Input | Cached input | Cache write (30 min) | Cache write (12 h) | Output |
 | --- | ---: | ---: | ---: | ---: | ---: |
+| GPT-6.2 Astra | 8.00 | 0.40 | 10.00 | 20.00 | 40.00 |
+| GPT-6.2 Sol | 2.00 | 0.10 | 2.50 | 5.00 | 10.00 |
 | GPT-6 Astra | 10.00 | 1.00 | 12.50 | 25.00 | 50.00 |
 | GPT-6.1 Sol | 2.00 | 0.10 | 2.50 | 5.00 | 10.00 |
 | GPT-6.1 Terra | 1.00 | 0.05 | 1.25 | 2.50 | 5.00 |
@@ -24,12 +27,14 @@ Above 272,000 input tokens, the **whole request** uses these rates:
 
 | Model | Input | Cached input | Cache write (30 min) | Cache write (12 h) | Output |
 | --- | ---: | ---: | ---: | ---: | ---: |
+| GPT-6.2 Astra | 16.00 | 0.80 | 20.00 | 40.00 | 60.00 |
+| GPT-6.2 Sol | 4.00 | 0.20 | 5.00 | 10.00 | 15.00 |
 | GPT-6 Astra | 20.00 | 2.00 | 25.00 | 50.00 | 75.00 |
 | GPT-6.1 Sol | 4.00 | 0.20 | 5.00 | 10.00 | 15.00 |
 | GPT-6.1 Terra | 2.00 | 0.10 | 2.50 | 5.00 | 7.50 |
 | GPT-6 Luna | 0.20 | 0.02 | 0.25 | 0.50 | 0.75 |
 
-Unregistered model IDs are estimated at the GPT-6.1 Sol rates.
+Unregistered model IDs are estimated at the GPT-6.2 Sol rates.
 
 ## Accounting scope
 
@@ -44,8 +49,9 @@ Core 1.3.2 removed models that are no longer available to us (GPT-6 Sol,
 GPT-5.6 Terra, GPT-5.x, GPT-4.x). Price changes apply to new calculations only;
 previously stored costs are not rewritten.
 
-GPT-6.1 Sol is selected for both the main chat and report generation.
-Keep the Responses API for GPT-6.1 Sol: it does not support tool calling
+GPT-6.2 Sol is selected for both the main chat and report generation (its
+rates equal GPT-6.1 Sol's, so costs per token do not change). Keep the
+Responses API for GPT-6.1 and 6.2 Sol: they do not support tool calling
 through Chat Completions or reasoning effort `none`.
 
 ## Model selection

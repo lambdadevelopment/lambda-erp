@@ -14,7 +14,7 @@ from api.providers import cost_of_openai_call, get_openai_rates
 class PricingTests(unittest.TestCase):
     def test_standard_usage_both_api_shapes(self):
         # 10K input: 6K normal + 4K cached; 2K output, including reasoning.
-        expected = {"gpt-6-astra": .164, "gpt-6.1-sol": .0324,
+        expected = {"gpt-6.2-astra": .1296, "gpt-6.2-sol": .0324, "gpt-6-astra": .164, "gpt-6.1-sol": .0324,
                     "gpt-6.1-terra": .0162, "gpt-6-luna": .00164}
         for model, dollars in expected.items():
             for usage in (
@@ -30,7 +30,7 @@ class PricingTests(unittest.TestCase):
         # Most input is cached, but the TOTAL input still crosses the boundary.
         usage = NS(input_tokens=300_000, output_tokens=1_000,
                    input_tokens_details=NS(cached_tokens=290_000))
-        expected = {"gpt-6-astra": .855, "gpt-6.1-sol": .113,
+        expected = {"gpt-6.2-astra": .452, "gpt-6.2-sol": .113, "gpt-6-astra": .855, "gpt-6.1-sol": .113,
                     "gpt-6.1-terra": .0565, "gpt-6-luna": .00855}
         for model, dollars in expected.items():
             with self.subTest(model=model):
@@ -69,7 +69,7 @@ class OrchestratorTests(unittest.TestCase):
             asyncio.run(chat.run_thinking_loop(messages, event, max_iterations=0,
                                                user_info={"role": "admin"}))
         request = create.call_args.kwargs
-        self.assertEqual(request["model"], "gpt-6.1-sol")
+        self.assertEqual(request["model"], "gpt-6.2-sol")
         self.assertEqual(request["tool_choice"], "none")
         self.assertEqual(request["reasoning"], {"effort": "low"})
         self.assertTrue(any(i.get("type") == "function_call_output" for i in request["input"]))
@@ -93,7 +93,7 @@ class OrchestratorTests(unittest.TestCase):
         with patch.dict("os.environ", {"ERP_CHAT_API": "chat"}):
             message, usage = chat._orchestrator_turn(client, messages, [tool], 1024)
         request = create.call_args.kwargs
-        self.assertEqual(request["model"], "gpt-6.1-sol")
+        self.assertEqual(request["model"], "gpt-6.2-sol")
         self.assertEqual(request["reasoning"], {"effort": "low"})
         self.assertEqual(request["tools"][0]["name"], "list_documents")
         self.assertEqual(message.tool_calls[0].function.name, "list_documents")

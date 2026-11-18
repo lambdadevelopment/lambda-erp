@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
+import { useAuth } from "@/contexts/auth-context";
 
 export interface ChatSession {
   id: string;
@@ -175,12 +176,37 @@ function isPersistentMessage(message: ChatMessage): boolean {
 // visitors and the server-side list filter hides demo-only chats to prevent
 // pile-up — without this, a visitor's freshly-created demo chat would
 // vanish from the sidebar on page reload.
+//
+// Only for that shared demo account, and per account: a signed-in user's
+// chats all come from the server. Until 1.4.26 the list was kept for every
+// user and per browser, so a chat opened by its address stayed in the
+// sidebar of whoever signed in next in the same browser.
 const KNOWN_SESSIONS_KEY = "lambda-erp:known-chat-sessions";
+let knownSessionsOwner: string | null = null;
+let oldListCleared = false;
+
+function knownSessionsKey(): string | null {
+  return knownSessionsOwner ? `${KNOWN_SESSIONS_KEY}:${knownSessionsOwner}` : null;
+}
+
+/** Who the remembered chats belong to: the shared demo account, else nobody. */
+export function setKnownSessionsOwner(user: { name: string; role: string } | null | undefined) {
+  knownSessionsOwner = user && user.role === "public_manager" ? user.name : null;
+  if (!oldListCleared && typeof localStorage !== "undefined") {
+    oldListCleared = true;
+    try {
+      localStorage.removeItem(KNOWN_SESSIONS_KEY); // the old list, shared by all users of the browser
+    } catch {
+      // ignore storage errors (private mode)
+    }
+  }
+}
 
 function getKnownSessionIds(): Set<string> {
-  if (typeof localStorage === "undefined") return new Set();
+  const key = knownSessionsKey();
+  if (!key || typeof localStorage === "undefined") return new Set();
   try {
-    const raw = localStorage.getItem(KNOWN_SESSIONS_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return new Set();
     const parsed = JSON.parse(raw);
     return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : []);
@@ -190,9 +216,10 @@ function getKnownSessionIds(): Set<string> {
 }
 
 function writeKnownSessionIds(ids: Set<string>) {
-  if (typeof localStorage === "undefined") return;
+  const key = knownSessionsKey();
+  if (!key || typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(KNOWN_SESSIONS_KEY, JSON.stringify([...ids]));
+    localStorage.setItem(key, JSON.stringify([...ids]));
   } catch {
     // ignore storage errors (quota / private mode)
   }
@@ -231,6 +258,8 @@ function toSortTime(timestamp?: string): number {
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  setKnownSessionsOwner(user);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [messagesBySession, setMessagesBySession] = useState<Record<string, ChatMessage[]>>({});
   const [hasMoreBySession, setHasMoreBySession] = useState<Record<string, boolean>>({});

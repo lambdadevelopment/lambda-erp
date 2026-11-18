@@ -19,7 +19,22 @@ from typing import Any, Optional
 # ---------------------------------------------------------------------------
 
 OPENAI_PRICING: dict[str, dict[str, Any]] = {
-    # The models available to us, Standard tier, verified 2026-10-30. Above
+    "gpt-6.2-astra": {
+        "tiered": True,
+        "tiers": [
+            {"max_input_tokens": 272_000, "input": 8.00, "cached_input": 0.40, "cache_write": 10.00, "cache_write_12h": 20.00, "output": 40.00},
+            {"max_input_tokens": None,    "input": 16.00, "cached_input": 0.80, "cache_write": 20.00, "cache_write_12h": 40.00, "output": 60.00},
+        ],
+    },
+    "gpt-6.2-sol": {
+        "tiered": True,
+        "tiers": [
+            {"max_input_tokens": 272_000, "input": 2.00, "cached_input": 0.10, "cache_write": 2.50, "cache_write_12h": 5.00, "output": 10.00},
+            {"max_input_tokens": None,    "input": 4.00, "cached_input": 0.20, "cache_write": 5.00, "cache_write_12h": 10.00, "output": 15.00},
+        ],
+    },
+    # The models available to us, Standard tier, verified 2026-10-30 (the
+    # GPT-6.2 models 2026-11-18, developers.openai.com/api/docs/pricing). Above
     # 272K input tokens the higher rates apply to the entire request
     # (including cache hits). cache_write is the 30-minute retention rate,
     # cache_write_12h the 12-hour one.
@@ -62,14 +77,14 @@ TRANSCRIBE_PRICING: dict[str, dict[str, float]] = {
 
 
 # ---------------------------------------------------------------------------
-# Rate lookup — unknown model IDs are estimated at the gpt-6.1-sol rates.
+# Rate lookup — unknown model IDs are estimated at the gpt-6.2-sol rates.
 # Register a model explicitly before using it; this fallback is not a price cap.
 # ---------------------------------------------------------------------------
 
 def get_openai_rates(model: str, input_tokens: int = 0) -> dict[str, float]:
     entry = OPENAI_PRICING.get(model)
     if entry is None:
-        entry = OPENAI_PRICING["gpt-6.1-sol"]
+        entry = OPENAI_PRICING["gpt-6.2-sol"]
     if entry.get("tiered"):
         for tier in entry["tiers"]:
             cap = tier.get("max_input_tokens")

@@ -402,8 +402,9 @@ def check_record_scope():
         # ... and not if it shrinks or changes.
         assign(plain_id, {"customer": []})
         assert not opens(login("plain@example.com"), new_session)
-        # The admin still reads all of it, and lifting the restriction gives it back.
-        assert opens(admin, old_session)
+        # A chat stays its owner's: not even the admin opens it (1.4.26). Lifting
+        # the restriction gives it back to the owner.
+        assert not opens(admin, old_session)
         assert admin.get(f"/api/reports/runtime/drafts/{old_draft}").status_code == 200
         assign(plain_id, None)
         assert opens(login("plain@example.com"), old_session)

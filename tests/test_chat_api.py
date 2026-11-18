@@ -251,6 +251,24 @@ def check_chat_api():
         assert listed and all(k["user"] == vkey["user"] for k in listed), listed
         assert client.post(f"/api/auth/api-keys/{other['id']}/revoke").status_code == 403
 
+        # A chat is its owner's only, admins included (1.4.26). The viewer starts
+        # a chat in the app; the admin, signed in in the SAME browser afterwards,
+        # can neither open, rename nor delete it, and does not get it listed.
+        viewer_chat = client.post("/api/chat/sessions").json()["id"]
+        assert client.get(f"/api/chat/sessions/{viewer_chat}").json()["id"] == viewer_chat
+        r = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "test-password-123"})
+        assert r.status_code == 200 and client.get("/api/auth/me").json()["role"] == "admin", r.text[:200]
+        assert client.get(f"/api/chat/sessions/{viewer_chat}").json() == {"detail": "Session not found"}
+        assert client.put(f"/api/chat/sessions/{viewer_chat}/title", json={"title": "x"}).json() == {"detail": "Session not found"}
+        assert client.delete(f"/api/chat/sessions/{viewer_chat}").json() == {"detail": "Session not found"}
+        assert viewer_chat not in [row["id"] for row in client.get("/api/chat/sessions").json()]
+        admin_key = client.post("/api/auth/api-keys", json={"name": "admin-peek"}).json()
+        r = client.post("/api/v1/chat", json={"message": "peek", "session_id": viewer_chat},
+                        headers={"Authorization": f"Bearer {admin_key['token']}"})
+        assert r.status_code == 404, f"admin key on another user's chat -> {r.status_code}"
+        from api.chat import can_access_session, get_session
+        assert not can_access_session(get_session(viewer_chat), {"name": "someone-else", "role": "admin"})
+
     print(f"  [chat api] gating/auth/keys/sessions/stateless-replay OK on {backend}")
 
 

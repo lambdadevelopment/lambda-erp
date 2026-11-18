@@ -13,6 +13,28 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.26] - 2026-11-18
+
+No migration.
+
+- **Fixed: an admin could read and write into other users' chats.** The
+  check for opening, writing into, renaming and deleting a chat let any
+  admin through, and the browser kept a list of every chat opened by its
+  address, so such a chat also stayed in the admin's sidebar. A chat is now
+  its owner's only, admins included. The browser's own list of chats is
+  kept only for the shared public demo account, per account; the old list
+  is removed. Stored chats are unchanged and stay with their owners.
+- **GPT-6.2 Sol is the default model** of the chat and of the report
+  specialist (GPT-6.1 Sol before). `LAMBDA_ERP_CHAT_MODEL` and
+  `LAMBDA_ERP_REPORT_MODEL` still override it. GPT-6.2 models use the
+  Responses API, as GPT-6.1 did.
+- Prices for **GPT-6.2 Sol** and **GPT-6.2 Astra** are registered (Standard
+  tier, verified 2026-11-18). GPT-6.2 Sol costs the same per token as
+  GPT-6.1 Sol. Unregistered models are now estimated at the GPT-6.2 Sol
+  rates. See `docs/llm-pricing.md`.
+- Docs: Microsoft sign-in should stay open to any Microsoft account unless
+  there is a reason to narrow it.
+
 ## [1.4.25] - 2026-11-17
 
 No migration. **Changes what the assistant tools return for large results**
