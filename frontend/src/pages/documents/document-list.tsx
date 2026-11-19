@@ -404,6 +404,7 @@ export default function DocumentListPage() {
   const table = useReactTable({
     data: rows,
     columns,
+    initialState: { columnPinning: { left: ["name"] } },
     getCoreRowModel: getCoreRowModel(),
   });
 
@@ -416,7 +417,7 @@ export default function DocumentListPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="record-list space-y-4">
       <div className="flex items-center justify-end gap-2">
         <div className="relative" ref={pickerRef}>
           <Button variant="secondary" onClick={() => setPickerOpen((o) => !o)}>
@@ -551,7 +552,7 @@ export default function DocumentListPage() {
             setPage={setPage}
             setPageSize={setPageSize}
           />
-          <div className="overflow-x-auto rounded-xl bg-surface ring-1 ring-line shadow-card">
+          <div className="record-list-table overflow-x-auto rounded-xl bg-surface ring-1 ring-line shadow-card">
             <table className="min-w-full divide-y divide-line text-sm">
               <thead className="bg-surface-subtle">
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -559,6 +560,7 @@ export default function DocumentListPage() {
                     {headerGroup.headers.map((header) => (
                       <th
                         key={header.id}
+                        data-record-id={header.column.id === "name" || undefined}
                         className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-fg-muted"
                       >
                         {header.isPlaceholder ? null : (
@@ -583,9 +585,9 @@ export default function DocumentListPage() {
               </thead>
               <tbody className="divide-y divide-line">
                 {table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="transition-colors hover:bg-surface-subtle">
+                  <tr key={row.id} className="bg-surface transition-colors hover:bg-surface-subtle">
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-4 py-2.5 text-fg">
+                      <td key={cell.id} data-record-id={cell.column.id === "name" || undefined} className="px-4 py-2.5 text-fg">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),

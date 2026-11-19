@@ -70,6 +70,7 @@ OPENAI_PRICING: dict[str, dict[str, Any]] = {
 
 # Speech-to-text, priced per minute of audio (not per token).
 TRANSCRIBE_PRICING: dict[str, dict[str, float]] = {
+    "gpt-transcribe":         {"per_minute": 0.0045},
     "gpt-4o-transcribe":      {"per_minute": 0.006},
     "gpt-4o-mini-transcribe": {"per_minute": 0.003},
     "whisper-1":              {"per_minute": 0.006},

@@ -54,7 +54,8 @@ import {
   LineChart,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { useChat } from "@/components/chat/chat-provider";
+import { useConfirm } from "@/components/ui/dialog";
+import { type ChatSession, useChat } from "@/components/chat/chat-provider";
 import { getNavGroups, type NavGroup } from "@/lib/nav";
 import { MENU_SETTINGS_PATH, buildCatalog, ordered, parseLayout } from "@/lib/nav-layout";
 import { useMySettings } from "@/hooks/use-my-settings";
@@ -80,7 +81,10 @@ function ChatGroup() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { sessions, createSession, deleteSession } = useChat();
+  const { sessions, createSession, deleteEmptySession, deleteSession } = useChat();
+  const confirm = useConfirm();
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const handleNewChat = async () => {
     try {
@@ -91,17 +95,28 @@ function ChatGroup() {
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
+  const handleDelete = async (e: React.MouseEvent, session: ChatSession) => {
     e.preventDefault();
     e.stopPropagation();
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError("");
     try {
-      await deleteSession(sessionId);
-      // If we deleted the active chat, navigate away
-      if (window.location.pathname === `/chat/${sessionId}`) {
-        navigate("/");
+      if (!(await deleteEmptySession(session.id))) {
+        const accepted = await confirm({
+          title: t("chat.confirmDeleteTitle", { title: session.title }),
+          body: t("chat.confirmDeleteBody"),
+          confirmLabel: t("nav.deleteChat"),
+          danger: true,
+        });
+        if (!accepted) return;
+        await deleteSession(session.id);
       }
-    } catch {
-      // ignore
+      if (window.location.pathname === `/chat/${session.id}`) navigate("/");
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : t("chat.deleteFailed"));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -120,6 +135,7 @@ function ChatGroup() {
           <ChevronRight className="h-3.5 w-3.5" />
         )}
       </button>
+      {deleteError && <p role="alert" className="px-4 py-1 text-sm text-red-700">{deleteError}</p>}
       {open && (
         <div className="mb-1">
           {/* New Chat button — pinned above the scrollable session list */}
@@ -157,8 +173,9 @@ function ChatGroup() {
                 </NavLink>
                 {active && <ActiveAccent />}
                 <button
-                  onClick={(e) => handleDelete(e, session.id)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+                  onClick={(e) => handleDelete(e, session)}
+                  disabled={deleting}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100 focus-visible:opacity-100"
                   title={t("nav.deleteChat")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />

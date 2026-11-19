@@ -22,6 +22,7 @@ import traceback
 import uuid
 from datetime import date
 
+import av
 import httpx
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends as _Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -240,6 +241,20 @@ async def drain_turns(timeout: float) -> None:
     pending = [task for task in _DETACHED_TURNS if not task.done()]
     if pending:
         await asyncio.wait(pending, timeout=timeout)
+
+
+def delete_empty_session(session_id: str) -> bool:
+    # History in the sidebar can be stale when another tab adds content.
+    db = get_db()
+    with db.atomic():
+        cursor = db.conn.execute(
+            '''DELETE FROM "Chat Session" WHERE id = ?
+               AND (active_turn IS NULL OR active_turn_until IS NULL OR active_turn_until < ?)
+               AND NOT EXISTS (SELECT 1 FROM "Chat Message" WHERE session_id = ?)
+               AND NOT EXISTS (SELECT 1 FROM "Chat Attachment" WHERE session_id = ?)''',
+            [session_id, _utc_iso(), session_id, session_id],
+        )
+        return cursor.rowcount == 1
 
 
 def delete_session(session_id: str):
@@ -4448,6 +4463,8 @@ async def run_thinking_loop(
 # Speech-to-text (voice → text)
 # ---------------------------------------------------------------------------
 
+TRANSCRIPTION_MODEL = "gpt-transcribe"
+
 # Domain-vocabulary biasing for the transcription `prompt`. A bare term list,
 # NO language constraint — the spoken language is auto-detected, and a
 # locale-derived hint would mis-transcribe users who speak another language
@@ -4463,31 +4480,50 @@ VOICE_TRANSCRIBE_PROMPT = (
 
 # Below this the API rejects the clip as "too short"; we treat it as a no-op
 # (the user tapped the mic by accident) rather than an error.
-_MIN_TRANSCRIBE_BYTES = 1500  # ~1s of webm/opus at the ~1.5 KB/s we assume below
+_MIN_TRANSCRIBE_BYTES = 1500
 
 
-def transcribe_audio(audio_bytes: bytes, audio_format: str, erp_user: str | None = None) -> str:
-    """Transcribe audio to text via OpenAI gpt-4o-transcribe.
+def recorded_audio_seconds(file) -> float | None:
+    """Read a voice clip locally. Streaming WebM may omit the duration header."""
+    try:
+        with av.open(file, mode="r", options={
+            "format_whitelist": "matroska,webm,mov,mp4,m4a,3gp,3g2,mj2,ogg,wav,mp3,flac,aac,mpeg",
+            "protocol_whitelist": "",
+        }) as container:
+            stream = container.streams.audio[0]
+            if stream.duration is not None and stream.duration > 0:
+                return float(stream.duration * stream.time_base)
+            # Count samples when the recorder left the stream length unknown.
+            return sum(frame.samples / frame.sample_rate for frame in container.decode(stream)) or None
+    except (av.FFmpegError, IndexError, ValueError, OSError, ZeroDivisionError):
+        return None
 
-    Returns the transcript, or "" when the model detects silence/near-silence
-    (empty result or a prompt-echo hallucination on a near-silent clip).
-    Raises on an actual API error so the caller can surface it.
-    """
+
+def transcribe_audio(audio_bytes: bytes, audio_format: str, erp_user: str | None = None) -> tuple[str, float]:
+    """Return the transcript and the audio seconds to record for this paid call."""
     client = OpenAI(**client_kwargs(httpx.Timeout(60.0, connect=10.0), erp_user=erp_user))
 
     audio_file = io.BytesIO(audio_bytes)
     audio_file.name = f"voice.{audio_format or 'webm'}"
 
     transcription = client.audio.transcriptions.create(
-        model="gpt-4o-transcribe",
+        model=TRANSCRIPTION_MODEL,
         file=audio_file,
-        response_format="json",
         prompt=VOICE_TRANSCRIBE_PROMPT,
     )
 
+    seconds = getattr(getattr(transcription, "usage", None), "seconds", None)
+    if seconds is None:
+        seconds = getattr(transcription, "duration", None)
+    if seconds is None:
+        seconds = recorded_audio_seconds(io.BytesIO(audio_bytes))
+    if seconds is None:
+        logger.warning("Using estimated duration for an unreadable %s voice clip", audio_format)
+        seconds = len(audio_bytes) / 2000  # Same legacy fallback as the Lambda gateway.
+
     text = (getattr(transcription, "text", "") or "").strip()
     if len(text) < 2:
-        return ""
+        return "", seconds
 
     # Prompt-echo guard: on silent/noise audio, prompt-biased transcription
     # tends to hallucinate the biasing vocabulary back. If (nearly) every word
@@ -4498,9 +4534,9 @@ def transcribe_audio(audio_bytes: bytes, audio_format: str, erp_user: str | None
     if text_tokens:
         coverage = sum(1 for tok in text_tokens if tok in prompt_tokens) / len(text_tokens)
         if coverage >= 0.8:
-            return ""
+            return "", seconds
 
-    return text
+    return text, seconds
 
 
 # ---------------------------------------------------------------------------
@@ -4844,7 +4880,7 @@ async def chat_websocket(
                 )
                 continue
 
-            if msg_type == "delete_session":
+            if msg_type in ("delete_empty_session", "delete_session"):
                 session_id = data.get("session_id")
                 if not session_id:
                     await send_error("No session_id provided", request_id=request_id)
@@ -4863,8 +4899,12 @@ async def chat_websocket(
                     )
                     continue
 
-                delete_session(session_id)
-                await send_event("session_deleted", request_id=request_id, session_id=session_id)
+                if msg_type == "delete_empty_session":
+                    deleted = delete_empty_session(session_id)
+                    await send_event("empty_session_delete_result", request_id=request_id, session_id=session_id, deleted=deleted)
+                else:
+                    delete_session(session_id)
+                    await send_event("session_deleted", request_id=request_id, session_id=session_id)
                 continue
 
             if msg_type == "clear_history":
@@ -5005,7 +5045,7 @@ async def chat_websocket(
                     continue
 
                 try:
-                    text = await asyncio.to_thread(
+                    text, audio_seconds = await asyncio.to_thread(
                         transcribe_audio, audio_bytes, audio_format, ws_user_id,
                     )
                 except Exception as e:
@@ -5016,17 +5056,12 @@ async def chat_websocket(
                     )
                     continue
 
-                # Track the spend. Audio duration is estimated from byte size
-                # (~1.5 KB/s for webm/opus); the Demo Spend Log records every
-                # role for the admin dashboard, and counts public_manager rows
-                # against the hourly cap.
-                estimated_seconds = len(audio_bytes) / 1500
                 demo_limiter.record(
                     client_ip or "unknown",
-                    cost_of_transcription("gpt-4o-transcribe", estimated_seconds),
+                    cost_of_transcription(TRANSCRIPTION_MODEL, audio_seconds),
                     role=ws_user_role,
                     provider="openai",
-                    model="gpt-4o-transcribe",
+                    model=TRANSCRIPTION_MODEL,
                     session_id=data.get("session_id"),
                 )
 

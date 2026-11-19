@@ -85,6 +85,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
           className="fixed inset-0 z-[100] flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"
+          aria-label={state.opts.title}
           onKeyDown={(e) => {
             if (e.key === "Escape") onCancel();
           }}
@@ -109,7 +110,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
               />
             )}
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="secondary" onClick={onCancel}>
+              <Button variant="secondary" autoFocus={state.kind === "confirm" && state.opts.danger} onClick={onCancel}>
                 {state.opts.cancelLabel ?? t("common.cancel", { defaultValue: "Cancel" })}
               </Button>
               <Button variant={state.opts.danger ? "danger" : "primary"} onClick={onConfirm}>

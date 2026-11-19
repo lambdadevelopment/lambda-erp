@@ -21,6 +21,7 @@ const sizeClasses: Record<string, string> = {
 };
 
 interface ButtonProps {
+  autoFocus?: boolean;
   variant?: "primary" | "secondary" | "danger" | "ghost";
   size?: "sm" | "md" | "lg";
   disabled?: boolean;
@@ -31,6 +32,7 @@ interface ButtonProps {
 }
 
 export function Button({
+  autoFocus,
   variant = "primary",
   size = "md",
   disabled,
@@ -41,6 +43,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
+      autoFocus={autoFocus}
       type={type}
       disabled={disabled}
       onClick={onClick}

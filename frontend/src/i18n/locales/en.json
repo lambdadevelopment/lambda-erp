@@ -564,6 +564,9 @@
     "noRecentDocuments": "No recent documents"
   },
   "chat": {
+    "confirmDeleteTitle": "Delete “{{title}}”?",
+    "confirmDeleteBody": "This permanently deletes the conversation and its attachments.",
+    "deleteFailed": "Could not delete the chat.",
     "rename": "Rename chat",
     "renameFailed": "Could not save the chat name.",
     "title": "Lambda ERP Chat",

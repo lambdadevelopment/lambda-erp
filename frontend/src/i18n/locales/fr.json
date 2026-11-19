@@ -906,6 +906,9 @@
     "noRecentDocuments": "Aucun document récent"
   },
   "chat": {
+    "confirmDeleteTitle": "Supprimer « {{title}} » ?",
+    "confirmDeleteBody": "La conversation et ses pièces jointes seront définitivement supprimées.",
+    "deleteFailed": "Impossible de supprimer la discussion.",
     "rename": "Renommer la discussion",
     "renameFailed": "Impossible d’enregistrer le nom de la discussion.",
     "title": "Chat Lambda ERP",

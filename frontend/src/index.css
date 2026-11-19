@@ -113,3 +113,42 @@
 *::-webkit-scrollbar-thumb:hover {
   background-color: rgba(31, 31, 30, 0.5);
 }
+
+/* Keep both scroll axes inside long desktop lists. On a phone, the page
+   scrolls vertically and a swipe pans the table horizontally. */
+@media (min-width: 768px) {
+  .record-list {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .record-list > * {
+    flex-shrink: 0;
+  }
+  .record-list > .record-list-table {
+    flex-shrink: 1;
+    min-height: min(4.5rem, 30vh);
+    overflow: auto;
+    isolation: isolate;
+  }
+  .record-list-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: hsl(var(--surface-subtle));
+  }
+  .record-list-table [data-record-id] {
+    position: sticky;
+    left: 0;
+    max-width: min(18rem, 24vw);
+    overflow-wrap: anywhere;
+    box-shadow: 1px 0 hsl(var(--border));
+  }
+  .record-list-table td[data-record-id] {
+    z-index: 1;
+    background-color: inherit;
+  }
+  .record-list-table th[data-record-id] {
+    z-index: 3;
+  }
+}

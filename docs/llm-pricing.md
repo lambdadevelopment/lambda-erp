@@ -7,7 +7,7 @@ Responses API (override with `LAMBDA_ERP_CHAT_MODEL` and
 `LAMBDA_ERP_REPORT_MODEL`; GPT-6.1 and 6.2 models always use Responses). Chat uses
 reasoning effort `low`; the report specialist uses `medium`. Since core 1.3.2, chat titles use `gpt-6-luna` (effort `low`,
 override with `LAMBDA_ERP_TITLE_MODEL`); the previous `gpt-4.1-nano` was retired
-by OpenAI. Transcription uses `gpt-4o-transcribe`.
+by OpenAI. Chat voice recordings use `gpt-transcribe`.
 
 ## Standard text pricing
 
@@ -35,6 +35,17 @@ Above 272,000 input tokens, the **whole request** uses these rates:
 | GPT-6 Luna | 0.20 | 0.02 | 0.25 | 0.50 | 0.75 |
 
 Unregistered model IDs are estimated at the GPT-6.2 Sol rates.
+
+## Transcription pricing
+
+| Model | USD per audio minute |
+| --- | ---: |
+| gpt-transcribe | 0.0045 |
+| gpt-4o-transcribe | 0.006 |
+
+For each successful recording, Core uses the duration returned by OpenAI or measures
+the uploaded audio. It estimates from file size only if both are unavailable.
+[OpenAI GPT Transcribe pricing](https://developers.openai.com/api/docs/models/gpt-transcribe)
 
 ## Accounting scope
 

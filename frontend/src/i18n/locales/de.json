@@ -906,6 +906,9 @@
     "noRecentDocuments": "Keine aktuellen Dokumente"
   },
   "chat": {
+    "confirmDeleteTitle": "„{{title}}“ löschen?",
+    "confirmDeleteBody": "Der Gesprächsverlauf und die Anhänge werden dauerhaft gelöscht.",
+    "deleteFailed": "Der Chat konnte nicht gelöscht werden.",
     "rename": "Chat umbenennen",
     "renameFailed": "Der Chatname konnte nicht gespeichert werden.",
     "title": "Lambda ERP Chat",

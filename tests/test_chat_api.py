@@ -70,6 +70,50 @@ def _install_llm_stubs():
     chat.generate_title = fake_title
 
 
+def _check_transcription_cost(client):
+    import base64
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    # Silence still consumes provider time. Use a deliberately different byte
+    # length to catch any regression to the old bytes-to-seconds heuristic.
+    with patch("api.chat.OpenAI") as sdk, patch("api.chat.demo_limiter.record") as record:
+        create = sdk.return_value.audio.transcriptions.create
+        create.return_value = SimpleNamespace(text="", usage=SimpleNamespace(seconds=90))
+        with client.websocket_connect("/ws/chat") as ws:
+            assert ws.receive_json()["type"] == "sessions_list"
+            ws.send_json({"type": "transcribe", "audio_data": base64.b64encode(bytes(3000)).decode()})
+            assert ws.receive_json() == {"type": "transcription_result", "success": True, "text": ""}
+        assert create.call_args.kwargs["model"] == record.call_args.kwargs["model"] == "gpt-transcribe"
+        assert abs(record.call_args.args[1] - 0.00675) < 1e-9
+
+
+def _check_sidebar_delete(client):
+    from api.chat import save_chat_message
+
+    def new_session():
+        return client.post("/api/chat/sessions").json()["id"]
+
+    empty, conversation, upload = new_session(), new_session(), new_session()
+    with client.websocket_connect("/ws/chat") as ws:
+        assert ws.receive_json()["type"] == "sessions_list"
+        # Simulate another tab adding content after the sidebar loaded.
+        save_chat_message(conversation, "user", "Keep this until I confirm.")
+        attached = client.post("/api/chat/attachments", data={"session_id": upload},
+                               files={"file": ("example.txt", b"Example", "text/plain")})
+        assert attached.status_code == 200, attached.text
+        for session, deleted in [(empty, True), (conversation, False), (upload, False)]:
+            ws.send_json({"type": "delete_empty_session", "session_id": session})
+            assert ws.receive_json() == {"type": "empty_session_delete_result", "session_id": session, "deleted": deleted}
+        assert client.get(f"/api/chat/sessions/{conversation}").json()["id"] == conversation
+        assert client.get(f"/api/chat/attachments/{attached.json()['id']}").content == b"Example"
+        for session in (conversation, upload):
+            ws.send_json({"type": "delete_session", "session_id": session})
+            assert ws.receive_json() == {"type": "session_deleted", "session_id": session}
+    for session in (empty, conversation, upload):
+        assert client.get(f"/api/chat/sessions/{session}").json() == {"detail": "Session not found"}
+
+
 def check_chat_api():
     db_path = _reset_db()
     backend = "postgres" if db_path.startswith("postgres") else "sqlite (:memory:)"
@@ -98,6 +142,8 @@ def check_chat_api():
                         json={"email": "admin@example.com", "full_name": "Admin",
                               "password": "test-password-123"})
         assert r.status_code == 200 and r.json()["role"] == "admin", r.text[:300]
+        _check_transcription_cost(client)
+        _check_sidebar_delete(client)
 
         r = client.put("/api/auth/settings", json={"chat_api_enabled": "1"})
         assert r.status_code == 200 and r.json().get("chat_api_enabled") == "1", r.text[:200]

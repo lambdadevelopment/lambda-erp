@@ -12,6 +12,27 @@ from api.providers import cost_of_openai_call, get_openai_rates
 
 
 class PricingTests(unittest.TestCase):
+    def test_transcription_measures_browser_webm_without_usage(self):
+        from io import BytesIO
+        import av
+        from api import chat
+        # Browser-style WebM has no final duration in its header.
+        clip = BytesIO()
+        with av.open(clip, "w", format="webm", options={"live": "1"}) as container:
+            stream = container.add_stream("libopus", rate=48000)
+            for _ in range(50):
+                frame = av.AudioFrame(format="s16", layout="mono", samples=960)
+                frame.planes[0].update(bytes(1920))
+                frame.sample_rate = 48000
+                container.mux(stream.encode(frame))
+            container.mux(stream.encode(None))
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-not-used"}), patch.object(chat, "OpenAI") as sdk:
+            sdk.return_value.audio.transcriptions.create.return_value = NS(text="Zwei Stück")
+            text, seconds = chat.transcribe_audio(clip.getvalue(), "webm")
+        self.assertEqual(text, "Zwei Stück")
+        self.assertAlmostEqual(seconds, 1)
+        self.assertAlmostEqual(chat.cost_of_transcription(chat.TRANSCRIPTION_MODEL, seconds), .000075)
+
     def test_standard_usage_both_api_shapes(self):
         # 10K input: 6K normal + 4K cached; 2K output, including reasoning.
         expected = {"gpt-6.2-astra": .1296, "gpt-6.2-sol": .0324, "gpt-6-astra": .164, "gpt-6.1-sol": .0324,

@@ -63,6 +63,7 @@ interface ChatContextValue {
   startDemo: (sessionId: string) => Promise<void>;
   completeDemoTyping: (sessionId: string, seq: number) => void;
   renameSession: (sessionId: string, title: string) => Promise<void>;
+  deleteEmptySession: (sessionId: string) => Promise<boolean>;
   deleteSession: (sessionId: string) => Promise<void>;
   loadHistory: (sessionId: string) => Promise<void>;
   loadMoreHistory: (sessionId: string) => Promise<void>;
@@ -478,7 +479,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             return;
           }
 
-          if (eventType === "session_deleted" && sessionId) {
+          const deletedEmpty = eventType === "empty_session_delete_result" && data.deleted === true;
+          if ((eventType === "session_deleted" || deletedEmpty) && sessionId) {
             forgetSessionId(sessionId);
             updateSessionList((prev) => prev.filter((session) => session.id !== sessionId));
             setMessagesBySession((prev) => {
@@ -855,6 +857,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSessionTitle(sessionId, title);
   }
 
+  async function deleteEmptySession(sessionId: string): Promise<boolean> {
+    const result = await sendRequest("delete_empty_session", { session_id: sessionId }, "empty_session_delete_result");
+    return result.deleted === true;
+  }
+
   async function deleteSession(sessionId: string): Promise<void> {
     await sendRequest("delete_session", { session_id: sessionId }, "session_deleted");
   }
@@ -959,6 +966,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         startDemo,
         completeDemoTyping,
         renameSession,
+        deleteEmptySession,
         deleteSession,
         loadHistory,
         loadMoreHistory,
