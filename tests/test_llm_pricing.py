@@ -134,7 +134,7 @@ class TitleTests(unittest.TestCase):
         create = Mock(return_value=NS(output_text=' "Open invoices overview" ',
             usage=NS(input_tokens=80, output_tokens=40)))
         update = self._run(create)
-        update.assert_called_once_with("s1", "Open invoices overview")
+        update.assert_called_once_with("s1", "Open invoices overview", generated=True)
         self.assertEqual(create.call_args.kwargs["model"], "gpt-6-luna")
         self.assertEqual(create.call_args.kwargs["reasoning"], {"effort": "low"})
 
