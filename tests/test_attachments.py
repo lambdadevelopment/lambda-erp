@@ -127,7 +127,8 @@ def check_attachments():
         except Exception as exc:
             assert "unavailable" in str(getattr(exc, "detail", exc)), exc
         # A file uploaded to the user's own conversation can be kept with a record.
-        from api import chat
+        from api import attachments, chat
+        from unittest.mock import patch
         session = chat.create_session(user_id=rep_id)
         upload_dir = os.path.join(os.path.dirname(db_path) if not db_path.startswith("postgres") else "/tmp", "att-test")
         os.makedirs(upload_dir, exist_ok=True)
@@ -151,6 +152,25 @@ def check_attachments():
         except Exception as exc:
             assert "not uploaded" in str(getattr(exc, "detail", exc)), exc
         os.remove(path)
+
+        assert rep.get("/api/chat/attachments/ATT-1").status_code == 404
+        assert "stored file is missing" in chat._handle_retrieve_chat_attachment(
+            {"attachment_id": "ATT-1"}, session["id"], rep_id)["error"]
+
+        # A default chat upload must have no dependency on the uploading replica.
+        with patch.object(attachments, "UPLOAD_ROOT", None):
+            uploaded = rep.post("/api/chat/attachments", data={"session_id": session["id"]},
+                                files={"file": ("original.pdf", PDF, "application/pdf")})
+        assert uploaded.status_code == 200, uploaded.text
+        aid = uploaded.json()["id"]
+        stored = db.sql('SELECT file_path, data FROM "Chat Attachment" WHERE id = ?', [aid])[0]
+        assert not stored["file_path"] and bytes(stored["data"]) == PDF
+        assert rep.get(f"/api/chat/attachments/{aid}").content == PDF
+        assert viewer.get(f"/api/chat/attachments/{aid}").status_code == 403
+        retrieved = chat._handle_retrieve_chat_attachment({"attachment_id": aid}, session["id"], rep_id)
+        assert retrieved["_multimodal_content"]["file"]["filename"] == "original.pdf"
+        attachments.delete_session_attachments(session["id"])
+        assert rep.get(f"/api/chat/attachments/{aid}").status_code == 404
 
         # ---- a file cannot be redacted, so it is hidden as a whole ---------------
         # (also internal notes: both are free content on a record)

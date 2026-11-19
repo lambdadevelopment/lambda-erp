@@ -1,10 +1,9 @@
-"""Chat attachment upload/download. Files stored on the local filesystem."""
+"""Chat attachment upload/download. Files follow the chat database unless a deployment configures upload storage."""
 
 import base64
 import io
 import logging
 import os
-import tempfile
 import time
 import uuid
 from typing import Optional
@@ -196,17 +195,9 @@ def spreadsheet_row_warning(data: bytes, mime: str, filename: str) -> Optional[s
                 "Split the file or ask about a specific range.")
     return None
 
-# Where uploaded files are stored. Must be a WRITABLE path — a package-relative
-# location (e.g. next to this module) resolves under site-packages when the
-# package is pip-installed in a container, which is read-only for the non-root
-# app user, so every upload 500s with "[Errno 13] Permission denied". Default to
-# the OS temp dir (always writable; chat attachments are session-scoped and
-# get_attachments_by_ids tolerates a missing file). Deployments that need the
-# files to survive a restart set LAMBDA_ERP_UPLOAD_DIR to a mounted volume.
-UPLOAD_ROOT = (
-    os.environ.get("LAMBDA_ERP_UPLOAD_DIR")
-    or os.path.join(tempfile.gettempdir(), "lambda-erp-uploads")
-)
+# Explicitly configured volumes retain their existing filesystem storage mode.
+# Otherwise keep the bytes in the same database transaction as their metadata.
+UPLOAD_ROOT = os.environ.get("LAMBDA_ERP_UPLOAD_DIR")
 
 
 def _ensure_upload_dir(user_id: str) -> str:
@@ -297,18 +288,27 @@ async def upload_attachment(
     att_id = uuid.uuid4().hex
     ext = _safe_ext(file.filename or "", mime)
     user_id = user["name"]
-    upload_dir = _ensure_upload_dir(user_id)
-    file_path = os.path.join(upload_dir, f"{att_id}.{ext}")
+    file_path = ""
+    if UPLOAD_ROOT:
+        upload_dir = _ensure_upload_dir(user_id)
+        file_path = os.path.join(upload_dir, f"{att_id}.{ext}")
 
-    with open(file_path, "wb") as f:
-        f.write(data)
-
-    db.sql(
-        'INSERT INTO "Chat Attachment" (id, session_id, user_id, filename, mime_type, size_bytes, file_path, created_at) '
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [att_id, session_id, user_id, file.filename or f"file.{ext}", mime, len(data), file_path, now()],
-    )
-    db.conn.commit()
+    try:
+        if file_path:
+            with open(file_path, "wb") as f:
+                f.write(data)
+        db.sql(
+            'INSERT INTO "Chat Attachment" (id, session_id, user_id, filename, mime_type, size_bytes, file_path, data, created_at) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [att_id, session_id, user_id, file.filename or f"file.{ext}", mime, len(data), file_path,
+             None if file_path else data, now()],
+        )
+        db.conn.commit()
+    except Exception:
+        db.conn.rollback()
+        if file_path and os.path.isfile(file_path):
+            os.remove(file_path)
+        raise
 
     resp = {
         "id": att_id,
@@ -325,6 +325,16 @@ async def upload_attachment(
     return resp
 
 
+def _attachment_bytes(row: dict) -> bytes | None:
+    if row["data"] is not None:
+        return bytes(row["data"])
+    try:
+        with open(row["file_path"], "rb") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+
 @router.get("/attachments/{attachment_id}")
 def download_attachment(
     attachment_id: str,
@@ -333,7 +343,7 @@ def download_attachment(
     """Download a chat attachment. Scoped to the owning user."""
     db = get_db()
     rows = db.sql(
-        'SELECT filename, mime_type, file_path, user_id FROM "Chat Attachment" WHERE id = ?',
+        'SELECT filename, mime_type, file_path, data, user_id FROM "Chat Attachment" WHERE id = ?',
         [attachment_id],
     )
     if not rows:
@@ -344,11 +354,9 @@ def download_attachment(
     if row["user_id"] != user["name"] and user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    if not os.path.isfile(row["file_path"]):
+    data = _attachment_bytes(row)
+    if data is None:
         raise HTTPException(status_code=404, detail="File missing on disk")
-
-    with open(row["file_path"], "rb") as f:
-        data = f.read()
 
     return Response(
         content=data,
@@ -369,16 +377,15 @@ def get_attachments_by_ids(attachment_ids: list[str], user_id: str) -> list[dict
     db = get_db()
     placeholders = ",".join(["?"] * len(attachment_ids))
     rows = db.sql(
-        f'SELECT id, filename, mime_type, file_path, size_bytes, '
+        f'SELECT id, filename, mime_type, file_path, data, size_bytes, '
         f'openai_file_id, openai_file_expires_at FROM "Chat Attachment" '
         f'WHERE id IN ({placeholders}) AND user_id = ?',
         list(attachment_ids) + [user_id],
     )
     result = []
     for row in rows:
-        try:
-            with open(row["file_path"], "rb") as f:
-                data = f.read()
+        data = _attachment_bytes(row)
+        if data is not None:
             result.append({
                 "id": row["id"],
                 "filename": row["filename"],
@@ -388,8 +395,6 @@ def get_attachments_by_ids(attachment_ids: list[str], user_id: str) -> list[dict
                 "openai_file_expires_at": row.get("openai_file_expires_at"),
                 "data": data,
             })
-        except FileNotFoundError:
-            continue
     return result
 
 
@@ -474,7 +479,7 @@ def list_session_attachments(session_id: str, user_id: str) -> list[dict]:
 def delete_session_attachments(session_id: str) -> None:
     """Delete all attachments (DB + files) for a session. Used on chat clear/delete."""
     db = get_db()
-    rows = db.sql('SELECT file_path FROM "Chat Attachment" WHERE session_id = ?', [session_id])
+    rows = db.sql('SELECT file_path FROM "Chat Attachment" WHERE session_id = ? AND length(file_path) > 0', [session_id])
     for r in rows:
         try:
             os.remove(r["file_path"])

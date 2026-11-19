@@ -2247,6 +2247,9 @@ def _handle_retrieve_chat_attachment(args, session_id: str | None = None, user_i
     from api.attachments import get_attachments_by_ids, build_multimodal_content
     atts = get_attachments_by_ids([attachment_id], user_id)
     if not atts:
+        if get_db().sql('SELECT id FROM "Chat Attachment" WHERE id = ? AND session_id = ? AND user_id = ?',
+                        [attachment_id, session_id, user_id]):
+            return {"error": "The attachment is listed in this chat, but its stored file is missing."}
         return {"error": "Attachment not found or access denied."}
     att = atts[0]
     return {

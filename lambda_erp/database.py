@@ -1624,6 +1624,7 @@ class Database:
                 mime_type TEXT NOT NULL,
                 size_bytes INTEGER NOT NULL,
                 file_path TEXT NOT NULL,
+                data BLOB,
                 openai_file_id TEXT,
                 openai_file_expires_at INTEGER,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -3779,6 +3780,10 @@ def _m042_record_notes(db: "Database") -> None:
     db.conn.commit()
 
 
+def _m069_chat_attachment_data(db: "Database") -> None:
+    db._add_column_if_missing("Chat Attachment", "data", "BLOB")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -3848,6 +3853,7 @@ Database.MIGRATIONS = [
     (66, "attachment_sensitivity", _m066_attachment_sensitivity),
     (67, "item_units", _m067_item_units),
     (68, "units_completed", _m068_units_completed),
+    (69, "chat_attachment_data", _m069_chat_attachment_data),
 ]
 
 
