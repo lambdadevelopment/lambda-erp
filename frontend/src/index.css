@@ -131,6 +131,15 @@
     overflow: auto;
     isolation: isolate;
   }
+  /* Size columns to their contents and let the viewport handle overflow.
+     Long descriptions and identifiers can still wrap within a single cell. */
+  .record-list-table table {
+    width: max-content;
+  }
+  .record-list-table td {
+    max-width: 52ch;
+    overflow-wrap: anywhere;
+  }
   .record-list-table th {
     position: sticky;
     top: 0;
@@ -140,8 +149,7 @@
   .record-list-table [data-record-id] {
     position: sticky;
     left: 0;
-    max-width: min(18rem, 24vw);
-    overflow-wrap: anywhere;
+    max-width: min(40ch, 36vw);
     box-shadow: 1px 0 hsl(var(--border));
   }
   .record-list-table td[data-record-id] {
