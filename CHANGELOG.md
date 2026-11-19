@@ -13,6 +13,11 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.27] - 2026-11-19
+
+- Chat uploads now store their contents in the database by default, so users and the assistant can reopen a file after a container restart. Deployments with an explicit upload directory continue to use it.
+- Migration 69 adds a binary column to chat attachments. Older attachments remain readable while their original files exist. Chat retrieval now reports when a listed attachment's file is missing.
+
 ## [1.4.26] - 2026-11-18
 
 No migration.
