@@ -906,6 +906,8 @@
     "noRecentDocuments": "Aucun document récent"
   },
   "chat": {
+    "rename": "Renommer la discussion",
+    "renameFailed": "Impossible d’enregistrer le nom de la discussion.",
     "title": "Chat Lambda ERP",
     "subtitle": "Demandez-moi de créer des documents, de consulter des données ou d'exécuter des rapports.",
     "s1": "Quels clients avons-nous ?",

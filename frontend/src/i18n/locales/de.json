@@ -906,6 +906,8 @@
     "noRecentDocuments": "Keine aktuellen Dokumente"
   },
   "chat": {
+    "rename": "Chat umbenennen",
+    "renameFailed": "Der Chatname konnte nicht gespeichert werden.",
     "title": "Lambda ERP Chat",
     "subtitle": "Bitten Sie mich, Dokumente zu erstellen, Daten abzurufen oder Berichte auszuführen.",
     "s1": "Welche Kunden haben wir?",

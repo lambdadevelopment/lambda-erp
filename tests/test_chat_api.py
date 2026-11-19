@@ -256,6 +256,17 @@ def check_chat_api():
         # can neither open, rename nor delete it, and does not get it listed.
         viewer_chat = client.post("/api/chat/sessions").json()["id"]
         assert client.get(f"/api/chat/sessions/{viewer_chat}").json()["id"] == viewer_chat
+        from api.chat import update_session_title
+        title_url = f"/api/chat/sessions/{viewer_chat}/title"
+        update_session_title(viewer_chat, "Generated title", generated=True)
+        assert client.get(f"/api/chat/sessions/{viewer_chat}").json()["title"] == "Generated title"
+        assert client.put(title_url, json={"title": "  Client visit  "}).json() == {"ok": True}
+        assert client.put(title_url, json={"title": "  "}).status_code == 422
+        assert next(row["title"] for row in client.get("/api/chat/sessions").json() if row["id"] == viewer_chat) == "Client visit"
+        # Even choosing the default text explicitly wins over a late automatic title.
+        assert client.put(title_url, json={"title": "New Chat"}).json() == {"ok": True}
+        update_session_title(viewer_chat, "Late automatic title", generated=True)
+        assert client.get(f"/api/chat/sessions/{viewer_chat}").json()["title"] == "New Chat"
         r = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "test-password-123"})
         assert r.status_code == 200 and client.get("/api/auth/me").json()["role"] == "admin", r.text[:200]
         assert client.get(f"/api/chat/sessions/{viewer_chat}").json() == {"detail": "Session not found"}

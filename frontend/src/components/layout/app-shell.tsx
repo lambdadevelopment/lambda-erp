@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ArrowLeft } from "lucide-react";
 import { readBackState } from "@/lib/back-to";
 import { ChatProvider, useChat } from "@/components/chat/chat-provider";
+import { ChatTitle } from "@/components/chat/chat-title";
 import { DialogProvider } from "@/components/ui/dialog";
 import { Sidebar, FLASH_STYLES } from "@/components/layout/sidebar";
 import { useAuth } from "@/contexts/auth-context";
@@ -84,7 +85,9 @@ function AppShellContent() {
   const { pathname } = location;
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { navigationFlash } = useChat();
+  const { navigationFlash, sessions } = useChat();
+  const chatRoute = useMatch("/chat/:sessionId");
+  const activeChat = chatRoute && sessions.find(session => session.id === chatRoute.params.sessionId);
   const { t, i18n } = useTranslation();
 
   // Apply the user's saved language (per-user server pref) once it loads, so the
@@ -148,7 +151,7 @@ function AppShellContent() {
       )}
       <div className="flex flex-1 flex-col overflow-hidden md:ml-64">
         <header className="flex h-10 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-6">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2 pr-2 md:gap-3">
             <button
               onClick={() => setMobileOpen(true)}
               className={cn(
@@ -171,9 +174,11 @@ function AppShellContent() {
                 <ArrowLeft className="h-5 w-5" />
               </button>
             )}
-            <h1 className="text-base font-semibold text-gray-500 md:text-lg">{pageTitle}</h1>
+            {activeChat ? <ChatTitle key={activeChat.id} session={activeChat} /> : (
+              <h1 className="truncate text-base font-semibold text-gray-500 md:text-lg">{pageTitle}</h1>
+            )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <span className="hidden text-sm text-gray-500 sm:inline">
               {user?.full_name}
               <span className="ml-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">

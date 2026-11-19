@@ -62,6 +62,7 @@ interface ChatContextValue {
   createSession: () => Promise<ChatSession>;
   startDemo: (sessionId: string) => Promise<void>;
   completeDemoTyping: (sessionId: string, seq: number) => void;
+  renameSession: (sessionId: string, title: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   loadHistory: (sessionId: string) => Promise<void>;
   loadMoreHistory: (sessionId: string) => Promise<void>;
@@ -334,6 +335,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setSessions((prev) => sortSessionsByMessageActivity(updater(prev)));
   }
 
+  function setSessionTitle(sessionId: string, title: string) {
+    updateSessionList(prev => prev.map(session => session.id === sessionId ? { ...session, title } : session));
+  }
+
   function recordSessionMessage(sessionId: string, timestamp?: string) {
     const nextTimestamp = timestamp || new Date().toISOString();
     const currentTimestamp = lastMessageAtRef.current[sessionId];
@@ -548,11 +553,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
             const title = typeof data.title === "string" ? data.title : null;
             if (title) {
-              updateSessionList((prev) =>
-                prev.map((session) => (
-                  session.id === sessionId ? { ...session, title } : session
-                )),
-              );
+              setSessionTitle(sessionId, title);
             }
 
             if (!isPrepend) {
@@ -624,11 +625,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
           if (eventType === "session_title_updated" && sessionId) {
             const title = typeof data.title === "string" ? data.title : "";
-            updateSessionList((prev) =>
-              prev.map((session) => (
-                session.id === sessionId ? { ...session, title } : session
-              )),
-            );
+            setSessionTitle(sessionId, title);
             return;
           }
 
@@ -852,6 +849,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function renameSession(sessionId: string, title: string): Promise<void> {
+    const result = await api.renameChatSession(sessionId, title);
+    if (!result.ok) throw new Error(result.detail);
+    setSessionTitle(sessionId, title);
+  }
+
   async function deleteSession(sessionId: string): Promise<void> {
     await sendRequest("delete_session", { session_id: sessionId }, "session_deleted");
   }
@@ -955,6 +958,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         createSession,
         startDemo,
         completeDemoTyping,
+        renameSession,
         deleteSession,
         loadHistory,
         loadMoreHistory,

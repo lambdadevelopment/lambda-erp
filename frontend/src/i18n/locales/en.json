@@ -564,6 +564,8 @@
     "noRecentDocuments": "No recent documents"
   },
   "chat": {
+    "rename": "Rename chat",
+    "renameFailed": "Could not save the chat name.",
     "title": "Lambda ERP Chat",
     "subtitle": "Ask me to create documents, look up data, or run reports.",
     "s1": "What customers do we have?",

@@ -13,6 +13,11 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.28] - 2026-11-19
+
+- Chat owners can rename a conversation using the pencil beside its title in the header. The new name appears in the sidebar and browser tab.
+- Migration 70 records when an owner sets a chat title so that automatic naming respects their choice, even during the first reply.
+
 ## [1.4.27] - 2026-11-19
 
 - Chat uploads now store their contents in the database by default, so users and the assistant can reopen a file after a container restart. Deployments with an explicit upload directory continue to use it.
@@ -2833,7 +2838,8 @@ Internal npm bootstrap that created `@lambda-development/erp-core` on the
 registry — required before OIDC trusted publishing can be enabled for a new npm
 package. No PyPI release and no functional changes; superseded by 0.1.1.
 
-[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.8...HEAD
+[Unreleased]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.4.28...HEAD
+[1.4.28]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.4.27...v1.4.28
 [1.1.8]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.7...v1.1.8
 [1.1.7]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.6...v1.1.7
 [1.1.6]: https://github.com/lambdadevelopment/lambda-erp/compare/v1.1.5...v1.1.6

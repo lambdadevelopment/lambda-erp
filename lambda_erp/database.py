@@ -3784,6 +3784,10 @@ def _m069_chat_attachment_data(db: "Database") -> None:
     db._add_column_if_missing("Chat Attachment", "data", "BLOB")
 
 
+def _m070_chat_manual_title(db: "Database") -> None:
+    db.ensure_column("Chat Session", "title_is_manual", "INTEGER NOT NULL DEFAULT 0")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -3854,6 +3858,7 @@ Database.MIGRATIONS = [
     (67, "item_units", _m067_item_units),
     (68, "units_completed", _m068_units_completed),
     (69, "chat_attachment_data", _m069_chat_attachment_data),
+    (70, "chat_manual_title", _m070_chat_manual_title),
 ]
 
 

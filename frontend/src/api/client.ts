@@ -380,6 +380,11 @@ export const api = {
       { method: "POST" },
     ),
 
+  renameChatSession: (id: string, title: string) =>
+    request<{ ok?: boolean; detail?: string }>(`/chat/sessions/${encodeURIComponent(id)}/title`, {
+      method: "PUT", body: JSON.stringify({ title }),
+    }),
+
   getChatSession: (id: string) =>
     request<{ id: string; title: string; created_at: string; updated_at: string; last_message_at?: string | null; detail?: string }>(
       `/chat/sessions/${encodeURIComponent(id)}`,

@@ -255,9 +255,15 @@ def delete_session(session_id: str):
     db.conn.commit()
 
 
-def update_session_title(session_id: str, title: str):
+def update_session_title(session_id: str, title: str, *, generated: bool = False):
     db = get_db()
-    db.sql('UPDATE "Chat Session" SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [title, session_id])
+    if generated:
+        # A first-turn title can finish after an operator has already renamed the chat.
+        db.sql('''UPDATE "Chat Session" SET title = ?, updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ? AND title_is_manual = 0 AND title = ?''', [title, session_id, "New Chat"])
+    else:
+        db.sql('''UPDATE "Chat Session" SET title = ?, title_is_manual = 1, updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?''', [title, session_id])
     db.conn.commit()
 
 
@@ -557,9 +563,10 @@ def api_rename_session(session_id: str, data: dict, user: dict = _Depends(get_cu
     session = get_session(session_id)
     if not can_access_session(session, user):
         return {"detail": "Session not found"}
-    title = data.get("title", "").strip()
-    if title:
-        update_session_title(session_id, title)
+    title = data.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise HTTPException(status_code=422, detail="A chat name is required.")
+    update_session_title(session_id, title.strip())
     return {"ok": True}
 
 
@@ -3811,7 +3818,7 @@ async def generate_title(
 
             title = (response.output_text or "").strip().strip('"\'')[:120]
             if title:
-                update_session_title(session_id, title)
+                update_session_title(session_id, title, generated=True)
                 print(f"[chat_title] model={title_model} session_id={session_id} "
                       f"ms={int((time.monotonic() - started) * 1000)}", flush=True)
             else:
