@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.29] - 2026-11-24
+
+No migration.
+
+- **Deleting a chat asks first** when it has content ("„…“ löschen? Der
+  Gesprächsverlauf und die Anhänge werden dauerhaft gelöscht."); an empty
+  chat is removed without asking.
+- Chat voice recordings are transcribed with `gpt-transcribe` and metered
+  per audio minute (USD 0.0045). Wide lists scroll better and desktop list
+  columns are wide enough for readable names.
+
 - **Shipping on sales invoices, and the assistant's charge rules.** The
   assistant treated "shipping goes into the charges table" as a ban: it
   refused to record re-billed shipping as a line item even when asked to,
