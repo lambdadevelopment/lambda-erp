@@ -13,6 +13,11 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- **Back to GPT-6.1 Sol.** The chat and the report specialist default to
+  `gpt-6.1-sol` again (1.4.26 to 1.4.30: `gpt-6.2-sol`; same rates). Both
+  stay overridable with `LAMBDA_ERP_CHAT_MODEL` / `LAMBDA_ERP_REPORT_MODEL`.
+  Prices rechecked against OpenAI's list; there is no GPT-6.1 Astra.
+
 ## [1.4.30] - 2026-11-24
 
 No migration.

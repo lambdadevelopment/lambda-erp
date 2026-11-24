@@ -34,7 +34,8 @@ OPENAI_PRICING: dict[str, dict[str, Any]] = {
         ],
     },
     # The models available to us, Standard tier, verified 2026-10-30 (the
-    # GPT-6.2 models 2026-11-18, developers.openai.com/api/docs/pricing). Above
+    # GPT-6.2 models 2026-11-18, all rechecked 2026-11-24,
+    # developers.openai.com/api/docs/pricing; there is no GPT-6.1 Astra). Above
     # 272K input tokens the higher rates apply to the entire request
     # (including cache hits). cache_write is the 30-minute retention rate,
     # cache_write_12h the 12-hour one.
@@ -78,14 +79,14 @@ TRANSCRIBE_PRICING: dict[str, dict[str, float]] = {
 
 
 # ---------------------------------------------------------------------------
-# Rate lookup — unknown model IDs are estimated at the gpt-6.2-sol rates.
+# Rate lookup — unknown model IDs are estimated at the gpt-6.1-sol rates.
 # Register a model explicitly before using it; this fallback is not a price cap.
 # ---------------------------------------------------------------------------
 
 def get_openai_rates(model: str, input_tokens: int = 0) -> dict[str, float]:
     entry = OPENAI_PRICING.get(model)
     if entry is None:
-        entry = OPENAI_PRICING["gpt-6.2-sol"]
+        entry = OPENAI_PRICING["gpt-6.1-sol"]
     if entry.get("tiered"):
         for tier in entry["tiers"]:
             cap = tier.get("max_input_tokens")

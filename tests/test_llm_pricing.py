@@ -90,7 +90,7 @@ class OrchestratorTests(unittest.TestCase):
             asyncio.run(chat.run_thinking_loop(messages, event, max_iterations=0,
                                                user_info={"role": "admin"}))
         request = create.call_args.kwargs
-        self.assertEqual(request["model"], "gpt-6.2-sol")
+        self.assertEqual(request["model"], "gpt-6.1-sol")
         self.assertEqual(request["tool_choice"], "none")
         self.assertEqual(request["reasoning"], {"effort": "low"})
         self.assertTrue(any(i.get("type") == "function_call_output" for i in request["input"]))
@@ -114,7 +114,7 @@ class OrchestratorTests(unittest.TestCase):
         with patch.dict("os.environ", {"ERP_CHAT_API": "chat"}):
             message, usage = chat._orchestrator_turn(client, messages, [tool], 1024)
         request = create.call_args.kwargs
-        self.assertEqual(request["model"], "gpt-6.2-sol")
+        self.assertEqual(request["model"], "gpt-6.1-sol")
         self.assertEqual(request["reasoning"], {"effort": "low"})
         self.assertEqual(request["tools"][0]["name"], "list_documents")
         self.assertEqual(message.tool_calls[0].function.name, "list_documents")

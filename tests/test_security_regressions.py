@@ -332,7 +332,7 @@ def check_security_regressions():
         }
         analytics.ReportDraftPayload.model_validate(multi_series_report)
 
-        # The specialist uses the existing OpenAI credential and GPT-6.2 Sol model;
+        # The specialist uses the existing OpenAI credential and GPT-6.1 Sol model;
         # no Anthropic SDK/key is needed. Provider traffic stays mocked here.
         specialist_call = {}
         specialist_report = copy.deepcopy(multi_series_report)
@@ -360,7 +360,7 @@ def check_security_regressions():
         assert "stacked" not in generated["report"]["charts"][0]
         assert "color" not in generated["report"]["charts"][0]["series"][0]
         assert generated["data_requests"][0]["filters"]["posting_date"]["from"] == "2025-01-01"
-        assert specialist_call["model"] == "gpt-6.2-sol"
+        assert specialist_call["model"] == "gpt-6.1-sol"
         assert specialist_call["reasoning"] == {"effort": "medium"}
 
         # The documented intent-only chat path must persist the validated

@@ -3519,14 +3519,14 @@ Users can attach PDFs and images (receipts, bills, contracts, screenshots) to th
 # ---------------------------------------------------------------------------
 # OpenAI report-spec specialist
 #
-# GPT-6.2 Sol acts as the planner/orchestrator. When it decides a report needs
+# GPT-6.1 Sol acts as the planner/orchestrator. When it decides a report needs
 # a custom analytics view it calls the create/update custom analytics tools.
-# Those handlers make a separate, narrowly prompted GPT-6.2 Sol call for the bounded
+# Those handlers make a separate, narrowly prompted GPT-6.1 Sol call for the bounded
 # declarative report spec. Both roles use the same provider and key (api/llm_provider.py).
 # ---------------------------------------------------------------------------
 
 
-REPORT_SPECIALIST_MODEL = "gpt-6.2-sol"
+REPORT_SPECIALIST_MODEL = "gpt-6.1-sol"
 
 
 def _report_specialist_model() -> str:
@@ -3953,12 +3953,12 @@ async def generate_title(
 # Reasoning loop
 # ---------------------------------------------------------------------------
 
-# GPT-6.2 Sol (default since core 1.4.26; GPT-6.1 Sol before) requires
+# GPT-6.1 Sol (the default; GPT-6.2 Sol in core 1.4.26 to 1.4.30) requires
 # Responses for function tools and does not support
 # reasoning effort "none", including tool-free wrap-ups after the step limit.
 # LAMBDA_ERP_CHAT_MODEL overrides it per deployment (e.g. to trial a cheaper
 # model on dev); see docs/llm-pricing.md.
-ORCHESTRATOR_MODEL = "gpt-6.2-sol"
+ORCHESTRATOR_MODEL = "gpt-6.1-sol"
 
 
 def _chat_model() -> str:
@@ -4241,11 +4241,11 @@ async def run_thinking_loop(
 ):
     """Run the agentic reasoning loop.
 
-    The orchestrator and the report specialist use GPT-6.2 Sol.
+    The orchestrator and the report specialist use GPT-6.1 Sol.
     When GPT decides to call
     `create_custom_analytics_report` or `update_custom_analytics_report`
     with an intent/feedback hint, the tool handler itself delegates the
-    declarative-spec step to a separate narrowly prompted GPT-6.2 Sol call. We emit an
+    declarative-spec step to a separate narrowly prompted GPT-6.1 Sol call. We emit an
     `llm_provider` event around that delegation so the UI can surface it.
     """
     if not llm_configured():
@@ -4461,7 +4461,7 @@ async def run_thinking_loop(
             principal_ref[0] = refresh_auth_principal(principal_ref[0])
             live_role = principal_ref[0].get("role") if principal_ref[0] else None
 
-            # If the orchestrator is delegating report-spec generation to GPT-6.2 Sol,
+            # If the orchestrator is delegating report-spec generation to GPT-6.1 Sol,
             # surface the handoff in the UI.
             will_delegate_to_report_specialist = (
                 tool_allowed(fn_name, live_role)
