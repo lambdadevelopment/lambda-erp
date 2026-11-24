@@ -380,6 +380,87 @@ def serialize_chat_message(
     return msg
 
 
+# A stored step as the chat shows it: the call, its label and a bounded view of
+# the result (the stored result itself can be large).
+STEP_TEXT_MAX = 500
+
+
+def _step_from_trace(call: dict | None, result: dict | None) -> dict:
+    call = call or {}
+    result = result or {}
+    step: dict = {"tool": call.get("tool") or result.get("tool") or ""}
+    if call.get("intent"):
+        step["intent"] = call["intent"]
+    if isinstance(call.get("args"), dict):
+        step["args"] = call["args"]
+    if result:
+        step["success"] = bool(result.get("success"))
+        summary = result.get("summary")
+        if not isinstance(summary, str):
+            raw = result.get("result")
+            summary = raw if isinstance(raw, str) else json.dumps(raw, default=str) if raw is not None else ""
+        step["summary"] = summary[:STEP_TEXT_MAX] + ("..." if len(summary) > STEP_TEXT_MAX else "")
+        if result.get("error"):
+            step["error"] = str(result["error"])[:STEP_TEXT_MAX]
+    return step
+
+
+def _steps_by_answer(session_id: str, rows: list[dict]) -> dict[int, list[dict]]:
+    """{assistant message id: the tool steps of the turn that ended in it}.
+
+    Steps are the stored tool rows after the previous user or assistant message
+    and before the answer. A turn that ended without an answer (an error, a
+    closed tab) has no message to hang its steps on; they stay stored only.
+    """
+    answer_ids = [row["id"] for row in rows if row.get("role") == "assistant" and row.get("id") is not None]
+    if not answer_ids:
+        return {}
+    first = min(row["id"] for row in rows if row.get("id") is not None)
+    db = get_db()
+    before = db.sql(
+        'SELECT MAX(id) AS id FROM "Chat Message" WHERE session_id = ? AND role IN (\'user\', \'assistant\') AND id < ?',
+        [session_id, int(first)],
+    )
+    low = (before[0]["id"] if before and before[0]["id"] is not None else 0)
+    trace = db.sql(
+        'SELECT id, role, message_type, content FROM "Chat Message" '
+        'WHERE session_id = ? AND id > ? AND id <= ? '
+        'AND (role IN (\'user\', \'assistant\') OR message_type IN (\'tool_call\', \'tool_result\')) ORDER BY id',
+        [session_id, int(low), int(max(answer_ids))],
+    )
+    out: dict[int, list[dict]] = {}
+    steps: list[dict] = []
+    open_calls: list[tuple[dict, int]] = []  # (call payload, index in steps) still without a result
+    for row in trace:
+        if row["role"] in ("user", "assistant"):
+            if row["role"] == "assistant" and steps:
+                out[row["id"]] = steps
+            steps, open_calls = [], []
+            continue
+        try:
+            payload = json.loads(row.get("content") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if row["message_type"] == "tool_call":
+            steps.append(_step_from_trace(payload, None))
+            open_calls.append((payload, len(steps) - 1))
+            continue
+        # A result belongs to the latest open call of the same tool.
+        match = next((i for i in range(len(open_calls) - 1, -1, -1) if open_calls[i][0].get("tool") == payload.get("tool")), None)
+        if match is None:
+            if steps and steps[-1].get("tool") == payload.get("tool"):
+                # A second verdict on the same step (e.g. the PDF check after export).
+                steps[-1] = {**steps[-1], **{k: v for k, v in _step_from_trace(None, payload).items() if k != "tool"}}
+            else:
+                steps.append(_step_from_trace(None, payload))
+            continue
+        call, index = open_calls.pop(match)
+        steps[index] = _step_from_trace(call, payload)
+    return out
+
+
 def load_serialized_chat_history(
     session_id: str,
     limit: int = 20,
@@ -391,6 +472,11 @@ def load_serialized_chat_history(
     messages exist beyond this page.
     """
     rows = load_chat_history(session_id, limit=limit, before_id=before_id)
+    try:
+        steps_by_answer = _steps_by_answer(session_id, rows)
+    except Exception:  # noqa: BLE001 - the answers matter more than their steps
+        logger.warning("Could not load the steps of session %s", session_id, exc_info=True)
+        steps_by_answer = {}
     history_messages = []
     for row in rows:
         role = row["role"]
@@ -406,11 +492,12 @@ def load_serialized_chat_history(
             except (json.JSONDecodeError, AttributeError):
                 pass
         if content or attachments:
-            history_messages.append(
-                serialize_chat_message(
-                    role, content, row.get("created_at"), attachments, row.get("id"),
-                )
+            message = serialize_chat_message(
+                role, content, row.get("created_at"), attachments, row.get("id"),
             )
+            if row.get("id") in steps_by_answer:
+                message["steps"] = steps_by_answer[row["id"]]
+            history_messages.append(message)
 
     oldest_id = history_messages[0].get("id") if history_messages else None
     has_more = False
@@ -2949,6 +3036,9 @@ Only state that something was done — created, changed, enabled/disabled, booke
 - Respect document requirements from get_document_fields. Missing required data or ambiguous matches require a targeted question, not guessed IDs, omitted links, or zero quantities. A tool error means the action failed; _validation.warnings must be explained.
 - If you can't confirm an action took effect, re-fetch and look, or tell the user you couldn't confirm it — never guess.
 
+## Step labels (`step_label`)
+Every tool takes an optional `step_label`: a short phrase in the user's language saying what this step does, e.g. "Versand als eigene Position erfassen" or "Find the customer's open invoices". The user sees it as the label of the step, so say what and why in plain words (no tool names, no JSON), at most about 80 characters. It is shown only to people who can read this chat; it changes nothing about what the tool does.
+
 ## Answering data questions — three paths
 
 **Path 1: single-record lookup → `list_documents` / `get_document`.** For "is SINV-0042 paid", "what did customer X order last", "show me the latest 5 purchase orders" — fetch the rows directly. Don't try to aggregate in your head unless there are only a handful of rows in front of you.
@@ -3933,6 +4023,49 @@ class _ShimUsage:
         self.prompt_tokens_details = _ShimUsageDetails(cached_tokens)
 
 
+# An optional one-line label the model gives each tool call ("what this step
+# does"), shown on the step in the chat and kept with the stored step. Added to
+# the chat's tool schemas only, and taken out of the arguments before a tool
+# runs, so no tool ever sees it (several forbid unknown fields).
+# Not "intent": create_custom_analytics_report has a parameter of that name.
+INTENT_PARAM = "step_label"
+INTENT_MAX = 160
+_INTENT_SCHEMA = {
+    "type": "string",
+    "maxLength": INTENT_MAX,
+    "description": "Optional: what this step does and why, in the user's language, at most ~80 characters "
+                   "(shown to the user as the step's label).",
+}
+
+
+def _with_intent(tools: list) -> list:
+    """The tool list with the optional `intent` parameter on every function."""
+    out = []
+    for tool in tools or []:
+        fn = tool.get("function") if isinstance(tool, dict) else None
+        params = fn.get("parameters") if fn else None
+        if not isinstance(params, dict) or params.get("type", "object") != "object":
+            out.append(tool)
+            continue
+        props = params.get("properties") or {}
+        if INTENT_PARAM in props:  # a tool's own parameter of that name wins
+            out.append(tool)
+            continue
+        out.append({**tool, "function": {**fn, "parameters": {**params, "properties": {**props, INTENT_PARAM: _INTENT_SCHEMA}}}})
+    return out
+
+
+def _pop_intent(args) -> str | None:
+    """Remove the step label from a call's arguments; return it trimmed, or None."""
+    if not isinstance(args, dict):
+        return None
+    value = args.pop(INTENT_PARAM, None)
+    if not isinstance(value, str):
+        return None
+    value = " ".join(value.split())
+    return value[:INTENT_MAX] or None
+
+
 def _responses_tools_from_chat(tools: list) -> list:
     """Chat tool schema {"type":"function","function":{name,...}} -> the flatter
     Responses shape {"type":"function","name",...}."""
@@ -4263,7 +4396,7 @@ async def run_thinking_loop(
                 # or the legacy API for compatible models. Returns Chat-shaped
                 # (message, usage) either way, so everything below is unchanged.
                 message, usage = await asyncio.to_thread(
-                    _orchestrator_turn, openai_client, messages, build_tools(user_info, native_chat=True), max_completion,
+                    _orchestrator_turn, openai_client, messages, _with_intent(build_tools(user_info, native_chat=True)), max_completion,
                 )
             except Exception as e:
                 await on_event({"type": "error", "content": f"Error calling LLM: {e}"})
@@ -4313,10 +4446,11 @@ async def run_thinking_loop(
             except json.JSONDecodeError:
                 fn_args = {}
             tool_call_id = tc.id
+            intent = _pop_intent(fn_args)
 
-            await on_event({"type": "tool_call", "tool": fn_name, "args": fn_args})
+            await on_event({"type": "tool_call", "tool": fn_name, "args": fn_args, "intent": intent})
             if session_id:
-                _save_tool_trace(session_id, "tool_call", {"tool": fn_name, "args": fn_args})
+                _save_tool_trace(session_id, "tool_call", {"tool": fn_name, "args": fn_args, "intent": intent})
 
             # LLM turns can run for many seconds. Re-resolve the principal at
             # the actual execution boundary so a demotion, disable, or key

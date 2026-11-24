@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- **Compact chat steps that stay.** The assistant's tool calls show as one
+  small bubble per step with a readable label ("Changed Sales Invoice
+  SINV-0005", or the model's own `step_label`), and open on click to show the
+  call and its result. Once the answer is there they fold into one line
+  ("5 steps · 1 failed"); after a reload that line comes back from the
+  stored steps (the history now returns each answer's steps, with a bounded
+  view of each result; the model never gets them back as conversation).
+- Every chat tool takes an optional `step_label`, a short phrase in the
+  user's language the chat shows as the step's label. It is taken out of the
+  arguments before the tool runs.
+
 - **Column order in the column menu.** The menu of a list shows the shown
   columns on top in display order, to be dragged into place (mouse, touch,
   or the arrow keys on a focused handle), and the hidden ones below,

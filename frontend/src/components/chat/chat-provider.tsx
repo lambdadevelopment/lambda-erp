@@ -1,3 +1,4 @@
+import type { ChatStep } from "@/components/chat/chat-steps";
 import {
   createContext,
   useContext,
@@ -36,6 +37,12 @@ export interface ChatMessage {
   attachments?: ChatAttachment[];
   provider?: string;
   model?: string;
+  /** tool_call: the model's own label for the step. */
+  intent?: string;
+  /** tool_result: why it failed. */
+  error?: string;
+  /** assistant (from the history): the steps that led to this answer. */
+  steps?: ChatStep[];
 }
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
@@ -52,6 +59,7 @@ interface PersistedChatMessage {
   content: string;
   created_at?: string;
   attachments?: ChatAttachment[];
+  steps?: ChatStep[];
 }
 
 interface ChatContextValue {
@@ -166,6 +174,7 @@ function mapPersistedMessage(message: PersistedChatMessage): ChatMessage {
     content: message.content,
     timestamp: message.created_at,
     attachments: message.attachments,
+    ...(Array.isArray(message.steps) && message.steps.length ? { steps: message.steps } : {}),
   };
 }
 
@@ -701,6 +710,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 content: `Calling ${data.tool}...`,
                 tool: data.tool as string,
                 args: data.args as Record<string, unknown>,
+                ...(typeof data.intent === "string" && data.intent ? { intent: data.intent } : {}),
               },
             ]);
             return;
@@ -748,6 +758,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 content: String(data.summary || ""),
                 tool: data.tool as string,
                 success: Boolean(data.success),
+                ...(typeof data.error === "string" && data.error ? { error: data.error } : {}),
               },
             ]);
             return;

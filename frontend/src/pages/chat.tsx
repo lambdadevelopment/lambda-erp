@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { type ChatMessage, type ChatAttachment, useChat, rememberSessionId } from "@/components/chat/chat-provider";
+import { type ChatStep, StepList, StepsSummary, stepsFromMessages } from "@/components/chat/chat-steps";
 import { api } from "@/api/client";
 import { usePageTitle } from "@/lib/use-page-title";
 import { type BackState, backStateHere, readBackState, sameOriginPath } from "@/lib/back-to";
@@ -714,9 +715,23 @@ export default function ChatPage() {
             </div>
           )}
 
-          {messages.map((msg, idx) => (
-            <MessageBubble key={idx} message={msg} />
-          ))}
+          {chatItems(messages).map((item) => {
+            if (item.kind === "steps") {
+              return item.answered
+                ? <StepsSummary key={item.key} steps={item.steps} />
+                : <StepList key={item.key} steps={item.steps} running={isThinking} />;
+            }
+            const { message } = item;
+            if (message.type === "assistant" && message.steps?.length) {
+              return (
+                <div key={item.key} className="space-y-1.5">
+                  <StepsSummary steps={message.steps} />
+                  <MessageBubble message={message} />
+                </div>
+              );
+            }
+            return <MessageBubble key={item.key} message={message} />;
+          })}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -922,6 +937,42 @@ function AttachmentThumbs({ attachments }: { attachments?: ChatAttachment[] }) {
   );
 }
 
+type ChatItem =
+  | { kind: "message"; key: string; message: ChatMessage }
+  | { kind: "steps"; key: string; steps: ChatStep[]; answered: boolean };
+
+// Consecutive tool calls and results become one group of steps. A group the
+// turn has answered (a user or assistant message follows) folds into one
+// line; the group still being worked on, or one whose turn broke off, stays
+// open so its progress and failures show.
+function chatItems(messages: ChatMessage[]): ChatItem[] {
+  const items: ChatItem[] = [];
+  let run: ChatMessage[] = [];
+  let start = 0;
+  const flush = () => {
+    if (!run.length) return;
+    items.push({ kind: "steps", key: `steps-${start}`, steps: stepsFromMessages(run), answered: false });
+    run = [];
+  };
+  messages.forEach((message, index) => {
+    if (message.type === "tool_call" || message.type === "tool_result") {
+      if (!run.length) start = index;
+      run.push(message);
+      return;
+    }
+    flush();
+    items.push({ kind: "message", key: `m-${index}`, message });
+  });
+  flush();
+  let answered = false;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (item.kind === "message" && (item.message.type === "assistant" || item.message.type === "user")) answered = true;
+    else if (item.kind === "steps") item.answered = answered;
+  }
+  return items;
+}
+
 function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.type === "user") {
     return (
@@ -962,53 +1013,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               {message.model ? ` · ${message.model}` : ""}
             </span>
           )}
-        </div>
-      </div>
-    );
-  }
-
-  if (message.type === "tool_call") {
-    return (
-      <div className="flex justify-start">
-        <div className="rounded-lg bg-surface px-3 py-2 text-xs ring-1 ring-line shadow-card">
-          <div className="flex items-center gap-1.5 font-medium text-fg-muted">
-            <svg
-              viewBox="0 0 24 24"
-              width="12"
-              height="12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-            </svg>
-            <span className="font-mono">{message.tool}</span>
-          </div>
-          {message.args && (
-            <pre className="mt-1 max-h-20 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-fg-muted/80">
-              {JSON.stringify(message.args, null, 2)}
-            </pre>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (message.type === "tool_result") {
-    return (
-      <div className="flex justify-start">
-        <div
-          className={`rounded-lg px-3 py-2 text-xs shadow-card ring-1 ring-inset ${message.success ? "bg-emerald-50 ring-emerald-200" : "bg-rose-50 ring-rose-200"}`}
-        >
-          <div className="flex items-center gap-1.5">
-            <span className={message.success ? "text-emerald-600" : "text-rose-600"}>
-              {message.success ? "\u2713" : "\u2717"}
-            </span>
-            <span className="font-mono font-medium text-fg">{message.tool}</span>
-          </div>
-          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-fg-muted">
-            {message.content}
-          </pre>
         </div>
       </div>
     );
