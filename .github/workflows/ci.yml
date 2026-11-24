@@ -231,6 +231,16 @@ jobs:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_chat_steps
 
+      - name: Number ranges (read, set, follow hand-set numbers) — SQLite
+        if: matrix.shard == 3
+        run: python -m tests.test_number_series
+
+      - name: Number ranges (read, set, follow hand-set numbers) — PostgreSQL
+        if: matrix.shard == 1
+        env:
+          LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
+        run: python -m tests.test_number_series
+
       - name: Names of linked records in lists — SQLite
         if: matrix.shard == 1
         run: python -m tests.test_linked_titles

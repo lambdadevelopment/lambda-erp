@@ -146,6 +146,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Users & Team", path: "/admin/users" },
       // Layouts offers print with (api/pdf_templates.py).
       { label: "PDF Templates", path: "/settings/pdf-templates" },
+      // Where document numbers continue (api/number_series.py); admins set them.
+      { label: "Number Ranges", path: "/settings/number-ranges", adminOnly: true },
       // Personal menu layout (hide / reorder); every signed-in user has one.
       { label: "Menu", path: "/settings/menu" },
     ],

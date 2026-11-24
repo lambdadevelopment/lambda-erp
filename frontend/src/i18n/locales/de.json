@@ -439,7 +439,8 @@
       "Stock Count": "Inventur",
       "Address": "Adresse",
       "Price List": "Preisliste",
-      "Item Price": "Artikelpreis"
+      "Item Price": "Artikelpreis",
+      "Number Ranges": "Nummernkreise"
     }
   },
   "login": {
@@ -1793,5 +1794,16 @@
       "add_record_note": "Notiz hinzugefügt",
       "list_record_notes": "Notizen gelesen"
     }
+  },
+  "numberRanges": {
+    "title": "Nummernkreise",
+    "intro": "Jede Belegart nummeriert ihre Belege aus einem eigenen Nummernkreis. Hier sehen Sie, welche Nummer der nächste neue Beleg erhält, und können einen Nummernkreis höher weiterlaufen lassen, z. B. Rechnungen ab SINV-0321. Zurück geht es nur bis zur höchsten schon vergebenen Nummer, damit keine Nummer doppelt vergeben wird. Bestehende Belege behalten ihre Nummern.",
+    "chatHint": "Das geht auch im Chat, z. B. „Rechnungen sollen bei 321 weitergehen“.",
+    "type": "Belegart",
+    "prefix": "Präfix",
+    "highest": "Höchste vergebene",
+    "next": "Nächste Nummer",
+    "nextFor": "Nächste Nummer für {{type}}",
+    "atLeast": "mindestens {{number}}"
   }
 }

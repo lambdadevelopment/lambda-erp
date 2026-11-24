@@ -380,7 +380,8 @@
       "Sales Backlog": "Sales Backlog",
       "Purchase Backlog": "Purchase Backlog",
       "Consignment Withdrawal": "Consignment Withdrawal",
-      "Stock Count": "Stock Count"
+      "Stock Count": "Stock Count",
+      "Number Ranges": "Number Ranges"
     }
   },
   "login": {
@@ -1575,5 +1576,16 @@
       "add_record_note": "Added a note",
       "list_record_notes": "Read the notes"
     }
+  },
+  "numberRanges": {
+    "title": "Number Ranges",
+    "intro": "Every document type numbers its documents from its own range. Here you see which number the next new document gets, and you can let a range continue higher, e.g. invoices from SINV-0321 on. A range can go back down only as far as the highest number already used, so no number is ever given twice. Existing documents keep their numbers.",
+    "chatHint": "This also works in the chat, e.g. “Invoices should continue at 321”.",
+    "type": "Document type",
+    "prefix": "Prefix",
+    "highest": "Highest used",
+    "next": "Next number",
+    "nextFor": "Next number for {{type}}",
+    "atLeast": "at least {{number}}"
   }
 }

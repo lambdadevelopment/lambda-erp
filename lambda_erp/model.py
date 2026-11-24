@@ -364,7 +364,19 @@ class Document:
         except Exception:
             self._persisted, self._loaded_modified = persisted
             raise
+        if not persisted[0]:
+            self._follow_hand_set_name()
         return self
+
+    def _follow_hand_set_name(self):
+        """A new record saved as "PREFIX-<n>" with a number the series has not
+        reached yet moves the series past it: SINV-0321 entered by hand makes
+        the next automatic invoice SINV-0322, not SINV-0006 (which would later
+        climb to 0320 and skip 0321)."""
+        import re
+        match = re.fullmatch(rf"{re.escape(self.PREFIX)}-(\d+)", str(self.name or ""))
+        if match and self.PREFIX:
+            get_db().advance_series(self.PREFIX, int(match.group(1)))
 
     def _require_in_scope(self):
         """A user restricted to assigned customers or warehouses cannot write

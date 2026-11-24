@@ -34,6 +34,7 @@ import { AdminRoute } from "@/components/auth/protected-route";
 import Users from "@/pages/admin/users";
 import GeneralSettings from "@/pages/admin/settings";
 import MenuLayout from "@/pages/settings/menu-layout";
+import NumberRanges from "@/pages/settings/number-ranges";
 import PdfTemplates from "@/pages/settings/pdf-templates";
 import PdfTemplateEditor from "@/pages/settings/pdf-template-editor";
 import { getComponent } from "@/lib/component-registry";
@@ -101,6 +102,7 @@ const baseChildRoutes: RouteObject[] = [
   { path: "admin/users", element: <Users /> },
   { path: "admin/settings", element: <GeneralSettings /> },
   { path: "settings/menu", element: <MenuLayout /> },
+  { path: "settings/number-ranges", element: <NumberRanges /> },
   { path: "settings/pdf-templates", element: <PdfTemplates /> },
   { path: "settings/pdf-templates/:id", element: <PdfTemplateEditor /> },
 ];

@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- **Number ranges.** Settings → Number Ranges shows, per document type, the
+  prefix, the highest number used and the number the next new document
+  gets; admins can let a range continue higher (e.g. invoices from
+  SINV-0321 on) or back down as far as the highest number already used,
+  never onto a taken one. The chat has `get_number_series` (everyone who may
+  read the type) and `set_next_number` (admins), and answers "which number
+  comes next?" from the range instead of guessing.
+- A document saved with a hand-set number ahead of its range moves the range
+  past it: SINV-0321 entered by hand makes the next automatic invoice
+  SINV-0322. Before, the range kept counting from the old number and skipped
+  the hand-set one later.
+
 - **Compact chat steps that stay.** The assistant's tool calls show as one
   small bubble per step with a readable label ("Changed Sales Invoice
   SINV-0005", or the model's own `step_label`), and open on click to show the

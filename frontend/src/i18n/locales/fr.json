@@ -439,7 +439,8 @@
       "Stock Count": "Inventaire",
       "Address": "Adresse",
       "Price List": "Liste de prix",
-      "Item Price": "Prix d'article"
+      "Item Price": "Prix d'article",
+      "Number Ranges": "Séries de numéros"
     }
   },
   "login": {
@@ -1793,5 +1794,16 @@
       "add_record_note": "Ajouté une note",
       "list_record_notes": "Lu les notes"
     }
+  },
+  "numberRanges": {
+    "title": "Séries de numéros",
+    "intro": "Chaque type de document numérote ses documents dans sa propre série. Vous voyez ici le numéro que recevra le prochain document et pouvez faire continuer une série plus haut, p. ex. les factures à partir de SINV-0321. Une série ne peut redescendre que jusqu’au plus haut numéro déjà utilisé, pour qu’aucun numéro ne soit attribué deux fois. Les documents existants gardent leur numéro.",
+    "chatHint": "Cela fonctionne aussi dans le chat, p. ex. « Les factures doivent continuer à 321 ».",
+    "type": "Type de document",
+    "prefix": "Préfixe",
+    "highest": "Plus haut utilisé",
+    "next": "Prochain numéro",
+    "nextFor": "Prochain numéro pour {{type}}",
+    "atLeast": "au moins {{number}}"
   }
 }

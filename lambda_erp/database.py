@@ -2409,6 +2409,100 @@ class Database:
                     if attempt == 2:
                         raise
 
+    # --- Setting a series (admins) and following hand-set numbers ---------
+
+    def _series_pg(self, work):
+        """Run `work(conn)` on the autocommit series connection (as
+        next_in_series does), reconnecting once after a dropped connection."""
+        import psycopg
+
+        with self._series_lock:
+            for attempt in (1, 2):
+                try:
+                    conn = self._series_conn
+                    if conn is None or conn.closed:
+                        conn = self._series_conn = psycopg.connect(self.db_path, autocommit=True)
+                    return work(conn)
+                except psycopg.OperationalError:
+                    if self._series_conn is not None:
+                        try:
+                            self._series_conn.close()
+                        except Exception:
+                            pass
+                    self._series_conn = None
+                    if attempt == 2:
+                        raise
+
+    def _series_fetch(self):
+        if self.dialect == "postgres":
+            return lambda sql, params: [list(r.values()) for r in self.sql(sql, params)]
+        return lambda sql, params: self.conn.execute(sql, params).fetchall()
+
+    def series_state(self, prefix: str) -> dict:
+        """{prefix, current, highest_used}: `current` is the last number handed
+        out (the next is current + 1), `highest_used` the highest
+        "PREFIX-<digits>" stored anywhere. A series never used yet starts after
+        the highest stored number, as next_in_series would seed it."""
+        highest = self._series_floor(prefix, self._series_fetch())
+        rows = self.sql('SELECT current FROM "_NamingSeries" WHERE prefix = ?', [prefix])
+        current = int(rows[0]["current"]) if rows else highest
+        return {"prefix": prefix, "current": current, "highest_used": highest}
+
+    def set_series_next(self, prefix: str, next_number: int) -> dict:
+        """Make `next_number` the next number of the series.
+
+        It may not be at or below a number already used, so a series can be
+        moved up freely and back down only as far as the highest stored number:
+        never to a number that would collide.
+        """
+        next_number = int(next_number)
+        highest = self._series_floor(prefix, self._series_fetch())
+        if next_number <= highest:
+            raise ValueError(f"{prefix}-{highest:04d} is already used: the next number must be at least {highest + 1}.")
+        current = next_number - 1
+        if self.dialect == "postgres":
+            self._series_pg(lambda conn: conn.execute(
+                'INSERT INTO "_NamingSeries" (prefix, current) VALUES (%s, %s) '
+                'ON CONFLICT (prefix) DO UPDATE SET current = EXCLUDED.current', [prefix, current]))
+        else:
+            with self._lock:
+                conn = self.conn
+                if conn.execute('UPDATE "_NamingSeries" SET current = ? WHERE prefix = ?',
+                                [current, prefix]).rowcount == 0:
+                    conn.execute('INSERT INTO "_NamingSeries" (prefix, current) VALUES (?, ?)', [prefix, current])
+                if not self._in_transaction:
+                    conn.commit()
+        return self.series_state(prefix)
+
+    def advance_series(self, prefix: str, number: int) -> None:
+        """Move the series past `number` if it is behind: a record saved with a
+        hand-set "PREFIX-<number>" means the next automatic one follows it,
+        instead of the series climbing up to it and skipping it later."""
+        number = int(number)
+        if self.dialect == "postgres":
+            def work(conn):
+                updated = conn.execute(
+                    'UPDATE "_NamingSeries" SET current = GREATEST(current, %s) WHERE prefix = %s',
+                    [number, prefix]).rowcount
+                if not updated:
+                    floor = self._series_floor(
+                        prefix, lambda sql, params: conn.execute(sql.replace("?", "%s"), params).fetchall())
+                    conn.execute(
+                        'INSERT INTO "_NamingSeries" (prefix, current) VALUES (%s, %s) '
+                        'ON CONFLICT (prefix) DO UPDATE SET current = '
+                        'GREATEST("_NamingSeries".current, EXCLUDED.current)', [prefix, max(floor, number)])
+            self._series_pg(work)
+            return
+        with self._lock:
+            conn = self.conn
+            if conn.execute('UPDATE "_NamingSeries" SET current = MAX(current, ?) WHERE prefix = ?',
+                            [number, prefix]).rowcount == 0:
+                floor = self._series_floor(prefix, lambda sql, params: conn.execute(sql, params).fetchall())
+                conn.execute('INSERT INTO "_NamingSeries" (prefix, current) VALUES (?, ?)',
+                             [prefix, max(floor, number)])
+            if not self._in_transaction:
+                conn.commit()
+
     def _series_floor(self, prefix: str, fetch) -> int:
         """Highest number already used as "PREFIX-<digits>" in any table.
 
