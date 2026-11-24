@@ -13,6 +13,10 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.30] - 2026-11-24
+
+No migration.
+
 - **Number ranges.** Settings → Number Ranges shows, per document type, the
   prefix, the highest number used and the number the next new document
   gets; admins can let a range continue higher (e.g. invoices from
