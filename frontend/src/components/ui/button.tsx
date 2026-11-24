@@ -29,6 +29,8 @@ interface ButtonProps {
   children: React.ReactNode;
   className?: string;
   type?: "button" | "submit" | "reset";
+  /** For a button that opens a menu: whether it is open (screen readers announce it). */
+  "aria-expanded"?: boolean;
 }
 
 export function Button({
@@ -40,6 +42,7 @@ export function Button({
   children,
   className,
   type = "button",
+  "aria-expanded": ariaExpanded,
 }: ButtonProps) {
   return (
     <button
@@ -47,6 +50,7 @@ export function Button({
       type={type}
       disabled={disabled}
       onClick={onClick}
+      aria-expanded={ariaExpanded}
       className={cn(
         // Layout + base interaction. focus-visible (not :focus) so
         // mouse clicks don't leave a permanent ring; only keyboard

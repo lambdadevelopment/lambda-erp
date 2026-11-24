@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronsUpDown, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
+import { ColumnPicker } from "@/components/column-picker";
 import { useTranslation } from "react-i18next";
 import { useMySettings } from "@/hooks/use-my-settings";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -193,23 +194,11 @@ export default function MasterListPage() {
     : configuredDefaults.length
       ? configuredDefaults
       : allColumns;
-  const toggleColumn = (col: string) => {
-    const next = effectiveCols.includes(col)
-      ? effectiveCols.filter((c) => c !== col)
-      : [...effectiveCols, col];
-    if (next.length === 0) return; // never leave an empty table
-    setSetting(`columns.master:${type}`, next.join(","));
+  const saveColumns = (columns: string[]) => setSetting(`columns.master:${type}`, columns.join(","));
+  const columnLabel = (c: string) => {
+    const label = config?.fields.find((field) => field.name === c)?.label ?? humanizeCol(c);
+    return t(`fields.${label}`, { defaultValue: label });
   };
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!pickerOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [pickerOpen]);
 
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
     if (!rows || rows.length === 0) return [];
@@ -303,42 +292,12 @@ export default function MasterListPage() {
         </label>
         <div className="ml-auto flex items-center gap-2">
           {allColumns.length > 0 && (
-            <div className="relative" ref={pickerRef}>
-              <Button variant="secondary" onClick={() => setPickerOpen((o) => !o)}>
-                <span className="inline-flex items-center gap-1.5">
-                  <SlidersHorizontal className="h-4 w-4" />
-                  {t("common.columns", { defaultValue: "Columns" })}
-                </span>
-              </Button>
-              {pickerOpen && (
-                <div className="absolute right-0 z-20 mt-2 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-surface p-2 shadow-card">
-                  <div className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
-                    {t("common.columns", { defaultValue: "Columns" })}
-                  </div>
-                  {allColumns.map((c) => {
-                    const checked = effectiveCols.includes(c);
-                    const lastOne = checked && effectiveCols.length === 1;
-                    return (
-                      <label
-                        key={c}
-                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-surface-subtle"
-                      >
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-line text-brand focus:ring-brand/30 disabled:opacity-50"
-                          checked={checked}
-                          disabled={lastOne}
-                          onChange={() => toggleColumn(c)}
-                        />
-                        {t(`fields.${config?.fields.find((field) => field.name === c)?.label ?? humanizeCol(c)}`, {
-                          defaultValue: config?.fields.find((field) => field.name === c)?.label ?? humanizeCol(c),
-                        })}
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <ColumnPicker
+              available={allColumns.map((c) => ({ name: c, label: columnLabel(c) }))}
+              shown={effectiveCols}
+              onChange={saveColumns}
+              onReset={() => setSetting(`columns.master:${type}`, "")}
+            />
           )}
           {config?.allowCreate !== false && (
             <Link to={`/masters/${type}/new`}>

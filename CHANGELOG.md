@@ -13,6 +13,17 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- **Column order in the column menu.** The menu of a list shows the shown
+  columns on top in display order, to be dragged into place (mouse, touch,
+  or the arrow keys on a focused handle), and the hidden ones below,
+  alphabetical, with a search field and a reset to the default columns. A
+  document list's name column stays first and shown, also for an order set
+  from the chat. Same menu for master lists.
+- Settings are saved one write at a time, newest last: quick successive
+  changes (such as a drag) could finish out of order, and an older answer
+  then undid the newer choice. A list's default columns the menu did not
+  name (such as Status) are no longer dropped when the columns change.
+
 ## [1.4.29] - 2026-11-24
 
 No migration.

@@ -1725,5 +1725,13 @@
     "definition": "Définition du rapport (JSON)",
     "custom": "Rapport personnalisé",
     "noChartData": "Le graphique n'a pas de données exploitables."
+  },
+  "columnPicker": {
+    "shown": "Affichées",
+    "hidden": "Masquées",
+    "search": "Chercher une colonne",
+    "pinned": "Toujours affichée en premier : elle mène à l’enregistrement",
+    "none": "Aucune colonne ne correspond.",
+    "reset": "Rétablir les colonnes par défaut"
   }
 }

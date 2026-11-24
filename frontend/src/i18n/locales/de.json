@@ -1725,5 +1725,13 @@
     "definition": "Berichtsdefinition (JSON)",
     "custom": "Eigener Bericht",
     "noChartData": "Das Diagramm hat keine verwendbaren Daten."
+  },
+  "columnPicker": {
+    "shown": "Angezeigt",
+    "hidden": "Ausgeblendet",
+    "search": "Spalte suchen",
+    "pinned": "Immer zuerst angezeigt: Sie verlinkt den Datensatz",
+    "none": "Keine Spalte gefunden.",
+    "reset": "Auf Standard zurücksetzen"
   }
 }

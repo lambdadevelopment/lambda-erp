@@ -1507,5 +1507,13 @@
     "definition": "Report Definition JSON",
     "custom": "Custom Report",
     "noChartData": "Chart has no usable data."
+  },
+  "columnPicker": {
+    "shown": "Shown",
+    "hidden": "Hidden",
+    "search": "Find a column",
+    "pinned": "Always shown first: it links to the record",
+    "none": "No column matches.",
+    "reset": "Reset to default"
   }
 }

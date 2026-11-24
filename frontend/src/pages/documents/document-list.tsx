@@ -35,7 +35,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { DateRangePresets } from "@/components/ui/date-range-presets";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { ChevronUp, ChevronDown, ChevronsUpDown, SlidersHorizontal } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { ColumnPicker, withPinnedFirst } from "@/components/column-picker";
 
 const STATUS_OPTIONS = ["All", "Draft", "Submitted", "Cancelled"];
 
@@ -164,13 +165,12 @@ export default function DocumentListPage() {
     patchUrl({ order_by: col, order: next, page: null });
     setSetting(`sort.${doctype}`, `${col}:${next}`);
   };
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
   const savedCols = useMemo(
     () => (settings[`columns.${doctype}`] || "").split(",").map((s) => s.trim()).filter(Boolean),
     [settings, doctype],
   );
-  const effectiveCols = savedCols.length ? savedCols : (config?.listColumns ?? []);
+  // `name` links every row to its document: always shown, always first.
+  const effectiveCols = withPinnedFirst(savedCols.length ? savedCols : (config?.listColumns ?? []), "name");
   // Ask the API for only the columns this list renders (+ currency for amount
   // formatting and party_type for party links — the two fields cells read beyond
   // their own column). The backend always keeps `name`. A stable string so it can
@@ -202,21 +202,7 @@ export default function DocumentListPage() {
     for (const c of SYSTEM_COLUMNS) push(c.name, t(`fields.${c.label}`, { defaultValue: c.label }));
     return out;
   }, [config, t, pdfSupported]);
-  const toggleColumn = (col: string) => {
-    const set = effectiveCols.includes(col)
-      ? effectiveCols.filter((c) => c !== col)          // remove
-      : [...effectiveCols, col];                         // append
-    if (set.length === 0) return;                        // never leave an empty table
-    setSetting(`columns.${doctype}`, set.join(","));
-  };
-  useEffect(() => {
-    if (!pickerOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [pickerOpen]);
+  const saveColumns = (columns: string[]) => setSetting(`columns.${doctype}`, columns.join(","));
 
   // All writes go through one atomic patch so multiple params update together
   // — calling two individual setters in the same handler races (react-router
@@ -450,40 +436,13 @@ export default function DocumentListPage() {
   return (
     <div className="record-list space-y-4">
       <div className="flex items-center justify-end gap-2">
-        <div className="relative" ref={pickerRef}>
-          <Button variant="secondary" onClick={() => setPickerOpen((o) => !o)}>
-            <span className="inline-flex items-center gap-1.5">
-              <SlidersHorizontal className="h-4 w-4" />
-              {t("common.columns", { defaultValue: "Columns" })}
-            </span>
-          </Button>
-          {pickerOpen && (
-            <div className="absolute right-0 z-20 mt-2 max-h-80 w-60 overflow-y-auto rounded-lg border border-line bg-surface p-2 shadow-card">
-              <div className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-fg-muted">
-                {t("common.columns", { defaultValue: "Columns" })}
-              </div>
-              {availableCols.map((c) => {
-                const checked = effectiveCols.includes(c.name);
-                const lastOne = checked && effectiveCols.length === 1;
-                return (
-                  <label
-                    key={c.name}
-                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-surface-subtle"
-                  >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-line text-brand focus:ring-brand/30 disabled:opacity-50"
-                      checked={checked}
-                      disabled={lastOne}
-                      onChange={() => toggleColumn(c.name)}
-                    />
-                    {c.label}
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <ColumnPicker
+          available={availableCols}
+          shown={effectiveCols}
+          pinned="name"
+          onChange={saveColumns}
+          onReset={() => setSetting(`columns.${doctype}`, "")}
+        />
         <Link to={`/app/${config.slug}/new`}>
           <Button>{t("common.new")}</Button>
         </Link>
