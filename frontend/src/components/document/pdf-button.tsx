@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 /** Backend capabilities govern both visibility and execution. Never open a
  * fabricated PDF route and leave an API error in a blank browser tab. */
-export function PdfButton({ doctype, name }: { doctype: string; name: string }) {
+export function PdfButton({ doctype, name, compact = false }: { doctype: string; name: string; compact?: boolean }) {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -16,7 +16,9 @@ export function PdfButton({ doctype, name }: { doctype: string; name: string }) 
   });
   if (!data?.pdf?.supported) return null;
 
-  async function generate() {
+  async function generate(event?: { stopPropagation: () => void }) {
+    // In a list row the click must not also open the record.
+    event?.stopPropagation();
     setError(null);
     setBusy(true);
     const tab = window.open("about:blank", "_blank");
@@ -33,6 +35,20 @@ export function PdfButton({ doctype, name }: { doctype: string; name: string }) 
     } finally {
       setBusy(false);
     }
+  }
+  if (compact) {
+    // The PDF column of a list: a link-styled button; the error as its tooltip.
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={generate}
+        title={error ?? t("common.openPdf", { defaultValue: "Open the PDF" })}
+        className={error ? "text-red-600 hover:underline" : "text-brand transition-colors hover:text-brand/80 hover:underline disabled:opacity-50"}
+      >
+        {busy ? t("common.loading") : error ? t("common.pdf") + " !" : t("common.pdf")}
+      </button>
+    );
   }
   return <>
     <Button variant="secondary" disabled={busy} onClick={generate}>{busy ? t("common.loading") : t("common.pdf")}</Button>

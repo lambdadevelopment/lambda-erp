@@ -699,7 +699,7 @@ _REFERENCES = {
 - items: list of {idx, item_code, item_name, description, qty, uom, rate, amount, discount_percentage, frequency}
   A line ordered in a further unit of the item (2 Karton of 100) is stored per stock unit: qty 200, uom Stk, rate 2.90. Then item.ordered_in_unit is true and item.order_qty (2), item.order_uom (Karton), item.conversion_factor (100) and item.order_rate (290.00, the price per ordered unit) say what was ordered. Print order_qty + order_uom and order_rate for such a line (the stock quantity may go below); item.amount is the same either way. Never print item.rate with two decimals for it: 12.99 a carton is 0.1299 a piece.
   A line can carry a deduction (e.g. "Abzüglich bereits verrechnet"): then item.discount_total > 0 (the deduction for the whole line), item.discount_label is its text, and item.gross_rate / item.gross_amount are the full price. Print the full price on the line and a sub-line with the label and −discount_total; item.amount is the net (gross_amount − discount_total). A layout that ignores it prints only the net amount (and gets a warning).
-- taxes: list of {description, rate, tax_amount, total}
+- taxes: list of {description, rate, tax_amount, total}. It holds taxes AND other charges such as shipping: print each row's own description (a neutral label only if it has none), never one fixed label such as "MWSt." or "VAT" for every row.
 <<TEXTS>>- recurring_summary: per billing period [{frequency, label, net_total, grand_total, ...}]; show_frequency: whether any line recurs
 - plus whatever deployment plugins add (e.g. qr_bill_img, the Swiss QR bill, on invoices: <img src="{{ qr_bill_img }}">; print it, usually on its own page at the end)
 Rules: the PDF must show the document number, the customer or supplier, the currency, net and grand total, and every line's name and amount (the export rejects a layout that omits them), plus pdf_state_notice when set.""",
@@ -1050,7 +1050,10 @@ _ACTIONS = {
         "Create a PDF template (layout) for a document type, as a copy of that type's 'standard' layout or of "
         "another template (based_on; also another type's, e.g. the offer layout to start the invoice layout in "
         "the same style, then adapt it to this type's variables), or from complete HTML. It starts "
-        "unpublished; edit it with update_pdf_template, check it with view_pdf_pages, then publish."),
+        "unpublished; edit it with update_pdf_template, check it with view_pdf_pages, then publish. "
+        "To change one detail of an existing layout (remove a slogan, move the logo), create it with based_on "
+        "and no html, which copies that layout, then change only that part of its HTML with "
+        "update_pdf_template; do not rewrite the layout, which loses what it gets right."),
     "update_pdf_template": (update_pdf_template, UpdateTemplate, "manager",
         "Change a PDF template's working copy: complete html (HTML + CSS with Jinja), title or description. "
         "Edits overwrite the working copy in place, as often as needed, without creating versions. "

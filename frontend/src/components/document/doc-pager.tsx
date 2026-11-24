@@ -9,7 +9,7 @@
 import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { readBackState } from "@/lib/back-to";
+import { readBackState, stepBack } from "@/lib/back-to";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/api/client";
@@ -48,7 +48,14 @@ export function DocPager({ slug, name, onSave, kind = "document" }: {
   useEffect(() => {
     const goPrev = () => prev && page(prev);
     const goNext = () => next && page(next);
-    const back = () => navigate(backState?.backTo || `${base}${ctx?.search || ""}`);
+    const back = () => {
+      if (backState?.backTo) {
+        const step = stepBack(backState);
+        navigate(step.path, { state: step.state });
+      } else {
+        navigate(`${base}${ctx?.search || ""}`);
+      }
+    };
 
     const onKey = (e: KeyboardEvent) => {
       // Save works even mid-edit.

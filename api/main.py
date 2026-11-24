@@ -74,6 +74,8 @@ async def lifespan(app: FastAPI):
         initialize_pricing_actions()
         from api.menu_layout import initialize_menu_layout
         initialize_menu_layout()
+        from api.list_columns import initialize_list_columns
+        initialize_list_columns()
         from api.pdf_templates import initialize_pdf_templates
         initialize_pdf_templates()
         from api.pdf_pages import initialize_pdf_pages

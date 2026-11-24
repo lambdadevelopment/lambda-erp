@@ -1107,6 +1107,69 @@ def _where_from_filters(db_filters: dict):
     return where_parts, params
 
 
+# A list can show the readable name of a linked record next to its id: the
+# column `<link field>__title` (item_code__title on a stock reservation is
+# the item's item_name). The name is looked up when the list is read, under
+# the reader's access rules for the linked type; nothing is stored. Since
+# 1.4.29. Register a further type with register_title_column.
+TITLE_SUFFIX = "__title"
+TITLE_COLUMNS = {
+    "Item": "item_name", "Customer": "customer_name", "Supplier": "supplier_name",
+    "Warehouse": "warehouse_name", "Account": "account_name", "Cost Center": "cost_center_name",
+    "Company": "company_name", "Price List": "price_list_name", "Asset": "asset_name",
+}
+
+
+def register_title_column(doctype: str, column: str) -> None:
+    """Plugin seam: the column that names a record of `doctype` in lists of
+    documents that link to it."""
+    TITLE_COLUMNS[doctype] = column
+
+
+def linked_title_fields(doctype: str, fields) -> dict:
+    """{virtual field: (link field, linked doctype, its title column)} for
+    the `<link>__title` names in `fields` this document type can answer."""
+    cls = DOCUMENT_CLASSES.get(doctype)
+    links = dict(getattr(cls, "LINK_FIELDS", {}) or {}) if cls else {}
+    found = {}
+    for field in fields or ():
+        if not isinstance(field, str) or not field.endswith(TITLE_SUFFIX):
+            continue
+        base = field[: -len(TITLE_SUFFIX)]
+        target = links.get(base)
+        column = TITLE_COLUMNS.get(target) if target else None
+        if column:
+            found[field] = (base, target, column)
+    return found
+
+
+def _fill_linked_titles(db, rows, wanted: dict, drop: set) -> list:
+    """Add the linked records' names to list rows. A name the reader may not
+    see (the linked type, that record, or the title column is hidden from
+    them) stays empty rather than revealing it."""
+    rows = [dict(row) for row in rows]
+    for field, (base, target, column) in wanted.items():
+        names = {}
+        ids = sorted({row.get(base) for row in rows if row.get(base)})
+        visible = (ids and permissions.can(target, "read")
+                   and column not in permissions.hidden_fields(target)
+                   and column in db._get_table_columns(target))
+        if visible:
+            conditions = permissions.record_conditions(target)
+            for start in range(0, len(ids), 500):
+                chunk = ids[start:start + 500]
+                where = f'name IN ({", ".join("?" for _ in chunk)})'
+                if conditions:
+                    where += " AND " + " AND ".join(f"({c})" for c in conditions)
+                for hit in db.sql(f'SELECT name, "{column}" AS title FROM "{target}" WHERE {where}', chunk):
+                    names[hit["name"]] = hit["title"]
+        for row in rows:
+            row[field] = names.get(row.get(base)) or None
+    if drop:
+        rows = [{key: value for key, value in row.items() if key not in drop} for row in rows]
+    return rows
+
+
 def _projection_columns(doctype_slug: str, fields) -> set:
     """The set of real columns to keep for a `fields` projection — always
     includes 'name'. Unknown field names are dropped (validated against the
@@ -1132,6 +1195,13 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
     columns = db._get_table_columns(doctype)
     if order_by and order_by not in columns:
         raise ValueError(f"Unknown order_by field: {order_by}")
+    titles = linked_title_fields(doctype, fields)
+    title_drop = set()
+    if titles:
+        # A linked name needs its id; fetched for the lookup, returned only if asked.
+        bases = [base for base, _, _ in titles.values()]
+        title_drop = {base for base in bases if base not in fields} - {"name"}
+        fields = [f for f in fields if f not in titles] + [b for b in bases if b not in fields]
     permissions.require_fields_visible(doctype, [order_by] if order_by else [], "sort by")
     permissions.require_fields_visible(doctype, fields, "select")
     order_clause = _order_clause(order_by, order)
@@ -1151,6 +1221,8 @@ def list_documents(doctype_slug: str, filters: dict = None, limit: int = 50, off
         query += " OFFSET ?"
         params.append(max(0, int(offset)))
     rows = db.sql(query, params)
+    if titles:
+        return _fill_linked_titles(db, rows, titles, title_drop)
     return rows if fields else _attach_children(db, doctype_slug, rows)  # all columns: redacted there
 
 

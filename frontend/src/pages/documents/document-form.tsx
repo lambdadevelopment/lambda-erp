@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
+import { backStateHere } from "@/lib/back-to";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -236,6 +237,7 @@ function FieldRenderer({
   // empty means "the default layout".
   const needsTemplateOptions = field.type === "select" && field.optionsSource === "pdfTemplate";
   const { data: templateData } = usePdfTemplates(true, needsTemplateOptions);
+  const location = useLocation();
   const templates = templateData?.templates ?? [];
   const templateTitle = (id: string) => {
     const tpl = templates.find((entry) => entry.template === id);
@@ -260,6 +262,7 @@ function FieldRenderer({
             <p className={hideLabel ? "text-sm" : "py-2 text-sm"}>
               <Link
                 to={href}
+                state={backStateHere(location)}
                 className="text-sky-600 hover:text-sky-800 hover:underline"
               >
                 {value}

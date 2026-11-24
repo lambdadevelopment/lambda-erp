@@ -3,7 +3,7 @@ import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ArrowLeft } from "lucide-react";
-import { readBackState } from "@/lib/back-to";
+import { readBackState, stepBack } from "@/lib/back-to";
 import { ChatProvider, useChat } from "@/components/chat/chat-provider";
 import { ChatTitle } from "@/components/chat/chat-title";
 import { DialogProvider } from "@/components/ui/dialog";
@@ -106,12 +106,17 @@ function AppShellContent() {
   // Opened from the chat (or another non-list place): back goes there.
   const backState = readBackState(location.state);
   const backPath = backState?.backTo || deriveBackPath(pathname);
-  const backLabel = backState?.backLabel === "chat" ? t("header.backToChat") : t("header.back");
+  // The tooltip names where the arrow leads ("Zurück zu Ausgangsrechnungen").
+  const backTarget = backPath ? backPath.split(/[?#]/)[0] : "";
+  const backLabel = !backPath ? t("header.back")
+    : backTarget.startsWith("/chat") ? t("header.backToChat")
+    : t("header.backTo", { place: deriveTitle(backTarget, t), defaultValue: t("header.back") });
 
   const handleBack = () => {
     if (!backPath) return;
     if (backState?.backTo) {
-      navigate(backState.backTo);
+      const step = stepBack(backState);
+      navigate(step.path, { state: step.state });
       return;
     }
     // The large arrow means "back to the parent list". Browser history is

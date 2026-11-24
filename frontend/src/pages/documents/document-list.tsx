@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useLocation } from "react-router-dom";
+import { backStateHere } from "@/lib/back-to";
+import { PdfButton } from "@/components/document/pdf-button";
+
+// The PDF column: not a field, a link to the document's PDF (1.4.29).
+const PDF_COLUMN = "__pdf";
+// A looked-up name (`__title`) and the PDF link are not stored: not sortable.
+const sortable = (column: string) => column !== PDF_COLUMN && !column.endsWith("__title");
 import { setListContext } from "@/lib/doc-list-context";
 import { useMySettings } from "@/hooks/use-my-settings";
 import { useTranslation } from "react-i18next";
@@ -11,6 +18,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { api } from "@/api/client";
+import { useQuery } from "@tanstack/react-query";
 import { useDocumentList } from "@/hooks/use-document-list";
 import { useBaseCurrency } from "@/hooks/use-base-currency";
 import { useUrlState, useUrlPatch } from "@/hooks/use-url-state";
@@ -168,8 +176,15 @@ export default function DocumentListPage() {
   // their own column). The backend always keeps `name`. A stable string so it can
   // be a memo/query dependency without churning. Trims wide-doctype payloads.
   const fieldsParam = effectiveCols.length
-    ? [...effectiveCols, "currency", "party_type"].join(",")
+    ? [...effectiveCols.filter((col) => col !== PDF_COLUMN), "currency", "party_type"].join(",")
     : undefined;
+  // Whether this document type prints PDFs: then its list offers a PDF column.
+  const { data: pdfInfo } = useQuery({
+    queryKey: ["document-fields", doctype],
+    queryFn: () => api.documentFields(doctype!),
+    enabled: !!doctype,
+  });
+  const pdfSupported = !!pdfInfo?.pdf?.supported;
   // The full menu of columns a user can pick: name (the id) + the doctype's own
   // fields + the system columns (modified/creation).
   const availableCols = useMemo(() => {
@@ -183,9 +198,10 @@ export default function DocumentListPage() {
     push("name", t("fields.Name", { defaultValue: "Name" }));
     for (const f of config.fields) push(f.name, t(`fields.${f.label}`, { defaultValue: f.label }));
     for (const c of config.extraListColumns ?? []) push(c.name, t(`fields.${c.label}`, { defaultValue: c.label }));
+    if (pdfSupported) push(PDF_COLUMN, t("common.pdf", { defaultValue: "PDF" }));
     for (const c of SYSTEM_COLUMNS) push(c.name, t(`fields.${c.label}`, { defaultValue: c.label }));
     return out;
-  }, [config, t]);
+  }, [config, t, pdfSupported]);
   const toggleColumn = (col: string) => {
     const set = effectiveCols.includes(col)
       ? effectiveCols.filter((c) => c !== col)          // remove
@@ -302,6 +318,8 @@ export default function DocumentListPage() {
     const headerLabel = (c: string) => {
       const sys = SYSTEM_COLUMNS.find((s) => s.name === c);
       if (sys) return t(`fields.${sys.label}`, { defaultValue: sys.label });
+      const extra = config.extraListColumns?.find((e) => e.name === c);
+      if (extra) return t(`fields.${extra.label}`, { defaultValue: extra.label });
       const titleCased = c
         .split("_")
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -310,6 +328,16 @@ export default function DocumentListPage() {
     };
 
     return effectiveCols.map((col) => {
+      if (col === PDF_COLUMN) {
+        // Not a stored value: a link that renders the document's PDF on click.
+        return helper.display({
+          id: PDF_COLUMN,
+          header: t("common.pdf", { defaultValue: "PDF" }),
+          cell: (info) => (pdfSupported && info.row.original?.name
+            ? <PdfButton doctype={config.slug} name={String(info.row.original.name)} compact />
+            : null),
+        });
+      }
       if (col === "name") {
         return helper.accessor("name", {
           header: t("fields.Name", { defaultValue: "Name" }),
@@ -350,6 +378,7 @@ export default function DocumentListPage() {
             return (
               <Link
                 to={href}
+                state={backStateHere(location)}
                 onClick={(e) => e.stopPropagation()}
                 className="text-brand transition-colors hover:text-brand/80 hover:underline"
               >
@@ -372,6 +401,7 @@ export default function DocumentListPage() {
             return (
               <Link
                 to={href}
+                state={backStateHere(location)}
                 onClick={(e) => e.stopPropagation()}
                 className="text-brand transition-colors hover:text-brand/80 hover:underline"
               >
@@ -400,7 +430,7 @@ export default function DocumentListPage() {
         header: headerLabel(col),
       });
     });
-  }, [config, t, baseCurrency, effectiveCols]);
+  }, [config, t, baseCurrency, effectiveCols, pdfSupported]);
 
   const table = useReactTable({
     data: rows,
@@ -567,8 +597,10 @@ export default function DocumentListPage() {
                         {header.isPlaceholder ? null : (
                           <button
                             type="button"
-                            onClick={() => toggleSort(header.column.id)}
-                            title={t("common.sortByColumn", { defaultValue: "Sort by this column" })}
+                            // A linked record's name (`__title`) is looked up, not stored: not sortable.
+                            onClick={() => { if (sortable(header.column.id)) toggleSort(header.column.id); }}
+                            disabled={!sortable(header.column.id)}
+                            title={sortable(header.column.id) ? t("common.sortByColumn", { defaultValue: "Sort by this column" }) : undefined}
                             className="group inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-fg"
                           >
                             {flexRender(header.column.columnDef.header, header.getContext())}

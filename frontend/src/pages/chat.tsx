@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate, useSearchParams, useLocation } from "reac
 import { type ChatMessage, type ChatAttachment, useChat, rememberSessionId } from "@/components/chat/chat-provider";
 import { api } from "@/api/client";
 import { usePageTitle } from "@/lib/use-page-title";
-import { type BackState, readBackState, sameOriginPath } from "@/lib/back-to";
+import { type BackState, backStateHere, readBackState, sameOriginPath } from "@/lib/back-to";
 import { useTranslation } from "react-i18next";
 
 const MAX_ATTACHMENTS = 5;
@@ -1229,8 +1229,8 @@ function MarkdownContent({ content }: { content: string }) {
 
 /** An in-app link from the chat: the opened page's back arrow returns here. */
 function ChatLink({ to, className, children }: { to: string; className: string; children: React.ReactNode }) {
-  const { pathname, search } = useLocation();
-  const state: BackState = { backTo: `${pathname}${search}`, backLabel: "chat" };
+  const location = useLocation();
+  const state: BackState = { ...backStateHere(location), backLabel: "chat" };
   return (
     <Link to={to} state={state} className={className}>
       {children}

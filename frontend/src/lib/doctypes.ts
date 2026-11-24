@@ -61,6 +61,9 @@ export interface DoctypeConfig {
   // Columns the list can show that are not form fields: values the server
   // stores on the document itself, such as the customer's name next to the
   // customer id. Offered in the column menu; not part of the form.
+  // A name ending in "__title" is the readable name of a linked record
+  // (item_code__title: the item's name), looked up by the server when the list
+  // is read; such a column cannot be sorted by.
   extraListColumns?: Array<{ name: string; label: string }>;
   // Field names to expose as dropdown filters above the list. Each must name a
   // `type: "select"` field in `fields`; its options drive the dropdown and the
@@ -750,6 +753,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         ],
       },
     ],
+    extraListColumns: [{ name: "item_code__title", label: "Item Name" }],
     listColumns: ["name", "item_code", "bundle_name", "disabled"],
     searchFields: ["name", "item_code", "bundle_name"],
     canSubmit: false, canCancel: false, conversions: [],
@@ -779,7 +783,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         hint: "Yes: a line entered in this unit needs a whole quantity (2, not 1.5). Quantities in the stock unit are not affected." },
       { name: "enabled", label: "Enabled", type: "select", options: [{ value: "1", label: "Yes" }, { value: "0", label: "No" }], default: "1" },
     ],
-    childTables: [], listColumns: ["name", "item_code", "uom", "conversion_factor", "enabled"],
+    childTables: [], extraListColumns: [{ name: "item_code__title", label: "Item Name" }],
+    listColumns: ["name", "item_code", "uom", "conversion_factor", "enabled"],
     listFilters: ["enabled"], searchFields: ["name", "item_code", "uom"],
     canSubmit: false, canCancel: false, conversions: [],
   },
@@ -799,7 +804,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "valid_upto", label: "Valid Upto", type: "date" },
       { name: "enabled", label: "Enabled", type: "select", options: [{ value: "1", label: "Yes" }, { value: "0", label: "No" }], default: "1" },
     ],
-    childTables: [], listColumns: ["name", "item_code", "price_list", "customer", "rate", "min_qty", "enabled"],
+    childTables: [], extraListColumns: [{ name: "item_code__title", label: "Item Name" }, { name: "customer__title", label: "Customer Name" }, { name: "supplier__title", label: "Supplier Name" }],
+    listColumns: ["name", "item_code", "price_list", "customer", "rate", "min_qty", "enabled"],
     listFilters: ["enabled"], searchFields: ["name", "item_code", "price_list", "customer", "supplier"],
     canSubmit: false, canCancel: false, conversions: [],
   },
@@ -840,6 +846,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "enabled", label: "Enabled", type: "select", options: ["1", "0"], default: "1" },
     ],
     childTables: [],
+    extraListColumns: [{ name: "item_code__title", label: "Item Name" }, { name: "customer__title", label: "Customer Name" }, { name: "supplier__title", label: "Supplier Name" }],
     listColumns: ["name", "title", "item_code", "rate_or_discount", "discount_percentage", "status"],
     searchFields: ["name", "title", "item_code", "customer", "supplier"],
     canSubmit: false,
@@ -873,6 +880,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         ],
       },
     ],
+    extraListColumns: [{ name: "account__title", label: "Account Name" }, { name: "cost_center__title", label: "Cost Center Name" }],
     listColumns: ["name", "account", "cost_center", "fiscal_year", "budget_amount"],
     searchFields: ["name", "account", "cost_center"],
     canSubmit: false,
@@ -1021,6 +1029,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         ],
       },
     ],
+    extraListColumns: [{ name: "warehouse__title", label: "Warehouse Name" }],
     listColumns: ["name", "warehouse", "posting_date", "counted_lines", "difference_lines", "reason", "status"],
     searchFields: ["name", "warehouse", "reason"],
     canSubmit: true,
@@ -1071,6 +1080,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         ],
       },
     ],
+    extraListColumns: [{ name: "customer__title", label: "Customer Name" }, { name: "warehouse__title", label: "Warehouse Name" }],
     listColumns: ["name", "customer", "warehouse", "posting_date", "external_reference", "status", "replenishment_status"],
     searchFields: ["name", "customer", "warehouse", "external_reference", "sales_invoice"],
     canSubmit: true,
@@ -1106,6 +1116,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "remarks", label: "Remarks", type: "textarea" },
     ],
     childTables: [],
+    extraListColumns: [{ name: "item_code__title", label: "Item Name" }, { name: "warehouse__title", label: "Warehouse Name" }, { name: "customer__title", label: "Customer Name" }],
     listColumns: ["name", "item_code", "warehouse", "reserved_qty", "sales_order", "customer", "status"],
     searchFields: ["name", "item_code", "sales_order", "customer", "remarks"],
     canSubmit: false,
@@ -1137,6 +1148,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "notes", label: "Notes", type: "textarea" },
     ],
     childTables: [],
+    extraListColumns: [{ name: "item_code__title", label: "Item Name" }, { name: "warehouse__title", label: "Warehouse Name" }],
     listColumns: ["name", "item_code", "asset_tag", "warehouse", "status", "meter_reading"],
     listFilters: ["status"],
     searchFields: ["asset_tag", "item_code", "asset_name"],
@@ -1175,6 +1187,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "notes", label: "Notes", type: "textarea" },
     ],
     childTables: [],
+    extraListColumns: [{ name: "item_code__title", label: "Item Name" }, { name: "asset__title", label: "Asset Name" }, { name: "warehouse__title", label: "Warehouse Name" }],
     listColumns: ["name", "item_code", "asset", "party", "from_datetime", "to_datetime", "status"],
     listFilters: ["status"],
     searchFields: ["name", "party", "asset", "item_code", "voucher_no"],

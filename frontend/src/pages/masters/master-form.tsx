@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
+import { backStateHere } from "@/lib/back-to";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
@@ -42,6 +43,7 @@ const AUTO_NAME_TYPES = new Set(["customer", "supplier", "item", "warehouse", "a
 export default function MasterFormPage() {
   const { type, name } = useParams<{ type: string; name: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const isNew = !name || name === "new";
@@ -289,7 +291,7 @@ export default function MasterFormPage() {
                   <label className="mb-1.5 block text-sm font-medium text-fg">
                     {fieldLabel(field)}
                   </label>
-                  <Link className="py-2 text-sm text-sky-600 hover:underline" to={linkedHref}>
+                  <Link className="py-2 text-sm text-sky-600 hover:underline" to={linkedHref} state={backStateHere(location)}>
                     {String(formData[field.name])}
                   </Link>
                 </div>

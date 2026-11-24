@@ -13,6 +13,44 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- **List columns from the chat.** New actions `get_list_columns` and
+  `update_list_columns` (chat, MCP and REST; any signed-in user, for their
+  own lists only): which columns a document list shows, in which order, and
+  its sort order, the same settings the column menu writes. They offer the
+  document's columns, linked names (`customer__title`) and the PDF link
+  (`__pdf`); only stored columns can be sorted by.
+
+- **A PDF column in document lists.** Lists of document types that print
+  (quotations, orders, delivery notes, invoices, receipts, ...) offer a PDF
+  column in their column menu: a link per row that opens that document's
+  PDF in a new tab, exactly as the PDF button on the document does. The
+  column cannot be sorted by.
+- Fixed in the same change: the header of a looked-up name column
+  (`customer__title`) showed "Customer  Title" instead of its label.
+
+- **The back arrow returns to where you came from.** Opening a customer
+  from an invoice list (or an item from a price, a record from a link field
+  of a document or master record) and pressing the back arrow led to the
+  customer list. It now walks back the way you came, one step per click:
+  customer -> invoice -> the invoice list with its filters and page (at
+  most ten steps are remembered; paging with the small arrows adds none).
+  Its tooltip names where it leads ("Zurück zu Ausgangsrechnungen").
+  Opened directly (a new tab, a shared link), the arrow still goes to the
+  record's own list.
+
+- **Names next to ids in lists.** A list that showed only a customer,
+  supplier, item or warehouse id (`CUST-006`, `ITEM-001`) can now also show
+  the name, chosen in its column menu:
+  - documents that store the name (quotations, orders, delivery notes,
+    invoices, receipts, payments) offer Customer / Supplier / Party Name;
+  - other lists (item prices, pricing rules, bundles, item units, stock
+    reservations, assets, rental reservations, stock counts, consignment
+    withdrawals, budgets) offer the linked record's name, looked up when the
+    list is read: ask for `<link field>__title` in `fields`
+    (`item_code__title`). The lookup follows the reader's access rules: a
+    name they may not see stays empty. Such a column cannot be sorted by.
+    `register_title_column(doctype, column)` adds a type.
+
 ## [1.4.28] - 2026-11-19
 
 - Chat owners can rename a conversation using the pencil beside its title in the header. The new name appears in the sidebar and browser tab.

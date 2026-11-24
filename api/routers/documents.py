@@ -131,7 +131,10 @@ def list_docs(
     # fields, which affect query correctness and stay strict.)
     projection = None
     if fields:
-        projection = [f.strip() for f in fields.split(",") if f.strip() and f.strip() in columns]
+        asked = [f.strip() for f in fields.split(",") if f.strip()]
+        from api.services import linked_title_fields
+        titles = linked_title_fields(doctype, asked)
+        projection = [f for f in asked if f in columns or f in titles]
 
     try:
         result = list_document_page(
