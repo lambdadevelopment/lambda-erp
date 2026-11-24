@@ -5,14 +5,16 @@ name: Deploy to Azure Container Apps
 # secrets on fork PRs, which would let any forker push arbitrary images
 # into our ACR. Fork PRs go through the normal `pull_request` trigger
 # (no secret access), so it's safe to open the repo publicly.
+#
+# Deploys only what passed the tests: it starts when the "Tests" workflow
+# finished successfully for a push to master, and builds exactly that commit.
+# (It used to run in parallel with the tests, so a broken push reached the
+# demo.) A push the tests skip (documentation only) is not deployed.
 on:
-  push:
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
     branches: [master]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - ".gitignore"
-      - "LICENSE"
   workflow_dispatch:
 
 # Prevent two deploys from racing and rolling back each other's image tag.
@@ -30,12 +32,19 @@ env:
 jobs:
   deploy:
     name: Build & deploy
+    # Only green test runs of pushes to master (never a pull request's run).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The commit the tests passed on, not whatever master is now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       # --- Azure auth via federated OIDC ----------------------------------
       # The matching trust lives in Azure AD (see
@@ -62,7 +71,7 @@ jobs:
         id: tags
         run: |
           REGISTRY='${{ vars.ACR_LOGIN_SERVER }}'
-          SHA='${{ github.sha }}'
+          SHA='${{ github.event.workflow_run.head_sha || github.sha }}'
           echo "sha_tag=${REGISTRY}/${ACR_REPO}:${SHA}" >> "$GITHUB_OUTPUT"
           echo "latest_tag=${REGISTRY}/${ACR_REPO}:latest" >> "$GITHUB_OUTPUT"
 

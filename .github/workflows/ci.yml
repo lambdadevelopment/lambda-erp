@@ -11,10 +11,10 @@ name: Tests
 on:
   push:
     branches: [master]
+    # Frontend changes run the tests too: the demo deploy waits for them.
     paths-ignore:
       - "**/*.md"
       - "docs/**"
-      - "frontend/**"
       - "terraform/**"
       - ".gitignore"
       - "LICENSE"
@@ -28,10 +28,17 @@ on:
 
 jobs:
   validation:
-    name: Validation suite (SQLite + Postgres)
+    name: Validation suite (SQLite + Postgres), part ${{ matrix.shard }} of 5
     runs-on: ubuntu-latest
-    # Full SQLite/PostgreSQL regressions can exceed 15 minutes on slower runners.
-    timeout-minutes: 45
+    # The suites are split over five parallel jobs, each with its own
+    # PostgreSQL (one job ran 145 steps in ~27 min). Every test step names the
+    # part it runs in (`if: matrix.shard == N`), balanced by measured run time;
+    # a new step needs an `if:` line too, or it runs in every part.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
 
     services:
       postgres:
@@ -61,541 +68,677 @@ jobs:
         run: pip install -e ".[postgres]"
 
       - name: Direct ERP discovery and extension metadata
+        if: matrix.shard == 3
         run: python -m tests.test_erp_context
 
       - name: LLM pricing and orchestrator request contract
+        if: matrix.shard == 2
         run: python -m tests.test_llm_pricing
 
       - name: Utils — now() timezone-aware UTC (backend-agnostic)
+        if: matrix.shard == 5
         run: python -m tests.test_utils_now
 
       - name: Company default sales tax settings — SQLite
+        if: matrix.shard == 2
         run: python -m tests.test_company_tax_settings
 
       - name: Company default sales tax settings — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_company_tax_settings
 
       - name: Validation suite — SQLite (in-memory)
+        if: matrix.shard == 3
         run: python -m tests.test_erp_validation
 
       - name: Validation suite — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_erp_validation
 
       - name: Pricing, external identity, cost centres and migrations — SQLite
+        if: matrix.shard == 2
         run: python -m tests.test_pricing_integrity
 
       - name: Pricing, external identity, cost centres and migrations — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_pricing_integrity
 
       - name: PDF content contracts — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_pdf_contract
 
       - name: PDF content contracts — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_pdf_contract
 
       - name: PDF chat, REST and MCP transport — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_pdf_channels
 
       - name: PDF chat, REST and MCP transport — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_pdf_channels
 
       - name: Document requirements — SQLite (synthetic records)
+        if: matrix.shard == 5
         run: python -m tests.test_document_requirements
 
       - name: Workflow guards — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_workflow_guards
 
       - name: Workflow integrity — SQLite
+        if: matrix.shard == 4
         run: python -m tests.test_workflow_integrity
 
       - name: Access profiles (restricted user over every path) — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_access_profiles
 
       - name: Access profiles (restricted user over every path) — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_access_profiles
 
       - name: Stock counts — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_stock_count
 
       - name: Stock counts — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_stock_count
 
       - name: Serial numbers — SQLite
+        if: matrix.shard == 3
         run: python -m tests.test_serials
 
       - name: Serial numbers — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_serials
 
       - name: Record scope — SQLite
+        if: matrix.shard == 4
         run: python -m tests.test_record_scope
 
       - name: Record scope — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_record_scope
 
       - name: Extension points — SQLite
+        if: matrix.shard == 3
         run: python -m tests.test_extension_points
 
       - name: Extension points — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_extension_points
 
       - name: Addresses — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_addresses
 
       - name: Addresses — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_addresses
 
       - name: Item bundles — SQLite
+        if: matrix.shard == 4
         run: python -m tests.test_bundles
 
       - name: Item bundles — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_bundles
 
       - name: Personal list columns via the chat — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_list_columns
 
       - name: Personal list columns via the chat — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_list_columns
 
       - name: Names of linked records in lists — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_linked_titles
 
       - name: Names of linked records in lists — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_linked_titles
 
       - name: Bulk master creation and chat step limit — SQLite
+        if: matrix.shard == 2
         run: python -m tests.test_batch_create_masters
 
       - name: Bulk master creation and chat step limit — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_batch_create_masters
 
       - name: Tool result limits — SQLite
+        if: matrix.shard == 3
         run: python -m tests.test_tool_result_limits
 
       - name: Tool result limits — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_tool_result_limits
 
       - name: Microsoft sign-in — SQLite
+        if: matrix.shard == 3
         run: python -m tests.test_microsoft_login
 
       - name: Microsoft sign-in — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_microsoft_login
 
       - name: Units of measure — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_units
 
       - name: Units of measure — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_units
 
       - name: Attachments — SQLite
+        if: matrix.shard == 4
         run: python -m tests.test_attachments
 
       - name: Attachments — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_attachments
 
       - name: Tax defaults and rounding — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_tax_defaults
 
       - name: Tax defaults and rounding — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_tax_defaults
 
       - name: Consignment — SQLite
+        if: matrix.shard == 3
         run: python -m tests.test_consignment
 
       - name: Consignment — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_consignment
 
       - name: Order progress and backlog — SQLite
+        if: matrix.shard == 4
         run: python -m tests.test_order_progress
 
       - name: Order progress and backlog — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_order_progress
 
       - name: Price resolution and explanation — SQLite
+        if: matrix.shard == 4
         run: python -m tests.test_price_resolution
 
       - name: Price resolution and explanation — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_price_resolution
 
       - name: Reservations and FEFO — SQLite
+        if: matrix.shard == 3
         run: python -m tests.test_reservations
 
       - name: Reservations and FEFO — PostgreSQL (includes concurrent reservations)
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_reservations
 
       - name: Storage locations — SQLite
+        if: matrix.shard == 2
         run: python -m tests.test_storage_locations
 
       - name: Storage locations — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_storage_locations
 
       - name: Batches — SQLite
+        if: matrix.shard == 2
         run: python -m tests.test_batches
 
       - name: Batches — PostgreSQL (includes concurrent withdrawals)
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_batches
 
       - name: Amount-only credit and debit notes — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_amount_only_returns
 
       - name: Amount-only credit and debit notes — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_amount_only_returns
 
       - name: 1.4.2 bug fixes — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_bugfix_142
 
       - name: Settlement guards — SQLite
+        if: matrix.shard == 2
         run: python -m tests.test_settlement_guards
 
       - name: Lifecycle and rental concurrency — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_lifecycle_guards
 
       - name: Server-owned fields and master structure — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_master_structure_guards
 
       - name: Business rule guards — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_business_rule_guards
 
       - name: Business rule guards — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_business_rule_guards
 
       - name: Server-owned fields and master structure — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_master_structure_guards
 
       - name: Lifecycle and rental concurrency — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_lifecycle_guards
 
       - name: Settlement guards — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_settlement_guards
 
       - name: Workflow integrity — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_workflow_integrity
 
       - name: 1.4.2 bug fixes — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_bugfix_142
 
       - name: Workflow guards — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_workflow_guards
 
       - name: Document requirements — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_document_requirements
 
       - name: DB portability — SQLite (in-memory)
+        if: matrix.shard == 1
         run: python -m tests.test_db_portability
 
       - name: DB portability — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_db_portability
 
       - name: Chat API — SQLite (in-memory)
+        if: matrix.shard == 4
         run: python -m tests.test_chat_api
 
       - name: Tool authorization — SQLite (synthetic records)
+        if: matrix.shard == 5
         run: python -m tests.test_tool_permissions
 
       - name: Tool authorization — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_tool_permissions
 
       - name: Security regression suite — SQLite (synthetic records)
+        if: matrix.shard == 1
         run: python -m tests.test_security_regressions
 
       - name: Security regression suite — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_security_regressions
 
       - name: Chat API — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_chat_api
 
       - name: REST API (Bearer keys) — SQLite (temp file)
+        if: matrix.shard == 1
         run: python -m tests.test_rest_api
 
       - name: REST API (Bearer keys) — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_rest_api
 
       - name: CAMT bank statement import — SQLite (temp file)
+        if: matrix.shard == 3
         run: python -m tests.test_camt_import
 
       - name: CAMT bank statement import — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_camt_import
 
       - name: Bank reconciliation — SQLite (temp file)
+        if: matrix.shard == 2
         run: python -m tests.test_bank_reconciliation
 
       - name: Bank reconciliation — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_bank_reconciliation
 
       - name: Rental availability endpoint — SQLite (in-memory)
+        if: matrix.shard == 1
         run: python -m tests.test_availability_api
 
       - name: Rental availability endpoint — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_availability_api
 
       - name: Default sales tax auto-apply — SQLite (in-memory)
+        if: matrix.shard == 5
         run: python -m tests.test_default_tax
 
       - name: Default sales tax auto-apply — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_default_tax
 
       - name: List performance (index + count cache + projection) — SQLite (in-memory)
+        if: matrix.shard == 5
         run: python -m tests.test_list_perf
 
       - name: Recent-change windows, timestamp migration and REST/chat/MCP — SQLite
+        if: matrix.shard == 2
         run: python -m tests.test_time_filters
 
       - name: Recent-change windows, timestamp migration and REST/chat/MCP — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_time_filters
 
       - name: List performance (index + count cache + projection) — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_list_perf
 
       - name: Documents route (advisory fields projection) — SQLite (in-memory)
+        if: matrix.shard == 4
         run: python -m tests.test_documents_route
 
       - name: Documents route (advisory fields projection) — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_documents_route
 
       - name: Master registry seam — SQLite (temp file)
+        if: matrix.shard == 5
         run: python -m tests.test_master_registry
 
       - name: Registered action seam
+        if: matrix.shard == 3
         run: python -m tests.test_registered_actions
 
       - name: Master registry seam — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_master_registry
 
       - name: Seed admin — SQLite (temp file)
+        if: matrix.shard == 2
         run: python -m tests.test_seed_admin
 
       - name: Seed admin — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_seed_admin
 
       - name: Plugin schema seam — SQLite (temp file)
+        if: matrix.shard == 1
         run: python -m tests.test_plugin_schema
 
       - name: Plugin schema seam — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_plugin_schema
 
       - name: Chat doctype seam — SQLite (temp file)
+        if: matrix.shard == 2
         run: python -m tests.test_chat_doctype
 
       - name: Chat doctype seam — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_chat_doctype
 
       - name: Lock-safe DDL — SQLite (temp file)
+        if: matrix.shard == 4
         run: python -m tests.test_lock_safe_ddl
 
       - name: Lock-safe DDL — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_lock_safe_ddl
 
       - name: Adjacent (prev/next) — SQLite (temp file)
+        if: matrix.shard == 3
         run: python -m tests.test_adjacent
 
       - name: Adjacent (prev/next) — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_adjacent
 
       - name: MCP OAuth connectors — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_mcp_oauth
 
       - name: MCP OAuth connectors — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_mcp_oauth
 
       - name: MCP endpoint — SQLite (temp file)
+        if: matrix.shard == 4
         run: python -m tests.test_mcp
 
       - name: Mentions — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_mentions
 
       - name: Mentions — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_mentions
 
       - name: Internal record notes — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_record_notes
 
       - name: Internal record notes — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_record_notes
 
       - name: Personal menu layout — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_menu_layout
 
       - name: Personal menu layout — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_menu_layout
 
       - name: PDF templates — SQLite
+        if: matrix.shard == 2
         run: python -m tests.test_pdf_templates
 
       - name: PDF templates — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_pdf_templates
 
       - name: PDF template fonts
+        if: matrix.shard == 2
         run: python -m tests.test_pdf_fonts
 
       - name: Offer texts — SQLite
+        if: matrix.shard == 2
         run: python -m tests.test_pdf_texts
 
       - name: Offer texts — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_pdf_texts
 
       - name: Line deductions — SQLite
+        if: matrix.shard == 4
         run: python -m tests.test_line_deductions
 
       - name: Line deductions — PostgreSQL
+        if: matrix.shard == 3
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_line_deductions
 
       - name: PDF templates for every document type — SQLite
+        if: matrix.shard == 1
         run: python -m tests.test_pdf_templates_all
 
       - name: PDF templates for every document type — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_pdf_templates_all
 
       - name: Line search — SQLite
+        if: matrix.shard == 5
         run: python -m tests.test_line_search
 
       - name: Line search — PostgreSQL
+        if: matrix.shard == 4
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_line_search
 
       - name: MCP endpoint — PostgreSQL
+        if: matrix.shard == 5
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_mcp
 
       - name: List search — SQLite (temp file)
+        if: matrix.shard == 2
         run: python -m tests.test_search
 
       - name: List search — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_search
 
       - name: Transaction release (no idle-in-transaction) — PostgreSQL
+        if: matrix.shard == 1
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_txn_release
 
       - name: Multiple processes on one database (numbering, stale edits, chat turns)
+        if: matrix.shard == 2
         run: python -m tests.test_multi_instance
 
       - name: Multiple processes on one database — PostgreSQL
+        if: matrix.shard == 2
         env:
           LAMBDA_ERP_TEST_DB: postgresql://postgres:postgres@localhost:5432/lambda_test
         run: python -m tests.test_multi_instance
