@@ -13,6 +13,18 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- **Shipping on sales invoices, and the assistant's charge rules.** The
+  assistant treated "shipping goes into the charges table" as a ban: it
+  refused to record re-billed shipping as a line item even when asked to,
+  and on sales documents it booked shipping charges to the purchase
+  freight-in expense account. Its instructions now give defaults that yield
+  to the user's request; on sales documents shipping is by default a line
+  with a service item (income account), or a charge row on an income
+  account, never on freight-in.
+- PDF guidance: a layout prints the document as stored. It must not move a
+  charge into the item list or invent totals; to show shipping as a line,
+  record it as one.
+
 - **List columns from the chat.** New actions `get_list_columns` and
   `update_list_columns` (chat, MCP and REST; any signed-in user, for their
   own lists only): which columns a document list shows, in which order, and

@@ -3112,26 +3112,34 @@ Purchase Order → Purchase Receipt (receiving) / Purchase Invoice (billing) →
 
 ### Items vs. charges on an invoice
 
-A supplier (or sales) invoice has **two different kinds of lines**, and the LLM MUST keep them separate:
+An invoice has **two kinds of lines**:
 
-- **Items** (`items[]`): physical goods or distinct services that have an Item master record and a unit × rate shape. Example lines: "10 × Bolt Pack M8", "1 × Engineering Consultation (4 hours)".
-- **Charges** (`taxes[]`): non-item monetary lines like **freight, shipping, postage, handling, customs, import duties, insurance**, plus actual taxes (VAT, GST, sales tax). These do NOT need an Item master. They're rows on the invoice that point at a GL account directly.
+- **Items** (`items[]`): goods or services with an Item master record and a qty × rate shape ("10 × Bolt Pack M8", "1 × Engineering Consultation").
+- **Charges** (`taxes[]`): rows that point at a GL account directly, with no Item: **freight, shipping, postage, handling, customs, import duties, insurance**, and the actual taxes (VAT, GST, sales tax).
 
-Do NOT try to create a new Item master for a line like "Shipping" or "Customs duty". Use the charges table instead.
+**Defaults, not prohibitions.** These are the defaults when nobody says otherwise. When the user asks for a charge as a line item ("Versand als normale Position", "the shipping should be a line"), do that: an explicit instruction of the user beats these defaults. Never refuse such a request by pointing to this section.
 
-Each charge row has:
-- `charge_type`: `"Actual"` for a fixed amount (freight, shipping, handling, customs), `"On Net Total"` for a percentage (most VAT/GST), `"On Previous Row Total"` for a percentage applied on top of earlier charges (EU VAT that includes freight in its base).
-- `account_head`: the GL account to debit. Use the company's defaults:
+**Purchase invoices (parsing a supplier's invoice):** by default products go into `items[]` and shipping or customs into `taxes[]` with `charge_type="Actual"`, the amount, and the company's account:
   - Freight / shipping / postage → `default_freight_in_account` on the Company record
   - Customs / duty / tariff → `default_customs_account`
-  - VAT / GST / sales tax → the company's Tax Payable account (or similar)
-- `description`: the freeform label from the supplier invoice ("Shipping", "Customs duty", "VAT 19%").
+Do not create a new Item master just for a supplier's "Shipping" or "Customs duty" line.
+
+**Sales documents (quotation, sales order, sales invoice):** re-billed shipping or handling can be either
+  - a **line item** (common in Switzerland, and what most customers expect to see): use a non-stock service item for it (search for one such as "Versand" first; create it once if none exists, is_stock_item=0). It counts into the net total, VAT applies to it like to any line, and it is booked to that item's income account; or
+  - a **charge row** with `charge_type="Actual"`. Then name an income account for it (ask which, if none is known). Do NOT use `default_freight_in_account` on a sales document: that is the purchase freight expense, and re-billed shipping would then reduce costs instead of showing as revenue. VAT that must include it goes after it as `On Previous Row Total`.
+  If the user does not say which, use the line item for a fixed shipping amount and say so.
+  To turn an existing shipping charge row into a line: add the line with the same amount, remove the charge row, and check that net total, VAT and grand total come out as intended (VAT on the new net total).
+
+Each charge row has:
+- `charge_type`: `"Actual"` for a fixed amount, `"On Net Total"` for a percentage (most VAT/GST), `"On Previous Row Total"` for a percentage applied on top of earlier charges (VAT that includes freight in its base).
+- `account_head`: the GL account (see above for which).
+- `description`: the label as it should print ("Versand", "Customs duty", "MWST 8.1 %").
 - `rate` (for percentage charges) or `tax_amount` (for `Actual` charges).
 - `add_deduct_tax`: `"Add"` for most charges; `"Deduct"` for discounts/rebates on the bill.
 
-When you parse a supplier invoice PDF that has both products and a shipping line, create ONE Purchase Invoice with the items in `items[]` and the shipping as a row in `taxes[]` with `charge_type="Actual"`, the freight amount, and the freight account. Same structure for customs duties.
-
 If multiple charges stack (freight + VAT on total incl. freight), put freight first as `Actual`, then VAT second as `On Previous Row Total` referencing the freight row's `idx`.
+
+**The PDF shows the document as stored.** A charge row prints in the totals block, an item line in the item list. Never make a PDF layout print a charge as if it were an item or a numbered position, or print totals the document does not hold: the PDF would then disagree with the books (and the PDF check refuses a layout that leaves out the stored net total). If the user wants the structure changed, change the document, not the layout.
 
 ### Adding VAT to a SALES document (quotation / sales order / sales invoice)
 
