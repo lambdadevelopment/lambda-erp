@@ -182,6 +182,7 @@ export default function DocumentListPage() {
     };
     push("name", t("fields.Name", { defaultValue: "Name" }));
     for (const f of config.fields) push(f.name, t(`fields.${f.label}`, { defaultValue: f.label }));
+    for (const c of config.extraListColumns ?? []) push(c.name, t(`fields.${c.label}`, { defaultValue: c.label }));
     for (const c of SYSTEM_COLUMNS) push(c.name, t(`fields.${c.label}`, { defaultValue: c.label }));
     return out;
   }, [config, t]);

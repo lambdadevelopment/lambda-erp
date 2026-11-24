@@ -58,6 +58,10 @@ export interface DoctypeConfig {
   fields: FieldDef[];
   childTables: ChildTableDef[];
   listColumns: string[];
+  // Columns the list can show that are not form fields: values the server
+  // stores on the document itself, such as the customer's name next to the
+  // customer id. Offered in the column menu; not part of the form.
+  extraListColumns?: Array<{ name: string; label: string }>;
   // Field names to expose as dropdown filters above the list. Each must name a
   // `type: "select"` field in `fields`; its options drive the dropdown and the
   // selection is sent as a plain column filter (status=Contacted, fit=A). When
@@ -183,6 +187,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { key: "items", label: "Items", fields: QUOTATION_ITEM_FIELDS, lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
+    extraListColumns: [{ name: "customer_name", label: "Customer Name" }],
     listColumns: ["name", "customer", "transaction_date", "grand_total", "status"],
     searchFields: ["name", "customer", "customer_name", "external_reference"],
     canSubmit: true,
@@ -205,6 +210,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
     partyLabel: "Customer",
     fields: [],
     childTables: [],
+    extraListColumns: [{ name: "customer_name", label: "Customer Name" }],
     listColumns: ["name", "title", "customer", "modified"],
     searchFields: ["name", "title", "customer", "customer_name"],
     canSubmit: false,
@@ -253,6 +259,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { key: "items", label: "Items", fields: ITEM_FIELDS, lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
+    extraListColumns: [{ name: "customer_name", label: "Customer Name" }],
     listColumns: ["name", "customer", "transaction_date", "grand_total", "status"],
     searchFields: ["name", "customer", "customer_name", "external_reference"],
     canSubmit: true,
@@ -309,6 +316,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         { name: "shelf_life_exception", label: "Shelf Life Exception", type: "text", hint: "Only when the batch has less shelf life left than the item requires: the approved reason for shipping it anyway." }], lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
+    extraListColumns: [{ name: "customer_name", label: "Customer Name" }],
     listColumns: ["name", "customer", "posting_date", "grand_total", "outstanding_amount", "status"],
     searchFields: ["name", "customer", "customer_name", "sales_order", "return_against", "external_reference"],
     canSubmit: true,
@@ -347,6 +355,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         { name: "confirmation_reference", label: "Confirmation Ref.", type: "text", hint: "The supplier's order confirmation number." }] },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
+    extraListColumns: [{ name: "supplier_name", label: "Supplier Name" }],
     listColumns: ["name", "supplier", "transaction_date", "grand_total", "status"],
     searchFields: ["name", "supplier", "supplier_name", "external_reference"],
     canSubmit: true,
@@ -407,6 +416,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
+    extraListColumns: [{ name: "supplier_name", label: "Supplier Name" }],
     listColumns: ["name", "supplier", "posting_date", "grand_total", "outstanding_amount", "status"],
     searchFields: ["name", "supplier", "supplier_name", "purchase_order", "return_against", "external_reference"],
     canSubmit: true,
@@ -465,6 +475,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         ],
       },
     ],
+    extraListColumns: [{ name: "party_name", label: "Party Name" }],
     listColumns: ["name", "payment_type", "party", "posting_date", "paid_amount", "status"],
     searchFields: ["name", "party", "party_name", "reference_no"],
     canSubmit: true,
@@ -606,6 +617,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
+    extraListColumns: [{ name: "customer_name", label: "Customer Name" }],
     listColumns: ["name", "customer", "posting_date", "grand_total", "status"],
     searchFields: ["name", "customer", "customer_name", "return_against"],
     canSubmit: true,
@@ -652,6 +664,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
+    extraListColumns: [{ name: "supplier_name", label: "Supplier Name" }],
     listColumns: ["name", "supplier", "posting_date", "grand_total", "status"],
     searchFields: ["name", "supplier", "supplier_name", "return_against"],
     canSubmit: true,
@@ -710,6 +723,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         ],
       },
     ],
+    extraListColumns: [{ name: "customer_name", label: "Customer Name" }],
     listColumns: ["name", "customer", "posting_date", "grand_total", "status"],
     searchFields: ["name", "customer", "customer_name"],
     canSubmit: true,
