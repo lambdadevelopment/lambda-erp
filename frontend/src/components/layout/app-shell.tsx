@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useMySettings } from "@/hooks/use-my-settings";
 import { cn } from "@/lib/utils";
 import { getListContext } from "@/lib/doc-list-context";
+import { getDoctypeConfig } from "@/lib/doctypes";
 import { MentionInbox } from "@/components/mentions";
 
 const titleCase = (slug: string) =>
@@ -23,7 +24,11 @@ const titleCase = (slug: string) =>
 function deriveTitle(pathname: string, t: TFunction): string {
   const parts = pathname.split("/").filter(Boolean);
 
+  if (parts[0] === "setup" && parts[1] === "opening-balances") return t("titles.opening-balances");
   if (parts[0] === "setup") return t("titles.setup");
+  if (parts[0] === "rentals" && parts[1] === "calendar") return t("titles.fleet-calendar");
+  if (parts[0] === "admin" && parts[1] === "settings") return t("titles.admin-settings");
+  if (parts[0] === "admin" && parts[1] === "users") return t("titles.admin-users");
   if (parts[0] === "tutorial") return t("titles.tutorial");
   if (parts[0] === "chat") return t("titles.chat");
   if (parts[0] === "settings" && parts[1] === "menu") return t("menuLayout.title");
@@ -48,11 +53,13 @@ function deriveTitle(pathname: string, t: TFunction): string {
 
   if (parts[0] === "app") {
     const slug = parts[1] || "";
-    const cap = titleCase(slug);
+    // Without a translation, a registered type (e.g. from a plugin) is named
+    // by the label it was registered with, not by its English slug + "s".
+    const cap = getDoctypeConfig(slug)?.label ?? titleCase(slug);
     const one = t(`doctypes.${slug}.one`, { defaultValue: cap });
     if (parts[2] === "new") return t("header.new", { label: one });
     if (parts[2]) return `${one}: ${decodeURIComponent(parts[2])}`;
-    return t(`doctypes.${slug}.other`, { defaultValue: `${cap}s` });
+    return t(`doctypes.${slug}.other`, { defaultValue: getDoctypeConfig(slug)?.label ?? `${cap}s` });
   }
 
   return t("titles.dashboard");
