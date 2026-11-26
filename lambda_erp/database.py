@@ -3882,6 +3882,17 @@ def _m070_chat_manual_title(db: "Database") -> None:
     db.ensure_column("Chat Session", "title_is_manual", "INTEGER NOT NULL DEFAULT 0")
 
 
+def _m071_order_line_closing(db: "Database") -> None:
+    """Closing what is left open on an order line (see
+    docs/order-progress-and-backlog.md): how much of the line will not be
+    delivered / received any more, why, who closed it and when. Nothing is
+    closed by the migration."""
+    for table in ("Sales Order Item", "Purchase Order Item"):
+        db.ensure_column(table, "closed_qty", "REAL DEFAULT 0")
+        for column in ("close_reason", "closed_by", "closed_at"):
+            db.ensure_column(table, column, "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -3953,6 +3964,7 @@ Database.MIGRATIONS = [
     (68, "units_completed", _m068_units_completed),
     (69, "chat_attachment_data", _m069_chat_attachment_data),
     (70, "chat_manual_title", _m070_chat_manual_title),
+    (71, "order_line_closing", _m071_order_line_closing),
 ]
 
 

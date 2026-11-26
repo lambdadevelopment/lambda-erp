@@ -13,6 +13,26 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+Migration 71 (columns only; nothing is closed by it).
+
+- **Close the rest of an order line.** When a customer cancels what is still
+  open after a partial delivery, or a supplier will never send the rest, the
+  action `close_order_lines` (REST, chat, MCP) closes it with a reason; the
+  submitted order shows the quantities per line (ordered, delivered /
+  received, billed, closed, open) with a close button and *Reopen*. The line
+  keeps its ordered qty and records `closed_qty`, `close_reason`,
+  `closed_by`, `closed_at`; progress, status, the backlog reports, stock
+  planning and reservations count against what is left. Earlier deliveries
+  and invoices stay; delivered or invoiced quantities cannot be closed.
+  `reopen_order_lines` undoes it.
+- **One invoice for several deliveries.** The `unbilled-deliveries` report
+  (Reports → Unbilled Deliveries) lists what was delivered and not billed
+  yet, per delivery note line. `prepare_collective_invoice` (or *Create
+  invoice for selected lines* in the report) drafts one Sales Invoice for a
+  customer's deliveries in a period, for named delivery notes or for picked
+  lines. Each invoice line keeps its delivery note and order line; nothing is
+  billed twice.
+
 - **Back to GPT-6.1 Sol.** The chat and the report specialist default to
   `gpt-6.1-sol` again (1.4.26 to 1.4.30: `gpt-6.2-sol`; same rates). Both
   stay overridable with `LAMBDA_ERP_CHAT_MODEL` / `LAMBDA_ERP_REPORT_MODEL`.

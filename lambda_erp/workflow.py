@@ -352,10 +352,15 @@ def validate_order_quantities(doc, *, cancelling=False):
         if row.get(line_field):
             quantities[row[line_field]] += 0 if cancelling else flt(row.get('qty'))
     for line, qty in quantities.items():
-        ordered = flt(get_db().get_value(order_type + ' Item', line, 'qty'))
+        # A closed part of the line (order_closing.py) is no longer there to
+        # deliver, receive or bill.
+        detail = get_db().get_value(order_type + ' Item', line, ['qty', 'closed_qty']) or {}
+        closed = flt(detail.get('closed_qty'))
+        ordered = max(0.0, flt(detail.get('qty')) - closed)
         posted = _sum_line(doc.DOCTYPE, line_field, line, exclude=doc.name)
         if posted + qty > ordered + EPSILON:
-            raise ValidationError(f'{doc.DOCTYPE}: Qty exceeds remaining order quantity ({max(0, ordered - posted)}) for line {line}; already booked {posted} of {ordered}')
+            note = f' ({closed:g} of the line closed)' if closed > EPSILON else ''
+            raise ValidationError(f'{doc.DOCTYPE}: Qty exceeds remaining order quantity ({max(0, ordered - posted)}) for line {line}; already booked {posted} of {ordered}{note}')
         # Direct-stock invoices and delivery/receipt notes consume the same
         # physical order capacity even though billing is tracked separately.
         if doc.DOCTYPE in {'Delivery Note', 'Purchase Receipt'} or flt(doc.get('update_stock')):
@@ -417,7 +422,7 @@ def refresh_order_progress(doc):
         invoice, invoice_line = ('Sales Invoice', 'sales_order_item') if sales else ('Purchase Invoice', 'purchase_order_item')
         progress = 'delivered_qty' if sales else 'received_qty'
         lines = db.get_all(kind + ' Item', filters={'parent': name}, fields=['*'])
-        total = moved = billed = 0
+        total = moved = billed = closed = 0
         for row in lines:
             delivered = _sum_line(movement, move_line, row.name) + _sum_line(invoice, invoice_line, row.name, stock_only=True)
             invoiced = _sum_line(invoice, invoice_line, row.name)
@@ -427,12 +432,20 @@ def refresh_order_progress(doc):
                 values['returned_qty'] = (_sum_returned(movement, move_line, row.name)
                                           + _sum_returned(invoice, invoice_line, row.name, stock_only=True))
             db.set_value(kind + ' Item', row.name, values)
-            total += flt(row.qty)
-            moved += delivered
-            billed += invoiced
-        values = {'per_delivered' if sales else 'per_received': flt(moved / total * 100, 2) if total else 0}
+            # Progress counts against what the line still stands for: a
+            # closed part (order_closing.py) is neither to deliver nor to bill.
+            total += max(0.0, flt(row.qty) - flt(row.get('closed_qty')))
+            closed += flt(row.get('closed_qty'))
+            moved += min(delivered, max(0.0, flt(row.qty) - flt(row.get('closed_qty'))))
+            billed += min(invoiced, max(0.0, flt(row.qty) - flt(row.get('closed_qty'))))
+
+        def percent(done):
+            if total > EPSILON:
+                return flt(done / total * 100, 2)
+            return 100 if closed > EPSILON else 0  # everything closed: nothing left to do
+        values = {'per_delivered' if sales else 'per_received': percent(moved)}
         if 'per_billed' in db._get_table_columns(kind):
-            values['per_billed'] = flt(billed / total * 100, 2) if total else 0
+            values['per_billed'] = percent(billed)
         db.set_value(kind, name, values)
         if sales:
             from lambda_erp.selling.sales_order import SalesOrder
@@ -458,6 +471,7 @@ def refresh_planning(kind, lines):
         name = db.get_value('Bin', {'item_code':item, 'warehouse':warehouse}, 'name')
         if db.dialect == 'postgres':
             db.sql('SELECT name FROM "Bin" WHERE name = ? FOR UPDATE', [name])
-        rows = db.sql(f'SELECT i.qty, i."{progress}" AS done FROM "{kind} Item" i '
+        closed = 'COALESCE(i.closed_qty, 0)' if 'closed_qty' in db._get_table_columns(f'{kind} Item') else '0'
+        rows = db.sql(f'SELECT i.qty, i."{progress}" AS done, {closed} AS closed FROM "{kind} Item" i '
                       f'JOIN "{kind}" p ON p.name = i.parent WHERE p.docstatus = 1 AND i.item_code = ? AND i.warehouse = ?', [item, warehouse])
-        db.set_value('Bin', name, column, sum(max(0, flt(row.qty) - flt(row.done)) for row in rows))
+        db.set_value('Bin', name, column, sum(max(0, flt(row.qty) - flt(row.closed) - flt(row.done)) for row in rows))

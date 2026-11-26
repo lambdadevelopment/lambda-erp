@@ -346,6 +346,7 @@ def _core_record_scopes():
         register_scoped_artifact("report", report, **stock)
     register_scoped_artifact("report", "sales-backlog", customer="customer", warehouse="warehouse")
     register_scoped_artifact("report", "purchase-backlog", customer="warehouse@consignment", warehouse="warehouse")
+    register_scoped_artifact("report", "unbilled-deliveries", customer="customer", warehouse=None)
     register_scoped_artifact("report", "ar-aging", customer="customer", warehouse=None)
     register_scoped_artifact("report", "ap-aging", customer=None, warehouse=None)
     register_scoped_artifact("report", "batch-changes", customer=None, warehouse=None)

@@ -14,6 +14,7 @@ import StockBalance from "@/pages/reports/stock-balance";
 import BatchStock from "@/pages/reports/batch-stock";
 import StockAvailability from "@/pages/reports/stock-availability";
 import { SalesBacklogPage, PurchaseBacklogPage } from "@/pages/reports/backlog";
+import { UnbilledDeliveriesPage } from "@/pages/reports/unbilled-deliveries";
 import ProfitLoss from "@/pages/reports/profit-loss";
 import BalanceSheet from "@/pages/reports/balance-sheet";
 import ArAging from "@/pages/reports/ar-aging";
@@ -87,6 +88,7 @@ const baseChildRoutes: RouteObject[] = [
   { path: "reports/stock-availability", element: <StockAvailability /> },
   { path: "reports/sales-backlog", element: <SalesBacklogPage /> },
   { path: "reports/purchase-backlog", element: <PurchaseBacklogPage /> },
+  { path: "reports/unbilled-deliveries", element: <UnbilledDeliveriesPage /> },
   { path: "reports/stock-detail", element: <BatchStock /> },
   { path: "reports/batch-stock", element: <BatchStock /> },
   { path: "reports/profit-and-loss", element: <ProfitLoss /> },

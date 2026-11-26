@@ -253,7 +253,7 @@ def make_purchase_receipt(purchase_order_name):
     )
 
     for item in po.get("items"):
-        unreceived = flt(item.get("qty")) - flt(item.get("received_qty"))
+        unreceived = flt(item.get("qty")) - flt(item.get("closed_qty")) - flt(item.get("received_qty"))
         if unreceived <= 0:
             continue
         pr.append("items", _dict(

@@ -208,7 +208,8 @@
     "stock-detail": "Stock par emplacement et lot",
     "stock-availability": "Disponibilité du stock",
     "sales-backlog": "Commandes en attente",
-    "purchase-backlog": "Achats en attente"
+    "purchase-backlog": "Achats en attente",
+    "unbilled-deliveries": "Livraisons non facturées"
   },
   "doctypes": {
     "quotation": {
@@ -440,7 +441,8 @@
       "Address": "Adresse",
       "Price List": "Liste de prix",
       "Item Price": "Prix d'article",
-      "Number Ranges": "Séries de numéros"
+      "Number Ranges": "Séries de numéros",
+      "Unbilled Deliveries": "Livraisons non facturées"
     }
   },
   "login": {
@@ -609,7 +611,14 @@
     "noBacklog": "Rien en attente",
     "unconfirmedNote": "* non confirmé par le fournisseur : date prévue de la commande",
     "batchRecipients": "Destinataires du lot {{batch}}",
-    "batchChanges": "Modifications du lot {{batch}}"
+    "batchChanges": "Modifications du lot {{batch}}",
+    "fromDate": "Du",
+    "toDate": "Au",
+    "nothingUnbilled": "Toutes les livraisons sont facturées",
+    "toBill": "À facturer",
+    "collectiveSelection": "{{count}} lignes, net {{total}}",
+    "createCollectiveInvoice": "Créer la facture pour les lignes choisies",
+    "pickCustomerToBill": "Choisissez un client pour facturer ces livraisons sur une seule facture."
   },
   "masterForm": {
     "required": "Requis : {{fields}}",
@@ -1805,5 +1814,20 @@
     "next": "Prochain numéro",
     "nextFor": "Prochain numéro pour {{type}}",
     "atLeast": "au moins {{number}}"
+  },
+  "orderProgress": {
+    "title": "Quantités par ligne",
+    "item": "Article",
+    "ordered": "Commandé",
+    "delivered": "Livré",
+    "received": "Reçu",
+    "billed": "Facturé",
+    "closed": "Clôturé",
+    "open": "Ouvert",
+    "select": "Choisir la ligne",
+    "closedBecause": "Clôturé :",
+    "reopen": "Rouvrir",
+    "reasonPlaceholder": "Motif, p. ex. le client n'a plus besoin du reste",
+    "closeOpen": "Clôturer la quantité ouverte"
   }
 }

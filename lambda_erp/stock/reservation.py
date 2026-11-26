@@ -342,7 +342,7 @@ class StockReservation(Document):
         line_name = self._data.get("sales_order_item")
         if not line_name or not self._data.get("sales_order"):
             raise ValidationError("Stock Reservation: sales_order and sales_order_item go together")
-        line = db.get_value("Sales Order Item", line_name, ["parent", "item_code", "qty", "delivered_qty"])
+        line = db.get_value("Sales Order Item", line_name, ["parent", "item_code", "qty", "delivered_qty", "closed_qty"])
         order = db.get_value("Sales Order", self.sales_order, ["docstatus", "customer", "company", "discarded"])
         if not line or line.get("parent") != self.sales_order or not order:
             raise ValidationError("Stock Reservation: the order line must belong to the sales order")
@@ -350,9 +350,12 @@ class StockReservation(Document):
             raise ValidationError("Stock Reservation: Item must match the order line")
         if order.get("docstatus") != 1 and self._data.get("status") not in (RELEASED, CANCELLED):
             raise ValidationError("Stock can only be reserved for a submitted sales order")
-        if flt(self.reserved_qty) > flt(line.get("qty")) + EPSILON:
+        # A closed part of the line (order_closing.py) is not delivered any more.
+        limit = max(flt(line.get("qty")) - flt(line.get("closed_qty")), flt(line.get("delivered_qty")))
+        if flt(self.reserved_qty) > limit + EPSILON and self._data.get("status") not in (RELEASED, CANCELLED):
+            closed = f" after {flt(line.get('closed_qty')):g} closed" if flt(line.get("closed_qty")) > EPSILON else ""
             raise ValidationError(
-                f"Stock Reservation: Reserved Qty ({flt(self.reserved_qty):g}) exceeds the ordered qty ({flt(line.get('qty')):g})")
+                f"Stock Reservation: Reserved Qty ({flt(self.reserved_qty):g}) exceeds the ordered qty ({limit:g}{closed})")
         twin = db.sql('SELECT name FROM "Stock Reservation" WHERE sales_order_item = ? AND name <> ? '
                       "AND status <> 'Cancelled' AND COALESCE(discarded, 0) = 0 LIMIT 1", [line_name, self.name or ""])
         if twin:
@@ -389,7 +392,7 @@ def reserve_sales_order(sales_order, lines=None):
             continue
         _lock_item(line["item_code"])
         delivered = flt(line.get("delivered_qty"))
-        undelivered = max(0.0, flt(line.get("qty")) - delivered)
+        undelivered = max(0.0, flt(line.get("qty")) - flt(line.get("closed_qty")) - delivered)
         existing = db.sql('SELECT name, reserved_qty, status FROM "Stock Reservation" WHERE sales_order_item = ? '
                           "AND status <> 'Cancelled' AND COALESCE(discarded, 0) = 0", [line["name"]])
         current = existing[0] if existing else None

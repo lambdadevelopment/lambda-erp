@@ -14,7 +14,8 @@ set by a client.
 | `delivered_qty` | Delivered and not returned: delivery notes and direct-stock invoices, net of returns. |
 | `returned_qty` | How much of what was delivered came back (new). |
 | `billed_qty` | Invoiced, net of credit notes for returned goods. Amount-only credit notes do not change it. |
-| open | `qty − delivered_qty`. |
+| `closed_qty` | Closed by hand: will not be delivered any more (1.4.31, see below). Set only by the close / reopen actions. |
+| open | `qty − closed_qty − delivered_qty`. |
 | reserved | What the line's stock reservation still holds (see `reservations-and-fefo.md`). |
 
 Purchase order lines mirror this with `received_qty`, `returned_qty` and
@@ -30,6 +31,46 @@ the order again proposes exactly the remainder. Converters only propose;
 submit rechecks against the order line under a lock, so a repeated or
 concurrent conversion cannot deliver or bill more than was ordered. A return
 or a cancelled delivery reopens the quantity.
+
+A delivery can leave out lines entirely: remove them from the converted
+draft (or set nothing to deliver for them) and they stay open for the next
+delivery. A line can be delivered in as many steps as needed; each step is
+its own delivery note.
+
+## Closing the rest of a line
+
+Available from 1.4.31 (migration 71).
+
+When a customer cancels what is still open after a partial delivery (or a
+supplier will never send the rest), close it instead of cancelling or
+amending the order:
+
+```json
+POST /api/actions/close_order_lines
+{"order": "SO-0093", "lines": ["3"], "reason": "Customer no longer needs it"}
+```
+
+- `doctype` is `Sales Order` (default) or `Purchase Order`. Without `lines`
+  it closes everything open on the order; `lines` takes row names or
+  positions; `qty` closes only part of one line. A reason is required.
+- The line keeps its ordered `qty`. `closed_qty`, `close_reason`,
+  `closed_by` and `closed_at` record the closing. Progress (`per_delivered`,
+  `per_billed`, status), the backlog reports and stock planning (Bin
+  `reserved_qty` / `ordered_qty`) then count against `qty − closed_qty`. An
+  order whose rest is closed is Completed once what was delivered is billed.
+- Deliveries, receipts and invoices posted before stay unchanged. Later ones
+  cannot take the closed quantity: converters stop proposing it and submit
+  refuses it, also when billing straight from the order.
+- Only what is neither delivered nor invoiced can be closed. An invoiced
+  quantity needs a credit note first.
+- A stock reservation for the line is cut back to what can still be
+  delivered (released if nothing was delivered).
+- `reopen_order_lines` (`order`, optional `lines`) undoes a closing; a
+  released reservation is not restored.
+
+UI: a submitted sales or purchase order shows the quantities per line
+(ordered, delivered / received, billed, closed, open). Select open lines,
+give a reason and close them there; a closed line has *Reopen*.
 
 ## Deliver first, invoice afterwards
 
@@ -51,6 +92,31 @@ to `Purchase Invoice`). It bills what was received and not billed yet, at the
 received price, carries `purchase_receipt` / `pr_detail` and the order line,
 never moves stock, and the receipt line keeps `billed_qty` with the receipt's
 `per_billed` and status following.
+
+### One invoice for several deliveries (collective / monthly invoice)
+
+From 1.4.31. Deliver through the month without invoicing, then bill
+everything delivered to the customer on one invoice:
+
+- Report **`unbilled-deliveries`** (REST `GET /api/reports/unbilled-deliveries`,
+  chat / MCP `get_report`, UI Reports → Unbilled Deliveries): per line of a
+  submitted delivery note (not a return) what is not billed yet:
+  `unbilled_qty`, `rate`, `unbilled_amount`, the order behind it. Filters:
+  `customer`, `company`, `from_date`, `to_date` (posting date),
+  `delivery_note`.
+- Action **`prepare_collective_invoice`**: one DRAFT Sales Invoice for the
+  customer's unbilled delivery lines in the period, or for the named
+  `delivery_notes`, or only the delivery note `lines` (row names). In the UI,
+  pick the customer and period in the report, untick lines to leave them for
+  later, and *Create invoice for selected lines*.
+- Every invoice line keeps `delivery_note` / `dn_detail` and the order line,
+  so the delivery notes and the orders follow (To Bill → Completed). A line
+  already billed is never taken again; two drafts over the same deliveries
+  cannot both be submitted.
+- One invoice bills one customer, company and currency; delivery notes with
+  different taxes or exchange rates are refused (invoice them separately).
+- `lambda_erp.stock.delivery_note.unbilled_delivery_lines(...)` and
+  `make_collective_sales_invoice(...)` are the functions behind them.
 
 Whether an invoice is created right after packing, at month end or by a
 person is the deployment's choice. For a step that must happen together with
@@ -123,3 +189,8 @@ confirmed date, else the order's schedule date), `confirmed`, `overdue` and
 - `lambda_erp.backlog.sales_backlog(...)`, `purchase_backlog(...)` and
   `confirm_purchase_order_lines(...)` are the functions behind the reports
   and the action.
+- `lambda_erp.order_closing.close_order_lines(...)` /
+  `reopen_order_lines(...)` close and reopen order lines;
+  `order_closing.effective_qty(row)` is what a line still stands for. A
+  plugin that computes open order quantities itself must subtract
+  `closed_qty`.

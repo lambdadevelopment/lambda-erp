@@ -60,6 +60,8 @@ class SalesOrder(Document):
             raise ValidationError("At least one item is required")
         if not self.transaction_date:
             self.transaction_date = nowdate()
+        from lambda_erp.order_closing import reset_draft_closings
+        reset_draft_closings(self)
 
         apply_external_source_defaults(self)
         self._set_customer_name()
@@ -150,7 +152,7 @@ def make_sales_invoice(sales_order_name):
     )
 
     for item in so.get("items"):
-        unbilled_qty = flt(item.get("qty")) - flt(item.get("billed_qty"))
+        unbilled_qty = flt(item.get("qty")) - flt(item.get("closed_qty")) - flt(item.get("billed_qty"))
         if unbilled_qty <= 0:
             continue
 

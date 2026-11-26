@@ -208,7 +208,8 @@
     "stock-detail": "Bestand nach Lagerplatz & Charge",
     "stock-availability": "Verfügbarkeit",
     "sales-backlog": "Auftragsrückstand",
-    "purchase-backlog": "Bestellrückstand"
+    "purchase-backlog": "Bestellrückstand",
+    "unbilled-deliveries": "Nicht fakturierte Lieferungen"
   },
   "doctypes": {
     "quotation": {
@@ -440,7 +441,8 @@
       "Address": "Adresse",
       "Price List": "Preisliste",
       "Item Price": "Artikelpreis",
-      "Number Ranges": "Nummernkreise"
+      "Number Ranges": "Nummernkreise",
+      "Unbilled Deliveries": "Nicht fakturierte Lieferungen"
     }
   },
   "login": {
@@ -609,7 +611,14 @@
     "noBacklog": "Nichts offen",
     "unconfirmedNote": "* vom Lieferanten nicht bestätigt: Wunschtermin der Bestellung",
     "batchRecipients": "Empfänger der Charge {{batch}}",
-    "batchChanges": "Änderungen an Charge {{batch}}"
+    "batchChanges": "Änderungen an Charge {{batch}}",
+    "fromDate": "Von",
+    "toDate": "Bis",
+    "nothingUnbilled": "Alle Lieferungen sind fakturiert",
+    "toBill": "Zu fakturieren",
+    "collectiveSelection": "{{count}} Zeilen, netto {{total}}",
+    "createCollectiveInvoice": "Rechnung für ausgewählte Zeilen erstellen",
+    "pickCustomerToBill": "Kunde wählen, um diese Lieferungen auf einer Rechnung abzurechnen."
   },
   "masterForm": {
     "required": "Erforderlich: {{fields}}",
@@ -1805,5 +1814,20 @@
     "next": "Nächste Nummer",
     "nextFor": "Nächste Nummer für {{type}}",
     "atLeast": "mindestens {{number}}"
+  },
+  "orderProgress": {
+    "title": "Mengen je Position",
+    "item": "Artikel",
+    "ordered": "Bestellt",
+    "delivered": "Geliefert",
+    "received": "Erhalten",
+    "billed": "Fakturiert",
+    "closed": "Geschlossen",
+    "open": "Offen",
+    "select": "Position auswählen",
+    "closedBecause": "Geschlossen:",
+    "reopen": "Wieder öffnen",
+    "reasonPlaceholder": "Grund, z. B. Kunde braucht den Rest nicht mehr",
+    "closeOpen": "Offene Menge schliessen"
   }
 }

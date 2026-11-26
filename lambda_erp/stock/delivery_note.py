@@ -174,7 +174,7 @@ def make_delivery_note(sales_order_name):
     )
 
     for item in so.get("items"):
-        undelivered = flt(item.get("qty")) - flt(item.get("delivered_qty"))
+        undelivered = flt(item.get("qty")) - flt(item.get("closed_qty")) - flt(item.get("delivered_qty"))
         if undelivered <= 0:
             continue
         # A batch-tracked item, or a warehouse with storage locations, needs a
@@ -252,31 +252,13 @@ def make_delivery_return(dn_name):
     return return_dn
 
 
-def make_sales_invoice_from_delivery_note(dn_name):
-    """Bill what a delivery note delivered and has not been billed yet.
-
-    Deliver first, invoice afterwards: the invoice lines point back to the
-    delivery note lines (and to the order lines behind them), carry the
-    delivered price, and do not move stock again."""
-    from lambda_erp.accounting.sales_invoice import SalesInvoice
+def _append_delivery_lines(invoice, note, only=None):
+    """Invoice lines for what a delivery note delivered and has not been
+    billed yet (only the note lines named in `only`, if given)."""
     from lambda_erp.controllers.defaults import derived_line_pricing_fields
-
-    note = DeliveryNote.load(dn_name)
-    if note.docstatus != 1:
-        raise ValidationError("Delivery Note must be submitted before creating a Sales Invoice")
-    if note.is_return:
-        raise ValidationError("A return delivery is credited from the original invoice, not invoiced")
-
-    invoice = SalesInvoice(
-        customer=note.customer,
-        customer_name=note.customer_name,
-        company=note.company,
-        currency=note.currency,
-        conversion_rate=note.conversion_rate,
-        posting_date=nowdate(),
-        update_stock=0,
-    )
     for item in note.get("items"):
+        if only is not None and item.get("name") not in only:
+            continue
         unbilled = flt(item.get("qty")) - flt(item.get("billed_qty"))
         if unbilled <= 0:
             continue
@@ -298,8 +280,14 @@ def make_sales_invoice_from_delivery_note(dn_name):
             delivery_note=note.name,
             dn_detail=item.get("name"),
         ))
-    if not invoice.get("items"):
-        raise ValidationError(f"Delivery Note {note.name} is already billed in full")
+
+
+def _tax_key(note):
+    return tuple(sorted((str(tax.get("charge_type") or ""), str(tax.get("account_head") or ""),
+                         flt(tax.get("rate"))) for tax in note.get("taxes") or []))
+
+
+def _append_note_taxes(invoice, note):
     for tax in note.get("taxes") or []:
         invoice.append("taxes", _dict(
             charge_type=tax.get("charge_type"),
@@ -308,4 +296,131 @@ def make_sales_invoice_from_delivery_note(dn_name):
             rate=tax.get("rate"),
             tax_amount=0,
         ))
+
+
+def make_sales_invoice_from_delivery_note(dn_name):
+    """Bill what a delivery note delivered and has not been billed yet.
+
+    Deliver first, invoice afterwards: the invoice lines point back to the
+    delivery note lines (and to the order lines behind them), carry the
+    delivered price, and do not move stock again."""
+    from lambda_erp.accounting.sales_invoice import SalesInvoice
+
+    note = DeliveryNote.load(dn_name)
+    if note.docstatus != 1:
+        raise ValidationError("Delivery Note must be submitted before creating a Sales Invoice")
+    if note.is_return:
+        raise ValidationError("A return delivery is credited from the original invoice, not invoiced")
+
+    invoice = SalesInvoice(
+        customer=note.customer,
+        customer_name=note.customer_name,
+        company=note.company,
+        currency=note.currency,
+        conversion_rate=note.conversion_rate,
+        posting_date=nowdate(),
+        update_stock=0,
+    )
+    _append_delivery_lines(invoice, note)
+    if not invoice.get("items"):
+        raise ValidationError(f"Delivery Note {note.name} is already billed in full")
+    _append_note_taxes(invoice, note)
+    return invoice
+
+
+def unbilled_delivery_lines(customer=None, *, company=None, from_date=None, to_date=None, delivery_notes=None):
+    """Delivered and not yet invoiced: one row per line of a submitted
+    delivery note (not a return) with `unbilled_qty` = qty − billed_qty,
+    oldest delivery first. Read-only; see make_collective_sales_invoice."""
+    db = get_db()
+    where = ["n.docstatus = 1", "COALESCE(n.is_return, 0) = 0", "COALESCE(n.discarded, 0) = 0",
+             "i.qty - COALESCE(i.billed_qty, 0) > 1e-9"]
+    params = []
+    for column, value in (("n.customer", customer), ("n.company", company)):
+        if value:
+            where.append(f"{column} = ?")
+            params.append(value)
+    if from_date:
+        where.append("n.posting_date >= ?")
+        params.append(str(from_date)[:10])
+    if to_date:
+        where.append("n.posting_date <= ?")
+        params.append(str(to_date)[:10])
+    if delivery_notes:
+        names = sorted({str(name) for name in delivery_notes})
+        where.append(f"n.name IN ({', '.join('?' for _ in names)})")
+        params += names
+    rows = db.sql(
+        'SELECT n.name AS delivery_note, n.posting_date, n.customer, n.customer_name, n.company, n.currency, '
+        'i.name AS dn_detail, i.idx, i.item_code, i.item_name, i.uom, i.qty, COALESCE(i.billed_qty, 0) AS billed_qty, '
+        'i.rate, i.against_sales_order AS sales_order, i.so_detail AS sales_order_item '
+        'FROM "Delivery Note Item" i JOIN "Delivery Note" n ON n.name = i.parent '
+        f'WHERE {" AND ".join(where)} ORDER BY n.posting_date, n.name, i.idx', params)
+    result = []
+    for row in rows:
+        unbilled = flt(row["qty"]) - flt(row["billed_qty"])
+        result.append({**dict(row), "qty": flt(row["qty"]), "billed_qty": flt(row["billed_qty"]),
+                       "unbilled_qty": unbilled, "rate": flt(row["rate"]),
+                       "unbilled_amount": flt(unbilled * flt(row["rate"]), 2)})
+    return result
+
+
+def make_collective_sales_invoice(customer=None, *, company=None, from_date=None, to_date=None,
+                                  delivery_notes=None, lines=None):
+    """One invoice for what several deliveries to a customer delivered and
+    has not been billed yet: a monthly (collective) invoice.
+
+    Takes every unbilled line of the customer's submitted delivery notes in
+    the period, or of the named `delivery_notes`, or only the delivery note
+    lines named in `lines`. Each invoice line keeps its delivery note and
+    order line, so billing progress follows on both, and a line already
+    billed is not offered again. A draft: submit rechecks every line against
+    what is left to bill, under a lock."""
+    from lambda_erp.accounting.sales_invoice import SalesInvoice
+
+    if not customer and not delivery_notes and not lines:
+        raise ValidationError("Name the customer (with a period) or the delivery notes to invoice")
+    rows = unbilled_delivery_lines(customer, company=company, from_date=from_date, to_date=to_date,
+                                   delivery_notes=delivery_notes)
+    if lines:
+        wanted = {str(line) for line in lines}
+        rows = [row for row in rows if row["dn_detail"] in wanted]
+        missing = wanted - {row["dn_detail"] for row in rows}
+        if missing:
+            raise ValidationError(
+                f"Delivery note line(s) {', '.join(sorted(missing))} are not open to bill "
+                "(not found, not submitted, a return, outside the filters or already billed)")
+    if not rows:
+        raise ValidationError("Nothing delivered is left to bill for this selection")
+    for field, label in (("customer", "customers"), ("company", "companies"), ("currency", "currencies")):
+        values = sorted({str(row[field] or "") for row in rows})
+        if len(values) > 1:
+            raise ValidationError(
+                f"One invoice bills one customer: the selection spans several {label} ({', '.join(values)}); "
+                f"narrow it down")
+    chosen = {}
+    for row in rows:
+        chosen.setdefault(row["delivery_note"], set()).add(row["dn_detail"])
+    notes = [DeliveryNote.load(name) for name in chosen]
+    if len({_tax_key(note) for note in notes}) > 1:
+        raise ValidationError(
+            "The delivery notes carry different taxes (" + ", ".join(note.name for note in notes)
+            + "); invoice them separately")
+    rates = {flt(note.get("conversion_rate") or 1) for note in notes}
+    if len(rates) > 1:
+        raise ValidationError(
+            "The delivery notes were made at different exchange rates; invoice them separately")
+    first = notes[0]
+    invoice = SalesInvoice(
+        customer=first.customer,
+        customer_name=first.customer_name,
+        company=first.company,
+        currency=first.currency,
+        conversion_rate=first.conversion_rate,
+        posting_date=nowdate(),
+        update_stock=0,
+    )
+    for note in notes:
+        _append_delivery_lines(invoice, note, only=chosen[note.name])
+    _append_note_taxes(invoice, first)
     return invoice

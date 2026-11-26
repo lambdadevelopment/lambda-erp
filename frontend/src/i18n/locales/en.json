@@ -208,7 +208,8 @@
     "stock-detail": "Stock by Location & Batch",
     "stock-availability": "Stock Availability",
     "sales-backlog": "Sales Backlog",
-    "purchase-backlog": "Purchase Backlog"
+    "purchase-backlog": "Purchase Backlog",
+    "unbilled-deliveries": "Unbilled Deliveries"
   },
   "doctypes": {
     "quotation": {
@@ -381,7 +382,8 @@
       "Purchase Backlog": "Purchase Backlog",
       "Consignment Withdrawal": "Consignment Withdrawal",
       "Stock Count": "Stock Count",
-      "Number Ranges": "Number Ranges"
+      "Number Ranges": "Number Ranges",
+      "Unbilled Deliveries": "Unbilled Deliveries"
     }
   },
   "login": {
@@ -550,7 +552,14 @@
     "noBacklog": "Nothing open",
     "unconfirmedNote": "* not confirmed by the supplier: the order's schedule date",
     "batchRecipients": "Who received batch {{batch}}",
-    "batchChanges": "Changes to batch {{batch}}"
+    "batchChanges": "Changes to batch {{batch}}",
+    "fromDate": "From",
+    "toDate": "To",
+    "nothingUnbilled": "Every delivery is invoiced",
+    "toBill": "To bill",
+    "collectiveSelection": "{{count}} lines, net {{total}}",
+    "createCollectiveInvoice": "Create invoice for selected lines",
+    "pickCustomerToBill": "Choose a customer to bill these deliveries on one invoice."
   },
   "masterForm": {
     "required": "Required: {{fields}}",
@@ -1587,5 +1596,20 @@
     "next": "Next number",
     "nextFor": "Next number for {{type}}",
     "atLeast": "at least {{number}}"
+  },
+  "orderProgress": {
+    "title": "Quantities per line",
+    "item": "Item",
+    "ordered": "Ordered",
+    "delivered": "Delivered",
+    "received": "Received",
+    "billed": "Billed",
+    "closed": "Closed",
+    "open": "Open",
+    "select": "Select line",
+    "closedBecause": "Closed:",
+    "reopen": "Reopen",
+    "reasonPlaceholder": "Reason, e.g. customer no longer needs the rest",
+    "closeOpen": "Close open quantity"
   }
 }

@@ -54,6 +54,8 @@ class PurchaseOrder(Document):
             raise ValidationError("At least one item is required")
         if not self.transaction_date:
             self.transaction_date = nowdate()
+        from lambda_erp.order_closing import reset_draft_closings
+        reset_draft_closings(self)
 
         apply_external_source_defaults(self)
         self._set_supplier_name()
@@ -108,7 +110,7 @@ def make_purchase_invoice(purchase_order_name):
     )
 
     for item in po.get("items"):
-        unbilled = flt(item.get("qty")) - flt(item.get("billed_qty"))
+        unbilled = flt(item.get("qty")) - flt(item.get("closed_qty")) - flt(item.get("billed_qty"))
         if unbilled <= 0:
             continue
 

@@ -593,6 +593,9 @@ export const api = {
   purchaseBacklog: (params?: Record<string, string>) =>
     request<{ rows: any[] }>(`/reports/purchase-backlog${qs(params)}`),
 
+  unbilledDeliveries: (params?: Record<string, string>) =>
+    request<{ rows: any[] }>(`/reports/unbilled-deliveries${qs(params)}`),
+
   stockAvailability: (params?: Record<string, string>) =>
     request<{ rows: any[] }>(`/reports/stock-availability${qs(params)}`),
 

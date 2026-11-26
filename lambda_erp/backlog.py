@@ -12,7 +12,8 @@ Per sales order line:
     returned    how much of what was delivered came back
     billed      invoiced, net of credit notes for returned goods
     reserved    still held by the line's stock reservation
-    open        ordered - delivered
+    closed      closed by hand: will not be delivered (order_closing.py)
+    open        ordered - closed - delivered
 
 See docs/order-progress-and-backlog.md.
 """
@@ -27,7 +28,8 @@ EPSILON = 1e-9
 
 def _open_purchase_lines(item_codes=None, supplier=None, item_code=None, warehouse=None):
     db = get_db()
-    where = ["p.docstatus = 1", "COALESCE(p.discarded, 0) = 0", "i.qty > COALESCE(i.received_qty, 0)"]
+    where = ["p.docstatus = 1", "COALESCE(p.discarded, 0) = 0",
+             "i.qty - COALESCE(i.closed_qty, 0) > COALESCE(i.received_qty, 0) + 1e-9"]
     params = []
     if item_codes is not None:
         if not item_codes:
@@ -41,7 +43,7 @@ def _open_purchase_lines(item_codes=None, supplier=None, item_code=None, warehou
     return db.sql(
         'SELECT p.name AS purchase_order, p.supplier, p.supplier_name, p.transaction_date, p.schedule_date, '
         'i.name AS purchase_order_item, i.idx, i.item_code, i.item_name, i.warehouse, i.qty, '
-        'COALESCE(i.received_qty, 0) AS received_qty, i.confirmed_date, i.confirmed_qty, '
+        'COALESCE(i.received_qty, 0) AS received_qty, COALESCE(i.closed_qty, 0) AS closed_qty, i.confirmed_date, i.confirmed_qty, '
         'i.confirmation_reference '
         'FROM "Purchase Order Item" i JOIN "Purchase Order" p ON p.name = i.parent '
         f'WHERE {" AND ".join(where)} ORDER BY p.transaction_date, p.name, i.idx', params)
@@ -64,7 +66,8 @@ def sales_backlog(customer=None, item_code=None, warehouse=None, sales_order=Non
     from lambda_erp.stock.reservation import availability_rows
 
     db = get_db()
-    where = ["o.docstatus = 1", "COALESCE(o.discarded, 0) = 0", "i.qty > COALESCE(i.delivered_qty, 0)"]
+    where = ["o.docstatus = 1", "COALESCE(o.discarded, 0) = 0",
+             "i.qty - COALESCE(i.closed_qty, 0) > COALESCE(i.delivered_qty, 0) + 1e-9"]
     params = []
     for column, value in (("o.customer", customer), ("i.item_code", item_code), ("i.warehouse", warehouse),
                           ("o.name", sales_order)):
@@ -79,7 +82,7 @@ def sales_backlog(customer=None, item_code=None, warehouse=None, sales_order=Non
         'SELECT o.name AS sales_order, o.customer, o.customer_name, o.transaction_date, o.delivery_date, '
         'i.name AS sales_order_item, i.idx, i.item_code, i.item_name, i.warehouse, i.qty AS ordered_qty, '
         'COALESCE(i.delivered_qty, 0) AS delivered_qty, COALESCE(i.returned_qty, 0) AS returned_qty, '
-        'COALESCE(i.billed_qty, 0) AS billed_qty, '
+        'COALESCE(i.billed_qty, 0) AS billed_qty, COALESCE(i.closed_qty, 0) AS closed_qty, '
         f'COALESCE((SELECT SUM({held}) FROM "Stock Reservation" r WHERE r.sales_order_item = i.name '
         "AND r.status IN ('Reserved', 'Partially Delivered') AND COALESCE(r.discarded, 0) = 0), 0) AS reserved_qty "
         'FROM "Sales Order Item" i JOIN "Sales Order" o ON o.name = i.parent '
@@ -98,7 +101,7 @@ def sales_backlog(customer=None, item_code=None, warehouse=None, sales_order=Non
         if key not in free:
             rows = availability_rows(line["item_code"], line["warehouse"]) if line["warehouse"] else []
             free[key] = rows[0].available_qty if rows else 0.0
-        open_qty = flt(line["ordered_qty"]) - flt(line["delivered_qty"])
+        open_qty = flt(line["ordered_qty"]) - flt(line["closed_qty"]) - flt(line["delivered_qty"])
         reserved = min(flt(line["reserved_qty"]), open_qty)
         from_free = min(open_qty - reserved, free[key])
         free[key] -= from_free
@@ -107,15 +110,16 @@ def sales_backlog(customer=None, item_code=None, warehouse=None, sales_order=Non
             continue
         entry = {**dict(line), "ordered_qty": flt(line["ordered_qty"]), "delivered_qty": flt(line["delivered_qty"]),
                  "returned_qty": flt(line["returned_qty"]), "billed_qty": flt(line["billed_qty"]),
+                 "closed_qty": flt(line["closed_qty"]),
                  "open_qty": open_qty, "reserved_qty": reserved, "deliverable_qty": deliverable,
                  "short_qty": max(0.0, open_qty - deliverable)}
         if with_purchase_orders:
             orders = incoming.get(key, [])
             dated = sorted((str(_expected_date(row))[:10] for row in orders if _expected_date(row)))
-            entry["on_purchase_order_qty"] = sum(flt(row["qty"]) - flt(row["received_qty"]) for row in orders)
+            entry["on_purchase_order_qty"] = sum(flt(row["qty"]) - flt(row["closed_qty"]) - flt(row["received_qty"]) for row in orders)
             entry["next_expected_date"] = dated[0] if dated else None
             entry["purchase_orders"] = [
-                {"purchase_order": row["purchase_order"], "open_qty": flt(row["qty"]) - flt(row["received_qty"]),
+                {"purchase_order": row["purchase_order"], "open_qty": flt(row["qty"]) - flt(row["closed_qty"]) - flt(row["received_qty"]),
                  "confirmed_date": row.get("confirmed_date") or None,
                  "schedule_date": row.get("schedule_date") or None,
                  "confirmation_reference": row.get("confirmation_reference") or None}
@@ -136,7 +140,8 @@ def purchase_backlog(supplier=None, item_code=None, warehouse=None, overdue_only
         if overdue_only and not overdue:
             continue
         result.append({**dict(row), "qty": flt(row["qty"]), "received_qty": flt(row["received_qty"]),
-                       "open_qty": flt(row["qty"]) - flt(row["received_qty"]),
+                       "closed_qty": flt(row["closed_qty"]),
+                       "open_qty": flt(row["qty"]) - flt(row["closed_qty"]) - flt(row["received_qty"]),
                        "confirmed_qty": flt(row["confirmed_qty"]) if row.get("confirmed_qty") is not None else None,
                        "expected_date": str(expected)[:10] if expected else None,
                        "confirmed": bool(row.get("confirmed_date")), "overdue": overdue,
@@ -175,7 +180,8 @@ def confirm_purchase_order_lines(purchase_order, confirmed_date, *, lines=None, 
         if len(chosen) != len(wanted):
             raise ValidationError(f"Purchase Order {purchase_order} has no line(s) {', '.join(sorted(wanted))}")
     else:
-        chosen = [row for row in rows if flt(row.get("qty")) > flt(row.get("received_qty")) + EPSILON]
+        chosen = [row for row in rows
+                  if flt(row.get("qty")) - flt(row.get("closed_qty")) > flt(row.get("received_qty")) + EPSILON]
         if not chosen:
             raise ValidationError(f"Purchase Order {purchase_order} has no open lines to confirm")
     if confirmed_qty is not None:
@@ -193,4 +199,5 @@ def confirm_purchase_order_lines(purchase_order, confirmed_date, *, lines=None, 
     db.set_value("Purchase Order", purchase_order, "modified", stamp)
     return {"purchase_order": purchase_order, "confirmed_date": date,
             "lines": [{"purchase_order_item": row["name"], "idx": row.get("idx"), "item_code": row.get("item_code"),
-                       "open_qty": flt(row.get("qty")) - flt(row.get("received_qty"))} for row in chosen]}
+                       "open_qty": flt(row.get("qty")) - flt(row.get("closed_qty")) - flt(row.get("received_qty"))}
+                      for row in chosen]}
