@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.31] - 2026-11-26
+
 Migration 71 (columns only; nothing is closed by it).
 
 - **Close the rest of an order line.** When a customer cancels what is still
