@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+Migration 72 (the Mail Log table).
+
+- **Mail through Microsoft 365.** The ERP sends as a mailbox of the
+  customer's own Microsoft 365 tenant through Microsoft Graph (application
+  permission Mail.Send): mail comes from their domain and stays in that
+  mailbox's Sent Items. The tenant and the app's credentials come from the
+  deployment (`MAIL_GRAPH_TENANT_ID`, by default the Microsoft sign-in app);
+  admins set the sending mailbox, switch mail on and send a test mail under
+  Settings → E-Mail. `MAIL_ALLOWED_RECIPIENTS` limits a development
+  environment to test addresses. `api.mail.send_mail()` logs every message,
+  sends a message with the same idempotency key only once and never repeats a
+  send whose outcome is unknown. See docs/mail.md.
+- **Page titles.** Fleet Calendar, Settings, Users & Team and Opening Balances
+  show their own title instead of "Dashboard" / "Company Setup". A page type
+  without a translation (for example from a plugin) is titled by the label it
+  was registered with, not by its English slug plus "s".
+
 ## [1.4.31] - 2026-11-26
 
 Migration 71 (columns only; nothing is closed by it).

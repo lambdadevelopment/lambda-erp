@@ -209,7 +209,11 @@
     "stock-availability": "Verfügbarkeit",
     "sales-backlog": "Auftragsrückstand",
     "purchase-backlog": "Bestellrückstand",
-    "unbilled-deliveries": "Nicht fakturierte Lieferungen"
+    "unbilled-deliveries": "Nicht fakturierte Lieferungen",
+    "opening-balances": "Eröffnungsbilanzen",
+    "fleet-calendar": "Flottenkalender",
+    "admin-settings": "Einstellungen",
+    "admin-users": "Benutzer & Team"
   },
   "doctypes": {
     "quotation": {
@@ -1829,5 +1833,30 @@
     "reopen": "Wieder öffnen",
     "reasonPlaceholder": "Grund, z. B. Kunde braucht den Rest nicht mehr",
     "closeOpen": "Offene Menge schliessen"
+  },
+  "mail": {
+    "title": "E-Mail (Microsoft 365)",
+    "intro": "Das ERP versendet Bestätigungen und Belege aus einem Postfach Ihres Microsoft 365. Die Mails kommen von Ihrer Domain und liegen in den gesendeten Elementen dieses Postfachs.",
+    "connected": "Microsoft-365-Verbindung eingerichtet",
+    "notConfigured": "Für diese Umgebung nicht eingerichtet",
+    "on": "Mailversand ist eingeschaltet",
+    "off": "Mailversand ist ausgeschaltet",
+    "configureHint": "Die Umgebung benötigt MAIL_GRAPH_TENANT_ID (Ihren Microsoft-365-Mandanten) und die App-Zugangsdaten; Ihr Microsoft-365-Admin muss der App Mail.Send erlauben.",
+    "allowlist": "Diese Umgebung sendet nur an:",
+    "sender": "Absenderpostfach",
+    "senders": "Weitere zulässige Absenderpostfächer (optional)",
+    "switchOn": "Mailversand einschalten",
+    "switchOff": "Mailversand ausschalten",
+    "testTo": "Testmail senden an",
+    "sendTest": "Testmail senden",
+    "saved": "Gespeichert.",
+    "testSent": "Testmail gesendet. Posteingang und gesendete Elemente des Absenderpostfachs prüfen.",
+    "recent": "Zuletzt gesendet",
+    "status": {
+      "Sent": "Gesendet",
+      "Failed": "Fehlgeschlagen",
+      "Unknown": "Unklar",
+      "Sending": "Wird gesendet"
+    }
   }
 }

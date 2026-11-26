@@ -3893,6 +3893,35 @@ def _m071_order_line_closing(db: "Database") -> None:
             db.ensure_column(table, column, "TEXT")
 
 
+def _m072_mail_log(db: "Database") -> None:
+    """Mail sent through the customer's Microsoft 365 (api/mail.py): one row
+    per message with its outcome. The idempotency key makes a repeated send
+    of the same message return the first result instead of mailing twice."""
+    db.conn.execute(db._ddl(
+        """CREATE TABLE IF NOT EXISTS "Mail Log" (
+            name TEXT PRIMARY KEY,
+            creation TEXT NOT NULL,
+            modified TEXT NOT NULL,
+            idempotency_key TEXT,
+            digest TEXT NOT NULL,
+            sender TEXT NOT NULL,
+            recipients TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            status TEXT NOT NULL,
+            error TEXT,
+            reference_doctype TEXT,
+            reference_name TEXT,
+            actor TEXT
+        )"""))
+    db.conn.execute(db._ddl(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ux_mail_log_idempotency_key" ON "Mail Log" (idempotency_key)'))
+    db.conn.execute(db._ddl(
+        'CREATE INDEX IF NOT EXISTS "ix_mail_log_reference" ON "Mail Log" (reference_doctype, reference_name)'))
+    db.conn.commit()
+    db._col_cache.pop("Mail Log", None)
+    db._text_col_cache.pop("Mail Log", None)
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -3965,6 +3994,7 @@ Database.MIGRATIONS = [
     (69, "chat_attachment_data", _m069_chat_attachment_data),
     (70, "chat_manual_title", _m070_chat_manual_title),
     (71, "order_line_closing", _m071_order_line_closing),
+    (72, "mail_log", _m072_mail_log),
 ]
 
 

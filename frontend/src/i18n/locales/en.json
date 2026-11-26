@@ -209,7 +209,11 @@
     "stock-availability": "Stock Availability",
     "sales-backlog": "Sales Backlog",
     "purchase-backlog": "Purchase Backlog",
-    "unbilled-deliveries": "Unbilled Deliveries"
+    "unbilled-deliveries": "Unbilled Deliveries",
+    "opening-balances": "Opening Balances",
+    "fleet-calendar": "Fleet Calendar",
+    "admin-settings": "Settings",
+    "admin-users": "Users & Team"
   },
   "doctypes": {
     "quotation": {
@@ -1611,5 +1615,30 @@
     "reopen": "Reopen",
     "reasonPlaceholder": "Reason, e.g. customer no longer needs the rest",
     "closeOpen": "Close open quantity"
+  },
+  "mail": {
+    "title": "E-Mail (Microsoft 365)",
+    "intro": "The ERP sends confirmations and documents from a mailbox of your Microsoft 365. Mail comes from your domain and is kept in that mailbox's Sent Items.",
+    "connected": "Microsoft 365 connection configured",
+    "notConfigured": "Not configured for this deployment",
+    "on": "Mail is on",
+    "off": "Mail is off",
+    "configureHint": "The deployment needs MAIL_GRAPH_TENANT_ID (your Microsoft 365 tenant) and the app's credentials; your Microsoft 365 admin must grant the app Mail.Send.",
+    "allowlist": "This environment only mails:",
+    "sender": "Sending mailbox",
+    "senders": "Further mailboxes a message may be sent from (optional)",
+    "switchOn": "Switch mail on",
+    "switchOff": "Switch mail off",
+    "testTo": "Send a test mail to",
+    "sendTest": "Send test mail",
+    "saved": "Saved.",
+    "testSent": "Test mail sent. Check the inbox and the sending mailbox's Sent Items.",
+    "recent": "Recent messages",
+    "status": {
+      "Sent": "Sent",
+      "Failed": "Failed",
+      "Unknown": "Unknown",
+      "Sending": "Sending"
+    }
   }
 }

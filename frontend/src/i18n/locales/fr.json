@@ -209,7 +209,11 @@
     "stock-availability": "Disponibilité du stock",
     "sales-backlog": "Commandes en attente",
     "purchase-backlog": "Achats en attente",
-    "unbilled-deliveries": "Livraisons non facturées"
+    "unbilled-deliveries": "Livraisons non facturées",
+    "opening-balances": "Soldes d'ouverture",
+    "fleet-calendar": "Calendrier de la flotte",
+    "admin-settings": "Paramètres",
+    "admin-users": "Utilisateurs et équipe"
   },
   "doctypes": {
     "quotation": {
@@ -1829,5 +1833,30 @@
     "reopen": "Rouvrir",
     "reasonPlaceholder": "Motif, p. ex. le client n'a plus besoin du reste",
     "closeOpen": "Clôturer la quantité ouverte"
+  },
+  "mail": {
+    "title": "E-mail (Microsoft 365)",
+    "intro": "L'ERP envoie confirmations et documents depuis une boîte de votre Microsoft 365. Les e-mails viennent de votre domaine et restent dans les éléments envoyés de cette boîte.",
+    "connected": "Connexion Microsoft 365 configurée",
+    "notConfigured": "Non configuré pour cet environnement",
+    "on": "Envoi activé",
+    "off": "Envoi désactivé",
+    "configureHint": "L'environnement requiert MAIL_GRAPH_TENANT_ID (votre locataire Microsoft 365) et les identifiants de l'application ; votre administrateur Microsoft 365 doit accorder Mail.Send à l'application.",
+    "allowlist": "Cet environnement n'envoie qu'à :",
+    "sender": "Boîte d'expédition",
+    "senders": "Autres boîtes d'expédition autorisées (facultatif)",
+    "switchOn": "Activer l'envoi",
+    "switchOff": "Désactiver l'envoi",
+    "testTo": "Envoyer un e-mail de test à",
+    "sendTest": "Envoyer l'e-mail de test",
+    "saved": "Enregistré.",
+    "testSent": "E-mail de test envoyé. Vérifiez la réception et les éléments envoyés de la boîte d'expédition.",
+    "recent": "Messages récents",
+    "status": {
+      "Sent": "Envoyé",
+      "Failed": "Échec",
+      "Unknown": "Incertain",
+      "Sending": "Envoi en cours"
+    }
   }
 }

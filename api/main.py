@@ -181,6 +181,8 @@ app.include_router(admin.router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(chat_api.router, prefix="/api")
 app.include_router(mcp.router, prefix="/api")
+from api.mail import router as mail_router  # noqa: E402
+app.include_router(mail_router, prefix="/api")
 
 
 @app.get("/api/health")

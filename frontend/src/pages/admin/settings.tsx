@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
 import { AppConnectionSetup } from "@/components/settings/app-connection-setup";
+import { MailSettingsCard } from "@/components/settings/mail-settings";
 import { LanguageSelect } from "@/components/ui/language-select";
 
 // Map window keys (as returned by /admin/demo-spend) to seconds so we can
@@ -951,6 +952,8 @@ export default function SettingsPage() {
           <ApiKeysSection ownRole={user?.role ?? "viewer"} />
         </Card>
       )}
+
+      {isAdmin && <MailSettingsCard />}
 
       {isAdmin && <TokenSpendCard demoActive={!!pubStatus?.active} />}
 
