@@ -31,6 +31,10 @@ export const BUILTIN_MASTER_FIELDS: Record<string, FieldDef[]> = {
     { name: "contact_phone", label: "Contact Phone", type: "text" },
     { name: "invoice_email", label: "Invoice Email", type: "text",
       hint: "Where invoices are sent by e-mail. Leave empty when they go by post or through a portal." },
+    { name: "delivery_note_text", label: "Note on Delivery Notes", type: "textarea",
+      hint: "Printed on every new delivery note for this customer, e.g. 'Rechnung per E-Mail an …' or handling notes." },
+    { name: "invoice_note_text", label: "Note on Invoices", type: "textarea",
+      hint: "Printed on every new invoice for this customer." },
   ],
   address: [
     { name: "customer", label: "Customer", type: "link", linkDoctype: "customer", required: true },

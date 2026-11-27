@@ -23,6 +23,18 @@ class ReopenOrderLines(mentions.Input):
     lines: list[str] | None = Field(default=None, max_length=500)
 
 
+class CustomerAddresses(mentions.Input):
+    customer: str = Field(min_length=1, max_length=200)
+
+
+def list_customer_addresses(args):
+    data = CustomerAddresses.model_validate(args)
+    permissions.require_readable("Customer", data.customer)
+    permissions.require("Address", "read")
+    from lambda_erp.addresses import customer_addresses
+    return customer_addresses(data.customer)
+
+
 class CollectiveInvoice(mentions.Input):
     customer: str | None = Field(default=None, max_length=200)
     company: str | None = Field(default=None, max_length=200)
@@ -103,6 +115,17 @@ def initialize_order_actions():
             "Undo close_order_lines on a submitted sales or purchase order: the closed quantity of `lines` (or of "
             "every closed line) is open again. A released reservation is not restored; reserve again if needed."),
         parameters=ReopenOrderLines.model_json_schema(), minimum_role="manager")
+    services.register_action(
+        "list_customer_addresses", list_customer_addresses,
+        description=(
+            "READ-ONLY: a customer's saved addresses (with label, for invoices / deliveries, defaults, delivery "
+            "instructions) and the delivery and invoice addresses its documents used that are NOT on record "
+            "(typed for one order), newest first with times used, last used and the last document. Use it when "
+            "the user asks which addresses a customer has or has used, or when an order names an address that "
+            "differs from the default. To use a saved one, set shipping_address / billing_address (its id) on the "
+            "draft; to use an earlier or a new one-off address, set shipping_address_display / "
+            "billing_address_display to the text and leave the link empty. Never invent an address."),
+        parameters=CustomerAddresses.model_json_schema(), minimum_role="viewer")
     services.register_action(
         "prepare_collective_invoice", prepare_collective_invoice,
         description=(

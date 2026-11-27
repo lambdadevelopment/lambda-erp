@@ -3932,6 +3932,16 @@ def _m073_customer_terms(db: "Database") -> None:
     db.ensure_column("Customer", "payment_terms_days", "INTEGER")
 
 
+def _m074_customer_notes(db: "Database") -> None:
+    """A customer's note for its delivery notes and its invoices
+    (lambda_erp/addresses.py apply_customer_note), copied onto new documents
+    and printed. Empty everywhere after the migration."""
+    db.ensure_column("Customer", "delivery_note_text", "TEXT")
+    db.ensure_column("Customer", "invoice_note_text", "TEXT")
+    db.ensure_column("Delivery Note", "customer_note", "TEXT")
+    db.ensure_column("Sales Invoice", "customer_note", "TEXT")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -4006,6 +4016,7 @@ Database.MIGRATIONS = [
     (71, "order_line_closing", _m071_order_line_closing),
     (72, "mail_log", _m072_mail_log),
     (73, "customer_terms", _m073_customer_terms),
+    (74, "customer_notes", _m074_customer_notes),
 ]
 
 

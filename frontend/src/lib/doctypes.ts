@@ -308,6 +308,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "outstanding_amount", label: "Outstanding", type: "currency", readOnly: true },
       { name: "intro_text", label: "Intro text", type: "textarea",
         hint: "Printed above the line items. New documents start with the default from Settings → PDF Templates." },
+      { name: "customer_note", label: "Customer Note (printed)", type: "textarea",
+        hint: "Copied from the customer's note for this document type (e.g. invoice by e-mail to …). Change it for this document only; printed below the address." },
       { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
@@ -601,6 +603,8 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "grand_total", label: "Grand Total", type: "currency", readOnly: true },
       { name: "intro_text", label: "Intro text", type: "textarea",
         hint: "Printed above the line items. New documents start with the default from Settings → PDF Templates." },
+      { name: "customer_note", label: "Customer Note (printed)", type: "textarea",
+        hint: "Copied from the customer's note for this document type (e.g. invoice by e-mail to …). Change it for this document only; printed below the address." },
       { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [

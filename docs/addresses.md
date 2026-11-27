@@ -71,6 +71,25 @@ Changing the customer of a draft drops the old customer's addresses.
 - Templates get `address_lines`, `delivery_lines`, `delivery_label` and
   `delivery_instructions` in their context; a template that does not use
   them prints the customer's main address as before.
+- Department, delivery code (STOP code) and similar lines are part of the
+  address text: put them into the address (or the printed text of one
+  document) and every layout that prints `address_lines` shows them.
+
+## Earlier addresses and customer notes (1.4.33)
+
+- `list_customer_addresses` (REST `POST /api/actions/list_customer_addresses`,
+  chat, MCP; `lambda_erp.addresses.customer_addresses`) returns the customer's
+  saved addresses and the delivery and invoice addresses its documents used
+  that are not on record (typed for one order), newest first with how often,
+  when last and the last document. A draft sales document shows the same as
+  *Addresses of this customer*, with buttons to use one as delivery or invoice
+  address: a saved one is linked, an earlier one-off is copied as the printed
+  text.
+- Migration 74: the customer gets *Note on delivery notes* and *Note on
+  invoices* (`delivery_note_text`, `invoice_note_text`). A new delivery note or
+  sales invoice copies its note into `customer_note`; it can be changed for that
+  document and prints below the address in the standard layouts (template
+  variable `customer_note`). Custom layouts print it once they use the variable.
 
 ## Access
 

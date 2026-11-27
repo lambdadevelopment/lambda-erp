@@ -120,6 +120,7 @@
     {% if delivery_instructions %}<div class="detail" style="margin-top: 4px;">{{ delivery_instructions }}</div>{% endif %}
   </div>
 </div>
+{% if customer_note %}<div class="customer-note" style="margin: 0 0 12px; padding: 6px 8px; border-left: 3px solid #334b70; background: #f1f5f9; font-size: 9pt; white-space: pre-wrap;">{{ customer_note }}</div>{% endif %}
 
 {# ---- Meta fields ---- #}
 {% if meta_fields %}

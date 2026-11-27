@@ -897,7 +897,10 @@
     "Value Date": "Date de valeur",
     "Customer Type": "Type de client",
     "Invoicing": "Facturation",
-    "Payment Terms (days)": "Délai de paiement (jours)"
+    "Payment Terms (days)": "Délai de paiement (jours)",
+    "Customer Note (printed)": "Remarque client (imprimée)",
+    "Note on Delivery Notes": "Remarque sur les bons de livraison",
+    "Note on Invoices": "Remarque sur les factures"
   },
   "tables": {
     "items": "Lignes",
@@ -1868,5 +1871,21 @@
       "Unknown": "Incertain",
       "Sending": "Envoi en cours"
     }
+  },
+  "customerAddresses": {
+    "title": "Adresses de ce client",
+    "show": "Afficher les adresses enregistrées et déjà utilisées",
+    "saved": "Adresses enregistrées",
+    "noneSaved": "Aucune adresse enregistrée.",
+    "usedDelivery": "Adresses de livraison déjà utilisées (non enregistrées)",
+    "usedInvoice": "Adresses de facturation déjà utilisées (non enregistrées)",
+    "usedTimes": "utilisée {{count}}×, dernière fois {{date}} ({{document}})",
+    "useDelivery": "Utiliser comme adresse de livraison",
+    "useInvoice": "Utiliser comme adresse de facturation",
+    "isDelivery": "Adresse de livraison actuelle",
+    "isInvoice": "Adresse de facturation actuelle",
+    "defaultDelivery": "livraison par défaut",
+    "defaultInvoice": "facturation par défaut",
+    "hint": "Nouvelle adresse unique : la saisir dans « Adresse de livraison (imprimée) ». Service et code de livraison font partie du texte de l'adresse pour figurer sur le bon de livraison."
   }
 }

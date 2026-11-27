@@ -849,7 +849,10 @@
     "Last Delivery": "Last Delivery",
     "Customer Type": "Customer Type",
     "Invoicing": "Invoicing",
-    "Payment Terms (days)": "Payment Terms (days)"
+    "Payment Terms (days)": "Payment Terms (days)",
+    "Customer Note (printed)": "Customer Note (printed)",
+    "Note on Delivery Notes": "Note on Delivery Notes",
+    "Note on Invoices": "Note on Invoices"
   },
   "tables": {
     "accounts": "accounts",
@@ -1650,5 +1653,21 @@
       "Unknown": "Unknown",
       "Sending": "Sending"
     }
+  },
+  "customerAddresses": {
+    "title": "Addresses of this customer",
+    "show": "Show saved and earlier addresses",
+    "saved": "Saved addresses",
+    "noneSaved": "No saved addresses.",
+    "usedDelivery": "Delivery addresses used before (not saved)",
+    "usedInvoice": "Invoice addresses used before (not saved)",
+    "usedTimes": "{{count}}× used, last {{date}} ({{document}})",
+    "useDelivery": "Use as delivery address",
+    "useInvoice": "Use as invoice address",
+    "isDelivery": "Current delivery address",
+    "isInvoice": "Current invoice address",
+    "defaultDelivery": "default delivery",
+    "defaultInvoice": "default invoice",
+    "hint": "A new one-off address: type it into “Delivery Address (as printed)”. Department and delivery / STOP code belong in the address text so they print on the delivery note."
   }
 }

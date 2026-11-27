@@ -897,7 +897,10 @@
     "Value Date": "Valuta",
     "Customer Type": "Kundenart",
     "Invoicing": "Fakturierung",
-    "Payment Terms (days)": "Zahlungsziel (Tage)"
+    "Payment Terms (days)": "Zahlungsziel (Tage)",
+    "Customer Note (printed)": "Kundenhinweis (gedruckt)",
+    "Note on Delivery Notes": "Hinweis auf Lieferscheinen",
+    "Note on Invoices": "Hinweis auf Rechnungen"
   },
   "tables": {
     "items": "Positionen",
@@ -1868,5 +1871,21 @@
       "Unknown": "Unklar",
       "Sending": "Wird gesendet"
     }
+  },
+  "customerAddresses": {
+    "title": "Adressen dieses Kunden",
+    "show": "Gespeicherte und früher verwendete Adressen anzeigen",
+    "saved": "Gespeicherte Adressen",
+    "noneSaved": "Keine gespeicherten Adressen.",
+    "usedDelivery": "Früher verwendete Lieferadressen (nicht gespeichert)",
+    "usedInvoice": "Früher verwendete Rechnungsadressen (nicht gespeichert)",
+    "usedTimes": "{{count}}× verwendet, zuletzt {{date}} ({{document}})",
+    "useDelivery": "Als Lieferadresse übernehmen",
+    "useInvoice": "Als Rechnungsadresse übernehmen",
+    "isDelivery": "Aktuelle Lieferadresse",
+    "isInvoice": "Aktuelle Rechnungsadresse",
+    "defaultDelivery": "Standard Lieferung",
+    "defaultInvoice": "Standard Rechnung",
+    "hint": "Neue einmalige Adresse: direkt in „Lieferadresse (wie gedruckt)“ eintippen. Abteilung und Zustell-/STOP-Code gehören in den Adresstext, damit sie auf dem Lieferschein stehen."
   }
 }

@@ -100,6 +100,7 @@ def resolve_document_addresses(doc):
     before the document validates, on every save and on submit."""
     if doc.DOCTYPE not in SOURCES:
         return
+    apply_customer_note(doc)
     db = get_db()
     if "billing_address" not in _columns(doc.DOCTYPE) or not _columns("Address"):
         return
@@ -189,3 +190,81 @@ def delivery_instructions(doc):
     if not link or not _columns("Address"):
         return None
     return get_db().get_value("Address", link, "instructions") or None
+
+
+# -- what a customer's documents have used --------------------------------------
+
+USED_IN = ("Quotation", "Sales Order", "Delivery Note", "Sales Invoice")
+NOTE_FIELDS = {"Delivery Note": "delivery_note_text", "Sales Invoice": "invoice_note_text"}
+
+
+def _same_text(a, b):
+    return " ".join(str(a or "").split()).lower() == " ".join(str(b or "").split()).lower()
+
+
+def customer_addresses(customer, limit=20):
+    """The customer's saved addresses and the delivery and invoice addresses
+    its documents have used that are not on record (typed for one order):
+    newest first, with how often and when last, and the last document.
+
+    Read-only: picking one means setting the link (saved) or the printed text
+    (used before) on a draft."""
+    db = get_db()
+    if not customer:
+        raise ValidationError("Name the customer")
+    customer_name = db.get_value("Customer", customer, "customer_name")
+    if customer_name is None:
+        raise ValidationError(f"Customer {customer} not found")
+    saved = []
+    if _columns("Address"):
+        for row in db.get_all("Address", filters={"customer": customer}, fields=["*"], order_by="label"):
+            saved.append({"address": row["name"], "label": row.get("label"), "title": row.get("address_title"),
+                          "text": format_address(row, customer_name),
+                          "for_invoices": bool(flt(row.get("is_billing"))),
+                          "for_deliveries": bool(flt(row.get("is_shipping"))),
+                          "default_invoice": bool(flt(row.get("is_default_billing"))),
+                          "default_delivery": bool(flt(row.get("is_default_shipping"))),
+                          "disabled": bool(flt(row.get("disabled"))),
+                          "instructions": row.get("instructions") or None})
+    used = {"shipping": {}, "billing": {}}
+    for doctype in USED_IN:
+        columns = _columns(doctype)
+        if "shipping_address_display" not in columns:
+            continue
+        date = "posting_date" if "posting_date" in columns else "transaction_date"
+        for kind in ("shipping", "billing"):
+            rows = db.sql(
+                f'SELECT name, {kind}_address_display AS text, {date} AS date FROM "{doctype}" '
+                "WHERE customer = ? AND docstatus < 2 AND COALESCE(discarded, 0) = 0 "
+                f"AND COALESCE({kind}_address_display, '') <> ''", [customer])
+            for row in rows:
+                key = " ".join(str(row["text"]).split()).lower()
+                if any(_same_text(row["text"], s["text"]) for s in saved):
+                    continue
+                entry = used[kind].setdefault(key, {"text": str(row["text"]).strip(), "times": 0,
+                                                    "last_used": None, "last_document": None})
+                entry["times"] += 1
+                day = str(row["date"] or "")[:10]
+                if entry["last_used"] is None or day > entry["last_used"]:
+                    entry["last_used"], entry["last_document"] = day, {"doctype": doctype, "name": row["name"]}
+    def newest(entries):
+        return sorted(entries.values(), key=lambda e: (e["last_used"] or "", e["times"]), reverse=True)[:limit]
+    return {"customer": customer, "customer_name": customer_name, "saved": saved,
+            "used_delivery_addresses": newest(used["shipping"]),
+            "used_invoice_addresses": newest(used["billing"])}
+
+
+def apply_customer_note(doc):
+    """A new delivery note or invoice starts with the customer's note for that
+    document type (e.g. "Rechnung per E-Mail an …"). Copied once, like the
+    address text, so it can be changed for one document and an issued document
+    keeps it."""
+    field = NOTE_FIELDS.get(doc.DOCTYPE)
+    if not field or doc.docstatus != 0 or "customer_note" not in _columns(doc.DOCTYPE):
+        return
+    if doc._data.get("customer_note") is not None or not doc.get("customer"):
+        return
+    if field not in _columns("Customer"):
+        return
+    note = get_db().get_value("Customer", doc.customer, field)
+    doc._data["customer_note"] = (note or "").strip() or None

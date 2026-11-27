@@ -24,6 +24,7 @@ import { NotesMarkupHelp } from "@/components/ui/notes-markup-help";
 import { RecordNotes, RecordNotesLink } from "@/components/record-notes";
 import { RecordAttachments } from "@/components/record-attachments";
 import { OrderLineProgress } from "@/components/order-line-progress";
+import { CustomerAddresses } from "@/components/customer-addresses";
 import { useCurrencies } from "@/hooks/use-currencies";
 import {
   PDF_TEMPLATE_DOCTYPES, pdfTemplateDoctype, usePdfTemplates, usePdfTextDefaults,
@@ -1237,6 +1238,21 @@ export default function DocumentFormPage() {
           parentData={formData}
         />
       ))}
+
+      {/* Draft sales documents: the customer's saved and earlier one-off addresses. */}
+      {docstatus === 0 && !readOnly && formData.customer &&
+        ["quotation", "sales-order", "delivery-note", "sales-invoice"].includes(config.slug) && (
+        <CustomerAddresses
+          customer={formData.customer}
+          current={{ shipping: formData.shipping_address_display, billing: formData.billing_address_display }}
+          onUse={(kind, link, text) => {
+            // A saved address is linked and its text refilled on save; an earlier
+            // one-off is the printed text without a link.
+            setField(`${kind}_address`, link ?? "");
+            setField(`${kind}_address_display`, link ? "" : text);
+          }}
+        />
+      )}
 
       {/* Submitted orders: what happened to each line, and closing what is left open. */}
       {!isNew && name && docstatus === 1 && (config.slug === "sales-order" || config.slug === "purchase-order") && (

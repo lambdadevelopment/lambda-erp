@@ -357,6 +357,9 @@ def _render_commercial_pdf(doctype, name, doc, contract, layout=None, blocked=No
         delivery_lines=delivery_lines,
         delivery_label="Delivery address",
         delivery_instructions=delivery_instructions(doc) if file == "delivery_note.html" else None,
+        # The customer's note for this document type, as copied onto the document
+        # (lambda_erp/addresses.py apply_customer_note).
+        customer_note=(doc.get("customer_note") or "").strip() or None,
         currency=currency,
         meta_fields=meta_fields,
         items=items,

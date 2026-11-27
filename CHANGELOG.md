@@ -13,6 +13,22 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+Migration 74 (customer notes; columns only).
+
+- **Earlier addresses of a customer.** `list_customer_addresses` (REST, chat,
+  MCP) lists a customer's saved addresses and the delivery and invoice
+  addresses its documents used that are not on record (typed for one order),
+  newest first with how often and when. Draft quotations, orders, delivery
+  notes and invoices show them under *Addresses of this customer*, with
+  buttons to use one as delivery or invoice address. The chat offers them when
+  an order names a delivery point that is not the default.
+- **Customer notes on delivery notes and invoices.** The customer gets a note
+  for delivery notes and one for invoices (e.g. "Rechnung per E-Mail an …").
+  New delivery notes and invoices copy it into `customer_note`, which can be
+  changed per document and prints below the address (template variable
+  `customer_note`). Department and STOP code lines in the address text print on
+  the delivery note; a test now checks the printed text.
+
 ## [1.4.32] - 2026-11-27
 
 Migrations 72 (the Mail Log table) and 73 (customer billing terms; columns only).

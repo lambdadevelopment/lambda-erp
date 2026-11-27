@@ -685,6 +685,8 @@ Variables:
 _PARTY_VARIABLES = """- company_name, company_info (email, phone, address, city, zip_code, country, tax_id, iban)
 - party_label ("Customer"/"Supplier"), party_name, party_info (email, phone, address, city, zip_code, country, tax_id)
 - title: the document title; pdf_state_notice: "Draft"/"Cancelled" text or empty; pdf_status; page_size ("A4"/"Letter")
+- address_lines (the address the document goes to, first line the recipient), delivery_lines / delivery_label (a differing delivery address), delivery_instructions (delivery notes)
+- customer_note (delivery notes and invoices, may be empty): the customer's note for this document, e.g. "Rechnung per E-Mail an …"; print it close to the address when set
 """
 
 _TEXT_VARIABLES = """- intro_html: the intro text as safe HTML ({{ intro_html|safe }}); print it near the top, usually under the title
