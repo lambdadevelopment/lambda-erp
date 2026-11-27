@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.32] - 2026-11-27
+
 Migrations 72 (the Mail Log table) and 73 (customer billing terms; columns only).
 
 - **Customer billing terms.** The customer gets a type (company or private
