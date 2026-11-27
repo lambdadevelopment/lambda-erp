@@ -328,7 +328,8 @@ def make_sales_invoice_from_delivery_note(dn_name):
     return invoice
 
 
-def unbilled_delivery_lines(customer=None, *, company=None, from_date=None, to_date=None, delivery_notes=None):
+def unbilled_delivery_lines(customer=None, *, company=None, from_date=None, to_date=None, delivery_notes=None,
+                            billing_cycle=None):
     """Delivered and not yet invoiced: one row per line of a submitted
     delivery note (not a return) with `unbilled_qty` = qty − billed_qty,
     oldest delivery first. Read-only; see make_collective_sales_invoice."""
@@ -346,6 +347,11 @@ def unbilled_delivery_lines(customer=None, *, company=None, from_date=None, to_d
     if to_date:
         where.append("n.posting_date <= ?")
         params.append(str(to_date)[:10])
+    has_cycle = "billing_cycle" in db._get_table_columns("Customer")
+    if billing_cycle and has_cycle:
+        # Empty means per delivery (customer_terms.py).
+        where.append("COALESCE(NULLIF(c.billing_cycle, ''), 'Per Delivery') = ?")
+        params.append(billing_cycle)
     if delivery_notes:
         names = sorted({str(name) for name in delivery_notes})
         where.append(f"n.name IN ({', '.join('?' for _ in names)})")
@@ -353,8 +359,11 @@ def unbilled_delivery_lines(customer=None, *, company=None, from_date=None, to_d
     rows = db.sql(
         'SELECT n.name AS delivery_note, n.posting_date, n.customer, n.customer_name, n.company, n.currency, '
         'i.name AS dn_detail, i.idx, i.item_code, i.item_name, i.uom, i.qty, COALESCE(i.billed_qty, 0) AS billed_qty, '
-        'i.rate, i.against_sales_order AS sales_order, i.so_detail AS sales_order_item '
-        'FROM "Delivery Note Item" i JOIN "Delivery Note" n ON n.name = i.parent '
+        'i.rate, i.against_sales_order AS sales_order, i.so_detail AS sales_order_item, '
+        + ("COALESCE(NULLIF(c.billing_cycle, ''), 'Per Delivery') AS billing_cycle " if has_cycle
+           else "'Per Delivery' AS billing_cycle ")
+        + 'FROM "Delivery Note Item" i JOIN "Delivery Note" n ON n.name = i.parent '
+        'LEFT JOIN "Customer" c ON c.name = n.customer '
         f'WHERE {" AND ".join(where)} ORDER BY n.posting_date, n.name, i.idx', params)
     result = []
     for row in rows:

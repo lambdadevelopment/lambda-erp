@@ -544,14 +544,16 @@ def purchase_backlog_report(
     return _purchase_backlog(get_db(), supplier, item_code, warehouse, overdue_only)
 
 
-def _unbilled_deliveries(db, customer=None, company=None, from_date=None, to_date=None, delivery_note=None):
+def _unbilled_deliveries(db, customer=None, company=None, from_date=None, to_date=None, delivery_note=None,
+                         billing_cycle=None):
     """Delivered and not yet invoiced, per delivery note line: what a
     collective (monthly) invoice would bill. Selling prices only."""
     permissions.require_artifact("report", "unbilled-deliveries")
     permissions.require("Delivery Note", "read")
     from lambda_erp.stock.delivery_note import unbilled_delivery_lines
     rows = unbilled_delivery_lines(customer, company=company, from_date=from_date, to_date=to_date,
-                                   delivery_notes=[delivery_note] if delivery_note else None)
+                                   delivery_notes=[delivery_note] if delivery_note else None,
+                                   billing_cycle=billing_cycle)
     return {"rows": permissions.scope_rows("report", "unbilled-deliveries", rows)}
 
 
@@ -562,8 +564,9 @@ def unbilled_deliveries_report(
     from_date: str | None = None,
     to_date: str | None = None,
     delivery_note: str | None = None,
+    billing_cycle: str | None = None,
 ):
-    return _unbilled_deliveries(get_db(), customer, company, from_date, to_date, delivery_note)
+    return _unbilled_deliveries(get_db(), customer, company, from_date, to_date, delivery_note, billing_cycle)
 
 
 @router.get("/stock-detail")

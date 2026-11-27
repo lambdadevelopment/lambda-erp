@@ -622,7 +622,9 @@
     "toBill": "À facturer",
     "collectiveSelection": "{{count}} lignes, net {{total}}",
     "createCollectiveInvoice": "Créer la facture pour les lignes choisies",
-    "pickCustomerToBill": "Choisissez un client pour facturer ces livraisons sur une seule facture."
+    "pickCustomerToBill": "Choisissez un client pour facturer ces livraisons sur une seule facture.",
+    "billingCycle": "Facturation",
+    "onlyMonthly": "Seulement les clients à facture mensuelle"
   },
   "masterForm": {
     "required": "Requis : {{fields}}",
@@ -892,7 +894,10 @@
     "Statement Import": "Import de relevé",
     "Structured Reference": "Référence structurée",
     "UOM": "Unité",
-    "Value Date": "Date de valeur"
+    "Value Date": "Date de valeur",
+    "Customer Type": "Type de client",
+    "Invoicing": "Facturation",
+    "Payment Terms (days)": "Délai de paiement (jours)"
   },
   "tables": {
     "items": "Lignes",
@@ -1167,7 +1172,11 @@
     "Returned": "Retourné",
     "Cancelled": "Annulé",
     "Customer": "Client",
-    "Supplier": "Fournisseur"
+    "Supplier": "Fournisseur",
+    "Company": "Entreprise",
+    "Individual": "Particulier",
+    "Per Delivery": "Par livraison",
+    "Monthly": "Facture mensuelle"
   },
   "hints": {
     "asset": {
@@ -1527,7 +1536,8 @@
     "pdf_intro_text_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte d'introduction ; le PDF s'affiche sans.",
     "pdf_remarks_not_printed": "La mise en page PDF « {{template}} » n'imprime pas le texte final / les conditions ; le PDF s'affiche sans.",
     "pdf_line_deduction_not_printed": "La mise en page PDF « {{template}} » n'imprime pas les déductions de ligne ; ces lignes n'affichent que leur montant net.",
-    "pdf_variable_not_printed": "La mise en page PDF « {{template}} » n’imprime pas : {{label}} ; le PDF s’affiche sans."
+    "pdf_variable_not_printed": "La mise en page PDF « {{template}} » n’imprime pas : {{label}} ; le PDF s’affiche sans.",
+    "credit_limit_exceeded": "Limite de crédit de {{limit}} dépassée : créances ouvertes {{open}} plus ce document {{this_document}} = {{total}}. Simple avertissement ; le document peut être validé."
   },
   "deductions": {
     "defaultLabel": "Déduction",

@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { formatCurrency, formatLocalDate, flt } from "@/lib/utils";
+import { formatCurrency, formatLocalDate, formatNumber, flt } from "@/lib/utils";
 import { HintTooltip } from "@/components/ui/hint-tooltip";
 import { NotesMarkupHelp } from "@/components/ui/notes-markup-help";
 import { RecordNotes, RecordNotesLink } from "@/components/record-notes";
@@ -1181,7 +1181,12 @@ export default function DocumentFormPage() {
         <div key={warning.code} className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900" role="status">
           {warning.code === "asset_unassigned"
             ? t("rentals.poolWarning")
-            : t(`documentWarnings.${warning.code}`, { defaultValue: warning.message, template: warning.template })}
+            : t(`documentWarnings.${warning.code}`, {
+                // Every field of the warning can be used in its translation; amounts formatted.
+                ...Object.fromEntries(Object.entries(warning).map(([key, value]) =>
+                  [key, typeof value === "number" ? formatNumber(value) : value])),
+                defaultValue: warning.message,
+              })}
         </div>
       ))}
 

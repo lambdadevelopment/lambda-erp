@@ -308,6 +308,11 @@ def _validate_master_input(master_type, doctype, data, name=None):
         _validate_batch(db, merged, name)
     if master_type == 'serial-no':
         _validate_serial(db, data, name)
+    if master_type == 'customer':
+        from lambda_erp.customer_terms import validate_customer_terms
+        validate_customer_terms(merged)
+        if 'payment_terms_days' in data and merged.get('payment_terms_days') not in (None, ''):
+            data['payment_terms_days'] = merged['payment_terms_days']
     if master_type == 'address':
         from lambda_erp.addresses import validate_address
         validate_address(merged)

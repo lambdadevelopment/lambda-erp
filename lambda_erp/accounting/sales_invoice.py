@@ -114,7 +114,9 @@ class SalesInvoice(Document):
         self._data["outstanding_amount"] = flt(self.grand_total, 2)
 
         if not self.due_date:
-            self._data["due_date"] = add_days(self.posting_date, 30)
+            # The customer's payment terms (customer_terms.py), else 30 days.
+            from lambda_erp.customer_terms import due_date
+            self._data["due_date"] = due_date(self.customer, self.posting_date)
 
     def _set_customer_name(self):
         if not self.customer_name and self.customer:

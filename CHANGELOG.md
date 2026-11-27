@@ -13,7 +13,15 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
-Migration 72 (the Mail Log table).
+Migrations 72 (the Mail Log table) and 73 (customer billing terms; columns only).
+
+- **Customer billing terms.** The customer gets a type (company or private
+  person), invoicing per delivery or as a monthly invoice, and payment terms
+  in days that set the due date of new invoices (default 30). The credit limit
+  is a warning on orders and invoices when open receivables would exceed it,
+  never a block. The Unbilled Deliveries report shows each customer's
+  invoicing and can list only monthly-invoice customers. Select options on
+  master forms are translated. See docs/customer-terms.md.
 
 - **Mail through Microsoft 365.** The ERP sends as a mailbox of the
   customer's own Microsoft 365 tenant through Microsoft Graph (application

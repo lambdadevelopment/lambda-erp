@@ -563,7 +563,9 @@
     "toBill": "To bill",
     "collectiveSelection": "{{count}} lines, net {{total}}",
     "createCollectiveInvoice": "Create invoice for selected lines",
-    "pickCustomerToBill": "Choose a customer to bill these deliveries on one invoice."
+    "pickCustomerToBill": "Choose a customer to bill these deliveries on one invoice.",
+    "billingCycle": "Invoicing",
+    "onlyMonthly": "Only monthly-invoice customers"
   },
   "masterForm": {
     "required": "Required: {{fields}}",
@@ -844,7 +846,10 @@
     "Difference": "Difference",
     "Returned": "Returned",
     "Still With Them": "Still With Them",
-    "Last Delivery": "Last Delivery"
+    "Last Delivery": "Last Delivery",
+    "Customer Type": "Customer Type",
+    "Invoicing": "Invoicing",
+    "Payment Terms (days)": "Payment Terms (days)"
   },
   "tables": {
     "accounts": "accounts",
@@ -1071,7 +1076,11 @@
     "Returned": "Returned",
     "Cancelled": "Cancelled",
     "Customer": "Customer",
-    "Supplier": "Supplier"
+    "Supplier": "Supplier",
+    "Company": "Company",
+    "Individual": "Private Person",
+    "Per Delivery": "Per Delivery",
+    "Monthly": "Monthly Invoice"
   },
   "hints": {
     "asset": {
@@ -1309,7 +1318,8 @@
     "pdf_intro_text_not_printed": "The PDF layout “{{template}}” doesn’t print the intro text; the PDF shows it without.",
     "pdf_remarks_not_printed": "The PDF layout “{{template}}” doesn’t print the closing text / terms; the PDF shows it without.",
     "pdf_line_deduction_not_printed": "The PDF layout “{{template}}” doesn’t print line deductions; those lines show only their net amount.",
-    "pdf_variable_not_printed": "The PDF layout “{{template}}” doesn’t print the {{label}}; the PDF shows it without."
+    "pdf_variable_not_printed": "The PDF layout “{{template}}” doesn’t print the {{label}}; the PDF shows it without.",
+    "credit_limit_exceeded": "Credit limit of {{limit}} exceeded: open receivables {{open}} plus this document {{this_document}} = {{total}}. Only a warning; the document can still be submitted."
   },
   "deductions": {
     "defaultLabel": "Deduction",

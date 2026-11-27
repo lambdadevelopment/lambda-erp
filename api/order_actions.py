@@ -69,7 +69,24 @@ def prepare_collective_invoice(args):
     return services.load_document("sales-invoice", invoice.name)
 
 
+def _credit_limit_warning(doc):
+    """A warning, never a block: the order or invoice takes the customer over
+    its credit limit (lambda_erp/customer_terms.py)."""
+    if doc.DOCTYPE not in ("Sales Order", "Sales Invoice") or doc.docstatus == 2:
+        return []
+    from lambda_erp.customer_terms import credit_check
+    check = credit_check(doc)
+    if not check:
+        return []
+    return [{"code": "credit_limit_exceeded", **check, "message": (
+        f"Credit limit of {check['limit']:,.2f} exceeded: open receivables {check['open']:,.2f}"
+        + (f" plus this document {check['this_document']:,.2f}" if check["this_document"] else "")
+        + f" = {check['total']:,.2f}. This is a warning; the document can still be submitted.")}]
+
+
 def initialize_order_actions():
+    if _credit_limit_warning not in services.DOCUMENT_WARNING_PROVIDERS:
+        services.DOCUMENT_WARNING_PROVIDERS.append(_credit_limit_warning)
     services.register_action(
         "close_order_lines", close_lines,
         description=(

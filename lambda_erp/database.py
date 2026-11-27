@@ -3922,6 +3922,16 @@ def _m072_mail_log(db: "Database") -> None:
     db._text_col_cache.pop("Mail Log", None)
 
 
+def _m073_customer_terms(db: "Database") -> None:
+    """Billing terms on the customer (lambda_erp/customer_terms.py): company or
+    private person, per-delivery or monthly invoicing, payment terms in days.
+    Empty on existing customers, which keeps today's behaviour (per delivery,
+    30 days)."""
+    db.ensure_column("Customer", "customer_type", "TEXT")
+    db.ensure_column("Customer", "billing_cycle", "TEXT")
+    db.ensure_column("Customer", "payment_terms_days", "INTEGER")
+
+
 Database.MIGRATIONS = [
     (1, "chat_message_session_id", _m001_chat_message_session_id),
     (2, "chat_session_user_id", _m002_chat_session_user_id),
@@ -3995,6 +4005,7 @@ Database.MIGRATIONS = [
     (70, "chat_manual_title", _m070_chat_manual_title),
     (71, "order_line_closing", _m071_order_line_closing),
     (72, "mail_log", _m072_mail_log),
+    (73, "customer_terms", _m073_customer_terms),
 ]
 
 

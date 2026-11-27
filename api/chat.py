@@ -1954,7 +1954,10 @@ def _compact_master_columns(db, doctype):
     """What identifies a master record in a list: its id, the columns a
     free-text search looks at, and a few that tell records apart."""
     columns = db._get_table_columns(doctype)
-    wanted = ["name", *_master_search_columns(db, doctype),
+    # The record's own name first, so further text columns never push it out.
+    titles = [column for column in columns if column.endswith("_name") and column != "name"]
+    wanted = ["name", *sorted(titles, key=lambda c: c != f"{doctype.lower().replace(' ', '_')}_name"),
+              *_master_search_columns(db, doctype),
               "root_type", "account_type", "is_group", "parent_account", "company",
               "item_group", "stock_uom", "city", "zip_code", "country", "customer", "disabled"]
     return [column for column in dict.fromkeys(wanted) if column in columns][:9]
@@ -2273,7 +2276,7 @@ def _run_report(args):
     elif report_type == "unbilled-deliveries":
         from api.routers.reports import _unbilled_deliveries
         return _unbilled_deliveries(db, filters.get("customer"), filters.get("company"), filters.get("from_date"),
-                                    filters.get("to_date"), filters.get("delivery_note"))
+                                    filters.get("to_date"), filters.get("delivery_note"), filters.get("billing_cycle"))
     elif report_type == "stock-availability":
         from api.routers.reports import _stock_availability
         return _stock_availability(db, filters.get("item_code"), filters.get("warehouse"), filters.get("item_prefix"))
@@ -3291,6 +3294,7 @@ For a complete sales return (financial + stock): create and submit both a Credit
 - A delivery for less than ordered leaves the rest of the line open; convert the order again later for the remainder. Converters only ever propose what is left, and submit rechecks, so a repeated conversion cannot deliver or bill twice.
 - Deliver first, invoice after: convert the submitted **Delivery Note** to a Sales Invoice (convert_document doctype="delivery-note", target_doctype="Sales Invoice"). It bills what that delivery delivered and has not been billed, and does not move stock again. Converting the Sales Order to a Sales Invoice instead bills the ordered quantity regardless of delivery.
 - **Closing the rest of a line** (the customer no longer wants what is still open, a supplier will never deliver the rest): use the `close_order_lines` action on the submitted order with the lines and a reason. Do not cancel or amend the order, and do not create a return for goods that were never delivered. Deliveries and invoices already posted stay. Delivered or invoiced quantities cannot be closed (a credit note corrects those). `reopen_order_lines` undoes it.
+- **Customer billing terms** (on the customer master): customer_type (Company / Individual), billing_cycle (Per Delivery / Monthly; a Monthly customer's deliveries are not invoiced one by one but with the collective invoice at month end), payment_terms_days (the invoice due date; default 30) and credit_limit. Going over the credit limit is a WARNING on the order or invoice (credit_limit_exceeded), never a reason to refuse or hold back an order: say it, then carry on.
 - **Monthly / collective invoice** (several deliveries to one customer billed together): check the unbilled-deliveries report for the customer and period, then use `prepare_collective_invoice` (customer + from_date/to_date, or delivery_notes, or the delivery note lines). It drafts ONE Sales Invoice whose lines keep their delivery note and order line; already billed lines are never taken again. Show the draft before submitting.
 - Receive first, invoice after works the same on the purchasing side: convert the submitted **Purchase Receipt** to a Purchase Invoice (convert_document doctype="purchase-receipt", target_doctype="Purchase Invoice"). It bills what was received and not billed, at the received price, and does not move stock again.
 - A Stock Reservation can name `batch_no` and / or `location` to hold exactly that stock; without them it holds a quantity in the warehouse and the batch is decided when picking.
@@ -3418,7 +3422,7 @@ Master records CAN be deleted — use the `delete_master` tool (ADMIN role only)
 - **ap-aging** — Outstanding payables bucketed by overdue days. Filters: company, as_of_date.
 - **stock-balance** — Inventory quantities and valuations. Filters: item_code, warehouse.
 - **sales-backlog** — Open sales order lines (ordered − closed > delivered): ordered_qty, delivered_qty (net of returns), returned_qty, billed_qty, closed_qty, open_qty, reserved_qty, deliverable_qty (what can be delivered NOW; stock is shared out in due-date order, so it is never promised twice), short_qty, on_purchase_order_qty, next_expected_date and the purchase orders behind it. Filters: customer, item_code, item_prefix, warehouse, sales_order, only_deliverable. Use only_deliverable=true after a goods receipt to see which open orders can now go out. Read-only: it books nothing.
-- **unbilled-deliveries** — Delivered and not yet invoiced, per delivery note line (oldest first): delivery_note, posting_date, customer, item_code, qty, billed_qty, unbilled_qty, rate, unbilled_amount, sales_order. Filters: customer, company, from_date, to_date, delivery_note. What prepare_collective_invoice would bill.
+- **unbilled-deliveries** — Delivered and not yet invoiced, per delivery note line (oldest first): delivery_note, posting_date, customer, item_code, qty, billed_qty, unbilled_qty, rate, unbilled_amount, sales_order. Filters: customer, company, from_date, to_date, delivery_note. billing_cycle per row (the customer's: Per Delivery or Monthly); filter billing_cycle=Monthly for the month-end run. What prepare_collective_invoice would bill.
 - **purchase-backlog** — Open purchase order lines with expected_date (the supplier's confirmed date, else the order's schedule date), confirmed, overdue and days_overdue. Filters: supplier, item_code, warehouse, overdue_only. Use overdue_only=true for "what should have arrived".
 - **stock-availability** — Per item × warehouse: physical_qty (in stock), blocked_qty (expired or blocked batches), reserved_qty (open Stock Reservations), available_qty (= physical − blocked − reserved), plus open_sales_order_qty (ordered by customers, not yet delivered) and on_purchase_order_qty (ordered from suppliers, not yet received). Filters: item_code, warehouse, item_prefix. Use this to answer "can we deliver X" and "is it already on order".
 - **stock-detail** — Where stock is, in one view: item, warehouse, consignment_customer (who it lies with, for consignment warehouses), storage location, batch, expiry date, quantity. Filters: item_code, warehouse, location, batch_no, item_prefix, item_group, expiring_before, expiring_after, include_empty, consignment_customer (one customer's consignment stock), consignment (true = only consignment, false = only own warehouses). Use this for "what is in location B4", "where is item X", "what expires in the next 3 months in warehouse Y".

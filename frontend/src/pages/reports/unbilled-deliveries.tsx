@@ -24,6 +24,7 @@ interface UnbilledLine {
   rate: number;
   unbilled_amount: number;
   sales_order?: string | null;
+  billing_cycle?: string;
 }
 
 const inputClass =
@@ -39,10 +40,12 @@ export function UnbilledDeliveriesPage() {
   const [urlCustomer] = useUrlState<string>("customer", "");
   const [urlFrom] = useUrlState<string>("from_date", "");
   const [urlTo] = useUrlState<string>("to_date", "");
+  const [urlMonthly] = useUrlState<string>("billing_cycle", "");
   const patchUrl = useUrlPatch();
   const [customer, setCustomer] = useState(urlCustomer);
   const [fromDate, setFromDate] = useState(urlFrom);
   const [toDate, setToDate] = useState(urlTo);
+  const [monthly, setMonthly] = useState(urlMonthly === "Monthly");
   const [excluded, setExcluded] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,8 +54,9 @@ export function UnbilledDeliveriesPage() {
     if (urlCustomer) f.customer = urlCustomer;
     if (urlFrom) f.from_date = urlFrom;
     if (urlTo) f.to_date = urlTo;
+    if (urlMonthly) f.billing_cycle = urlMonthly;
     return f;
-  }, [urlCustomer, urlFrom, urlTo]);
+  }, [urlCustomer, urlFrom, urlTo, urlMonthly]);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["report", "unbilled-deliveries", filters],
     queryFn: () => api.unbilledDeliveries(filters) as Promise<{ rows: UnbilledLine[] }>,
@@ -60,7 +64,8 @@ export function UnbilledDeliveriesPage() {
   const rows = data?.rows ?? [];
   const apply = () => {
     setExcluded([]);
-    patchUrl({ customer: customer || null, from_date: fromDate || null, to_date: toDate || null });
+    patchUrl({ customer: customer || null, from_date: fromDate || null, to_date: toDate || null,
+               billing_cycle: monthly ? "Monthly" : null });
     refetch();
   };
 
@@ -89,6 +94,10 @@ export function UnbilledDeliveriesPage() {
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-fg-muted">{t("reports.toDate", { defaultValue: "To" })}</span>
           <input type="date" className={inputClass} value={toDate} onChange={(e) => setToDate(e.target.value)} />
+        </label>
+        <label className="flex items-center gap-2 pb-2 text-sm">
+          <input type="checkbox" checked={monthly} onChange={(e) => setMonthly(e.target.checked)} />
+          {t("reports.onlyMonthly", { defaultValue: "Only monthly-invoice customers" })}
         </label>
         <Button onClick={apply}>{t("common.apply")}</Button>
       </div>
@@ -129,7 +138,14 @@ export function UnbilledDeliveriesPage() {
                       <Link className="text-blue-600 hover:underline" to={`/app/delivery-note/${row.delivery_note}`}>{row.delivery_note}</Link>
                     </td>
                     <td className="px-3 py-2 text-gray-700">{String(row.posting_date ?? "").slice(0, 10)}</td>
-                    <td className="px-3 py-2 text-gray-700">{row.customer_name || row.customer}</td>
+                    <td className="px-3 py-2 text-gray-700">
+                      {row.customer_name || row.customer}
+                      {row.billing_cycle === "Monthly" && (
+                        <span className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
+                          {t("fieldOptions.Monthly", { defaultValue: "Monthly Invoice" })}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       {row.sales_order && (
                         <Link className="text-blue-600 hover:underline" to={`/app/sales-order/${row.sales_order}`}>{row.sales_order}</Link>

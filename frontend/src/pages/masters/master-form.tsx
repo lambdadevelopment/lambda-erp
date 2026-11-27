@@ -311,10 +311,15 @@ export default function MasterFormPage() {
               // were unset. Surface the stored value as an extra option so the GUI
               // shows what the backend actually holds.
               const current = formData[field.name];
-              const options =
-                typeof current === "string" && current !== "" && !field.options.includes(current)
+              const known = field.options.map((o) => (typeof o === "string" ? o : o.value));
+              const options = (
+                typeof current === "string" && current !== "" && !known.includes(current)
                   ? [...field.options, current]
-                  : field.options;
+                  : field.options
+              ).map((o) => {
+                const [value, text] = typeof o === "string" ? [o, o] : [o.value, o.label];
+                return { value, label: t(`fieldOptions.${value}`, { defaultValue: text }) };
+              });
               return (
                 <div key={field.name}>
                   <Select
