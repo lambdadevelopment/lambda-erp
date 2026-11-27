@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.34] - 2026-11-27
+
 - **Warehouse on quotation and order lines.** Quotations and sales orders
   show and edit the warehouse of each line. A stock line without one gets the
   item's default warehouse (now editable in the item form as *Default
