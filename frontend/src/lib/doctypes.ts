@@ -114,6 +114,11 @@ const ITEM_FIELDS: FieldDef[] = [
   { name: "order_uom", label: "Ordered Unit", type: "text", readOnly: true },
 ];
 
+// Where a stock line is delivered from. Empty: the item's default warehouse,
+// else the company's only warehouse (lambda_erp/controllers/item_price.py).
+const WAREHOUSE_FIELD: FieldDef = { name: "warehouse", label: "Warehouse", type: "link", linkDoctype: "warehouse",
+  hint: "Where the goods come from. Empty: the item's default warehouse, or the company's only warehouse." };
+
 // Quotation lines additionally carry a billing frequency: one-time or a
 // recurring cadence. Recurring lines are totalled separately on the offer
 // (their own per-period subtotal), so they don't inflate the one-time total.
@@ -187,7 +192,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
         hint: "Printed after the totals (where exactly is up to the PDF layout). New offers start with the default from Settings → PDF Templates." },
     ],
     childTables: [
-      { key: "items", label: "Items", fields: QUOTATION_ITEM_FIELDS, lineDeductions: true },
+      { key: "items", label: "Items", fields: [...QUOTATION_ITEM_FIELDS, WAREHOUSE_FIELD], lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     extraListColumns: [{ name: "customer_name", label: "Customer Name" }],
@@ -259,7 +264,7 @@ const CONFIGS: Record<string, DoctypeConfig> = {
       { name: "remarks", label: "Printed notes / terms", type: "textarea" },
     ],
     childTables: [
-      { key: "items", label: "Items", fields: ITEM_FIELDS, lineDeductions: true },
+      { key: "items", label: "Items", fields: [...ITEM_FIELDS, WAREHOUSE_FIELD], lineDeductions: true },
       { key: "taxes", label: "Taxes", fields: TAX_FIELDS },
     ],
     extraListColumns: [{ name: "customer_name", label: "Customer Name" }],

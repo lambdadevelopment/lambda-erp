@@ -500,7 +500,7 @@ function ChildTableEditor({
   };
   const removeDeduction = (idx: number) => {
     const row = rows[idx];
-    patchRow(idx, { rate: fullPrice(row), discount_amount: 0, discount_label: null });
+    patchRow(idx, { rate: fullPrice(row), discount_amount: 0, discount_percentage: 0, discount_label: null });
   };
   const setFullPrice = (idx: number, value: any) => {
     const row = rows[idx];
@@ -508,7 +508,34 @@ function ChildTableEditor({
   };
   const setDeduction = (idx: number, value: any) => {
     const row = rows[idx];
-    patchRow(idx, { discount_amount: value, rate: fullPrice(row) - flt(value) });
+    patchRow(idx, { discount_amount: value, discount_percentage: 0, rate: fullPrice(row) - flt(value) });
+  };
+  // A deduction in percent of the full price; 100 % is free of charge. The
+  // backend recalculates the same on save (taxes_and_totals).
+  const isPercent = (row: any) => flt(row.discount_percentage) > 0;
+  const setPercent = (idx: number, value: any) => {
+    const row = rows[idx];
+    const pct = Math.min(100, Math.max(0, flt(value)));
+    const off = Math.round(fullPrice(row) * pct) / 100;
+    patchRow(idx, { discount_percentage: pct, discount_amount: off, rate: pct >= 100 ? 0 : fullPrice(row) - off });
+  };
+  const setDeductionMode = (idx: number, percent: boolean) => {
+    if (percent) setPercent(idx, 10);
+    else setDeduction(idx, 0);
+  };
+  // Standard reasons; the printed text is the reason, optionally "– details".
+  const REASONS = ["discount", "free", "goodwill", "trial", "other"] as const;
+  const reasonText = (key: string) => t(`deductions.reasons.${key}`);
+  const reasonOf = (label: string | null | undefined) =>
+    REASONS.find((key) => key !== "other" && String(label ?? "").split(" – ")[0].trim() === reasonText(key)) ?? "other";
+  const setReason = (idx: number, key: string) => {
+    const row = rows[idx];
+    const rest = String(row.discount_label ?? "").split(" – ").slice(reasonOf(row.discount_label) === "other" ? 0 : 1).join(" – ").trim();
+    const label = key === "other" ? (rest || t("deductions.defaultLabel")) : rest ? `${reasonText(key)} – ${rest}` : reasonText(key);
+    const full = fullPrice(row);
+    patchRow(idx, key === "free"
+      ? { discount_label: label, discount_percentage: 100, discount_amount: full, rate: 0 }
+      : { discount_label: label });
   };
   const rateIndex = tableDef.fields.findIndex((f) => f.name === "rate");
 
@@ -582,25 +609,57 @@ function ChildTableEditor({
                     {readOnly ? (
                       <span className="italic text-fg-muted">{row.discount_label}</span>
                     ) : (
-                      <Input
-                        value={row.discount_label ?? ""}
-                        onChange={(e) => updateRow(idx, "discount_label", e.target.value)}
-                        placeholder={t("deductions.labelPlaceholder")}
-                        aria-label={t("deductions.label")}
-                        className="italic"
-                      />
+                      <div className="flex gap-2">
+                        <select
+                          className="rounded-lg bg-surface px-2 py-1.5 text-sm ring-1 ring-line"
+                          aria-label={t("deductions.reason")}
+                          value={reasonOf(row.discount_label)}
+                          onChange={(e) => setReason(idx, e.target.value)}
+                        >
+                          {REASONS.map((key) => <option key={key} value={key}>{reasonText(key)}</option>)}
+                        </select>
+                        <Input
+                          value={row.discount_label ?? ""}
+                          onChange={(e) => updateRow(idx, "discount_label", e.target.value)}
+                          placeholder={t("deductions.labelPlaceholder")}
+                          aria-label={t("deductions.label")}
+                          className="italic"
+                        />
+                      </div>
                     )}
                   </td>
                   <td className="px-2 pb-2 align-top">
-                    <FieldRenderer
-                      field={{ name: "discount_amount", label: "Deduction", type: "currency" }}
-                      value={row.discount_amount}
-                      onChange={(v) => setDeduction(idx, v)}
-                      readOnly={readOnly}
-                      rowData={row}
-                      hideLabel
-                      currency={currency}
-                    />
+                    {!readOnly && (
+                      <select
+                        className="mb-1 w-full rounded-lg bg-surface px-2 py-1 text-xs ring-1 ring-line"
+                        aria-label={t("deductions.mode")}
+                        value={isPercent(row) ? "percent" : "amount"}
+                        onChange={(e) => setDeductionMode(idx, e.target.value === "percent")}
+                      >
+                        <option value="amount">{t("deductions.modeAmount", { currency: currency || "CHF" })}</option>
+                        <option value="percent">{t("deductions.modePercent")}</option>
+                      </select>
+                    )}
+                    {isPercent(row) ? (
+                      <FieldRenderer
+                        field={{ name: "discount_percentage", label: "Discount %", type: "number" }}
+                        value={row.discount_percentage}
+                        onChange={(v) => setPercent(idx, v)}
+                        readOnly={readOnly}
+                        rowData={row}
+                        hideLabel
+                      />
+                    ) : (
+                      <FieldRenderer
+                        field={{ name: "discount_amount", label: "Deduction", type: "currency" }}
+                        value={row.discount_amount}
+                        onChange={(v) => setDeduction(idx, v)}
+                        readOnly={readOnly}
+                        rowData={row}
+                        hideLabel
+                        currency={currency}
+                      />
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-2 pb-2 pt-3 text-right align-top italic text-fg-muted">
                     −{formatCurrency(flt(row.qty) * flt(row.discount_amount), currency)}

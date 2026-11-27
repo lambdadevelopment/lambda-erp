@@ -900,7 +900,8 @@
     "Payment Terms (days)": "Délai de paiement (jours)",
     "Customer Note (printed)": "Remarque client (imprimée)",
     "Note on Delivery Notes": "Remarque sur les bons de livraison",
-    "Note on Invoices": "Remarque sur les factures"
+    "Note on Invoices": "Remarque sur les factures",
+    "Default Warehouse": "Entrepôt par défaut"
   },
   "tables": {
     "items": "Lignes",
@@ -1548,7 +1549,18 @@
     "remove": "Retirer la déduction",
     "label": "Texte de la déduction",
     "labelPlaceholder": "p. ex. Moins déjà facturé (facture SINV-0003)",
-    "perUnit": "Déduction par unité, imprimée sous la ligne ; la ligne compte le reste."
+    "perUnit": "Déduction par unité ou en % du prix ; imprimée sous la ligne, la ligne compte le reste.",
+    "reason": "Motif",
+    "mode": "Type de déduction",
+    "modeAmount": "{{currency}} par unité",
+    "modePercent": "% du prix",
+    "reasons": {
+      "discount": "Rabais",
+      "free": "Gratuit",
+      "goodwill": "Geste commercial",
+      "trial": "Rabais d'essai",
+      "other": "Autre"
+    }
   },
   "users": {
     "title": "Utilisateurs",

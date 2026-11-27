@@ -249,6 +249,50 @@ def find_item_price(item_code, price_list, qty=0, party_field=None, party=None,
     return best
 
 
+# Documents whose stock lines need a warehouse; an invoice only when it moves stock.
+WAREHOUSE_DOCUMENTS = {"Quotation", "Sales Order", "Delivery Note", "Purchase Order", "Purchase Receipt"}
+STOCK_INVOICES = {"Sales Invoice", "Purchase Invoice", "POS Invoice"}
+
+
+def default_warehouse(item_code, company):
+    """Where a stock line of this item goes when nobody named a warehouse: the
+    item's default warehouse (if it belongs to the company), else the company's
+    only warehouse. Group, disabled and consignment warehouses never count.
+    None when it is not clear; then the line keeps asking for one."""
+    db = get_db()
+    columns = db._get_table_columns("Warehouse")
+    usable = ["COALESCE(is_group, 0) = 0", "COALESCE(disabled, 0) = 0"]
+    if "consignment_customer" in columns:
+        usable.append("COALESCE(consignment_customer, '') = ''")
+    preferred = db.get_value("Item", item_code, "default_warehouse") if "default_warehouse" in db._get_table_columns("Item") else None
+    if preferred:
+        where, params = ["name = ?", *usable], [preferred]
+        if company:
+            where.append("company = ?")
+            params.append(company)
+        rows = db.sql('SELECT name FROM "Warehouse" WHERE ' + " AND ".join(where), params)
+        if rows:
+            return preferred
+    if not company:
+        return None
+    rows = db.sql('SELECT name FROM "Warehouse" WHERE company = ? AND ' + " AND ".join(usable) + " LIMIT 2", [company])
+    return rows[0]["name"] if len(rows) == 1 else None
+
+
+def _set_default_warehouse(doc, item, item_code):
+    if item.get("warehouse") or doc.docstatus != 0:
+        return
+    if doc.DOCTYPE not in WAREHOUSE_DOCUMENTS and not (doc.DOCTYPE in STOCK_INVOICES and flt(doc.get("update_stock"))):
+        return
+    if "warehouse" not in get_db()._get_table_columns(doc.CHILD_TABLES["items"][0]):
+        return
+    if not get_db().get_value("Item", item_code, "is_stock_item"):
+        return
+    chosen = default_warehouse(item_code, doc.get("company"))
+    if chosen:
+        item["warehouse"] = chosen
+
+
 def set_item_defaults(doc, party_type=None, party_field=None, *, set_description=True):
     """Fill item names, units and unsupplied rates from master data.
 
@@ -278,6 +322,7 @@ def set_item_defaults(doc, party_type=None, party_field=None, *, set_description
         )
         if not item_data:
             continue
+        _set_default_warehouse(doc, item, item_code)
 
         # A line entered in one of the item's further units (2 Karton) is
         # converted to the stock unit here, before it is priced; see units.py.

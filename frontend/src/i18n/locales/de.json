@@ -900,7 +900,8 @@
     "Payment Terms (days)": "Zahlungsziel (Tage)",
     "Customer Note (printed)": "Kundenhinweis (gedruckt)",
     "Note on Delivery Notes": "Hinweis auf Lieferscheinen",
-    "Note on Invoices": "Hinweis auf Rechnungen"
+    "Note on Invoices": "Hinweis auf Rechnungen",
+    "Default Warehouse": "Standardlager"
   },
   "tables": {
     "items": "Positionen",
@@ -1548,7 +1549,18 @@
     "remove": "Abzug entfernen",
     "label": "Text des Abzugs",
     "labelPlaceholder": "z. B. Abzüglich bereits verrechnet (Rechnung SINV-0003)",
-    "perUnit": "Abzug pro Einheit, wird unter der Position gedruckt; die Position zählt den Rest."
+    "perUnit": "Abzug je Einheit oder in % vom Preis; wird unter der Position gedruckt, die Position zählt den Rest.",
+    "reason": "Grund",
+    "mode": "Art des Abzugs",
+    "modeAmount": "{{currency}} je Einheit",
+    "modePercent": "% vom Preis",
+    "reasons": {
+      "discount": "Rabatt",
+      "free": "Gratis",
+      "goodwill": "Kulanz",
+      "trial": "Testrabatt",
+      "other": "Andere"
+    }
   },
   "users": {
     "title": "Benutzer",

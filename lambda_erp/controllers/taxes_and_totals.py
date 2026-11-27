@@ -95,9 +95,17 @@ class TaxCalculator:
                 item['rate'] = 0.0
             elif flt(item.get("discount_percentage")) == 100:
                 item["rate"] = 0.0
+                # Free of charge: the whole price is the deduction, so a labelled
+                # line prints the full price and "Gratis" below it.
+                if item.get("price_list_rate") not in (None, ""):
+                    item["discount_amount"] = money(dec(item["price_list_rate"]), places)
             elif item.get("price_list_rate") is not None and (flt(item['price_list_rate']) != 0 or item.get('rate') is None):
                 list_rate, percent = dec(item["price_list_rate"]), dec(item.get("discount_percentage"))
-                if item.get("rate") is None or percent > 0:
+                if item.get("rate") is None and percent <= 0 and flt(item.get("discount_amount")) > 0:
+                    # Full price and a deduction per unit, without a rate: the
+                    # deduction comes off (it used to be dropped).
+                    item["rate"] = float(list_rate - dec(item["discount_amount"]))
+                elif item.get("rate") is None or percent > 0:
                     item["rate"] = money(list_rate * (1 - percent / HUNDRED), places)
                     item["discount_amount"] = money(list_rate * percent / HUNDRED, places)
                 elif item.get("discount_amount"):

@@ -80,6 +80,8 @@ export const BUILTIN_MASTER_FIELDS: Record<string, FieldDef[]> = {
     { name: "item_group", label: "Item Group", type: "select", options: ["Products", "Raw Material", "Services", "Consumable"] },
     { name: "stock_uom", label: "Stock UOM", type: "select", options: ["Nos", "Kg", "Ltr", "Mtr", "Box", "Set"] },
     { name: "standard_rate", label: "Standard Rate", type: "currency" },
+    { name: "default_warehouse", label: "Default Warehouse", type: "link", linkDoctype: "warehouse",
+      hint: "Where sales and purchase lines of this item go when no warehouse is named." },
     { name: "has_batch_no", label: "Batch-tracked", type: "select", options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0",
       hint: "If Yes, every stock movement of this item names its batch and stock is checked per batch. Stock already there stays without a batch until a Batch Assignment." },
     { name: "has_expiry_date", label: "Has Expiry Date", type: "select", options: [{ value: "0", label: "No" }, { value: "1", label: "Yes" }], default: "0",

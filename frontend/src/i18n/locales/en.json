@@ -852,7 +852,8 @@
     "Payment Terms (days)": "Payment Terms (days)",
     "Customer Note (printed)": "Customer Note (printed)",
     "Note on Delivery Notes": "Note on Delivery Notes",
-    "Note on Invoices": "Note on Invoices"
+    "Note on Invoices": "Note on Invoices",
+    "Default Warehouse": "Default Warehouse"
   },
   "tables": {
     "accounts": "accounts",
@@ -1330,7 +1331,18 @@
     "remove": "Remove deduction",
     "label": "Deduction text",
     "labelPlaceholder": "e.g. Less already invoiced (invoice SINV-0003)",
-    "perUnit": "Deduction per unit, printed under the line; the line counts the rest."
+    "perUnit": "Deduction per unit or in % of the price; printed below the line, the line counts the rest.",
+    "reason": "Reason",
+    "mode": "Kind of deduction",
+    "modeAmount": "{{currency}} per unit",
+    "modePercent": "% of the price",
+    "reasons": {
+      "discount": "Discount",
+      "free": "Free of charge",
+      "goodwill": "Goodwill",
+      "trial": "Trial discount",
+      "other": "Other"
+    }
   },
   "users": {
     "title": "Users",

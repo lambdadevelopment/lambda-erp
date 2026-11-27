@@ -13,6 +13,23 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+- **Warehouse on quotation and order lines.** Quotations and sales orders
+  show and edit the warehouse of each line. A stock line without one gets the
+  item's default warehouse (now editable in the item form as *Default
+  Warehouse*), else the company's only warehouse (group, disabled and
+  consignment warehouses do not count); with several candidates it stays
+  empty rather than guessed. The same for quotations, orders, delivery notes,
+  purchase orders and receipts, and invoices that move stock, whether entered
+  in the form, the chat or the API.
+
+- **Deductions in percent, with a reason.** A line deduction is either an
+  amount per unit or a percentage of the full price; *Gratis* is 100 %. The
+  deduction row offers standard reasons (Rabatt, Gratis, Kulanz, Testrabatt,
+  Andere) plus free text; the printed text is the reason with optional
+  details. A free line prints its full price and the deduction below it.
+- **Fix:** a line given its full price and a deduction per unit but no rate
+  (as the chat does) dropped the deduction; it now comes off.
+
 ## [1.4.33] - 2026-11-27
 
 Migration 74 (customer notes; columns only).
