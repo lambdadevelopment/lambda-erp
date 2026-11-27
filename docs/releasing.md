@@ -60,6 +60,8 @@ in place. Kept here as the setup record for a fresh repo.
    git commit -am "Release vX.Y.Z"
    git push origin master   # also triggers the Azure demo deploy — expected
    ```
+   The push starts the **Tests** workflow (SQLite + PostgreSQL). You can tag
+   right away: the release waits for it.
 5. **Tag and push the tag — this is what publishes:**
    ```bash
    git tag vX.Y.Z
@@ -67,6 +69,9 @@ in place. Kept here as the setup record for a fresh repo.
    ```
 6. Watch the **Release** workflow (Actions tab):
    - `verify-version` — fails unless tag (minus `v`) == both package versions.
+   - `tests-passed` — waits (up to 45 min) for the **Tests** run of the tag's
+     commit on master and fails unless it is green. Nothing is published
+     before that, so locally the affected tests are enough before a release.
    - `publish-pypi` — `python -m build` → PyPI (OIDC).
    - `publish-npm` — `npm ci` + `build:lib` → npm (OIDC, with provenance).
    - `github-release` — creates the GitHub Release from the matching

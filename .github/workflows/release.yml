@@ -4,7 +4,9 @@ name: Release (publish packages)
 #   - PyPI:  lambda-erp                     (backend wheel + sdist)
 #   - npm:   @lambda-development/erp-core   (frontend library build)
 #
-# Trigger: pushing a tag `vX.Y.Z`. This is intentionally separate from
+# Trigger: pushing a tag `vX.Y.Z` on a commit already pushed to master. Nothing
+# is published until that commit's "Tests" run is green (job tests-passed).
+# This is intentionally separate from
 # deploy.yml (which runs on pushes to `master`); a tag push does not fire the
 # branch-push trigger, so cutting a release never re-deploys the demo app.
 #
@@ -51,9 +53,49 @@ jobs:
             fi
           fi
 
+  # Publish only what passed the tests. The tag commit is pushed to master
+  # first; its "Tests" run (ci.yml, SQLite + PostgreSQL) must finish green
+  # before anything reaches PyPI or npm, because a published version cannot be
+  # taken back (1.4.31 went out while its tests were failing). Waits up to 45
+  # minutes; fails when no Tests run for the commit appears within 10 (e.g. the
+  # tag is not on master, or the commit changed only documentation).
+  tests-passed:
+    name: Wait for green Tests on this commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Wait for the Tests run of ${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          start=$(date +%s)
+          while :; do
+            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
+                  --jq '.workflow_runs[0] | select(.) | "\(.id) \(.status) \(.conclusion)"')
+            elapsed=$(( $(date +%s) - start ))
+            if [ -z "$run" ]; then
+              if [ $elapsed -gt 600 ]; then
+                echo "::error::No Tests run for $SHA on a push to master. Push the release commit to master before the tag."; exit 1
+              fi
+            else
+              set -- $run
+              echo "Tests run $1: $2 ${3:-}"
+              if [ "$2" = "completed" ]; then
+                if [ "$3" = "success" ]; then exit 0; fi
+                echo "::error::Tests run $1 for $SHA ended with '$3' - not publishing."; exit 1
+              fi
+            fi
+            if [ $elapsed -gt 2700 ]; then echo "::error::Tests did not finish within 45 minutes."; exit 1; fi
+            sleep 30
+          done
+
   publish-pypi:
     name: Publish to PyPI (lambda-erp)
-    needs: verify-version
+    needs: [verify-version, tests-passed]
     runs-on: ubuntu-latest
     environment: release           # must match the PyPI trusted-publisher config
     permissions:
@@ -86,7 +128,7 @@ jobs:
 
   publish-npm:
     name: Publish to npm (@lambda-development/erp-core)
-    needs: verify-version
+    needs: [verify-version, tests-passed]
     runs-on: ubuntu-latest
     environment: release
     permissions:
