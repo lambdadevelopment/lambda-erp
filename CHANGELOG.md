@@ -13,6 +13,8 @@ semver-governed public surface — a breaking change to a seam is a major bump.
 
 ## [Unreleased]
 
+## [1.4.33] - 2026-11-27
+
 Migration 74 (customer notes; columns only).
 
 - **Earlier addresses of a customer.** `list_customer_addresses` (REST, chat,
